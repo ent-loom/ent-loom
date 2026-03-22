@@ -1,0 +1,24 @@
+# Maven / Java build outputs
+target/
+*.class
+
+# Logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# IDE (IntelliJ IDEA)
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / temporary files
+*.swp
+*.swo
+*~
