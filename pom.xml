@@ -57,12 +57,12 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-ddl-core-with-meta</artifactId>
+                <artifactId>ent-loom-ddl-meta</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-crud-core-with-meta</artifactId>
+                <artifactId>ent-loom-crud-meta</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
