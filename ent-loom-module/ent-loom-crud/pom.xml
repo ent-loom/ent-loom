@@ -14,5 +14,6 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>ent-loom-crud-meta</module>
     </modules>
 </project>

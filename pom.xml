@@ -8,7 +8,6 @@
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>ent-loom</name>
     <description>Entity-centric platform monorepo with layered Maven modules.</description>
 
     <modules>
@@ -19,8 +18,10 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <java.version>17</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
         <spring.boot.version>2.7.18</spring.boot.version>
     </properties>
@@ -46,11 +47,6 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-api-annotations</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
                 <artifactId>ent-loom-ddl-annotations</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -61,22 +57,12 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-ddl-mysql</artifactId>
+                <artifactId>ent-loom-ddl-core-with-meta</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-ui-user</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-ui-admin</artifactId>
+                <artifactId>ent-loom-crud-core-with-meta</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
@@ -92,6 +78,7 @@
                     <configuration>
                         <source>${maven.compiler.source}</source>
                         <target>${maven.compiler.target}</target>
+                        <release>${maven.compiler.release}</release>
                     </configuration>
                 </plugin>
             </plugins>

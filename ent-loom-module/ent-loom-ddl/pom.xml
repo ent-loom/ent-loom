@@ -12,9 +12,10 @@
 
     <artifactId>ent-loom-ddl</artifactId>
     <packaging>pom</packaging>
-    <name>ent-loom-ddl</name>
 
     <modules>
         <module>ent-loom-ddl-annotations</module>
+        <module>ent-loom-ddl-core</module>
+        <module>ent-loom-ddl-meta</module>
     </modules>
 </project>

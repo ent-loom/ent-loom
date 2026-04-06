@@ -12,7 +12,6 @@
 
     <artifactId>ent-loom-ui</artifactId>
     <packaging>pom</packaging>
-    <name>ent-loom-ui</name>
 
     <modules>
     </modules>

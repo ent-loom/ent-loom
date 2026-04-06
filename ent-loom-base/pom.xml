@@ -11,5 +11,4 @@
     </parent>
 
     <artifactId>ent-loom-base</artifactId>
-    <name>ent-loom-base</name>
 </project>

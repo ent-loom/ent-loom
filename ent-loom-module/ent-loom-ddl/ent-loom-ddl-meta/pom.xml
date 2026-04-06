@@ -5,17 +5,21 @@
 
     <parent>
         <groupId>com.entloom</groupId>
-        <artifactId>ent-loom</artifactId>
+        <artifactId>ent-loom-ddl</artifactId>
         <version>0.0.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-meta</artifactId>
+    <artifactId>ent-loom-ddl-meta</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>ent-loom-base</artifactId>
+            <artifactId>ent-loom-ddl-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-meta</artifactId>
         </dependency>
     </dependencies>
 </project>
