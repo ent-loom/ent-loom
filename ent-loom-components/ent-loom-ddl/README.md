@@ -21,18 +21,28 @@
 
 ## 2. 重构式架构建议（java 实体 -> ddl）
 
-建议把 `ent-loom-ddl` 拆成“协议稳定 + 核心可替换 + 扩展可插拔”的结构：
+按确认后的中粒度模块落地：
 
-1. `ent-loom-ddl-annotations`
-2. `ent-loom-ddl-core-model`：统一元模型（实体、字段、索引、主键、差异对象）
-3. `ent-loom-ddl-core-scan`：实体扫描与注解解析
-4. `ent-loom-ddl-core-introspect`：数据库侧结构读取与反解析（先支持 MySQL）
-5. `ent-loom-ddl-core-diff`：差异计算（create/alter/rename/drop）
-6. `ent-loom-ddl-core-sql-mysql`：MySQL SQL 生成器
-7. `ent-loom-ddl-core-plan`：执行计划与策略过滤（runType、安全开关）
-8. `ent-loom-ddl-core-exec`：SQL 执行与结果采集
-9. `ent-loom-ddl-spring-boot-starter`：启动期自动执行接入
-10. `ent-loom-ddl-metadata`（可选）：管理后台元数据输出
+1. `ent-loom-ddl-api`：稳定契约（接口、枚举、元数据模型、执行结果）
+2. `ent-loom-ddl-annotations`：注解定义（依赖 `api`）
+3. `ent-loom-ddl-core`：核心能力（diff、plan、sql 生成、执行编排；依赖 `api`）
+4. `ent-loom-ddl-bootstrap`：无 Spring 启动入口（依赖 `core + annotations`）
+5. `ent-loom-ddl-spring`：Spring 适配层（依赖 `core + annotations + spring-context`）
+6. `ent-loom-ddl-spring-boot-starter`：自动配置聚合（依赖 `ent-loom-ddl-spring + spring-boot-autoconfigure`）
+
+依赖方向（强约束）：
+
+1. `api <- annotations`
+2. `api <- core`
+3. `core + annotations <- bootstrap`
+4. `core + annotations <- spring`
+5. `spring <- spring-boot-starter`
+
+边界规则：
+
+1. `core` 不直接依赖 `annotations`、`spring`
+2. 跨模块交互优先使用 `api` 类型，不暴露实现细节
+3. 注解解析和类路径扫描放在 `bootstrap/spring`，不放进 `core`
 
 ## 3. 与当前注解能力的对齐与缺口
 
@@ -52,11 +62,11 @@
 
 ## 4. MVP 分期（推荐）
 
-1. M1：实体扫描 + 元模型 + MySQL `CREATE DATABASE/TABLE`
-2. M2：字段/索引差异 `ALTER`（新增、修改）
-3. M3：`renameFrom` + 执行策略分级（含删除保护）
-4. M4：大表风险防护（高风险变更拦截/告警）
-5. M5：元数据输出模块（可选，独立于 ddl-core）
+1. M1：`api + annotations + core`，打通 MySQL `CREATE DATABASE/TABLE`
+2. M2：`core` 完成字段/索引差异 `ALTER`（新增、修改）
+3. M3：`bootstrap` 落地（扫描 + 注解解析 + 启动执行）
+4. M4：`spring + starter` 落地（自动装配 + 配置化启停）
+5. M5：`renameFrom`、分级执行策略、删除保护、大表风险防护补齐
 
 ## 5. 非核心边界（避免 ddl-core 过重）
 
