@@ -42,4 +42,9 @@ public @interface EntEntity {
      * 预估数据量，-1 表示未设置。
      */
     long plannedVolume() default -1L;
+
+    /**
+     * 实体索引定义集合。
+     */
+    EntIndex[] indexes() default {};
 }

@@ -5,7 +5,7 @@
 
     <groupId>com.entloom</groupId>
     <artifactId>ent-loom</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>ent-loom</name>
@@ -22,10 +22,18 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+        <spring.boot.version>2.7.18</spring.boot.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>ent-loom-base</artifactId>
@@ -38,22 +46,37 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-module-db-core</artifactId>
+                <artifactId>ent-loom-api-annotations</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-module-db-mysql</artifactId>
+                <artifactId>ent-loom-ddl-annotations</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-module-ui-user</artifactId>
+                <artifactId>ent-loom-ddl-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ent-loom-module-ui-admin</artifactId>
+                <artifactId>ent-loom-ddl-mysql</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>ent-loom-ui-user</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>ent-loom-ui-admin</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

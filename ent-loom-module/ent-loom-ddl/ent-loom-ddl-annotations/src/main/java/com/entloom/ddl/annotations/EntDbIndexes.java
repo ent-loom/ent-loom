@@ -1,4 +1,4 @@
-package com.entloom.meta.annotations;
+package com.entloom.ddl.annotations;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -7,11 +7,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * {@link EntIndex} 的重复注解容器。
+ * {@link EntDbIndex} 的重复注解容器。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface EntIndexes {
-    EntIndex[] value();
+@Target({ElementType.TYPE, ElementType.FIELD})
+public @interface EntDbIndexes {
+    EntDbIndex[] value();
 }

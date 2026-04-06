@@ -1,12 +1,12 @@
 # ent-loom
-
+目标:
 0.util EnumBoolean 公共轻包
 1.实体 添加 公用附加信息 (允许执行:(约定<规则<配置))
 
 
 2.实体同步数据库表结构
-3.实体读取UI配置内容
-4.实体开放统一标准接口(内部/外部)
+3.实体开放统一标准接口(内部/外部)
+4.实体读取UI配置内容
 5.实体开放统一标准文档
 6.项目ER图总览
 
@@ -28,57 +28,33 @@
 @EntDbEntity
 @EntDbIndex
 @EntDbField
-@EntDbMeta
 
-3.
+4.
 @EntUiEntity
 @EntUiIndex
 @EntUiField
 @EntUiMeta
 
-4.
-@EntApiEntity
-@EntApiIndex
-@EntApiField
-@EntApiMeta
 
-5.
-@EntDocEntity
-@EntDocField
-@EntDocMeta
-
-ent-loom
-ent-loom-base
-ent-loom-meta
-ent-loom-module
-ent-loom-module-db
-ent-loom-module-ui
 
 ## V1 Maven模块骨架
-
-```
 ent-loom
-	ent-loom-base
-	ent-loom-meta
-	ent-loom-module (pom)
-		ent-loom-module-db (pom)
-			ent-loom-module-db-core
-			ent-loom-module-db-mysql
-		ent-loom-module-ui (pom)
-			ent-loom-module-ui-user
-			ent-loom-module-ui-admin
-```
+    ent-loom-base (StrUtil级公共层)
+    ent-loom-meta (实体-属性基本元素)
+    ent-loom-module
+        ent-loom-ddl
+            ent-loom-ddl-annotations
+            ent-loom-ddl-schema（最新实体信息,枚举 同步到 表结构）
+        ent-loom-crud （JSON -> Spec -> Dialect -> PreparedSql -> Executor）(MYSQL/PostgreSQL)
+            ent-loom-ddl-crud-base     
+            ent-loom-ddl-crud-read     (查)
+            ent-loom-ddl-crud-cud     （增删改）
+        ent-loom-ddl-crud-spring-boot-starter (多一个controller门面 可以开关)
+        ent-loom-ui
+            ent-loom-ui-annotations (设置 某个string角色 展示增删改查导出哪些按钮,字段太多需要分组显示,哪些字段允许排序,键集分页还是页码分页,哪些字段不显示不编辑等)
+            ent-loom-ui-core 
 
-依赖方向（V1）：
-
-- ent-loom-meta -> ent-loom-base
-- ent-loom-module-db-core -> ent-loom-meta
-- ent-loom-module-db-mysql -> ent-loom-module-db-core
-- ent-loom-module-ui-user -> ent-loom-meta
-- ent-loom-module-ui-admin -> ent-loom-meta
 
 ## 重构约定（强制）
 
-- 命名或模型重构时，不做旧代码兼容层，不保留 deprecated 过渡方案。
-- 直接全量替换到新规范（包含注解名、包名、模块名、引用点）。
-- 如需回滚，使用 Git 版本回退，不通过代码内双轨兼容实现。
+- 重构时, 不要兼容,不要过滤,直接改为最佳干净的结果。(都是 全新代码)
