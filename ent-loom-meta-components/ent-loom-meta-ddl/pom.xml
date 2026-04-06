@@ -2,24 +2,23 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <parent>
         <groupId>com.entloom</groupId>
-        <artifactId>ent-loom-ddl</artifactId>
+        <artifactId>ent-loom-meta-components</artifactId>
         <version>0.0.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-ddl-meta</artifactId>
+    <artifactId>ent-loom-meta-ddl</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>ent-loom-ddl-core</artifactId>
+            <artifactId>ent-loom-meta</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>ent-loom-meta</artifactId>
+            <artifactId>ent-loom-ddl-core</artifactId>
         </dependency>
     </dependencies>
 </project>

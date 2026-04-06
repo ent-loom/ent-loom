@@ -5,15 +5,15 @@
 
     <parent>
         <groupId>com.entloom</groupId>
-        <artifactId>ent-loom-module</artifactId>
+        <artifactId>ent-loom-components</artifactId>
         <version>0.0.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-crud</artifactId>
+    <artifactId>ent-loom-ui</artifactId>
     <packaging>pom</packaging>
 
     <modules>
-        <module>ent-loom-crud-meta</module>
+        <module>ent-loom-ui-core</module>
     </modules>
 </project>

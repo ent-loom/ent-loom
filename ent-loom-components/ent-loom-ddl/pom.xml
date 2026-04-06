@@ -5,14 +5,16 @@
 
     <parent>
         <groupId>com.entloom</groupId>
-        <artifactId>ent-loom-module</artifactId>
+        <artifactId>ent-loom-components</artifactId>
         <version>0.0.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-ui</artifactId>
+    <artifactId>ent-loom-ddl</artifactId>
     <packaging>pom</packaging>
 
     <modules>
+        <module>ent-loom-ddl-annotations</module>
+        <module>ent-loom-ddl-core</module>
     </modules>
 </project>
