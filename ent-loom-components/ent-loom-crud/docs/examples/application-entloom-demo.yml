@@ -1,0 +1,175 @@
+# ent-loom CRUD / Meta demo configuration.
+#
+# 说明：
+# - 本文件尽量列出当前 starter 可绑定的配置项，以及通过 @ConditionalOnProperty 生效的模块开关。
+# - 注释标明“保留/未接入”的项仅表示属性可绑定，当前默认运行链路不会读取。
+# - 枚举值在注释中列出；实际值使用一套适合 demo / 本地开发的默认配置。
+# - P0 干净重构后，运行期 EntityMetaRegistry 必须由 ResourceCatalogAdapter.runtimeModel()
+#   构建；启用默认 CRUD registry 时，需要配置 ent.loom.meta.entity-class-names
+#   或 ent.loom.meta.base-packages
+#   或自行声明 ResourceCatalogAdapter bean。
+
+entloom:
+  crud:
+    controller:
+      # 是否启用框架默认 HTTP Controller。
+      enabled: true
+      # 默认 HTTP base path。
+      base-path: /api/ent-crud
+      # time 参数默认时区。
+      default-timezone: Asia/Shanghai
+      # time 参数默认字段；为空时不自动补默认 time field。
+      default-time-field: createTime
+      # 默认读结果模式。可选：MAP、ENTITY。
+      default-read-result-mode: MAP
+      # 允许通过默认 Controller 暴露的实体 code / alias；空集合表示不额外限制。
+      include-entities: []
+      string-filter:
+        # options.filter 中字符串简写是否默认转 LIKE。
+        default-like-enabled: false
+        # 默认 LIKE 模式。可选：CONTAINS、PREFIX、SUFFIX、RAW。
+        default-like-mode: CONTAINS
+        # 字符串简写默认 LIKE 排除字段，大小写不敏感。
+        default-like-exclude-fields:
+          - path
+          - fullPath
+          - parentPath
+          - url
+          - uri
+
+    query:
+      # 是否启用 Query 主链自动装配。
+      enabled: true
+      default-sort:
+        # 是否启用默认排序补全。
+        enabled: true
+        # 默认排序生效入口。可选：PAGE、LIST、DETAIL、FIND_ONE。
+        apply-to:
+          - PAGE
+          - LIST
+        # 候选创建时间字段，按顺序匹配 EntityMeta 字段。
+        time-fields:
+          - createTime
+          - createdAt
+          - createDate
+          - createdTime
+          - gmtCreate
+          - insertTime
+        # 时间字段排序方向。可选：ASC、DESC。
+        time-direction: DESC
+        # 命中时间字段后是否追加主键排序，保证分页稳定。
+        append-id: true
+        # 主键排序方向。可选：ASC、DESC。
+        id-direction: DESC
+        # 未命中任何 time-fields 时是否回退到主键排序。
+        fallback-to-id: true
+
+    command:
+      # 是否启用 Command 主链自动装配。
+      enabled: true
+      # 兼容整表单提交：update 载荷包含不可写字段但值未变化时忽略，值变化仍报错。
+      # 默认 false，通用开放接口建议保持严格模式。
+      ignore-unchanged-non-writable-update-fields: false
+      # 更宽松的整表单兼容：update 载荷包含不可写字段时直接忽略，值变化也不报错；字段不会写入数据库。
+      # 默认 false，仅建议在内部可信接口或历史表单兼容场景开启。
+      ignore-non-writable-update-fields: false
+      create-scope-field-validation-mode: STRICT_RESOURCES
+      strict-create-scope-field-resources: []
+    import:
+      # 是否启用 Import 主链、默认网关、默认 Controller；由 @ConditionalOnProperty 直接读取。
+      enabled: true
+
+    export:
+      # 是否启用 Export 主链、默认网关、默认 Controller；由 @ConditionalOnProperty 直接读取。
+      enabled: true
+
+    relation:
+      # 是否严格只接受规范集合关系字段名；当前由 JdbcQueryExecutor 读取，false 时允许旧集合字段回退。
+      strict-collection-field-name: true
+      # 默认关系展开最大深度，最小值为 1。
+      max-depth: 4
+      # 单次查询最多允许展开的关系边数量，最小值为 1。
+      max-expand-edges: 32
+      # 是否允许关系展开出现循环。
+      allow-cycles: false
+      # 是否允许通过 RelationLoader 执行非 LOCAL_DB 关系。
+      allow-external-loaders: false
+
+    idempotency:
+      # 幂等键要求模式。可选：OPTIONAL、REQUIRED。
+      mode: OPTIONAL
+      # 必须提供幂等键的 CommandOperation 集合。
+      # 可选：CREATE、UPDATE、DELETE、SAVE_OR_UPDATE、CREATE_BATCH、UPDATE_BATCH、
+      # DELETE_BATCH、SAVE_OR_UPDATE_BATCH、ACTION。
+      required-ops: []
+      # 必须提供幂等键的 scene 集合；运行期会按小写 trim 后匹配。
+      required-scenes: []
+      # 幂等记录保留小时数；小于等于 0 时回退 48。
+      retention-hours: 48
+      # JDBC 幂等表名。
+      table-name: entloom_idempotency_record
+      # 是否自动初始化 JDBC 幂等表结构。
+      auto-initialize-schema: true
+
+    governance:
+      # 配置型权限规则；业务可用 CrudPermissionService bean 替换。
+      permission-rules:
+        - resource: "*"
+          # action 格式通常为 capability:operation，例如 QUERY:PAGE、COMMAND:CREATE。
+          action: "*"
+          scene: "*"
+          # 可选：ALLOW、DENY、MASK、FILTER。
+          decision: ALLOW
+          subject-ids: []
+          tenant-ids: []
+          org-ids: []
+      audit:
+        # 是否将治理审计写入 JDBC。
+        persist-to-jdbc: true
+        # 是否自动初始化治理审计表结构。
+        auto-initialize-schema: true
+        # JDBC 治理审计表名。
+        table-name: entloom_crud_governance_audit
+
+    import-export:
+      # Import / Export 本地文件存储根目录。
+      storage-directory: /tmp/entloom-crud
+      # 任务文件默认保留小时数；小于等于 0 时回退 48。
+      retention-hours: 48
+      # 默认单文件大小上限，单位 bytes；小于等于 0 时回退 50MB。
+      max-file-bytes: 52428800
+    sql-log:
+      # SQL 日志模式。可选：SAFE、FULL。
+      mode: SAFE
+      # SQL 日志采样率，范围 0.0-1.0。
+      sample-rate: 0.1
+      # SQL 日志输出内容。可选：TEMPLATE、EXEC、BOTH。
+      output: TEMPLATE
+      # 是否格式化 SQL 日志。
+      pretty: false
+
+ent:
+  loom:
+    meta:
+      # 是否启用 Meta adapter 自动装配。
+      enabled: true
+      # 参与 Meta / CRUD adapter 解析的实体扫描包。
+      # 与 entity-class-names 至少配置一个；配置了但未扫描到实体时启动失败。
+      # 扫描 @EntEntity / @EntCrudEntity / @EntDocEntity。
+      base-packages:
+        # - com.example.demo.domain
+      # 参与 Meta / CRUD adapter 解析的实体类全限定名。
+      # P0 后默认 CRUD registry 没有反射 fallback；使用默认装配时这里不能为空，
+      # 除非已配置 base-packages 或业务自行声明 ResourceCatalogAdapter bean。
+      entity-class-names:
+        # - com.example.demo.domain.DemoOrder
+        # - com.example.demo.domain.DemoOrderItem
+      crud:
+        # 是否启用 Meta -> CRUD ResourceCatalogAdapter。
+        enabled: true
+      doc:
+        # 是否启用 Meta -> DOC adapter。
+        enabled: true
+      diagnostics:
+        # Meta adapter 诊断是否 fail-fast。
+        fail-fast: true

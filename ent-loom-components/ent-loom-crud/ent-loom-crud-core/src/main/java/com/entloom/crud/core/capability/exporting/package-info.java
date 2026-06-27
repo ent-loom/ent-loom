@@ -1,0 +1,7 @@
+/**
+ * Export capability contracts.
+ *
+ * <p>This package will own Export specs, gateways, handlers, engines, results,
+ * format descriptors, and payload customization contracts.</p>
+ */
+package com.entloom.crud.core.capability.exporting;

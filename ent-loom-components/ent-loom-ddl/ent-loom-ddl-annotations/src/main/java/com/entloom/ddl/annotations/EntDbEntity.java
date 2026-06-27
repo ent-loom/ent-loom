@@ -1,5 +1,7 @@
 package com.entloom.ddl.annotations;
 
+import com.entloom.ddl.enums.DdlTableSize;
+import com.entloom.ddl.enums.NamingStrategy;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -33,8 +35,9 @@ public @interface EntDbEntity {
      */
     NamingStrategy namingStrategy() default NamingStrategy.SNAKE_CASE;
 
-    enum NamingStrategy {
-        AS_IS,
-        SNAKE_CASE
-    }
+    /**
+     * 表规模设定，用于风险策略。
+     */
+    DdlTableSize size() default DdlTableSize.UNSET;
+
 }

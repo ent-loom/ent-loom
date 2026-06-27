@@ -6,14 +6,24 @@
     <parent>
         <groupId>com.entloom</groupId>
         <artifactId>ent-loom-components</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
+    <groupId>com.entloom</groupId>
     <artifactId>ent-loom-crud</artifactId>
+    <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
+    <name>ent-loom-crud</name>
+
     <modules>
+        <module>ent-loom-crud-api</module>
+        <module>ent-loom-crud-annotations</module>
         <module>ent-loom-crud-core</module>
+        <module>ent-loom-crud-engine-jdbc</module>
+        <module>ent-loom-crud-import-export-excel</module>
+        <module>ent-loom-crud-spring-boot-starter</module>
     </modules>
+
 </project>

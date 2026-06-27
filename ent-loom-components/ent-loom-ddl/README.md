@@ -23,8 +23,8 @@
 
 按确认后的中粒度模块落地：
 
-1. `ent-loom-ddl-api`：稳定契约（接口、枚举、元数据模型、执行结果）
-2. `ent-loom-ddl-annotations`：注解定义（依赖 `api`）
+1. `ent-loom-ddl-annotations`：注解定义
+2. `ent-loom-ddl-api`：稳定契约（接口、枚举、元数据模型、执行结果；依赖 `annotations`）
 3. `ent-loom-ddl-core`：核心能力（diff、plan、sql 生成、执行编排；依赖 `api`）
 4. `ent-loom-ddl-bootstrap`：无 Spring 启动入口（依赖 `core + annotations`）
 5. `ent-loom-ddl-spring`：Spring 适配层（依赖 `core + annotations + spring-context`）
@@ -32,7 +32,7 @@
 
 依赖方向（强约束）：
 
-1. `api <- annotations`
+1. `annotations <- api`
 2. `api <- core`
 3. `core + annotations <- bootstrap`
 4. `core + annotations <- spring`
@@ -40,9 +40,11 @@
 
 边界规则：
 
-1. `core` 不直接依赖 `annotations`、`spring`
-2. 跨模块交互优先使用 `api` 类型，不暴露实现细节
-3. 注解解析和类路径扫描放在 `bootstrap/spring`，不放进 `core`
+1. 文档基线统一理解为 `annotations <- api <- core <- bootstrap/spring <- spring-boot-starter`
+2. `core` 依赖 `api`，`api` 依赖 `annotations`，且 `annotations/api` 不允许反向依赖上层
+3. 跨模块交互优先使用 `api` 类型，不暴露实现细节
+4. 注解解析和类路径扫描放在 `bootstrap/spring`，不放进 `core`
+5. 若当前实现存在历史存量不一致，后续收敛以该单向依赖链为准
 
 ## 3. 与当前注解能力的对齐与缺口
 

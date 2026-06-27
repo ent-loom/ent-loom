@@ -1,6 +1,8 @@
 package com.entloom.ddl.annotations;
 
 import com.entloom.base.common.OptionalBoolean;
+import com.entloom.ddl.enums.IndexType;
+import com.entloom.ddl.enums.UniqueScope;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
@@ -28,6 +30,11 @@ public @interface EntDbIndex {
     String[] fields() default {};
 
     /**
+     * 原生表达式索引定义。与 fields 二选一，优先使用 expression。
+     */
+    String expression() default "";
+
+    /**
      * 是否唯一索引。UNSET 表示按策略推导。
      */
     OptionalBoolean unique() default OptionalBoolean.UNSET;
@@ -42,14 +49,4 @@ public @interface EntDbIndex {
      */
     IndexType type() default IndexType.BTREE;
 
-    enum UniqueScope {
-        ALL_ROWS,
-        ACTIVE_ONLY
-    }
-
-    enum IndexType {
-        BTREE,
-        HASH,
-        FULLTEXT
-    }
 }

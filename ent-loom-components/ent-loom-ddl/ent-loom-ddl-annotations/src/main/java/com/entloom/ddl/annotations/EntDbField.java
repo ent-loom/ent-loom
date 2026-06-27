@@ -2,6 +2,9 @@ package com.entloom.ddl.annotations;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.base.util.value.TypedValueType;
+import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.ddl.enums.SqlType;
+import com.entloom.ddl.enums.WritePolicy;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -71,6 +74,11 @@ public @interface EntDbField {
     OptionalBoolean unique() default OptionalBoolean.UNSET;
 
     /**
+     * 是否主键。UNSET 表示由策略推导。
+     */
+    OptionalBoolean primaryKey() default OptionalBoolean.UNSET;
+
+    /**
      * 值生成策略。UNSET 表示未显式指定。
      */
     GenerationStrategy generationStrategy() default GenerationStrategy.UNSET;
@@ -86,6 +94,11 @@ public @interface EntDbField {
     String defaultValue() default "";
 
     /**
+     * 旧字段名，用于生成重命名迁移语句。
+     */
+    String renameFrom() default "";
+
+    /**
      * 默认值解析提示。UNSET 表示按 sqlType 和方言推导。
      */
     TypedValueType defaultValueHint() default TypedValueType.UNSET;
@@ -95,34 +108,4 @@ public @interface EntDbField {
      */
     WritePolicy writePolicy() default WritePolicy.READ_WRITE;
 
-    enum SqlType {
-        AUTO,
-        VARCHAR,
-        CHAR,
-        TEXT,
-        LONGTEXT,
-        INT,
-        BIGINT,
-        DECIMAL,
-        DOUBLE,
-        BOOLEAN,
-        DATE,
-        DATETIME,
-        TIMESTAMP,
-        JSON,
-        BLOB
-    }
-
-    enum WritePolicy {
-        READ_WRITE,
-        READ_ONLY
-    }
-
-    enum GenerationStrategy {
-        UNSET,
-        AUTO_INCREMENT,
-        IDENTITY,
-        SEQUENCE,
-        UUID
-    }
 }

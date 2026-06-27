@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.entloom</groupId>
         <artifactId>ent-loom-components</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -14,7 +14,11 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>ent-loom-ddl-api</module>
         <module>ent-loom-ddl-annotations</module>
         <module>ent-loom-ddl-core</module>
+        <module>ent-loom-ddl-bootstrap</module>
+        <module>ent-loom-ddl-spring</module>
+        <module>ent-loom-ddl-spring-boot-starter</module>
     </modules>
 </project>
