@@ -66,7 +66,7 @@ public class EntCrudExportFacade {
             return withContext(context, () -> {
                 ExportSpec spec = specAssembler.assembleExport(entity, scene, actual, subjectResolver.resolveOrThrow());
                 FileRef file = exportGateway.download(spec);
-                return new FileDownload(file, fileService.read(file));
+                return new FileDownload(file, () -> fileService.openStream(file));
             });
         } finally {
             responseBuilder.clear();

@@ -10,7 +10,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ent.loom.meta")
 public class EntLoomMetaProperties {
     private boolean enabled = true;
-    private List<String> basePackages = new ArrayList<String>();
     private List<String> entityClassNames = new ArrayList<String>();
     private Crud crud = new Crud();
     private Doc doc = new Doc();
@@ -22,14 +21,6 @@ public class EntLoomMetaProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public List<String> getBasePackages() {
-        return basePackages;
-    }
-
-    public void setBasePackages(List<String> basePackages) {
-        this.basePackages = nonBlankList(basePackages);
     }
 
     public List<String> getEntityClassNames() {

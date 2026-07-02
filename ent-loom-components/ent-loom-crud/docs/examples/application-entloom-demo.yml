@@ -6,7 +6,6 @@
 # - 枚举值在注释中列出；实际值使用一套适合 demo / 本地开发的默认配置。
 # - P0 干净重构后，运行期 EntityMetaRegistry 必须由 ResourceCatalogAdapter.runtimeModel()
 #   构建；启用默认 CRUD registry 时，需要配置 ent.loom.meta.entity-class-names
-#   或 ent.loom.meta.base-packages
 #   或自行声明 ResourceCatalogAdapter bean。
 
 entloom:
@@ -153,14 +152,9 @@ ent:
     meta:
       # 是否启用 Meta adapter 自动装配。
       enabled: true
-      # 参与 Meta / CRUD adapter 解析的实体扫描包。
-      # 与 entity-class-names 至少配置一个；配置了但未扫描到实体时启动失败。
-      # 扫描 @EntEntity / @EntCrudEntity / @EntDocEntity。
-      base-packages:
-        # - com.example.demo.domain
       # 参与 Meta / CRUD adapter 解析的实体类全限定名。
       # P0 后默认 CRUD registry 没有反射 fallback；使用默认装配时这里不能为空，
-      # 除非已配置 base-packages 或业务自行声明 ResourceCatalogAdapter bean。
+      # 除非业务自行声明 ResourceCatalogAdapter bean。
       entity-class-names:
         # - com.example.demo.domain.DemoOrder
         # - com.example.demo.domain.DemoOrderItem

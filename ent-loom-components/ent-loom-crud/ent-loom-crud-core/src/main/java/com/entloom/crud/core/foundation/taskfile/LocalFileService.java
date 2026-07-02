@@ -3,6 +3,7 @@ package com.entloom.crud.core.foundation.taskfile;
 import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -59,7 +60,26 @@ public class LocalFileService implements FileService {
         if (content == null) {
             throw new ValidationException("文件内容不能为空");
         }
-        if (content.length > maxBytes) {
+        return save(FileStreamWriteRequest.builder()
+            .fileName(request.getFileName())
+            .contentType(request.getContentType())
+            .inputStream(new ByteArrayInputStream(content))
+            .size(Long.valueOf(content.length))
+            .attributes(request.getAttributes())
+            .build());
+    }
+
+    @Override
+    public FileRef save(FileStreamWriteRequest request) {
+        if (request == null) {
+            throw new ValidationException("文件流写入请求不能为空");
+        }
+        InputStream inputStream = request.getInputStream();
+        if (inputStream == null) {
+            throw new ValidationException("文件输入流不能为空");
+        }
+        Long declaredSize = request.getSize();
+        if (declaredSize != null && declaredSize.longValue() > maxBytes) {
             throw new CrudException(CrudErrorCode.SYNC_LIMIT_EXCEEDED, "文件大小超过本地文件服务上限: " + maxBytes);
         }
         String fileName = requiredText(request.getFileName(), "文件名不能为空");
@@ -68,24 +88,29 @@ public class LocalFileService implements FileService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(retention);
         Map<String, Object> attributes = request.getAttributes();
-        attributes.put("checksumSha256", sha256Hex(content));
-        attributes.put("createdAt", now.toString());
-        FileRef ref = FileRef.builder()
-            .fileId(fileId)
-            .fileName(fileName)
-            .contentType(contentType)
-            .size(Long.valueOf(content.length))
-            .storageType(CrudFileStorageType.LOCAL)
-            .storageKey("content/" + fileId + ".bin")
-            .expiresAt(expiresAt)
-            .attributes(attributes)
-            .build();
+        Path contentPath = contentPath(fileId);
         try {
-            Files.write(resolveContentPath(ref), content);
+            StreamCopyResult result = copyToFile(inputStream, contentPath);
+            attributes.put("checksumSha256", result.checksumSha256);
+            attributes.put("createdAt", now.toString());
+            FileRef ref = FileRef.builder()
+                .fileId(fileId)
+                .fileName(fileName)
+                .contentType(contentType)
+                .size(Long.valueOf(result.size))
+                .storageType(CrudFileStorageType.LOCAL)
+                .storageKey("content/" + fileId + ".bin")
+                .expiresAt(expiresAt)
+                .attributes(attributes)
+                .build();
             storeMetadata(ref);
             return ref;
         } catch (IOException ex) {
+            deleteQuietly(contentPath);
             throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "写入本地文件失败", ex);
+        } catch (RuntimeException ex) {
+            deleteQuietly(contentPath);
+            throw ex;
         }
     }
 
@@ -117,6 +142,37 @@ public class LocalFileService implements FileService {
         } catch (IOException ex) {
             throw new CrudException(CrudErrorCode.FILE_NOT_FOUND, "读取本地文件失败: " + ref.getFileId(), ex);
         }
+    }
+
+    @Override
+    public InputStream openStream(FileRef fileRef) {
+        if (fileRef == null || isBlank(fileRef.getFileId())) {
+            throw new ValidationException("读取文件流时 fileRef.fileId 不能为空");
+        }
+        FileRef ref = getRequired(fileRef.getFileId());
+        try {
+            return Files.newInputStream(resolveContentPath(ref));
+        } catch (IOException ex) {
+            throw new CrudException(CrudErrorCode.FILE_NOT_FOUND, "打开本地文件流失败: " + ref.getFileId(), ex);
+        }
+    }
+
+    private StreamCopyResult copyToFile(InputStream inputStream, Path contentPath) throws IOException {
+        MessageDigest digest = sha256Digest();
+        long total = 0L;
+        byte[] buffer = new byte[8192];
+        try (InputStream in = inputStream; OutputStream out = Files.newOutputStream(contentPath)) {
+            int len;
+            while ((len = in.read(buffer)) != -1) {
+                total += len;
+                if (total > maxBytes) {
+                    throw new CrudException(CrudErrorCode.SYNC_LIMIT_EXCEEDED, "文件大小超过本地文件服务上限: " + maxBytes);
+                }
+                digest.update(buffer, 0, len);
+                out.write(buffer, 0, len);
+            }
+        }
+        return new StreamCopyResult(total, toHex(digest.digest()));
     }
 
     private void storeMetadata(FileRef ref) throws IOException {
@@ -179,6 +235,10 @@ public class LocalFileService implements FileService {
         return metadataDirectory.resolve(fileId + ".properties").toAbsolutePath().normalize();
     }
 
+    private Path contentPath(String fileId) {
+        return contentDirectory.resolve(requiredText(fileId, "文件 ID 不能为空") + ".bin").toAbsolutePath().normalize();
+    }
+
     private void ensureDirectories() {
         try {
             Files.createDirectories(contentDirectory);
@@ -211,15 +271,46 @@ public class LocalFileService implements FileService {
 
     private static String sha256Hex(byte[] content) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(content);
-            StringBuilder builder = new StringBuilder(bytes.length * 2);
-            for (byte item : bytes) {
-                builder.append(String.format("%02x", Byte.valueOf(item)));
-            }
-            return builder.toString();
+            return toHex(sha256Digest().digest(content));
         } catch (Exception ex) {
             throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "计算文件摘要失败", ex);
+        }
+    }
+
+    private static MessageDigest sha256Digest() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (Exception ex) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "初始化文件摘要失败", ex);
+        }
+    }
+
+    private static String toHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder(bytes.length * 2);
+        for (byte item : bytes) {
+            builder.append(String.format("%02x", Byte.valueOf(item)));
+        }
+        return builder.toString();
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // 清理失败不覆盖主异常。
+        }
+    }
+
+    private static final class StreamCopyResult {
+        private final long size;
+        private final String checksumSha256;
+
+        private StreamCopyResult(long size, String checksumSha256) {
+            this.size = size;
+            this.checksumSha256 = checksumSha256;
         }
     }
 }

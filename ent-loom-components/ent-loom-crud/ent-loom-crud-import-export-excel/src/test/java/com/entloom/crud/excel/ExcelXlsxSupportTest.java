@@ -7,9 +7,11 @@ import com.entloom.crud.core.capability.exporting.ExportTable;
 import com.entloom.crud.core.capability.importing.ImportParsedTable;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.CrudException;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -31,14 +33,14 @@ class ExcelXlsxSupportTest {
         row.put("name", "Alice");
         row.put("phone", "13800138000");
 
-        FileWriteRequest request = writer.write(
+        FileStreamWriteRequest request = writer.write(
             ExportSpec.builder().format(ExcelXlsxSupport.FORMAT).fileName("users").build(),
             new ExportTable(columns("name", "phone"), Arrays.asList(row))
         );
 
         ImportParsedTable table = parser.parse(
             ImportSpec.builder().format(ExcelXlsxSupport.FORMAT).build(),
-            request.getContent()
+            readContent(request)
         );
 
         Assertions.assertEquals("users.xlsx", request.getFileName());
@@ -54,12 +56,12 @@ class ExcelXlsxSupportTest {
         Map<String, Object> row = new LinkedHashMap<String, Object>();
         row.put("name", "=SUM(A1:A2)");
 
-        FileWriteRequest request = writer.write(
+        FileStreamWriteRequest request = writer.write(
             ExportSpec.builder().build(),
             new ExportTable(columns("name"), Arrays.asList(row))
         );
 
-        ImportParsedTable table = new ExcelXlsxImportParser().parse(ImportSpec.builder().build(), request.getContent());
+        ImportParsedTable table = new ExcelXlsxImportParser().parse(ImportSpec.builder().build(), readContent(request));
         Assertions.assertEquals("'=SUM(A1:A2)", table.getRows().get(0).getValues().get("name"));
     }
 
@@ -72,13 +74,13 @@ class ExcelXlsxSupportTest {
         row.put("amount", new BigDecimal("1234567890.123456789"));
         row.put("bigInteger", new BigInteger("98765432109876543210"));
 
-        FileWriteRequest request = writer.write(
+        FileStreamWriteRequest request = writer.write(
             ExportSpec.builder().build(),
             new ExportTable(columns("safeCount", "largeId", "amount", "bigInteger"), Arrays.asList(row))
         );
 
         try {
-            XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(request.getContent()));
+            XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(readContent(request)));
             Row dataRow = workbook.getSheetAt(0).getRow(1);
             Assertions.assertEquals(CellType.NUMERIC, dataRow.getCell(0).getCellType());
             Assertions.assertEquals(Double.valueOf(123456789012345D), Double.valueOf(dataRow.getCell(0).getNumericCellValue()));
@@ -120,6 +122,19 @@ class ExcelXlsxSupportTest {
             workbook.close();
             return out.toByteArray();
         } catch (java.io.IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private byte[] readContent(FileStreamWriteRequest request) {
+        try (InputStream inputStream = request.getInputStream(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, len);
+            }
+            return outputStream.toByteArray();
+        } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }

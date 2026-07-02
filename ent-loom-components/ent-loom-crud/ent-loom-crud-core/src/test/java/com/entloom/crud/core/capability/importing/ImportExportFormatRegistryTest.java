@@ -4,7 +4,7 @@ import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.core.capability.exporting.DefaultExportFormatRegistry;
 import com.entloom.crud.core.capability.exporting.ExportFormatDescriptor;
 import com.entloom.crud.core.exception.CrudException;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -54,7 +54,12 @@ class ImportExportFormatRegistryTest {
             "application/xlsx",
             "xlsx",
             (spec, content) -> new ImportParsedTable(Collections.<String>emptyList(), Collections.<ImportParsedTable.ImportParsedRow>emptyList()),
-            (spec, result) -> FileWriteRequest.builder().fileName("errors.xlsx").content(new byte[0]).build()
+            (spec, result) -> FileStreamWriteRequest.builder()
+                .fileName("errors.xlsx")
+                .contentType("application/octet-stream")
+                .inputStream(new java.io.ByteArrayInputStream(new byte[0]))
+                .size(Long.valueOf(0L))
+                .build()
         );
     }
 
@@ -64,7 +69,12 @@ class ImportExportFormatRegistryTest {
             "Excel xlsx",
             "application/xlsx",
             "xlsx",
-            (spec, rows) -> FileWriteRequest.builder().fileName("export.xlsx").content(new byte[0]).build()
+            (spec, rows) -> FileStreamWriteRequest.builder()
+                .fileName("export.xlsx")
+                .contentType("application/octet-stream")
+                .inputStream(new java.io.ByteArrayInputStream(new byte[0]))
+                .size(Long.valueOf(0L))
+                .build()
         );
     }
 }

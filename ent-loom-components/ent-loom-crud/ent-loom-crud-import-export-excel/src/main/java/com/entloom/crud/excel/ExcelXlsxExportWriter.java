@@ -7,8 +7,9 @@ import com.entloom.crud.core.capability.exporting.ExportSpec;
 import com.entloom.crud.core.capability.exporting.ExportTable;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
-import java.io.ByteArrayOutputStream;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -29,22 +30,30 @@ public class ExcelXlsxExportWriter implements ExportFileWriter {
     private static final int STREAMING_WINDOW_SIZE = 100;
 
     @Override
-    public FileWriteRequest write(ExportSpec spec, ExportTable table) {
+    public FileStreamWriteRequest write(ExportSpec spec, ExportTable table) {
         if (table == null || table.getColumns().isEmpty()) {
             throw new ValidationException("导出列合同不能为空");
         }
-        byte[] content = writeWorkbook(table.getColumns(), table.getRows());
-        return FileWriteRequest.builder()
-            .fileName(resolveFileName(spec))
-            .contentType(ExcelXlsxSupport.CONTENT_TYPE)
-            .content(content)
-            .build();
+        File content = writeWorkbook(table.getColumns(), table.getRows());
+        try {
+            return FileStreamWriteRequest.builder()
+                .fileName(resolveFileName(spec))
+                .contentType(ExcelXlsxSupport.CONTENT_TYPE)
+                .inputStream(new DeleteOnCloseFileInputStream(content))
+                .size(Long.valueOf(content.length()))
+                .build();
+        } catch (IOException ex) {
+            deleteQuietly(content);
+            throw new CrudException(CrudErrorCode.FILE_METADATA_INVALID, "打开 xlsx 临时文件失败", ex);
+        }
     }
 
-    byte[] writeWorkbook(List<ExportColumn> columns, List<Map<String, Object>> rows) {
+    File writeWorkbook(List<ExportColumn> columns, List<Map<String, Object>> rows) {
         SXSSFWorkbook workbook = new SXSSFWorkbook(STREAMING_WINDOW_SIZE);
         workbook.setCompressTempFiles(true);
+        File tempFile = null;
         try {
+            tempFile = File.createTempFile("entloom-crud-export-", ".xlsx");
             org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Sheet1");
             appendHeader(sheet.createRow(0), columns);
             int rowNumber = 1;
@@ -53,10 +62,12 @@ public class ExcelXlsxExportWriter implements ExportFileWriter {
                     appendDataRow(sheet.createRow(rowNumber++), columns, row);
                 }
             }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            workbook.write(out);
-            return out.toByteArray();
+            try (java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(tempFile))) {
+                workbook.write(out);
+            }
+            return tempFile;
         } catch (IOException ex) {
+            deleteQuietly(tempFile);
             throw new CrudException(CrudErrorCode.FILE_METADATA_INVALID, "生成 xlsx 失败", ex);
         } finally {
             workbook.dispose();
@@ -66,6 +77,15 @@ public class ExcelXlsxExportWriter implements ExportFileWriter {
                 // POI close failures after write do not change the generated payload.
             }
         }
+    }
+
+    FileStreamWriteRequest writeInMemoryForTest(ExportSpec spec, byte[] content) {
+        return FileStreamWriteRequest.builder()
+            .fileName(resolveFileName(spec))
+            .contentType(ExcelXlsxSupport.CONTENT_TYPE)
+            .inputStream(new java.io.ByteArrayInputStream(content))
+            .size(Long.valueOf(content == null ? 0L : content.length))
+            .build();
     }
 
     private void appendHeader(Row row, List<ExportColumn> columns) {
@@ -134,6 +154,30 @@ public class ExcelXlsxExportWriter implements ExportFileWriter {
             return "";
         }
         return row.get(column);
+    }
+
+    private static void deleteQuietly(File file) {
+        if (file != null && file.exists() && !file.delete()) {
+            file.deleteOnExit();
+        }
+    }
+
+    private static final class DeleteOnCloseFileInputStream extends FileInputStream {
+        private final File file;
+
+        private DeleteOnCloseFileInputStream(File file) throws IOException {
+            super(file);
+            this.file = file;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                deleteQuietly(file);
+            }
+        }
     }
 
     static String escapeFormula(String value) {

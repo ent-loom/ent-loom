@@ -21,15 +21,14 @@ Meta 体系当前已经形成静态运行时闭环：
 `EntLoomMetaAutoConfiguration` 的装配条件：
 
 - `ent.loom.meta.enabled=true` 或未显式关闭。
-- `ent.loom.meta.entity-class-names` 或 `ent.loom.meta.base-packages` 任一非空时才注册适配器。
+- `ent.loom.meta.entity-class-names` 非空时才注册适配器。
 - `ent.loom.meta.crud.enabled=true` 或未显式关闭时注册 `MetaCrudAdapter`。
 - `ent.loom.meta.doc.enabled=true` 或未显式关闭时注册 `MetaDocAdapter`。
 - 自动配置在 CRUD auto-configuration 之前执行。
-- 配置了实体类或扫描包但未解析到实体时启动失败，避免配置错误静默跳过。
 
 ```mermaid
 flowchart LR
-    props["ent.loom.meta.entity-class-names<br/>ent.loom.meta.base-packages"]
+    props["ent.loom.meta.entity-class-names"]
     parser["EntMetaParser"]
     crud["MetaCrudAdapter<br/>ResourceCatalogAdapter"]
     doc["MetaDocAdapter"]
@@ -73,8 +72,6 @@ flowchart LR
 
 - Meta 实体自动装配 CRUD registry 与 DOC adapter。
 - CRUD-only 与 DOC-only 路径相互独立。
-- base package 扫描可自动装配 CRUD registry 与 DOC adapter。
-- 类名错误或扫描结果为空时 fail-fast。
 - disabled 或空 entity class list 不接管 CRUD fallback。
 - 业务 `ResourceCatalogAdapter` 与 Meta adapter 并存。
 - `DocOverrideProvider` 能覆盖实体名、分组和字段可见性。
@@ -85,6 +82,6 @@ flowchart LR
 ## 当前限制
 
 - 当前闭环是启动期静态装配，不是运行期动态实体发现。
-- 配置入口支持类名列表和包扫描；包扫描是启动期静态扫描，不支持运行期动态发现。
+- 配置入口以类名列表为主，不负责扫描业务包。
 - DDL / UI / API 后续接入仍不属于当前闭环。
 - CRUD Query/Command 的完整业务治理仍由 CRUD 自身主链负责，Meta adapter 只输出运行时元数据。

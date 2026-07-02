@@ -14,7 +14,7 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskContextSnapshot;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileService;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
 import com.entloom.crud.core.runtime.engine.EngineCapability;
 import com.entloom.crud.core.runtime.engine.EngineFeature;
@@ -337,17 +337,18 @@ public class DefaultImportEngine implements ImportEngine {
         return value;
     }
 
-    private static FileWriteRequest withFileAttributes(FileWriteRequest request, String purpose, String format) {
+    private static FileStreamWriteRequest withFileAttributes(FileStreamWriteRequest request, String purpose, String format) {
         if (request == null) {
             throw new ValidationException("导入错误文件写入请求不能为空");
         }
         Map<String, Object> attributes = request.getAttributes();
         attributes.put("purpose", purpose);
         attributes.put("format", format);
-        return FileWriteRequest.builder()
+        return FileStreamWriteRequest.builder()
             .fileName(request.getFileName())
             .contentType(request.getContentType())
-            .content(request.getContent())
+            .inputStream(request.getInputStream())
+            .size(request.getSize())
             .attributes(attributes)
             .build();
     }

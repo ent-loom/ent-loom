@@ -29,6 +29,7 @@ import com.entloom.crud.core.capability.query.engine.QueryEngine;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileService;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.InMemoryFileService;
 import com.entloom.crud.core.foundation.taskfile.InMemoryTaskService;
@@ -236,11 +237,15 @@ class DefaultImportExportEngineTest {
             "application/octet-stream",
             "bin",
             (spec, content) -> table,
-            (spec, result) -> FileWriteRequest.builder()
-                .fileName("errors.txt")
-                .contentType("text/plain")
-                .content(("errors=" + result.getRowErrors().size()).getBytes(StandardCharsets.UTF_8))
-                .build()
+            (spec, result) -> {
+                byte[] content = ("errors=" + result.getRowErrors().size()).getBytes(StandardCharsets.UTF_8);
+                return FileStreamWriteRequest.builder()
+                    .fileName("errors.txt")
+                    .contentType("text/plain")
+                    .inputStream(new java.io.ByteArrayInputStream(content))
+                    .size(Long.valueOf(content.length))
+                    .build();
+            }
         )));
     }
 
@@ -284,7 +289,7 @@ class DefaultImportExportEngineTest {
 
     private static final class CsvExportWriter implements ExportFileWriter {
         @Override
-        public FileWriteRequest write(ExportSpec spec, ExportTable table) {
+        public FileStreamWriteRequest write(ExportSpec spec, ExportTable table) {
             StringBuilder builder = new StringBuilder();
             List<ExportColumn> columns = table.getColumns();
             for (int i = 0; i < columns.size(); i++) {
@@ -301,10 +306,12 @@ class DefaultImportExportEngineTest {
                 }
                 builder.append(row.get(columns.get(i).getKey()));
             }
-            return FileWriteRequest.builder()
+            byte[] content = builder.toString().getBytes(StandardCharsets.UTF_8);
+            return FileStreamWriteRequest.builder()
                 .fileName("orders.txt")
                 .contentType("text/plain")
-                .content(builder.toString().getBytes(StandardCharsets.UTF_8))
+                .inputStream(new java.io.ByteArrayInputStream(content))
+                .size(Long.valueOf(content.length))
                 .build();
         }
     }

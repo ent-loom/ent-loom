@@ -104,7 +104,6 @@ Stats request：
 | `entloom.crud.import-export.enabled` | module default | Import / Export 自动装配开关 |
 | `entloom.crud.governance.permission-rules` | empty | 配置型权限规则 |
 | `entloom.crud.governance.audit.persist-to-jdbc` | `false` | 是否写 JDBC 审计表 |
-| `ent.loom.meta.base-packages` | empty | Meta adapter 实体扫描包；配置后未扫描到实体会启动失败 |
 | `ent.loom.meta.entity-class-names` | empty | Meta adapter 实体类清单 |
 | `ent.loom.meta.crud.enabled` | `true` | 是否启用 Meta -> CRUD adapter |
 

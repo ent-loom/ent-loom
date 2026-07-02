@@ -4,7 +4,10 @@ import com.entloom.crud.api.enums.ImportOperation;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.CrudException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,6 +76,22 @@ class TaskFileContractTest {
     }
 
     @Test
+    void local_file_service_should_save_and_open_stream() throws IOException {
+        Path tempDir = Files.createTempDirectory("entloom-crud-streamfile-test");
+        LocalFileService fileService = new LocalFileService(tempDir.resolve("files").toString());
+
+        FileRef file = fileService.save(FileStreamWriteRequest.builder()
+            .fileName("stream.txt")
+            .contentType("text/plain")
+            .inputStream(new ByteArrayInputStream("stream-ok".getBytes(StandardCharsets.UTF_8)))
+            .size(Long.valueOf(9L))
+            .build());
+
+        byte[] content = copyToByteArray(fileService.openStream(file));
+        Assertions.assertEquals("stream-ok", new String(content, StandardCharsets.UTF_8));
+    }
+
+    @Test
     void access_guard_should_reject_different_subject() {
         SubjectContext owner = new SubjectContext();
         owner.setSubjectId("u1");
@@ -115,5 +134,17 @@ class TaskFileContractTest {
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put(key, value);
         return attributes;
+    }
+
+    private static byte[] copyToByteArray(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[1024];
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (InputStream in = inputStream) {
+            int len;
+            while ((len = in.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, len);
+            }
+        }
+        return outputStream.toByteArray();
     }
 }

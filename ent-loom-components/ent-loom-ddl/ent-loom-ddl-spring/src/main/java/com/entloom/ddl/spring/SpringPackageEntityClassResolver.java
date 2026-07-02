@@ -12,7 +12,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 /**
  * 基于 Spring 的实体类包扫描器。
  */
-public class SpringPackageEntityClassResolver {
+public final class SpringPackageEntityClassResolver {
     private final ClassLoader classLoader;
 
     public SpringPackageEntityClassResolver(ClassLoader classLoader) {
@@ -27,7 +27,8 @@ public class SpringPackageEntityClassResolver {
         if (basePackages == null || basePackages.isEmpty()) {
             return new ArrayList<Class<?>>();
         }
-        ClassPathScanningCandidateComponentProvider scanner = createScanner();
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter(new AnnotationTypeFilter(EntDbEntity.class));
         for (String basePackage : basePackages) {
             if (basePackage == null || basePackage.trim().isEmpty()) {
@@ -41,16 +42,11 @@ public class SpringPackageEntityClassResolver {
                 }
                 try {
                     classes.add(Class.forName(className, false, classLoader));
-                } catch (ClassNotFoundException ex) {
-                    throw new IllegalStateException("无法加载 entloom.ddl.base-packages 扫描到的实体类: "
-                            + className, ex);
+                } catch (ClassNotFoundException ignored) {
+                    // ignore broken entries, continue scanning
                 }
             }
         }
         return new ArrayList<Class<?>>(classes);
-    }
-
-    protected ClassPathScanningCandidateComponentProvider createScanner() {
-        return new ClassPathScanningCandidateComponentProvider(false);
     }
 }

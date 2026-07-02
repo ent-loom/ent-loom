@@ -7,7 +7,7 @@ import com.entloom.crud.core.capability.importing.ImportErrorFileWriter;
 import com.entloom.crud.core.capability.importing.ImportResult;
 import com.entloom.crud.core.capability.importing.ImportRowError;
 import com.entloom.crud.core.capability.importing.ImportSpec;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,7 +25,7 @@ public class ExcelXlsxErrorFileWriter implements ImportErrorFileWriter {
     }
 
     @Override
-    public FileWriteRequest writeErrorFile(ImportSpec spec, ImportResult result) {
+    public FileStreamWriteRequest writeErrorFile(ImportSpec spec, ImportResult result) {
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
         if (result != null) {
             for (ImportRowError error : result.getRowErrors()) {

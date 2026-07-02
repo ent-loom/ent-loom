@@ -8,17 +8,20 @@ import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.runtime.context.CrudInvocationContext;
 import com.entloom.crud.starter.web.facade.EntCrudImportFacade;
 import com.entloom.crud.starter.web.facade.FileDownload;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * 导入 HTTP 入口。
@@ -57,7 +60,7 @@ public class EntCrudImportController {
     }
 
     @PostMapping({"/{entity}/import/error", "/{entity}/import/tasks/{taskId}/errors/download"})
-    public ResponseEntity<byte[]> downloadError(
+    public ResponseEntity<StreamingResponseBody> downloadError(
         @PathVariable("entity") String entity,
         @PathVariable(value = "taskId", required = false) String taskId,
         @RequestBody(required = false) CrudImportHttpRequest request
@@ -65,13 +68,20 @@ public class EntCrudImportController {
         return toDownloadResponse(importFacade.downloadError(entity, null, taskId, request, CrudInvocationContext.empty()));
     }
 
-    private ResponseEntity<byte[]> toDownloadResponse(FileDownload download) {
+    private ResponseEntity<StreamingResponseBody> toDownloadResponse(FileDownload download) {
         FileRef file = download.getFile();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(file.getContentType()));
-        headers.setContentLength(download.getContent().length);
+        if (file.getSize() != null && file.getSize().longValue() >= 0) {
+            headers.setContentLength(file.getSize().longValue());
+        }
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodeFileName(file.getFileName()));
-        return ResponseEntity.ok().headers(headers).body(download.getContent());
+        StreamingResponseBody body = outputStream -> {
+            try (InputStream inputStream = download.openStream()) {
+                StreamUtils.copy(inputStream, outputStream);
+            }
+        };
+        return ResponseEntity.ok().headers(headers).body(body);
     }
 
     private String encodeFileName(String fileName) {

@@ -66,7 +66,7 @@ public class EntCrudImportFacade {
             return withContext(context, () -> {
                 ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
                 FileRef file = importGateway.downloadError(spec);
-                return new FileDownload(file, fileService.read(file));
+                return new FileDownload(file, () -> fileService.openStream(file));
             });
         } finally {
             responseBuilder.clear();

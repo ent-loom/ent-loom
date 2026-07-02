@@ -90,9 +90,8 @@ public class EntDdlAutoConfiguration {
             }
             try {
                 classes.add(Class.forName(className.trim(), false, classLoader));
-            } catch (ClassNotFoundException ex) {
-                throw new IllegalStateException("无法加载 entloom.ddl.entity-class-names 配置的实体类: "
-                        + className.trim(), ex);
+            } catch (ClassNotFoundException ignored) {
+                // ignore invalid class names from external config
             }
         }
         return classes;

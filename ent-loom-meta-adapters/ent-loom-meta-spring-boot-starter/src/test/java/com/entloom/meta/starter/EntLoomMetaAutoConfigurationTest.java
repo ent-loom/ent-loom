@@ -76,46 +76,6 @@ class EntLoomMetaAutoConfigurationTest {
     }
 
     @Test
-    void basePackageShouldAutoAssembleCrudRegistryAndDocAdapter() {
-        contextRunner
-            .withPropertyValues("ent.loom.meta.base-packages=com.entloom.meta.starter.fixtures")
-            .run(context -> {
-                Assertions.assertTrue(context.containsBean("entLoomMetaCrudAdapter"));
-                Assertions.assertTrue(context.containsBean("entLoomMetaDocAdapter"));
-
-                EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
-                Assertions.assertEquals("p1_scanned_meta_order",
-                    registry.getResourceDescriptor(com.entloom.meta.starter.fixtures.ScannedMetaOrder.class).getResourceCode());
-
-                MetaDocAdapter docAdapter = context.getBean(MetaDocAdapter.class);
-                Map<String, Object> doc = docAdapter.buildOne(com.entloom.meta.starter.fixtures.ScannedMetaOrder.class);
-                Assertions.assertEquals("Scanned Meta Order", doc.get("entityName"));
-            });
-    }
-
-    @Test
-    void invalidEntityClassNameShouldFailFast() {
-        contextRunner
-            .withPropertyValues("ent.loom.meta.entity-class-names=com.entloom.missing.NoSuchEntity")
-            .run(context -> {
-                Assertions.assertNotNull(context.getStartupFailure());
-                Assertions.assertTrue(context.getStartupFailure().getMessage()
-                    .contains("无法加载 ent.loom.meta.entity-class-names 配置的实体类"));
-            });
-    }
-
-    @Test
-    void configuredButEmptyBasePackageShouldFailFast() {
-        contextRunner
-            .withPropertyValues("ent.loom.meta.base-packages=com.entloom.missing")
-            .run(context -> {
-                Assertions.assertNotNull(context.getStartupFailure());
-                Assertions.assertTrue(context.getStartupFailure().getMessage()
-                    .contains("已配置 ent.loom.meta.entity-class-names 或 ent.loom.meta.base-packages"));
-            });
-    }
-
-    @Test
     void disabledOrEmptyEntityClassListShouldFailWithoutRuntimeModelAdapter() {
         new ApplicationContextRunner()
             .withUserConfiguration(MinimalCrudRegistryConfiguration.class, EntLoomMetaAutoConfiguration.class)

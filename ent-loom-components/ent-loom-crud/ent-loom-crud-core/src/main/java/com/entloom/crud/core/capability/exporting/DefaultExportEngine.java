@@ -14,7 +14,7 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskContextSnapshot;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileService;
-import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
 import com.entloom.crud.core.runtime.engine.EngineCapability;
 import com.entloom.crud.core.runtime.engine.EngineFeature;
@@ -151,7 +151,7 @@ public class DefaultExportEngine implements ExportEngine {
         ExportFormatDescriptor descriptor = formatRegistry.getRequired(spec.getFormat());
         int limit = boundedLimit(spec.getLimit(), DEFAULT_EXPORT_LIMIT, MAX_SYNC_ROWS);
         ExportTable table = buildTable(spec, limit);
-        FileWriteRequest request = withFileAttributes(
+        FileStreamWriteRequest request = withFileAttributes(
             descriptor.getWriter().write(spec, table),
             "EXPORT_RESULT",
             descriptor.getFormat()
@@ -294,17 +294,18 @@ public class DefaultExportEngine implements ExportEngine {
         }
     }
 
-    private static FileWriteRequest withFileAttributes(FileWriteRequest request, String purpose, String format) {
+    private static FileStreamWriteRequest withFileAttributes(FileStreamWriteRequest request, String purpose, String format) {
         if (request == null) {
             throw new ValidationException("导出文件写入请求不能为空");
         }
         Map<String, Object> attributes = request.getAttributes();
         attributes.put("purpose", purpose);
         attributes.put("format", format);
-        return FileWriteRequest.builder()
+        return FileStreamWriteRequest.builder()
             .fileName(request.getFileName())
             .contentType(request.getContentType())
-            .content(request.getContent())
+            .inputStream(request.getInputStream())
+            .size(request.getSize())
             .attributes(attributes)
             .build();
     }

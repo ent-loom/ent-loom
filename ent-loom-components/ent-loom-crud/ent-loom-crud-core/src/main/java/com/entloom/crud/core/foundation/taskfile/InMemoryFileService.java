@@ -3,6 +3,10 @@ package com.entloom.crud.core.foundation.taskfile;
 import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -69,6 +73,24 @@ public class InMemoryFileService implements FileService {
     }
 
     @Override
+    public FileRef save(FileStreamWriteRequest request) {
+        if (request == null) {
+            throw new ValidationException("文件流写入请求不能为空");
+        }
+        InputStream inputStream = request.getInputStream();
+        if (inputStream == null) {
+            throw new ValidationException("文件输入流不能为空");
+        }
+        byte[] content = readLimited(inputStream);
+        return save(FileWriteRequest.builder()
+            .fileName(request.getFileName())
+            .contentType(request.getContentType())
+            .content(content)
+            .attributes(request.getAttributes())
+            .build());
+    }
+
+    @Override
     public FileRef getRequired(String fileId) {
         StoredFile stored = files.get(requiredText(fileId, "文件 ID 不能为空"));
         if (stored == null) {
@@ -89,6 +111,11 @@ public class InMemoryFileService implements FileService {
         }
         assertNotExpired(stored.ref);
         return Arrays.copyOf(stored.content, stored.content.length);
+    }
+
+    @Override
+    public InputStream openStream(FileRef fileRef) {
+        return new ByteArrayInputStream(read(fileRef));
     }
 
     private void assertNotExpired(FileRef ref) {
@@ -123,6 +150,24 @@ public class InMemoryFileService implements FileService {
             return builder.toString();
         } catch (Exception ex) {
             throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "计算文件摘要失败", ex);
+        }
+    }
+
+    private byte[] readLimited(InputStream inputStream) {
+        byte[] buffer = new byte[8192];
+        long total = 0L;
+        try (InputStream in = inputStream; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            int len;
+            while ((len = in.read(buffer)) != -1) {
+                total += len;
+                if (total > maxBytes) {
+                    throw new CrudException(CrudErrorCode.SYNC_LIMIT_EXCEEDED, "文件大小超过默认内存文件服务上限: " + maxBytes);
+                }
+                out.write(buffer, 0, len);
+            }
+            return out.toByteArray();
+        } catch (IOException ex) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "读取文件输入流失败", ex);
         }
     }
 
