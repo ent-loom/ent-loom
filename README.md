@@ -13,7 +13,7 @@
 ## 📂 项目结构
 
 - `ent-loom-meta`: 核心元数据定义与解析引擎。
-- `ent-loom-components`: 核心能力组件库。
+- `ent-loom-modules`: 核心能力组件库。
 - `ent-loom-crud`: CRUD 核心套件（API, Core, Engine, Starter）。
 - `ent-loom-ddl`: 数据库 schema 管理与迁移工具。
 - `ent-loom-doc`: 自动化文档生成工具。

@@ -21,6 +21,6 @@
 ## 文档边界
 
 - 本目录只放 CRUD 的当前能力、公共契约和框架级说明。
-- CRUD 内部算法、包结构和维护细节放在 `ent-loom-components/ent-loom-crud/docs/implementation/`。
+- CRUD 内部算法、包结构和维护细节放在 `ent-loom-modules/ent-loom-crud/docs/implementation/`。
 - 尚未完全落地的增强项按能力域放在 `docs/roadmap/crud/`。
 - 破坏式重构建议、命令包调整等历史取舍放在 `docs/decisions/crud/`。

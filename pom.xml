@@ -18,8 +18,8 @@
     <modules>
         <module>ent-loom-base</module>
         <module>ent-loom-meta</module>
-        <module>ent-loom-components</module>
-        <module>ent-loom-meta-adapters</module>
+        <module>ent-loom-modules</module>
+        <module>ent-loom-integrations</module>
     </modules>
 
     <dependencyManagement>

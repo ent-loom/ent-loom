@@ -22,7 +22,7 @@ flowchart TD
     core["ent-loom-meta-core<br/>Annotation -> Descriptor"]
     crudAnno["ent-loom-crud-annotations<br/>CRUD 完整注解能力"]
     docAnno["ent-loom-doc-annotations<br/>DOC 完整注解能力"]
-    adapter["ent-loom-meta-adapters<br/>Meta -> 子框架 Runtime Model"]
+    adapter["ent-loom-integrations<br/>Meta -> 子框架 Runtime Model"]
 
     meta --> contract
     meta --> annotations

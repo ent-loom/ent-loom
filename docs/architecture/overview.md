@@ -16,7 +16,7 @@ ent-loom
 │   ├── ent-loom-meta-contract
 │   ├── ent-loom-meta-annotations
 │   └── ent-loom-meta-core
-├── ent-loom-components
+├── ent-loom-modules
 │   ├── ent-loom-crud
 │   │   ├── ent-loom-crud-api
 │   │   ├── ent-loom-crud-annotations
@@ -36,7 +36,7 @@ ent-loom
 │   │   └── ent-loom-doc-core
 │   └── ent-loom-ui
 │       └── ent-loom-ui-core
-└── ent-loom-meta-adapters
+└── ent-loom-integrations
     ├── ent-loom-meta-adapter-crud
     ├── ent-loom-meta-adapter-ddl
     ├── ent-loom-meta-adapter-doc

@@ -2,7 +2,7 @@
 
 > Status: Remaining
 > Verified: 2026-05-04
-> Scope: `ent-loom-meta`、`ent-loom-meta-adapters`
+> Scope: `ent-loom-meta`、`ent-loom-integrations`
 
 Meta -> CRUD / DOC 的启动期静态闭环已经实现。当前事实见 [Meta Runtime Adapters 当前实现](../../architecture/core/meta/runtime-adapters.md)。历史推进清单全文见 [Meta -> CRUD / DOC -> 业务层闭环待实现清单](../../archive/meta/meta-business-todo-plan.md)。
 

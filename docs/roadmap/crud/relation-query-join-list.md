@@ -251,7 +251,7 @@ flowchart LR
 
 ## 文档关系
 
-- 当前实现事实以 [Query 当前实现](../../architecture/components/crud/query.md) 和 [关系查询架构](../../../ent-loom-components/ent-loom-crud/docs/implementation/relation-query-logic.md) 为准。
+- 当前实现事实以 [Query 当前实现](../../architecture/components/crud/query.md) 和 [关系查询架构](../../../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md) 为准。
 - 默认跨表查询的治理锚点大方向见 [Relation Query 后续路线](relation-query.md)。
 - 本文聚焦其中更常见的列表型场景：一跳 JOIN 投影、关联排序、空值排序和稳定分页。
 

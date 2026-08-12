@@ -133,7 +133,7 @@ flowchart LR
 1. `ent-loom-crud-core` 不 import 业务包。
 2. `ent-loom-doc-core` 不 import 业务包。
 3. `ent-loom-meta-core` 只输出 Descriptor，不知道 CRUD/DOC 业务策略。
-4. `ent-loom-meta-adapters` 只做投影和合并，不承载业务规则。
+4. `ent-loom-integrations` 只做投影和合并，不承载业务规则。
 5. 业务专属逻辑放在 SPI、Handler、Provider、配置或 registry。
 
 ## 5. 运行时主链

@@ -8,7 +8,7 @@
 - 治理主链：[治理 Pipeline](architecture/core/governance/pipeline.md) | [治理 Core 架构](architecture/core/governance/core-architecture.md)
 - 元数据系统：[注解架构](architecture/core/meta/annotation-architecture.md) | [注解分层与适配](architecture/core/meta/layering-summary.md) | [Runtime Adapters](architecture/core/meta/runtime-adapters.md)
 - CRUD 能力：[CRUD 文档入口](architecture/components/crud/index.md) | [Query](architecture/components/crud/query.md) | [Command](architecture/components/crud/command.md) | [Stats](architecture/components/crud/stats.md) | [Import](architecture/components/crud/import.md) | [Export](architecture/components/crud/export.md)
-- DOC 能力：[DOC 实现说明](../ent-loom-components/ent-loom-doc/docs/implementation.md)
+- DOC 能力：[DOC 实现说明](../ent-loom-modules/ent-loom-doc/docs/implementation.md)
 
 ## 使用指南
 
@@ -33,4 +33,4 @@
 
 ## 模块内部实现
 
-- CRUD：[关系查询算法](../ent-loom-components/ent-loom-crud/docs/implementation/relation-query-logic.md) | [统计引擎细节](../ent-loom-components/ent-loom-crud/docs/implementation/stats-engine-logic.md)
+- CRUD：[关系查询算法](../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md) | [统计引擎细节](../ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)

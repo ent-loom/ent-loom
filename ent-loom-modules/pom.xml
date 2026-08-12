@@ -10,14 +10,13 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-meta</artifactId>
+    <artifactId>ent-loom-modules</artifactId>
     <packaging>pom</packaging>
 
     <modules>
-        <module>ent-loom-meta-enums</module>
-        <module>ent-loom-meta-contract</module>
-        <module>ent-loom-meta-annotations</module>
-        <module>ent-loom-meta-core</module>
-        <module>ent-loom-meta-spring-boot-starter</module>
+        <module>ent-loom-crud</module>
+        <module>ent-loom-ddl</module>
+        <module>ent-loom-ui</module>
+        <module>ent-loom-doc</module>
     </modules>
 </project>

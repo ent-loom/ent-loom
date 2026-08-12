@@ -19,7 +19,7 @@
 - **路由解耦**：`ent-loom-crud` 负责“如何调（Routing）”，`ent-loom-doc` 负责“调什么（Documentation）”。`doc` 不应包含具体的 Controller 路径映射或执行拦截器。
 
 ### 2.2 跨组件交互 (Adapters)
-组件间的强解耦通过 `ent-loom-meta-adapters` 实现：
+组件间的强解耦通过 `ent-loom-integrations` 实现：
 - **CRUD Adapter**：将业务代码中的 CRUD 注解转换为框架可识别的 `Spec` 和路由。
 - **Doc Adapter**：将 CRUD 路由元数据或业务 API 注解转换为 `DocActionDefinition`。
 

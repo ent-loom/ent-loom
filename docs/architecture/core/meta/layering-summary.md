@@ -85,7 +85,7 @@ ent-loom-meta-annotations
 ent-loom-meta-core
   Annotation -> Descriptor
 
-ent-loom-meta-adapters
+ent-loom-integrations
   ent-loom-meta-adapter-crud
   ent-loom-meta-adapter-ddl
   ent-loom-meta-adapter-doc

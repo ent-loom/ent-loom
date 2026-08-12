@@ -5,19 +5,15 @@
 
     <parent>
         <groupId>com.entloom</groupId>
-        <artifactId>ent-loom</artifactId>
+        <artifactId>ent-loom-modules</artifactId>
         <version>1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ent-loom-meta</artifactId>
+    <artifactId>ent-loom-ui</artifactId>
     <packaging>pom</packaging>
 
     <modules>
-        <module>ent-loom-meta-enums</module>
-        <module>ent-loom-meta-contract</module>
-        <module>ent-loom-meta-annotations</module>
-        <module>ent-loom-meta-core</module>
-        <module>ent-loom-meta-spring-boot-starter</module>
+        <module>ent-loom-ui-core</module>
     </modules>
 </project>

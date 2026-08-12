@@ -79,7 +79,7 @@ flowchart TD
 | `ent-loom-meta-contract` | Descriptor、共享枚举、SPI | 仅框架或扩展需要 |
 | `ent-loom-meta-annotations` | 通用业务语义注解 | 是 |
 | `ent-loom-meta-core` | Meta 注解解析与归一 | 通常由框架依赖 |
-| `ent-loom-meta-adapters` | Meta 到子框架模型的投影 | 通常由 starter 或子框架依赖 |
+| `ent-loom-integrations` | Meta 到子框架模型的投影 | 通常由 starter 或子框架依赖 |
 | `ent-loom-crud-annotations` | CRUD 完整注解能力与覆盖 | 按需 |
 | `ent-loom-doc-annotations` | DOC 完整注解能力与覆盖 | 按需 |
 
@@ -252,7 +252,7 @@ flowchart TD
 | Meta 注解 | `ent-loom-meta-annotations` |
 | Meta 契约 | `ent-loom-meta-contract` |
 | Meta 解析 | `ent-loom-meta-core` |
-| Meta 适配器聚合 | `ent-loom-meta-adapters` |
+| Meta 适配器聚合 | `ent-loom-integrations` |
 | CRUD 适配器 | `ent-loom-meta-adapter-crud` |
 | DOC 适配器 | `ent-loom-meta-adapter-doc` |
 | DDL 适配器 | `ent-loom-meta-adapter-ddl` |
