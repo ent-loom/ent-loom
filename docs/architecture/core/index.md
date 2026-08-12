@@ -11,3 +11,4 @@ Core 文档记录所有组件共享的基础边界、治理、元数据和主体
 - [Meta 解析引擎](meta/parsing-engine.md)
 - [Meta 运行时注册表](meta/runtime-registry.md)
 - [Meta Runtime Adapters 当前实现](meta/runtime-adapters.md)
+- [元数据约定与裁决机制（目标架构）](meta/元数据约定与裁决机制.md)
