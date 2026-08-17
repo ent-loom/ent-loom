@@ -154,8 +154,11 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     field.columnName().value(),
                     field.nullable().value() == null || field.nullable().value().booleanValue(),
                     field.relation(),
-                    true,
-                    true
+                    field.filterable(),
+                    field.sortable(),
+                    field.writable(),
+                    field.scopeField(),
+                    field.immutable()
                 )
             );
         }

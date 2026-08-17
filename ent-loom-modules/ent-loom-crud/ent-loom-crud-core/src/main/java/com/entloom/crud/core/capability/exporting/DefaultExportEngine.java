@@ -125,6 +125,9 @@ public class DefaultExportEngine implements ExportEngine {
         }
         capability().requireOperation(spec.getOperationKey());
         capability().requireFeature(EngineFeature.EXPORT_EXECUTION, "数据导出执行");
+        if (spec.isAsync()) {
+            throw new ValidationException("异步导出尚未配置任务执行器，请使用同步导出");
+        }
         if (spec.getOperation() == ExportOperation.PREVIEW) {
             return preview(spec);
         }

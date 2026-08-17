@@ -14,7 +14,10 @@ import com.entloom.crud.core.capability.stats.StatsHaving;
 import com.entloom.crud.core.capability.stats.StatsMetric;
 import com.entloom.crud.core.capability.stats.StatsQueryPayload;
 import com.entloom.crud.core.capability.stats.StatsSpec;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,14 +52,19 @@ public class StatsValidator {
 
         Set<String> metricAliases = new LinkedHashSet<String>();
         Set<String> dimensionAliases = new LinkedHashSet<String>();
+        Map<String, String> dimensionFieldsByAlias = new LinkedHashMap<String, String>();
+        Map<String, String> dimensionFieldsByField = new LinkedHashMap<String, String>();
         for (StatsGroupBy group : payload.getGroupBy()) {
             String field = requireText(group == null ? null : group.getField(), "groupBy.field");
-            assertAllowedField(rootMeta, field);
+            assertFilterableField(rootMeta, field, "groupBy");
             String alias = normalizeAlias(group.getAlias(), field);
             assertAlias(alias, "groupBy.alias");
-            if (!dimensionAliases.add(alias)) {
+            String normalizedAlias = alias.toLowerCase(Locale.ROOT);
+            if (!dimensionAliases.add(normalizedAlias)) {
                 throw new ValidationException("groupBy.alias 重复: " + alias);
             }
+            dimensionFieldsByAlias.put(normalizedAlias, field);
+            dimensionFieldsByField.put(field.toLowerCase(Locale.ROOT), field);
         }
 
         for (StatsMetric metric : payload.getMetrics()) {
@@ -97,6 +105,20 @@ public class StatsValidator {
             if (sort.getTarget() == SortTarget.AUTO) {
                 throw new ValidationException("sorts.target 不能为 AUTO");
             }
+            String normalizedSortField = sort.getField().trim().toLowerCase(Locale.ROOT);
+            if (sort.getTarget() == SortTarget.DIMENSION) {
+                String dimensionField = dimensionFieldsByAlias.get(normalizedSortField);
+                if (dimensionField == null) {
+                    dimensionField = dimensionFieldsByField.get(normalizedSortField);
+                }
+                if (dimensionField == null && rootMeta.resolveFieldMeta(sort.getField().trim()) != null) {
+                    dimensionField = sort.getField().trim();
+                }
+                assertSortableDimension(rootMeta, dimensionField, sort.getField());
+            } else if (sort.getTarget() == SortTarget.FIELD) {
+                String dimensionField = dimensionFieldsByField.get(normalizedSortField);
+                assertSortableDimension(rootMeta, dimensionField, sort.getField());
+            }
         }
 
         for (StatsHaving having : payload.getHaving()) {
@@ -123,7 +145,7 @@ public class StatsValidator {
         if (filter == null) {
             throw new ValidationException(path + " 条目不能为空");
         }
-        assertAllowedField(rootMeta, requireText(filter.getField(), path + ".field"));
+        assertFilterableField(rootMeta, requireText(filter.getField(), path + ".field"), path);
         if (filter.getOperator() == null) {
             throw new ValidationException(path + ".op 不能为空");
         }
@@ -136,12 +158,28 @@ public class StatsValidator {
         if (!hasText(time.getStart()) && !hasText(time.getEnd())) {
             return;
         }
-        assertAllowedField(rootMeta, requireText(time.getField(), "time.field"));
+        assertFilterableField(rootMeta, requireText(time.getField(), "time.field"), "time");
     }
 
     private void assertAllowedField(EntityMeta rootMeta, String field) {
         if (!rootMeta.getAllowedFields().contains(field)) {
             throw new ValidationException("统计字段不在白名单内: " + field);
+        }
+    }
+
+    private void assertFilterableField(EntityMeta rootMeta, String field, String path) {
+        assertAllowedField(rootMeta, field);
+        if (rootMeta.resolveFieldMeta(field) == null || !rootMeta.resolveFieldMeta(field).isFilterable()) {
+            throw new ValidationException(path + " 字段不允许过滤或分组: " + field);
+        }
+    }
+
+    private void assertSortableDimension(EntityMeta rootMeta, String dimensionField, String requestedField) {
+        if (dimensionField == null) {
+            return;
+        }
+        if (rootMeta.resolveFieldMeta(dimensionField) == null || !rootMeta.resolveFieldMeta(dimensionField).isSortable()) {
+            throw new ValidationException("字段不允许统计排序: " + requestedField);
         }
     }
 

@@ -34,6 +34,8 @@ import com.entloom.crud.core.foundation.taskfile.LocalFileService;
 import com.entloom.crud.core.foundation.taskfile.LocalTaskService;
 import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.foundation.write.DirectCrudWriteTransactionExecutor;
 import com.entloom.crud.spring.config.CrudProperties;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.gateway.CommandGatewayImpl;
@@ -71,9 +73,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 import com.entloom.crud.core.runtime.scene.DefaultSceneHandlerRegistry;
 
 /**
@@ -269,6 +273,15 @@ public class CrudGatewayConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(PlatformTransactionManager.class)
+    public CrudWriteTransactionExecutor crudWriteTransactionExecutor(
+        PlatformTransactionManager transactionManager
+    ) {
+        return new com.entloom.crud.spring.config.write.SpringCrudWriteTransactionExecutor(transactionManager);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(ImportEngine.class)
     @ConditionalOnProperty(name = "entloom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
     public ImportEngine defaultImportEngine(
@@ -276,9 +289,19 @@ public class CrudGatewayConfiguration {
         FileService fileService,
         TaskService taskService,
         CommandEngine commandEngine,
-        EntityMetaRegistry entityMetaRegistry
+        EntityMetaRegistry entityMetaRegistry,
+        TaskFileAccessGuard taskFileAccessGuard,
+        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
     ) {
-        return new DefaultImportEngine(importFormatRegistry, fileService, taskService, commandEngine, entityMetaRegistry);
+        return new DefaultImportEngine(
+            importFormatRegistry,
+            fileService,
+            taskService,
+            commandEngine,
+            entityMetaRegistry,
+            taskFileAccessGuard,
+            transactionExecutorProvider.getIfAvailable(DirectCrudWriteTransactionExecutor::new)
+        );
     }
 
     @Bean

@@ -26,6 +26,8 @@ public class OrderItemTestEntity {
 
     private Long studentId;
 
+    private String tenantId;
+
     private String skuCode;
     private Integer quantity;
     private Integer isDeleted;

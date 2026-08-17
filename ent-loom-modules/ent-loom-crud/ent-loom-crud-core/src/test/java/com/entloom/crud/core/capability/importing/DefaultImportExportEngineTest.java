@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.ExportOperation;
+import com.entloom.crud.api.enums.ImportOperation;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.PageResult;
@@ -34,7 +35,10 @@ import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.InMemoryFileService;
 import com.entloom.crud.core.foundation.taskfile.InMemoryTaskService;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
+import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -177,6 +181,7 @@ class DefaultImportExportEngineTest {
             .fileName("orders.xlsx")
             .contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             .content(new byte[] {1})
+            .attributes(sourceAttributes())
             .build());
 
         ImportResult result = engine.execute(ImportSpec.builder()
@@ -186,12 +191,51 @@ class DefaultImportExportEngineTest {
             .entityClasses(Collections.<Class<?>>singletonList(OrderEntity.class))
             .format("test")
             .sourceFile(source)
+            .subject(subject())
+            .transactionPolicy(CrudWriteTransactionPolicy.NONE)
             .build());
 
         assertEquals(1, result.getInsertedRows());
         assertEquals(0, result.getFailedRows());
         assertEquals(CommandOperation.CREATE_BATCH, commandEngine.lastOperation);
         assertEquals("ORD-1", commandEngine.lastPayload.get("orderNo"));
+    }
+
+    @Test
+    void importTransactionPolicyControlsTransactionBoundaries() {
+        assertTransactionCalls(CrudWriteTransactionPolicy.SINGLE_TRANSACTION, 1);
+        assertTransactionCalls(CrudWriteTransactionPolicy.PER_BATCH, 2);
+        assertTransactionCalls(CrudWriteTransactionPolicy.NONE, 0);
+    }
+
+    @Test
+    void asyncImportIsRejectedUntilWorkerIsConfigured() {
+        DefaultImportEngine engine = new DefaultImportEngine(
+            importRegistry(parsedTable("id", "orderNo", "1", "ORD-1")),
+            new InMemoryFileService(),
+            new InMemoryTaskService(),
+            new RecordingCommandEngine(),
+            new SingleMetaRegistry()
+        );
+
+        assertThrows(ValidationException.class, () -> engine.execute(ImportSpec.builder()
+            .async(true)
+            .build()));
+    }
+
+    @Test
+    void asyncExportIsRejectedUntilWorkerIsConfigured() {
+        DefaultExportEngine engine = new DefaultExportEngine(
+            new StaticQueryEngine(),
+            new DefaultExportFormatRegistry(Collections.singletonList(exportDescriptor())),
+            new InMemoryFileService(),
+            new InMemoryTaskService(),
+            new SingleMetaRegistry()
+        );
+
+        assertThrows(ValidationException.class, () -> engine.execute(ExportSpec.builder()
+            .async(true)
+            .build()));
     }
 
     @Test
@@ -209,6 +253,7 @@ class DefaultImportExportEngineTest {
             .fileName("orders.xlsx")
             .contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             .content(new byte[] {1})
+            .attributes(sourceAttributes())
             .build());
 
         ImportResult result = engine.execute(ImportSpec.builder()
@@ -217,6 +262,7 @@ class DefaultImportExportEngineTest {
             .entityClasses(Collections.<Class<?>>singletonList(OrderEntity.class))
             .format("test")
             .sourceFile(source)
+            .subject(subject())
             .build());
 
         assertEquals(0, result.getValidRows());
@@ -224,6 +270,21 @@ class DefaultImportExportEngineTest {
         assertEquals(CrudTaskStatus.SUCCEEDED, result.getTask().getStatus());
         assertNotNull(result.getErrorFile());
         assertEquals("errors=2", new String(fileService.read(result.getErrorFile()), StandardCharsets.UTF_8));
+    }
+
+    private static Map<String, Object> sourceAttributes() {
+        Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+        attributes.put("purpose", "IMPORT_SOURCE");
+        attributes.put("subjectId", "tester");
+        attributes.put("tenantId", "tenant-a");
+        return attributes;
+    }
+
+    private static com.entloom.crud.api.model.SubjectContext subject() {
+        com.entloom.crud.api.model.SubjectContext subject = new com.entloom.crud.api.model.SubjectContext();
+        subject.setSubjectId("tester");
+        subject.setTenantId("tenant-a");
+        return subject;
     }
 
     private static ExportFormatDescriptor exportDescriptor() {
@@ -256,6 +317,57 @@ class DefaultImportExportEngineTest {
         return new ImportParsedTable(
             Arrays.asList(firstHeader, secondHeader),
             Collections.singletonList(new ImportParsedTable.ImportParsedRow(2, values))
+        );
+    }
+
+    private void assertTransactionCalls(CrudWriteTransactionPolicy policy, int expectedCalls) {
+        FileService fileService = new InMemoryFileService();
+        RecordingTransactionExecutor transactionExecutor = new RecordingTransactionExecutor();
+        DefaultImportEngine engine = new DefaultImportEngine(
+            importRegistry(parsedTableWithTwoRows()),
+            fileService,
+            new InMemoryTaskService(),
+            new RecordingCommandEngine(),
+            new SingleMetaRegistry(),
+            new TaskFileAccessGuard(),
+            transactionExecutor
+        );
+        FileRef source = fileService.save(FileWriteRequest.builder()
+            .fileName("orders.xlsx")
+            .contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            .content(new byte[] {1})
+            .attributes(sourceAttributes())
+            .build());
+
+        ImportResult result = engine.execute(ImportSpec.builder()
+            .operation(ImportOperation.SUBMIT)
+            .mode(ImportMode.INSERT)
+            .rootType(OrderEntity.class)
+            .entityClasses(Collections.<Class<?>>singletonList(OrderEntity.class))
+            .format("test")
+            .sourceFile(source)
+            .subject(subject())
+            .batchSize(Integer.valueOf(1))
+            .transactionPolicy(policy)
+            .build());
+
+        assertEquals(2, result.getInsertedRows());
+        assertEquals(expectedCalls, transactionExecutor.calls);
+    }
+
+    private static ImportParsedTable parsedTableWithTwoRows() {
+        Map<String, Object> first = new LinkedHashMap<String, Object>();
+        first.put("id", "1");
+        first.put("orderNo", "ORD-1");
+        Map<String, Object> second = new LinkedHashMap<String, Object>();
+        second.put("id", "2");
+        second.put("orderNo", "ORD-2");
+        return new ImportParsedTable(
+            Arrays.asList("id", "orderNo"),
+            Arrays.asList(
+                new ImportParsedTable.ImportParsedRow(2, first),
+                new ImportParsedTable.ImportParsedRow(3, second)
+            )
         );
     }
 
@@ -335,6 +447,16 @@ class DefaultImportExportEngineTest {
             itemResult.put("rows", Integer.valueOf(1));
             result.put("items", Collections.singletonList(itemResult));
             return (R) result;
+        }
+    }
+
+    private static final class RecordingTransactionExecutor implements CrudWriteTransactionExecutor {
+        private int calls;
+
+        @Override
+        public <T> T execute(CrudWriteTransactionPolicy policy, com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback<T> callback) {
+            calls++;
+            return callback.execute();
         }
     }
 

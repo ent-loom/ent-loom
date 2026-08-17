@@ -100,7 +100,19 @@ public class CrudRuntimeModelMerger {
             SourcedValue<Boolean> nullable = metaField == null
                 ? nativeField == null ? SourcedValue.inferred(Boolean.TRUE) : nativeField.nullable()
                 : SourcedValue.metaExplicit(Boolean.valueOf(metaField.required() == null || !metaField.required().booleanValue()));
-            fields.add(new CrudFieldRuntimeModel(fieldName, javaType, column, nullable, false));
+            boolean writable = metaField == null || !Boolean.TRUE.equals(metaField.readOnly());
+            fields.add(new CrudFieldRuntimeModel(
+                fieldName,
+                javaType,
+                column,
+                nullable,
+                false,
+                true,
+                true,
+                writable,
+                false,
+                false
+            ));
         }
         return fields;
     }

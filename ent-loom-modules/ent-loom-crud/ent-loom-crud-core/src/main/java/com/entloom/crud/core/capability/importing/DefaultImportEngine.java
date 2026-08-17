@@ -15,7 +15,12 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileService;
 import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
+import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
+import com.entloom.crud.core.foundation.write.DirectCrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.engine.EngineCapability;
 import com.entloom.crud.core.runtime.engine.EngineFeature;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
@@ -48,6 +53,8 @@ public class DefaultImportEngine implements ImportEngine {
     private final TaskService taskService;
     private final CommandEngine commandEngine;
     private final EntityMetaRegistry entityMetaRegistry;
+    private final TaskFileAccessGuard taskFileAccessGuard;
+    private final CrudWriteTransactionExecutor transactionExecutor;
 
     public DefaultImportEngine(
         ImportFormatRegistry formatRegistry,
@@ -56,11 +63,52 @@ public class DefaultImportEngine implements ImportEngine {
         CommandEngine commandEngine,
         EntityMetaRegistry entityMetaRegistry
     ) {
+        this(
+            formatRegistry,
+            fileService,
+            taskService,
+            commandEngine,
+            entityMetaRegistry,
+            new TaskFileAccessGuard(),
+            new DirectCrudWriteTransactionExecutor()
+        );
+    }
+
+    public DefaultImportEngine(
+        ImportFormatRegistry formatRegistry,
+        FileService fileService,
+        TaskService taskService,
+        CommandEngine commandEngine,
+        EntityMetaRegistry entityMetaRegistry,
+        TaskFileAccessGuard taskFileAccessGuard
+    ) {
+        this(
+            formatRegistry,
+            fileService,
+            taskService,
+            commandEngine,
+            entityMetaRegistry,
+            taskFileAccessGuard,
+            new DirectCrudWriteTransactionExecutor()
+        );
+    }
+
+    public DefaultImportEngine(
+        ImportFormatRegistry formatRegistry,
+        FileService fileService,
+        TaskService taskService,
+        CommandEngine commandEngine,
+        EntityMetaRegistry entityMetaRegistry,
+        TaskFileAccessGuard taskFileAccessGuard,
+        CrudWriteTransactionExecutor transactionExecutor
+    ) {
         this.formatRegistry = Objects.requireNonNull(formatRegistry, "formatRegistry 不能为空");
         this.fileService = Objects.requireNonNull(fileService, "fileService 不能为空");
         this.taskService = Objects.requireNonNull(taskService, "taskService 不能为空");
         this.commandEngine = Objects.requireNonNull(commandEngine, "commandEngine 不能为空");
         this.entityMetaRegistry = Objects.requireNonNull(entityMetaRegistry, "entityMetaRegistry 不能为空");
+        this.taskFileAccessGuard = Objects.requireNonNull(taskFileAccessGuard, "taskFileAccessGuard 不能为空");
+        this.transactionExecutor = Objects.requireNonNull(transactionExecutor, "transactionExecutor 不能为空");
     }
 
     @Override
@@ -75,6 +123,9 @@ public class DefaultImportEngine implements ImportEngine {
         }
         capability().requireOperation(spec.getOperationKey());
         capability().requireFeature(EngineFeature.IMPORT_EXECUTION, "数据导入执行");
+        if (spec.isAsync()) {
+            throw new ValidationException("异步导入尚未配置任务执行器，请使用同步导入");
+        }
         if (spec.getOperation() == ImportOperation.VALIDATE || spec.getOperation() == ImportOperation.SUBMIT) {
             return validateAndMaybeWrite(spec);
         }
@@ -130,7 +181,9 @@ public class DefaultImportEngine implements ImportEngine {
         if (source == null || isBlank(source.getFileId())) {
             throw new ValidationException("导入 sourceFile.fileId 不能为空");
         }
-        return fileService.getRequired(source.getFileId());
+        FileRef resolved = fileService.getRequired(source.getFileId());
+        taskFileAccessGuard.assertImportSourceFileAccessible(resolved, spec);
+        return resolved;
     }
 
     private EntityMeta requireMeta(Class<?> rootType) {
@@ -213,26 +266,55 @@ public class DefaultImportEngine implements ImportEngine {
         }
         ImportWritePlan plan = buildWritePlan(spec, meta, rows);
         int batchSize = resolveBatchSize(spec);
+        if (spec.getTransactionPolicy() == CrudWriteTransactionPolicy.SINGLE_TRANSACTION) {
+            return transactionExecutor.execute(
+                CrudWriteTransactionPolicy.SINGLE_TRANSACTION,
+                () -> writeBatches(spec, plan, batchSize, false)
+            );
+        }
+        return writeBatches(spec, plan, batchSize, spec.getTransactionPolicy() == CrudWriteTransactionPolicy.PER_BATCH);
+    }
+
+    private WriteCounts writeBatches(
+        ImportSpec spec,
+        ImportWritePlan plan,
+        int batchSize,
+        boolean perBatchTransaction
+    ) {
+        WriteCounts counts = new WriteCounts();
         for (int from = 0; from < plan.items.size(); from += batchSize) {
             int to = Math.min(from + batchSize, plan.items.size());
-            BatchCommand<Map<String, Object>> batch = BatchCommand.of(plan.items.subList(from, to));
-            CommandSpec<BatchCommand<Map<String, Object>>> commandSpec = CommandSpec.<BatchCommand<Map<String, Object>>>builder()
-                .op(plan.batchOperation)
-                .scene(spec.getScene())
-                .rootType(spec.getRootType())
-                .entityClasses(spec.getEntityClasses())
-                .subject(spec.getSubject())
-                .attributes(spec.getAttributes())
-                .grantedScope(spec.getGrantedScope())
-                .governanceScope(spec.getGovernanceScope())
-                .accessDecision(spec.getAccessDecision())
-                .payload(batch)
-                .resultType(Map.class)
-                .build();
-            Object result = commandEngine.action(commandSpec);
-            counts.addAll(countBatchResult(result, to - from, plan.childOperation));
+            final int batchFrom = from;
+            final int batchTo = to;
+            WriteCounts batchCounts = perBatchTransaction
+                ? transactionExecutor.execute(
+                    CrudWriteTransactionPolicy.PER_BATCH,
+                    () -> executeBatch(spec, plan, batchFrom, batchTo)
+                )
+                : executeBatch(spec, plan, batchFrom, batchTo);
+            counts.addAll(batchCounts);
         }
         return counts;
+    }
+
+    @SuppressWarnings("unchecked")
+    private WriteCounts executeBatch(ImportSpec spec, ImportWritePlan plan, int from, int to) {
+        BatchCommand<Map<String, Object>> batch = BatchCommand.of(plan.items.subList(from, to));
+        CommandSpec<BatchCommand<Map<String, Object>>> commandSpec = CommandSpec.<BatchCommand<Map<String, Object>>>builder()
+            .op(plan.batchOperation)
+            .scene(spec.getScene())
+            .rootType(spec.getRootType())
+            .entityClasses(spec.getEntityClasses())
+            .subject(spec.getSubject())
+            .attributes(spec.getAttributes())
+            .grantedScope(spec.getGrantedScope())
+            .governanceScope(spec.getGovernanceScope())
+            .accessDecision(spec.getAccessDecision())
+            .payload(batch)
+            .resultType(Map.class)
+            .build();
+        Object result = commandEngine.action(commandSpec);
+        return countBatchResult(result, to - from, plan.childOperation);
     }
 
     private static ImportWritePlan buildWritePlan(ImportSpec spec, EntityMeta meta, List<Map<String, Object>> rows) {

@@ -38,6 +38,22 @@ public class TaskFileAccessGuard {
         }
     }
 
+    /**
+     * 校验导入源文件的用途和归属主体。
+     *
+     * <p>文件元数据由文件服务保存，不能使用请求中的 fileId 以外字段作为授权依据。</p>
+     */
+    public void assertImportSourceFileAccessible(FileRef file, BaseSpec spec) {
+        assertFilePurpose(file, "IMPORT_SOURCE");
+        if (spec == null || spec.getSubject() == null) {
+            deny("导入源文件缺少当前主体上下文");
+        }
+        SubjectContext current = spec.getSubject();
+        assertOwnedAttribute(file, "subjectId", current.getSubjectId());
+        assertOwnedAttribute(file, "tenantId", current.getTenantId());
+        assertOwnedAttribute(file, "orgId", current.getOrgId());
+    }
+
     public void assertDownloadableFile(FileRef file, String expectedPurpose) {
         assertFilePurpose(file, expectedPurpose);
         if (file.getExpiresAt() != null && file.getExpiresAt().isBefore(Instant.now())) {
@@ -66,6 +82,16 @@ public class TaskFileAccessGuard {
             || !sameText(owner.getTenantId(), current.getTenantId())
             || !sameText(owner.getOrgId(), current.getOrgId())) {
             deny("任务主体不匹配: " + taskId);
+        }
+    }
+
+    private void assertOwnedAttribute(FileRef file, String attribute, String expected) {
+        if (isBlank(expected)) {
+            return;
+        }
+        Object actual = file.getAttributes().get(attribute);
+        if (!Objects.equals(normalize(expected), normalize(actual == null ? null : String.valueOf(actual)))) {
+            deny("文件主体归属不匹配: " + file.getFileId());
         }
     }
 

@@ -70,8 +70,8 @@ public abstract class EngineJdbcTestSupport {
 
         jdbcTemplate.execute("drop table if exists t_order_item");
         jdbcTemplate.execute("drop table if exists t_order");
-        jdbcTemplate.execute("create table t_order(id bigint primary key, order_no varchar(64), school_id bigint, is_deleted int)");
-        jdbcTemplate.execute("create table t_order_item(id bigint primary key, order_id bigint, student_id bigint, sku_code varchar(64), quantity int, is_deleted int)");
+        jdbcTemplate.execute("create table t_order(id bigint primary key, order_no varchar(64), school_id bigint, tenant_id varchar(64), is_deleted int)");
+        jdbcTemplate.execute("create table t_order_item(id bigint primary key, order_id bigint, student_id bigint, tenant_id varchar(64), sku_code varchar(64), quantity int, is_deleted int)");
 
         this.metaRegistry = new CrudRuntimeModelBackedEntityMetaRegistry(
             new CrudNativeRuntimeModelParser()

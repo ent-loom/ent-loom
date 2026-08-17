@@ -2,7 +2,10 @@ package com.entloom.crud.starter.web;
 
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.QueryOperation;
+import com.entloom.crud.api.model.CrudImportHttpRequest;
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.capability.importing.ImportSpec;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
 import com.entloom.crud.core.runtime.router.CommandActionSceneResolver;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
@@ -12,6 +15,7 @@ import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import com.entloom.crud.starter.support.TestOrderEntity;
 import com.entloom.crud.starter.web.assembler.CrudCommandSpecAssembler;
+import com.entloom.crud.starter.web.assembler.CrudImportExportSpecAssembler;
 import com.entloom.crud.starter.web.assembler.CrudQuerySpecAssembler;
 import com.entloom.crud.starter.web.assembler.CrudStatsSpecAssembler;
 import com.entloom.crud.starter.web.dto.CrudCommandHttpRequest;
@@ -53,6 +57,22 @@ class SubjectContextPropagationTest {
         assertThat(spec.getSubject().getSubjectId()).isEqualTo("test-user");
         assertThat(spec.getSubject().getTenantId()).isEqualTo("test-tenant");
         assertThat(spec.getSubject().getOrgId()).isEqualTo("test-org");
+    }
+
+    @Test
+    void import_request_should_map_transaction_policy_to_import_spec() {
+        CrudImportExportSpecAssembler assembler = new CrudImportExportSpecAssembler(requestSupport());
+        CrudImportHttpRequest request = new CrudImportHttpRequest();
+        request.setTransactionPolicy(" single_transaction ");
+
+        ImportSpec spec = assembler.assembleImport(
+            "TestOrderEntity",
+            null,
+            request,
+            subject("test-user", "test-tenant", "test-org")
+        );
+
+        assertThat(spec.getTransactionPolicy()).isEqualTo(CrudWriteTransactionPolicy.SINGLE_TRANSACTION);
     }
 
     @Test

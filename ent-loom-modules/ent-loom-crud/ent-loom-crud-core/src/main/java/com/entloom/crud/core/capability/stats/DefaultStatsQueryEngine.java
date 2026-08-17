@@ -66,9 +66,6 @@ public class DefaultStatsQueryEngine implements StatsQueryEngine {
         capability().requireOperation(spec.getOperationKey());
         capability().requireFeature(EngineFeature.STATS_QUERY, "统计查询");
         final EntityMeta entityMeta = metaRegistry.getEntityMeta(spec.getRootType());
-        if (RouteKeyFactory.normalizeScene(spec.getScene()).isEmpty()) {
-            return statsQueryExecutor.execute(spec, entityMeta);
-        }
         CrudRouteKey routeKey = RouteKeyFactory.buildStatsRoute(spec);
         return sceneDispatcher.dispatch(
             routeKey,

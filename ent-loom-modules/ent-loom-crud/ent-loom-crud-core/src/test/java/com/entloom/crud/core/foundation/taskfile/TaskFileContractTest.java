@@ -130,6 +130,26 @@ class TaskFileContractTest {
         Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.FILE_METADATA_INVALID, ex.getErrorCode());
     }
 
+    @Test
+    void access_guard_should_reject_import_source_from_another_tenant() {
+        SubjectContext subject = new SubjectContext();
+        subject.setSubjectId("u1");
+        subject.setTenantId("tenant-a");
+        ImportSpec spec = ImportSpec.builder().rootType(Object.class).subject(subject).build();
+        Map<String, Object> attributes = new HashMap<String, Object>();
+        attributes.put("purpose", "IMPORT_SOURCE");
+        attributes.put("subjectId", "u1");
+        attributes.put("tenantId", "tenant-b");
+        FileRef file = FileRef.builder().fileId("F1").attributes(attributes).build();
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new TaskFileAccessGuard().assertImportSourceFileAccessible(file, spec)
+        );
+
+        Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.PERMISSION_DENIED, ex.getErrorCode());
+    }
+
     private static Map<String, Object> singletonAttribute(String key, Object value) {
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put(key, value);

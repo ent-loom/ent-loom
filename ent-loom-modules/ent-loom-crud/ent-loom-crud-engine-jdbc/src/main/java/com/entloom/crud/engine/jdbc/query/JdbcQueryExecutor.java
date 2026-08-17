@@ -3,6 +3,7 @@ package com.entloom.crud.engine.jdbc.query;
 import com.entloom.crud.api.enums.PageCountMode;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
+import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.exception.NotFoundException;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
 import com.entloom.crud.core.exception.ValidationException;
@@ -14,9 +15,11 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryExecutor;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.enums.RelationScope;
+import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -201,20 +204,57 @@ public class JdbcQueryExecutor implements QueryExecutor {
             EntityMeta childMeta = metaRegistry.getEntityMeta(edge.getToEntity());
             String placeholders = parentIds.stream().map(v -> "?").collect(Collectors.joining(","));
             String toColumn = childMeta.resolveColumn(edge.getToField());
+            List<Object> childArgs = new ArrayList<Object>(parentIds);
+            List<String> predicates = new ArrayList<String>();
+            predicates.add("c." + toColumn + " in (" + placeholders + ")");
+            if (childMeta.getLogicDeleteField() != null && !childMeta.getLogicDeleteField().trim().isEmpty()) {
+                predicates.add("c." + childMeta.resolveColumn(childMeta.getLogicDeleteField()) + " = 0");
+            }
+            appendExpandScopePredicates(
+                query.getQueryPlan().getGovernanceScope(),
+                childMeta,
+                predicates,
+                childArgs
+            );
             StringBuilder sql = new StringBuilder("select ").append(buildExpandSelectClause(childMeta))
                 .append(" from ").append(childMeta.getTable())
-                .append(" c where c.").append(toColumn).append(" in (").append(placeholders).append(")");
-            if (childMeta.getLogicDeleteField() != null && !childMeta.getLogicDeleteField().trim().isEmpty()) {
-                sql.append(" and c.").append(childMeta.resolveColumn(childMeta.getLogicDeleteField())).append(" = 0");
-            }
+                .append(" c where ").append(String.join(" and ", predicates));
 
             DefaultExecutionContext context = buildContext(query, "expand");
-            List<Map<String, Object>> childRows = guardedSqlExecutor.queryForList(sql.toString(), parentIds, context);
+            List<Map<String, Object>> childRows = guardedSqlExecutor.queryForList(sql.toString(), childArgs, context);
             List<Object> children = childRows.stream()
                 .map(row -> reflectiveMapper.mapRow(row, edge.getToEntity()))
                 .collect(Collectors.toList());
 
             assignLoadedChildren(roots, parents, parentIsRoot, edge, children);
+        }
+    }
+
+    private void appendExpandScopePredicates(
+        CrudDataScope scope,
+        EntityMeta childMeta,
+        List<String> predicates,
+        List<Object> args
+    ) {
+        if (scope == null || scope.isExplicitAll()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
+            String column = childMeta.resolveColumn(entry.getKey());
+            if (column == null) {
+                throw new DataScopeDeniedException(
+                    "关系目标实体不支持治理范围维度: " + childMeta.getEntityName() + "." + entry.getKey()
+                );
+            }
+            List<String> scopePredicates = new ArrayList<String>();
+            JdbcPredicateBuilder.appendEqualityOrIn(
+                scopePredicates,
+                args,
+                "c." + column,
+                entry.getValue(),
+                "relation expand governance scope"
+            );
+            predicates.addAll(scopePredicates);
         }
     }
 

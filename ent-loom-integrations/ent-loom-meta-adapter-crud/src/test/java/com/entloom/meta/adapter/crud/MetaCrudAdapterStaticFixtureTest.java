@@ -16,6 +16,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.enums.EntFieldKind;
+import com.entloom.base.common.OptionalBoolean;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,6 +36,7 @@ class MetaCrudAdapterStaticFixtureTest {
         Assertions.assertEquals("sales_order", orderMeta.getTable());
         Assertions.assertEquals("order_no", orderMeta.resolveColumn("orderNo"));
         Assertions.assertEquals("customer_id", orderMeta.resolveColumn("customerId"));
+        Assertions.assertFalse(orderMeta.resolveFieldMeta("orderNo").isWritable());
         Assertions.assertSame(Order.class, registry.resolveEntityType("order"));
         Assertions.assertEquals("customerId", registry.resolveFieldByColumn(Order.class, "customer_id"));
 
@@ -106,7 +108,7 @@ class MetaCrudAdapterStaticFixtureTest {
         @EntField(EntFieldKind.ID)
         private Long id;
 
-        @EntField(EntFieldKind.TEXT)
+        @EntField(value = EntFieldKind.TEXT, readOnly = OptionalBoolean.TRUE)
         private String orderNo;
 
         @EntField(EntFieldKind.REF_ID)

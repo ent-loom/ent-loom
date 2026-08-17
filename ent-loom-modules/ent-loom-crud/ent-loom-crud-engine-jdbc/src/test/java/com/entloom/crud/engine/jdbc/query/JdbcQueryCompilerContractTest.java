@@ -8,6 +8,7 @@ import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
@@ -19,6 +20,8 @@ import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.enums.QueryStrategy;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,15 +94,52 @@ class JdbcQueryCompilerContractTest {
             .build());
     }
 
+    @Test
+    void should_reject_filter_and_sort_for_non_queryable_fields() {
+        Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
+        fields.put("orderNo", new EntityFieldMeta("orderNo", String.class, "order_no", true, false, false, false));
+        EntityMeta restrictedMeta = new EntityMeta(
+            OrderTestEntity.class,
+            orderMeta.getResourceDescriptor(),
+            orderMeta.getTable(),
+            "id",
+            orderMeta.getLogicDeleteField(),
+            fields
+        );
+
+        QuerySpec<OrderTestEntity> filterSpec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(20)
+            .filters(Collections.singletonList(new QueryFilter("orderNo", FilterOperator.EQ, "ORD-1")))
+            .build();
+        QuerySpec<OrderTestEntity> sortSpec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(20)
+            .sorts(Collections.singletonList(new QuerySort("orderNo", SortDirection.ASC)))
+            .build();
+
+        Assertions.assertThrows(ValidationException.class, () -> compiler.compile(plan(filterSpec, restrictedMeta)));
+        Assertions.assertThrows(ValidationException.class, () -> compiler.compile(plan(sortSpec, restrictedMeta)));
+    }
+
     private void assertValidation(String expectedMessagePart, QuerySpec<OrderTestEntity> spec) {
         ValidationException ex = Assertions.assertThrows(ValidationException.class, () -> compiler.compile(plan(spec)));
         Assertions.assertTrue(ex.getMessage().contains(expectedMessagePart));
     }
 
     private QueryPlan plan(QuerySpec<OrderTestEntity> spec) {
+        return plan(spec, orderMeta);
+    }
+
+    private QueryPlan plan(QuerySpec<OrderTestEntity> spec, EntityMeta meta) {
         return new QueryPlan(
             spec,
-            orderMeta,
+            meta,
             RelationGraph.empty(),
             QueryStrategy.ROOT_FIRST,
             spec.getOp(),

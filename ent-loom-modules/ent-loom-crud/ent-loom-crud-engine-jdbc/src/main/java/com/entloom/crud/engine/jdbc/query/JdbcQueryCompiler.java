@@ -160,6 +160,10 @@ public class JdbcQueryCompiler implements QueryCompiler {
             if (column == null) {
                 throw new ValidationException("未知过滤字段: " + filter.getField());
             }
+            if (rootMeta.resolveFieldMeta(filter.getField()) == null
+                || !rootMeta.resolveFieldMeta(filter.getField()).isFilterable()) {
+                throw new ValidationException("字段不允许过滤: " + filter.getField());
+            }
 
             String qualified = "t." + column;
             FilterOperator op = filter.getOperator();
@@ -247,6 +251,13 @@ public class JdbcQueryCompiler implements QueryCompiler {
                 throw new ValidationException("MVP-1 默认编译器不支持关联排序");
             }
             String col = rootMeta.resolveColumn(sort.getField());
+            if (col == null) {
+                throw new ValidationException("未知排序字段: " + sort.getField());
+            }
+            if (rootMeta.resolveFieldMeta(sort.getField()) == null
+                || !rootMeta.resolveFieldMeta(sort.getField()).isSortable()) {
+                throw new ValidationException("字段不允许排序: " + sort.getField());
+            }
             clauses.add("t." + col + " " + sort.getDirection().name());
         }
         return " order by " + String.join(",", clauses);

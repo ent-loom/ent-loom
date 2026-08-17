@@ -10,6 +10,7 @@ import com.entloom.crud.core.capability.importing.ImportMode;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
 import com.entloom.crud.starter.web.support.CrudRequestSupport;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,6 +77,7 @@ public class CrudImportExportSpecAssembler {
             .sourceFile(sourceFile(actual.getSourceFileId()))
             .taskId(actual.getTaskId())
             .batchSize(actual.getBatchSize())
+            .transactionPolicy(resolveTransactionPolicy(actual.getTransactionPolicy()))
             .async(actual.isAsync())
             .payload(sanitizedAttributes(actual.getAttributes(), actual.getExtraFields()))
             .attributes(sanitizedAttributes(actual.getAttributes(), actual.getExtraFields()))
@@ -106,6 +108,19 @@ public class CrudImportExportSpecAssembler {
             return ImportMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw new ValidationException("导入 mode 不支持: " + raw + "，仅支持 VALIDATE_ONLY、INSERT、UPDATE、UPSERT");
+        }
+    }
+
+    private static CrudWriteTransactionPolicy resolveTransactionPolicy(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return CrudWriteTransactionPolicy.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException(
+                "导入 transactionPolicy 不支持: " + raw + "，仅支持 NONE、SINGLE_TRANSACTION、PER_BATCH"
+            );
         }
     }
 

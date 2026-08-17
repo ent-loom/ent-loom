@@ -15,6 +15,7 @@ public class OrderTestEntity {
     private Long id;
     private String orderNo;
     private Long schoolId;
+    private String tenantId;
     private Integer isDeleted;
     private List<OrderItemTestEntity> items;
 

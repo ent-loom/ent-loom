@@ -23,6 +23,7 @@ public class CrudImportHttpRequest {
     private String sourceFileId;
     private String taskId;
     private Integer batchSize;
+    private String transactionPolicy;
     private boolean async;
     private boolean includeExecutionMeta;
     private Map<String, Object> attributes = new LinkedHashMap<String, Object>();
