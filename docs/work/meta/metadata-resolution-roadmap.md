@@ -1,7 +1,8 @@
 # 元数据约定与裁决实施路线
 
+> 性质：实施路线
 > 状态：路线图
-> 目标架构：[元数据约定与裁决机制](../../architecture/core/meta/元数据约定与裁决机制.md)
+> 规范依据：[Metadata Resolution Contract](../../architecture/core/meta/metadata-resolution-contract.md)
 
 ## 1. 当前基础
 

@@ -1,5 +1,9 @@
 # Scene Policy 治理边界定稿
 
+> 性质：实施边界方案
+> 状态：未完全落地
+> 权威来源：[CRUD 文档入口](../../architecture/components/crud/index.md)
+
 更新时间：2026-04-27
 
 适用范围：`ent-loom-crud` 中 Query、Command、Stats 以及业务 `ACTION` 场景的能力点声明、入口上限和治理上下文。

@@ -1,6 +1,9 @@
 # 元数据约定与裁决机制
 
-> 状态：目标架构
+> 性质：跨模块规范性目标架构
+> 优先级：P0 / Core Contract
+> 权威性：本文定义元数据属性来源、裁决顺序、冲突诊断和模块边界；路线图只描述落地顺序，不覆盖本文规范。
+> 状态：目标架构，尚未完全落地
 > 范围：`ent-loom-meta`、`ent-loom-crud`、`ent-loom-ddl`、`ent-loom-doc`、`ent-loom-ui`
 > 当前进度：`ent-loom-crud`、`ent-loom-doc` 已具备部分 Explicit Annotation 合并能力，Project Convention 体系尚未完整实现。
 
