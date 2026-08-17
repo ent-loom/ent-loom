@@ -4,3 +4,4 @@
 
 - [CRUD 路线图](crud/index.md)
 - [Meta 路线图](meta/index.md)
+- [Core 路线图](core/index.md)

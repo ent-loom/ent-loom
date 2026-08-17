@@ -28,11 +28,23 @@
 - [架构真相](./docs/architecture/components/crud/overview.md): 系统当前是如何工作的。
 - [接入指南](./docs/guides/meta/meta-first.md): 开发者如何快速上手。
 - [决策记录](./docs/decisions/crud/index.md): 关键技术决策背后的逻辑。
-- [路线图](./docs/roadmap/meta/business-todo.md): 正在进行和计划中的工作。
+- [路线图](./docs/roadmap/index.md): 正在进行和计划中的工作。
 
 ## 🛠️ 快速开始
 
 请参考 [业务集成模板](./docs/guides/crud/integration-template.md) 了解如何将 `ent-loom` 引入您的项目。
+
+## ☕ 运行环境
+
+- JDK 25 或更高版本
+- Maven 3.9 或更高版本
+
+项目以 Java 25 作为编译目标，并使用 Spring Boot 3.5 / Spring Framework 6.2。Java 8 不再是支持的运行环境。
+
+```bash
+export JAVA_HOME=/path/to/jdk-25
+mvn clean install
+```
 
 ---
 © 2026 ent-loom Team.

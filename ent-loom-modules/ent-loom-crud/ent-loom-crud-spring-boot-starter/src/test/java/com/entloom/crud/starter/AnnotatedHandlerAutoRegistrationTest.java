@@ -44,8 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AnnotatedHandlerAutoRegistrationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(
-            CrudAutoConfiguration.class,
             StarterJdbcTestSupportConfiguration.class,
+            CrudAutoConfiguration.class,
             AutoRegistrationTestConfiguration.class
         )
         .withPropertyValues(

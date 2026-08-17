@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CrudModuleToggleAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-        .withUserConfiguration(CrudAutoConfiguration.class, StarterJdbcTestSupportConfiguration.class)
+        .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
             "entloom.crud.controller.enabled=true",
             "entloom.crud.import-export.storage-directory=target/entloom-crud-starter-test"
@@ -145,7 +145,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_not_register_http_controllers_when_controller_disabled() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CrudAutoConfiguration.class, StarterJdbcTestSupportConfiguration.class)
+            .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
             .withPropertyValues("entloom.crud.controller.enabled=false")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImportGateway.class);

@@ -42,6 +42,7 @@ archive       被替代或已结束的历史材料
 
 - CRUD：[CRUD 路线图](roadmap/crud/index.md)
 - Meta：[Meta -> CRUD / DOC -> 业务层闭环](roadmap/meta/business-todo.md)
+- Core：[Java 运行时与 Spring 兼容性版本线](roadmap/core/java-runtime-and-spring-compatibility.md)
 
 ## 当前实施
 
@@ -50,7 +51,7 @@ archive       被替代或已结束的历史材料
 ## 设计决策
 
 - CRUD：[CRUD 设计决策索引](decisions/crud/index.md)
-- Core：[SceneValidator 场景校验设计](decisions/core/scene-validation-design.md)
+- Core：[Core 设计决策索引](decisions/core/index.md)
 
 ## 历史归档
 

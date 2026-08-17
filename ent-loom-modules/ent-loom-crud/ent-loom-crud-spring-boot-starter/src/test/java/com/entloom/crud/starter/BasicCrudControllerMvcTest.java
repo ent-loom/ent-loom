@@ -21,20 +21,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class BasicCrudControllerMvcTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-        .withUserConfiguration(CrudAutoConfiguration.class, StarterJdbcTestSupportConfiguration.class)
+        .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
             "entloom.crud.controller.enabled=true",
             "entloom.crud.sql-log.mode=full"
         );
     private final ApplicationContextRunner defaultLikeContextRunner = new ApplicationContextRunner()
-        .withUserConfiguration(CrudAutoConfiguration.class, StarterJdbcTestSupportConfiguration.class)
+        .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
             "entloom.crud.controller.enabled=true",
             "entloom.crud.sql-log.mode=full",
             "entloom.crud.controller.string-filter.default-like-enabled=true"
         );
     private final ApplicationContextRunner defaultLikeExcludeOrderNoContextRunner = new ApplicationContextRunner()
-        .withUserConfiguration(CrudAutoConfiguration.class, StarterJdbcTestSupportConfiguration.class)
+        .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
             "entloom.crud.controller.enabled=true",
             "entloom.crud.sql-log.mode=full",
