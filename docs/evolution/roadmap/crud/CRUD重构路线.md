@@ -16,27 +16,20 @@
 
 ## 当前执行队列
 
-### 1. 拆薄 `ent-loom-crud-core`
-
-- 先用依赖图识别稳定边界，再决定 Maven artifact。
-- 优先分离 API/contract、runtime、默认实现和可选能力。
-- 禁止创建无调用者、无测试的占位模块。
-- 保持当前公开 artifact 和 Starter 回归可验证。
-
-### 2. 收窄 annotations 依赖
+### 1. 收窄 annotations 依赖
 
 - annotations 不依赖 Starter 或执行引擎。
 - 评估对 Meta Contract 的真实最小依赖。
 - 保证 CRUD-only 注解仍可独立生成 Runtime Model。
 
-### 3. 架构守卫
+### 2. 架构守卫
 
 - Core 禁止依赖 Spring、Servlet 和 Starter。
 - Starter 主包只能位于 `com.entloom.crud.starter..`。
 - Module Core 不依赖 Meta Core。
 - Runtime Model 和 Registry 不允许出现第二入口。
 
-### 4. 异步上下文治理
+### 3. 异步上下文治理
 
 - 将 ThreadLocal 限制在同步入口适配层。
 - 异步任务显式快照主体、scope 和审计上下文。
