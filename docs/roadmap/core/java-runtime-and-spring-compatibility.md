@@ -4,18 +4,18 @@
 
 规划中，尚未开始兼容线迁移。规范性决策见[Java 运行时与 Spring 兼容性版本线](../../decisions/core/java-runtime-and-spring-compatibility.md)。
 
-当前仓库仍以 Java 25 + Spring Boot 3.5 / Spring Framework 6.2 为构建基线；目标主线调整为 Spring Boot 4.x / Spring Framework 7.x。本路线图补充目标结构和验收方式，不表示 Java 8 或 Spring Boot 2 已获得支持。
+当前仓库以 JDK 21 + Spring Boot 3.5 / Spring Framework 6.2 为构建基线；目标主线调整为 Spring Boot 4.x / Spring Framework 7.x。本路线图补充目标结构和验收方式，不表示 Java 8 或 Spring Boot 2 已获得支持。
 
 ## 目标版本矩阵
 
 | 版本线 | 编译目标 | 运行验证 | Spring 生态 | Web 命名空间 | 目标构件形态 |
 |---|---:|---|---|---|---|
-| 共享核心 | Java 8 | JDK 8；在完整 Reactor 中由 JDK 17/21 构建 | 不依赖 Spring | 无 | `base`、Meta/CRUD/DDL/DOC/UI 的 API、契约、模型和核心 |
+| 共享核心 | Java 8 | JDK 8；在完整 Reactor 中由 JDK 21 构建 | 不依赖 Spring | 无 | `base`、Meta/CRUD/DDL/DOC/UI 的 API、契约、模型和核心 |
 | Boot 2 兼容线 | Java 8 | 至少 JDK 8 | Spring 5.3 + Boot 2.7 | `javax.servlet` | 独立的 Spring 5 适配层和 Boot 2 Starter |
 | Boot 3 过渡线 | Java 17 | JDK 17、21、25 | Spring 6.2 + Boot 3.5 | `jakarta.servlet` | 当前 Starter 坐标 |
 | Boot 4 目标主线 | Java 17 | JDK 17、21、25 | Spring 7.x + Boot 4.x | `jakarta.servlet` | Boot 3 迁移完成后的主线 |
 
-“编译目标”是模块的 `maven.compiler.release`，不等同于构建 Maven Reactor 使用的 JDK。完整 Reactor 仍应使用 JDK 17 或 21 执行。
+“编译目标”是模块的 `maven.compiler.release`，不等同于构建 Maven Reactor 使用的 JDK。当前完整 Reactor 统一使用 JDK 21 执行；后续模块化后再按版本线使用不同的 `release`。
 
 ## 当前仓库映射
 

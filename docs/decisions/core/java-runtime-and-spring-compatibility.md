@@ -2,7 +2,7 @@
 
 ## 决策状态
 
-已接受，作为后续框架模块拆分、POM 调整和 CI 设计的约束。当前仓库仍处于 Java 25 + Spring Boot 3.5 基线；本文描述目标架构，不表示兼容线已经全部实现。
+已接受，作为后续框架模块拆分、POM 调整和 CI 设计的约束。当前仓库采用 JDK 21 + Spring Boot 3.5 基线；本文描述目标架构，不表示兼容线已经全部实现。
 
 ## 核心结论
 
@@ -15,7 +15,7 @@ Spring Boot 3 过渡线                 Java 17 + Spring 6.2 + Boot 3.5 + jakart
 Spring Boot 4 目标主线               Java 17 + Spring 7.x + Boot 4.x + jakarta.servlet
 ```
 
-Boot 3 模块以 Java 17 作为编译基线时，可以运行在 Java 17、21、25。支持 Java 25 不等于必须使用 `--release 25` 编译。
+Boot 3 模块以 Java 17 作为编译基线时，可以运行在 Java 17、21、25。当前完整 Reactor 使用 JDK 21 构建；支持 Java 25 不等于必须使用 `--release 25` 编译。
 
 ## Spring Boot 4 目标
 
@@ -78,19 +78,19 @@ Boot 2 和 Boot 3 兼容线放在同一个 Git 仓库和 IDEA 工作空间中，
 
 | 场景 | 约束 |
 |---|---|
-| 完整 Maven Reactor | 使用 JDK 17 或 21 执行 `mvn install` |
+| 完整 Maven Reactor | 使用 JDK 21 执行 `mvn install` |
 | 核心 / Boot 2 产物 | 模块使用 `maven.compiler.release=8` |
 | Boot 3 产物 | 模块使用 `maven.compiler.release=17` |
 | Boot 3 运行验证 | JDK 17、21、25 |
 | Java 8 运行验证 | 仅核心和 Boot 2 模块 |
 
-一个完整 Reactor 可以在 JDK 17 或 21 下同时生成 Java 8 和 Java 17 字节码。不能在 JDK 8 下安装包含 Boot 3 的完整项目；JDK 8 只用于兼容模块的单独测试。
+当前完整 Reactor 使用 JDK 21 构建。后续按模块设置 `maven.compiler.release` 后，可以在同一 Reactor 中生成 Java 8 和 Java 17 字节码。不能在 JDK 8 下安装包含 Boot 3 的完整项目；JDK 8 只用于兼容模块的单独测试。
 
-根 POM 的 Enforcer 应约束构建 JDK 至少为 Java 17，而不是全局强制 Java 25。每个模块通过 `maven.compiler.release` 声明自己的字节码目标。IDEA 的 Maven Importer 和 Maven Runner 应使用 JDK 17 或 21，CI 再按运行矩阵验证实际兼容性。
+根 POM 的 Enforcer 当前约束构建 JDK 至少为 Java 21。每个模块通过 `maven.compiler.release` 声明自己的字节码目标；当前统一继承 Java 21，后续兼容线拆分时再按模块下调。IDEA 的 Maven Importer 和 Maven Runner 使用 JDK 21，CI 再按运行矩阵验证实际兼容性。
 
 ## 实施顺序
 
-1. 先保持当前 Boot 3.5 基线可用，完成 Boot 4 / Spring 7 依赖审计。
+1. 先保持当前 JDK 21 + Boot 3.5 基线可用，完成 Boot 4 / Spring 7 依赖审计。
 2. 盘点核心模块的 JDK API、第三方依赖和 Spring 类型，确认 Java 8 可编译边界。
 3. 将 `JdbcTemplate`、事务和 Web/Servlet 依赖收敛到适配层。
 4. 以 Java 17 为 Boot 4 编译目标，使用 Java 21 开发，并验证 JDK 17、21、25。

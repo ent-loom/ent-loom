@@ -1,5 +1,8 @@
 # CRUD 干净重构优先级
 
+> 状态：P0 主链正确性已完成；当前进入契约回归门禁与 P1 架构边界收口
+> Verified: 2026-08-20
+
 本文按“不保留 Java 包名 / Maven artifact / 旧 SPI 兼容层”的口径，整理当前 `ent-loom-crud` 后续开发前必须优先处理的大问题。目标是先把运行契约、元数据入口和模块边界收敛，再继续扩展 Import / Export、Relation Query 等能力。
 
 本文不是要求一次性完成所有重构，而是作为拆分小闭环的优先级依据。每个闭环都应保持可编译、可测试、可评审，并且只解决一个主问题：恢复测试、冻结契约、定义模型、冻结 registry、能力矩阵治理或模块边界收口。
@@ -37,11 +40,15 @@
 - P0.4 capability / operation 矩阵由 `CrudOperationMatrix` 校验，Stats 已独立为 `STATS/QUERY` 与 `STATS/PREVIEW`。
 - 外部契约和迁移替代表见 `docs/architecture/components/crud/p0-contract-baseline.md`。
 
-### 0. 冻结外部运行契约和迁移替代表
+以下第 1 至 4 节保留为 P0 已完成设计记录，不再作为当前待办执行。第 0 节的契约清单和迁移替代表已经形成文档基线，进入 P1 前只需继续补足可执行的 HTTP / JSON snapshot 回归。
+
+### 0. 冻结外部运行契约和迁移替代表（文档基线已完成）
 
 本轮允许不保留旧 Java 包名、Maven artifact 和旧 SPI 兼容层，但不能在重构过程中误伤已上线外部运行契约。模块收敛和删除旧目录前，应先把当前契约沉淀为可评审、可回归的资产。
 
-建议拆成三个小闭环：
+当前状态：契约清单和迁移替代表已写入 `p0-contract-baseline.md`；Starter MVC 与 Controller contract 测试已覆盖部分入口。尚未完成的是系统化成功/失败 JSON snapshot，因此它仍是 P1 破坏式改包或拆模块前的回归门禁。
+
+该门禁拆成三个小闭环：
 
 1. 契约清单闭环：只补 HTTP / JSON / 错误码 / 配置 key 清单，不改生产代码。
 2. 契约测试闭环：把关键样例转为契约测试或 snapshot 测试，明确动态字段忽略规则。
@@ -75,24 +82,24 @@ snapshot 测试要求：
 - 删除旧 module 前，契约测试、starter 启动测试和全仓编译必须通过。
 - 破坏内部兼容的 PR 必须附带影响面列表和替代表更新。
 
-### 1. 修复 JDBC 默认写入链测试失败
+### 1. 修复 JDBC 默认写入链测试失败（已完成）
 
-当前 `mvn -q test` 在 `ent-loom-crud-engine-jdbc` 失败，`DefaultEngineSingleTableCrudTest` 有 3 个用例报错：
+重构前 `mvn -q test` 曾在 `ent-loom-crud-engine-jdbc` 失败，`DefaultEngineSingleTableCrudTest` 有 3 个用例报错：
 
 ```text
 创建载荷包含不可写字段: id
 ```
 
-触发原因是 `JdbcCrudCommandHandler` 在 create 路径中先把 `WriteCommand.id` 放回 payload，再由 `validateCreateFields` 禁止 payload 包含 `id`。这说明主键语义没有被清楚建模。
+触发原因是 `JdbcCrudCommandHandler` 在 create 路径中先把 `WriteCommand.id` 放回 payload，再由 `validateCreateFields` 禁止 payload 包含 `id`。该问题已通过 `EntityIdPolicy` 和统一 identity 规则修复。
 
-建议重构：
+已落地约束：
 
 - 将 `id` / 主键从普通 writable field 中剥离，建模为 `identity` / `idPolicy`。
 - 优先明确两种 create：外部显式指定主键、数据库生成主键；应用生成主键可先定义策略，后续补生成器 SPI。
 - `CREATE` 校验只校验普通写入字段；主键校验由 identity policy 负责。
 - `SAVE_OR_UPDATE` / batch 复用同一 identity 规则，避免 create/update 子命令重复拼装。
 
-第一闭环只处理单表、单列主键，先恢复当前 JDBC 默认写入链。主键策略建议先收敛为：
+第一闭环只处理单表、单列主键，并已恢复 JDBC 默认写入链。当前主键策略收敛为：
 
 | idPolicy | create 入参 | JDBC 行为 | 备注 |
 | --- | --- | --- | --- |
@@ -115,7 +122,9 @@ snapshot 测试要求：
 - 非法主键字段、未知字段、不可写字段分别有明确错误。
 - 联合主键在当前闭环内明确 fail-fast 或标记 unsupported，不做半支持。
 
-### 2. 定义单一 `CrudRuntimeModel`，收敛运行期元数据入口
+### 2. 定义单一 `CrudRuntimeModel`，收敛运行期元数据入口（已完成）
+
+当前状态：Meta-first、CRUD-only 和 Meta + CRUD 均输出 `CrudRuntimeModel`；Spring 运行期不再保留旧反射 registry 入口。以下内容保留为设计记录。
 
 设计上允许两条声明路线并进：
 
@@ -150,10 +159,12 @@ snapshot 测试要求：
 
 - 所有实体元数据只从一个 frozen catalog 读取。
 - Meta-first、CRUD-only、Meta + CRUD 覆盖三种声明方式都能生成同一种 `CrudRuntimeModel`。
-- CRUD / DOC / DDL adapter 的来源优先级和冲突诊断一致。
+- Meta 与 CRUD native 来源在 `CrudRuntimeModel` 合并时具有明确优先级和冲突诊断；DOC 保持模块内 merger，DDL 接入属于后续 Meta 路线。
 - 重复 resourceCode、关系目标缺失、字段缺失在启动期 fail-fast。
 
-### 3. Registry 改为启动期构建、冻结、只读快照
+### 3. Registry 改为启动期构建、冻结、只读快照（已完成）
+
+当前状态：`CrudRuntimeModelBackedEntityMetaRegistry` 在构造期完成校验、索引和关系图预计算，运行期只暴露查询合同。以下内容保留为设计记录。
 
 重构前问题：
 
@@ -238,7 +249,9 @@ HTTP entityCodes
 - 路径歧义时应 fail-fast，要求显式 `expandRelations` 或定制 QueryHandler。
 - `options.filter.status` 默认仍是根实体字段过滤；子实体过滤应使用明确字段路径。
 
-### 4. 明确 capability / operation / scene 矩阵
+### 4. 明确 capability / operation / scene 矩阵（已完成）
+
+当前状态：`CrudOperationMatrix` 已固定 Query、Command、Stats 及 Import/Export 扩展点；Stats 已独立为一等 capability。以下内容保留为设计记录。
 
 在继续扩展 Stats、Import、Export 前，需要先固定能力维度，避免路由、权限、审计、幂等和默认引擎选择继续依赖松散 operation。
 
@@ -401,17 +414,14 @@ Import / Export 已通过 capability-scoped operation 预留，不再使用全�
 - 审计事件能记录完整 subject、operation、routeKey、scope。
 - ThreadLocal 泄漏有测试覆盖。
 
-## 建议执行顺序
+## 当前执行顺序
 
-1. 契约清单闭环：冻结外部 HTTP / JSON / 错误码 / 配置 key 清单，不改生产代码。
-2. 契约测试闭环：建立 snapshot / 契约测试，明确动态字段忽略规则。
-3. 迁移替代表闭环：盘点旧 Java 包名、Maven artifact、旧 SPI 和本仓影响面。
-4. JDBC 主键闭环：修复 create / saveOrUpdate identity 规则，先恢复当前失败测试和全仓测试。
-5. Runtime Model 闭环：定义 `CrudRuntimeModel`、merge 优先级和冲突诊断，先不搬模块。
-6. 入口收敛闭环：旧反射 parser 只能输出 `CrudRuntimeModel`，Spring 运行期只暴露一个 `EntityMetaRegistry`。
-7. Frozen Registry 闭环：落地 `RegistryBuilder + FrozenEntityMetaRegistry`，保留现有外部 HTTP 行为。
-8. 能力矩阵闭环：固定 Query / Command / Stats 的 `capability / operation / scene`，Import / Export 只预留扩展点。
-9. Core 边界闭环：拆薄 `crud-core` 默认实现，并先定义 Import / Export 抽象边界。
-10. Starter 闭环：统一 starter 包名和 AutoConfiguration。
-11. Annotations 闭环：收窄 annotations 依赖。
-12. 守卫闭环：补 ArchUnit / Enforcer / 依赖树守卫和异步上下文治理。
+已完成：JDBC identity、统一 Runtime Model、单一 registry、冻结关系图和 capability / operation 矩阵。当前从下面第 1 项继续：
+
+1. 契约回归门禁：在现有 `p0-contract-baseline.md` 上补成功/失败 JSON snapshot，并核对迁移替代表。
+2. 强类型 UPDATE MVR：按 [强类型边界与动态载荷](../../standards/typed-boundary.md) 补齐稳定 `UpdatePatch<T>` API、统一 binder 消费方和业务模板。
+3. Starter 闭环：统一 `com.entloom.crud.starter.*` 包名和 AutoConfiguration，不同时拆 core。
+4. Core 边界闭环：拆薄 `crud-core` 默认实现，并先定义 Import / Export、Task / File 抽象边界。
+5. Annotations 闭环：输出依赖树基线，收窄 annotations 传递依赖。
+6. 守卫闭环：补 ArchUnit / Enforcer / 依赖树守卫，阻断旧包名、旧 artifact 和重依赖回流。
+7. 异步上下文闭环：弱化 ThreadLocal，固定 Import / Export 后台任务的上下文快照与治理重入。

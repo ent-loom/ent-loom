@@ -2,6 +2,9 @@
 
 本文定义 `ent-loom-crud` 长期演进中强类型与动态结构的取舍原则，并对关键设计点给出确定方案。结论不是全链路消灭 `Map<String, Object>`，而是把动态结构限定在框架边界，把业务语义层收敛到 DTO、实体和 Patch 视图。
 
+> 状态：部分落地；Binder、临时 Patch 与普通 UPDATE Handler 已实现，稳定 `UpdatePatch<T>` API 和消费方统一仍待完成
+> Verified: 2026-08-20
+
 ## 核心原则
 
 ```text
@@ -24,7 +27,7 @@ Persistence Adapter -> Field Map
 | HTTP Controller / Facade | HTTP DTO、`Object payload`、`CrudRecord` | 允许 | 外部 JSON 是动态结构，先接住请求 |
 | Spec Assembler | `CommandSpec<Object>`、`QuerySpec<?>` | 允许 | 做路由、实体解析、基础合同校验 |
 | Governance | `BaseSpec`、attributes、scope dimensions | 允许 | 治理关注字段、范围、主体和审计，不承担业务语义 |
-| Scene Handler | DTO、`EntityPatch<T>`、`UpdatePatch<T>`、`AggregateRelationPatch<T>` | 不推荐裸 Map | 这是业务语义边界，应尽量强类型；其中 `ACTION` DTO 和聚合 `EntityPatch<T>` 当前已支持，普通 `UpdatePatch<T>` 是后续演进目标 |
+| Scene Handler | DTO、Patch 视图、`AggregateRelationPatch<T>` | 不推荐裸 Map | `ACTION` DTO、聚合 `aggregate.EntityPatch<T>` 和普通 UPDATE 的临时 `patch.EntityPatch<T>` 已支持；稳定命名的 `UpdatePatch<T>` 仍是演进目标 |
 | Business Service | DTO、实体、值对象 | 不推荐 | 不应散落 `map.get("xxx")` |
 | Default JDBC Engine | `WriteCommand<Map<String,Object>>` | 允许 | 动态 SQL 最终需要字段集合 |
 | SQL Executor | SQL + args | 允许 | 存储适配层，不表达业务语义 |
@@ -42,11 +45,11 @@ Persistence Adapter -> Field Map
 | 能力 | 当前状态 | 方案口径 |
 |---|---|---|
 | `ACTION` DTO 入参 | 已支持 | 继续作为业务动作默认写法 |
-| 聚合 UPDATE `EntityPatch<T>` | 已支持 | 继续作为聚合写入默认写法 |
-| 普通单表 UPDATE `UpdatePatch<T>` | 未完整抽象 | 作为后续一等 API 补齐 |
-| CREATE/UPDATE/DELETE 强类型业务基类 | 未完整抽象 | 保留底层 SPI，新增业务友好基类 |
+| 聚合 UPDATE `aggregate.EntityPatch<T>` | 已支持 | 继续作为聚合写入默认写法 |
+| 普通单表 UPDATE Patch | 部分支持 | 已有 `patch.EntityPatch<T>`、`CommandPayloadBinder` 和 `AbstractPatchUpdateSceneHandler`；仍需收敛为一等 `UpdatePatch<T>` API |
+| CREATE/UPDATE/DELETE 强类型业务基类 | 部分支持 | 普通 UPDATE 基类已落地；其他操作继续保留底层 SPI 或专用基类 |
 | CREATE / SAVE_OR_UPDATE / Batch 强类型写入 | 未完整抽象 | 不进入首个最小运行版本，先保留 DTO/Map/BatchCommand 过渡 |
-| 统一 payload/Patch 绑定器 | 未完整抽象 | 优先抽取，避免转换逻辑分叉 |
+| 统一 payload/Patch 绑定器 | 部分支持 | core 已有默认反射绑定器；聚合 UPDATE 与 JDBC mapper 尚未完全复用同一规则 |
 | 关系子项级 Patch | 未支持 | 当前只表达关系字段是否出现；子项局部更新作为后续能力 |
 
 ### 写操作覆盖矩阵
@@ -56,7 +59,7 @@ Persistence Adapter -> Field Map
 | 操作 | HTTP / Facade 入口 | 默认 JDBC 引擎 | 当前业务强类型边界 | MVR 口径 | 后续方向 |
 |---|---|---|---|---|---|
 | `CREATE` / save | 已支持 | 已支持，字段 Map 写入 | 未提供一等 `CreateInput<T>` | 不纳入首个 MVR | 可补 `CreateInput<T>`，或继续推荐业务 DTO |
-| `UPDATE` | 已支持 | 已支持，字段 Map 写入 | 聚合 UPDATE 已有 `EntityPatch<T>`；普通单表 `UpdatePatch<T>` 未完整抽象 | MVR 主路径，补齐 `UpdatePatch<T>`、binder、强类型 handler | 稳定后推广到业务模板 |
+| `UPDATE` | 已支持 | 已支持，字段 Map 写入 | 聚合 UPDATE 已有 `aggregate.EntityPatch<T>`；普通单表已有临时 `patch.EntityPatch<T>`、binder 和强类型 handler | MVR 主路径，补齐稳定 `UpdatePatch<T>` API并统一 binder 消费方 | 稳定后推广到业务模板 |
 | `DELETE` | 已支持 | 已支持，按 id / targetFilters 删除或逻辑删除 | 未提供强类型 delete input | 不纳入首个 MVR | 可按业务需要补 `DeleteInput<T>` 或保持 id/filters 合同 |
 | `SAVE_OR_UPDATE` | 已支持 | 已支持，按 id 存在性分派 create / update | 未提供一等 upsert Patch | 不纳入首个 MVR | 单表 UPDATE 稳定后设计 `UpsertPatch<T>` |
 | `CREATE_BATCH` | 已支持 | 已支持，拆成多条 create 子命令 | 未提供批量强类型视图 | 不纳入首个 MVR | 可设计 `BatchCreateInput<T>` 或沿用 DTO + `BatchCommand` |
@@ -68,8 +71,8 @@ Persistence Adapter -> Field Map
 覆盖结论：
 
 - **已运行覆盖**：默认命令链路覆盖 create、update、delete、saveOrUpdate 和四类 batch。
-- **已强类型覆盖**：ACTION DTO、聚合 UPDATE `EntityPatch<T>`。
-- **MVR 要补齐**：普通单表 UPDATE 的 `UpdatePatch<T>`、统一 binder、强类型 UPDATE handler 和 Patch 语义测试。
+- **已强类型覆盖**：ACTION DTO、聚合 UPDATE `aggregate.EntityPatch<T>`，以及普通 UPDATE 的临时 `patch.EntityPatch<T>` + Handler 路径。
+- **MVR 要补齐**：稳定的 `UpdatePatch<T>` API、聚合/JDBC 对统一 binder 的复用、剩余合同测试和业务模板。
 - **MVR 暂不覆盖**：CREATE、DELETE、SAVE_OR_UPDATE、Batch 的一等强类型业务 API；这些操作继续走 DTO / `WriteCommand` / `BatchCommand` / 字段 Map 过渡。
 
 ## 为什么入口难以强类型
@@ -420,10 +423,10 @@ public class SubmitOrderHandler
 
 ### 普通 UPDATE 场景
 
-普通业务更新的目标形态是 `UpdatePatch<T>`。当前版本尚未完整提供该一等 API，短期可先在业务 Service 层自建 DTO/Patch 适配，框架后续补齐统一基类和绑定器：
+普通业务更新的目标形态是 `UpdatePatch<T>`。当前版本已经提供 `AbstractPatchUpdateSceneHandler<T, R>`、`CommandPayloadBinder` 和临时命名的 `command.patch.EntityPatch<T>`；业务不再需要自行解析 Map。后续只把该临时 Patch API 收敛为稳定的 `UpdatePatch<T>`：
 
 ```java
-protected CommandResult<?> handlePatch(UpdatePatch<Order> patch) {
+protected CommandResult<?> handlePatch(EntityPatch<Order> patch) {
     Order order = patch.entity();
     if (patch.hasField(OrderFields.ORDER_NAME)) {
         String orderName = patch.get(OrderFields.ORDER_NAME, String.class);
@@ -495,7 +498,7 @@ HTTP/Dynamic Payload
 
 ### 1. `UpdatePatch<T>` 真实 API 与实现
 
-当前差距：代码层只有聚合写入使用的 `EntityPatch<T>`，普通单表 UPDATE 还没有一等 Patch 入参。业务如果要区分字段不存在、字段为 `null`、字段有值，仍需要直接读 Map 或自建临时适配对象。
+当前差距：普通单表 UPDATE 已通过 `command.patch.EntityPatch<T>` 提供三态 Patch、默认绑定器和 Handler 基类，但它与聚合包中的 `EntityPatch<T>` 同名，尚未形成文档确定的独立 `UpdatePatch<T>` API。剩余工作是稳定命名和公共合同，不再是从 Map 解析能力从零开始。
 
 确定方案：新增 `UpdatePatch<T>` 作为普通单表 UPDATE 的一等业务入参，并提供默认不可变实现。`UpdatePatch<T>` 与 `EntityPatch<T>` 保持一致的 PATCH 语义，但不混用聚合关系职责。
 
@@ -544,15 +547,15 @@ public interface UpdatePatch<T> {
 
 ### 2. 统一 `CommandPayloadBinder`
 
-当前差距：聚合 UPDATE 在 `AbstractAggregateUpdateSceneHandler` 内部维护一套 `payload -> Map -> EntityPatch` 私有转换逻辑，默认 JDBC 写入在 `CommandPayloadMapper` 内维护另一套 `payload -> Map` 规则。两处对 Bean、`CrudRecord`、类型转换、unknown field 和错误消息的支持范围不一致。
+当前差距：core 已有 `CommandPayloadBinder` 和 `DefaultCommandPayloadBinder`，普通 UPDATE Handler 已使用它；聚合 UPDATE 仍维护私有转换逻辑，默认 JDBC 写入也保留 `CommandPayloadMapper`。三处对 Bean、`CrudRecord`、类型转换、unknown field 和错误消息的支持范围尚未完全一致。
 
-确定方案：新增公共绑定器，统一负责 payload 到实体、Patch、字段 Map 的转换。聚合更新、普通 UPDATE 基类、默认 JDBC command mapper 逐步改为依赖该绑定器或复用其规则。模块归属必须先固定，避免把 Web/Jackson 细节反向塞进 core。
+确定方案：保留现有公共绑定器作为唯一 core 合同，继续让聚合更新和默认 JDBC command mapper 依赖该绑定器或通过合同测试复用其规则。模块归属保持不变，避免把 Web/Jackson 细节反向塞进 core。
 
 模块边界：
 
 | 模块 | 职责 |
 |---|---|
-| `ent-loom-crud-core` | 定义 `CommandPayloadBinder`、`UpdatePatch<T>`、默认反射绑定实现和 Patch 语义测试 |
+| `ent-loom-crud-core` | 已定义 `CommandPayloadBinder`、临时 `patch.EntityPatch<T>`、默认反射绑定实现和 Patch 语义测试；后续补稳定 `UpdatePatch<T>` |
 | `ent-loom-crud-spring-boot-starter` | 提供 Jackson/Bean Validation 增强绑定实现，接 HTTP 请求转换 |
 | `ent-loom-crud-engine-jdbc` | 消费 binder 产出的字段 Map 或保持等价规则，不依赖 Web 层 |
 
@@ -583,9 +586,9 @@ MVR 能力：
 
 ### 3. 强类型 UPDATE Handler 基类
 
-当前差距：业务要定制普通 UPDATE 时，默认仍会直接面对 `CommandUpdateSceneHandler<Object, Object>` 和 `CommandSpec<Object>`，需要自己做 payload 解析、id 判断、字段过滤和 delegate payload 重组。
+当前状态：`AbstractPatchUpdateSceneHandler<T, R>` 已落地，负责 payload 绑定、id/targetFilters 校验以及 delegate payload 重组。当前业务回调拿到的是 `CommandSpec<command.patch.EntityPatch<T>>`，与目标 `UpdatePatch<T>` 命名仍有差距。
 
-确定方案：保留 `CommandUpdateSceneHandler<P, R>` 作为底层 SPI，新增 `AbstractPatchUpdateSceneHandler<T, R>` 作为业务默认入口。业务实现只处理 `UpdatePatch<T>`，routeKey、payload 绑定、delegate payload 透传由基类处理。
+确定方案：继续保留 `CommandUpdateSceneHandler<P, R>` 作为底层 SPI，以现有 `AbstractPatchUpdateSceneHandler<T, R>` 作为业务默认入口；待 `UpdatePatch<T>` 落地后只迁移回调类型，不改变 routeKey、绑定和 delegate 桥接语义。
 
 建议形态：
 
@@ -640,7 +643,7 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
 
 ### 5. PATCH 语义测试
 
-当前差距：文档已经定义三态和字段集合分层，但这些语义还没有通过普通单表 `UpdatePatch`、聚合 `EntityPatch` 和 delegate payload 的共同测试固定下来。尤其需要修正聚合场景里 `presentFields` 直接来自原始 `payload.keySet()` 的风险。
+当前状态：`DefaultCommandPayloadBinderTest` 已覆盖普通 UPDATE 的三态、unknown field、id 与不可变集合；`AbstractPatchUpdateSceneHandlerTest` 已覆盖 delegate、`targetFilters` 和 `expectedVersion`；`AbstractAggregateUpdateSceneHandlerTest` 已固定聚合 `presentFields` 只包含已识别字段。剩余差距是稳定 `UpdatePatch<T>` API 后的同等合同，以及 JDBC mapper 与 binder 的行为对齐。
 
 确定方案：为 Patch 语义增加单元测试和最小集成测试。文档约束必须有自动化测试兜底，尤其是三态、字段过滤和 delegate payload 的边界。
 
@@ -666,15 +669,15 @@ MVR 测试范围：
 
 ### 6. 文档、模板与 Javadoc 默认路径
 
-当前差距：业务接入模板仍保留裸 `CommandUpdateSceneHandler<Object, Object>` 风格示例，`EntityPatch.getValuesForDelegate()` 也没有在 API 文档层明确标成低阶透传接口。
+当前差距：`command.patch.EntityPatch.getValuesForDelegate()` 已在 Javadoc 标成低阶透传接口，但业务接入模板尚未展示 `AbstractPatchUpdateSceneHandler<T, R>` 默认路径，稳定的 `UpdatePatch<T>` Javadoc 也尚不存在。
 
 确定方案：业务接入模板、示例代码和 Javadoc 必须把 DTO/Patch 作为默认路径，把裸 `Map<String, Object>` 明确标为底层 SPI 或 escape hatch。
 
 MVR 文档更新：
 
-- `business-integration-template.md` 增加 `AbstractPatchUpdateSceneHandler<T, R>` 示例。
-- `typed-boundary-best-practices.md` 保持当前能力和演进目标的区别，避免把未落地 API 写成已可用 API。
-- `EntityPatch.getValuesForDelegate()`、`UpdatePatch.valuesForDelegate()` 增加 Javadoc，说明仅用于默认引擎透传、框架内部或高级扩展。
+- `docs/guides/crud/integration-template.md` 增加 `AbstractPatchUpdateSceneHandler<T, R>` 示例。
+- 本文持续区分当前能力和演进目标，避免把未落地 API 写成已可用 API。
+- 保留现有 `EntityPatch.getValuesForDelegate()` Javadoc；新增 `UpdatePatch.valuesForDelegate()` 时沿用相同的 escape hatch 说明。
 - 旧 `CommandUpdateSceneHandler<Object, Object>` 示例保留时必须说明是底层 SPI 示例，不作为新业务推荐写法。
 
 取舍：
@@ -686,7 +689,7 @@ MVR 文档更新：
 
 ### 7. 错误与校验策略
 
-当前差距：类型转换、id 归一化、日期/枚举解析目前分散在不同私有实现里，失败时机和错误文案不稳定。没有统一 binder 之前，业务 Handler 很容易把输入结构错误、业务规则错误和持久化错误混在一起处理。
+当前差距：普通 UPDATE 已统一到默认 binder，但聚合 UPDATE 和 JDBC mapper 仍有独立转换规则，类型转换、id 归一化与错误文案尚未完全一致。业务 Handler 的职责已经收窄，剩余工作是稳定三个消费方的失败边界。
 
 确定方案：绑定器负责输入结构和类型转换错误，业务 Handler 负责业务规则错误，默认 engine 负责持久化执行错误。三类错误不要混在同一层处理。
 
@@ -732,7 +735,7 @@ Optional<AggregateRelationPatch<OrderItem>> optionalItems = relations.find("item
 
 ### 9. 架构约束与迁移
 
-当前差距：文档原则还没有形成可执行边界。短期如果直接禁止 Map，会误伤入口、治理和默认 engine；如果完全不约束，业务示例又会继续复制裸 Map 风格。
+当前差距：已有部分 Core ArchUnit 守卫，但尚未约束业务示例、模板和旧 Map handler 的扩散。直接全局禁止 Map 仍会误伤入口、治理和默认 engine。
 
 确定方案：MVR 先提供可用默认路径；架构约束测试和旧 Map handler deprecated 放到最佳实践增强阶段。迁移策略是“新代码默认强类型，旧代码允许低阶 SPI 过渡”。
 
@@ -744,23 +747,23 @@ Optional<AggregateRelationPatch<OrderItem>> optionalItems = relations.find("item
 
 ## 实施优先级
 
-| 优先级 | 事项 | 原因 |
-|---|---|---|
-| P0 | 明确当前能力边界 | 防止把演进目标误读成已落地 API |
-| P0 | 新增 `UpdatePatch<T>` 与默认不可变实现 | 普通 UPDATE 需要一等 Patch 语义，这是 MVR 主路径 |
-| P0 | 抽出统一 `CommandPayloadBinder` | 避免转换逻辑分叉，并支撑 Patch 三态 |
-| P0 | 新增 `AbstractPatchUpdateSceneHandler<T, R>` | 让业务 UPDATE 默认强类型 |
-| P0 | 增加 PATCH 三态与字段过滤测试 | 把核心语义变成可验证合同 |
-| P0 | 明确 `hasField()` 与最终写入字段集合的区别 | 防止 PATCH 业务判断和持久化过滤结果混用 |
-| P0 | 修正聚合 `EntityPatch.presentFields` 语义 | 避免 unknown field 被业务误判为已识别字段 |
-| P0 | `valuesForDelegate` 标注为 escape hatch | 防止业务继续依赖底层 Map |
-| P1 | 更新业务接入模板和 Javadoc | 把默认写法从裸 SPI 迁到 DTO/Patch |
-| P1 | 统一错误与校验策略 | 保证 binder、handler、engine 的失败边界稳定 |
-| P2 | 关系 Patch 强类型辅助视图 | 减少聚合关系场景 cast |
-| P2 | 字段常量或元模型 | 降低字符串字段名风险 |
-| P2 | 架构约束测试 | 把原则变成可执行边界 |
-| P3 | 关系子项级 Patch 语义 | 子项局部更新需要字段三态，不能只靠 `List<T>` |
-| P3 | 旧 Map handler 迁移与 deprecated | 平滑收敛历史实现 |
+| 优先级 | 事项 | 当前状态 | 原因 |
+|---|---|---|---|
+| P0 | 明确当前能力边界 | 已完成 | 防止把演进目标误读成已落地 API |
+| P0 | 新增 `UpdatePatch<T>` 与默认不可变实现 | 待完成 | 当前临时使用 `command.patch.EntityPatch<T>`，需要稳定一等 API |
+| P0 | 抽出统一 `CommandPayloadBinder` | 部分完成 | Binder 和默认实现已落地，聚合/JDBC 消费方仍需统一 |
+| P0 | 新增 `AbstractPatchUpdateSceneHandler<T, R>` | 已完成 | 普通 UPDATE 已有强类型默认入口 |
+| P0 | 增加 PATCH 三态与字段过滤测试 | 基础完成 | 普通与聚合行为已有覆盖，待 `UpdatePatch<T>` 和 JDBC 合同补齐 |
+| P0 | 明确 `hasField()` 与最终写入字段集合的区别 | 已完成 | Patch API 与测试已区分 `presentFields`、`persistableFields` 和 delegate values |
+| P0 | 修正聚合 `EntityPatch.presentFields` 语义 | 已完成 | unknown field 已被过滤且有回归测试 |
+| P0 | `valuesForDelegate` 标注为 escape hatch | 已完成 | 当前 Patch Javadoc 已明确低阶用途 |
+| P1 | 更新业务接入模板和 Javadoc | 待完成 | 把默认写法从裸 SPI 迁到 DTO/Patch |
+| P1 | 统一错误与校验策略 | 部分完成 | 保证 binder、handler、engine 的失败边界稳定 |
+| P2 | 关系 Patch 强类型辅助视图 | 待完成 | 减少聚合关系场景 cast |
+| P2 | 字段常量或元模型 | 待完成 | 降低字符串字段名风险 |
+| P2 | 架构约束测试 | 部分完成 | Core 已有守卫，模板与扩展包仍待约束 |
+| P3 | 关系子项级 Patch 语义 | 待完成 | 子项局部更新需要字段三态，不能只靠 `List<T>` |
+| P3 | 旧 Map handler 迁移与 deprecated | 待完成 | 平滑收敛历史实现 |
 
 ## 最终约定
 
@@ -768,4 +771,4 @@ Optional<AggregateRelationPatch<OrderItem>> optionalItems = relations.find("item
 
 > 通用入口弱类型，业务语义边界强类型，局部更新使用 Patch，存储适配层使用字段 Map。
 
-这条规则同时满足通用治理框架的灵活性、业务代码的可维护性，以及默认 JDBC 引擎的实现效率。后续实现应优先补齐 `UpdatePatch<T>`、强类型 Handler 基类和统一 Payload/Patch 绑定器，把文档原则落成默认工程路径。
+这条规则同时满足通用治理框架的灵活性、业务代码的可维护性，以及默认 JDBC 引擎的实现效率。当前 Binder、临时 Patch 和强类型 UPDATE Handler 已形成可运行基础；下一步优先补齐稳定 `UpdatePatch<T>` API、统一聚合/JDBC 绑定规则，并把默认写法写入业务接入模板。

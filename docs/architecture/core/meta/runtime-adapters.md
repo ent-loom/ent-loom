@@ -1,7 +1,7 @@
 # Meta Runtime Adapters 当前实现
 
 > Status: Current
-> Verified: 2026-05-04
+> Verified: 2026-08-20
 > Scope: `ent-loom-meta`、`ent-loom-integrations`
 
 本文记录 Meta -> CRUD / DOC 的当前闭环。历史推进清单已归档到 [Meta -> CRUD / DOC -> 业务层闭环待实现清单](../../../archive/meta/meta-business-todo-plan.md)。
@@ -77,7 +77,7 @@ flowchart LR
 - `DocOverrideProvider` 能覆盖实体名、分组和字段可见性。
 - 重复 adapter 输出在 registry 边界 fail-fast。
 
-测试 `MetaCrudAdapter当前版本AcceptanceTest`、`MetaDocAdapter当前版本AcceptanceTest`、`MetaCrudAdapterRelationDirectionTest` 覆盖静态 fixture、关系方向和 当前版本 验收。
+测试 `MetaCrudAdapterP0AcceptanceTest`、`MetaDocAdapterP0AcceptanceTest`、`MetaCrudAdapterRelationDirectionTest` 覆盖静态 fixture、关系方向和 P0 验收。
 
 ## 当前限制
 

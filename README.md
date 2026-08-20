@@ -36,13 +36,13 @@
 
 ## ☕ 运行环境
 
-- JDK 25 或更高版本
+- JDK 21 或更高版本
 - Maven 3.9 或更高版本
 
-项目以 Java 25 作为编译目标，并使用 Spring Boot 3.5 / Spring Framework 6.2。Java 8 不再是支持的运行环境。
+项目当前以 Java 21 作为统一编译目标，并使用 Spring Boot 3.5 / Spring Framework 6.2。Java 8 不再是当前完整 Reactor 的支持运行环境。
 
 ```bash
-export JAVA_HOME=/path/to/jdk-25
+export JAVA_HOME=/path/to/jdk-21
 mvn clean install
 ```
 

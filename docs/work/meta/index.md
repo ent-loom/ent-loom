@@ -2,6 +2,8 @@
 
 本目录是 Meta 裁决能力的当前实施闭环。规范性结论见 [Metadata Resolution Contract](../../architecture/core/meta/metadata-resolution-contract.md)，长期剩余目标见 [Meta 路线图](../../roadmap/meta/index.md)。
 
+当前阶段：基线整理已完成，正在进入公共 `Contribution` 与属性级 Resolver 契约阶段。
+
 ## 当前文档
 
 1. [实施路线](metadata-resolution-roadmap.md)：描述从裁决契约到运行时闭环的阶段目标。

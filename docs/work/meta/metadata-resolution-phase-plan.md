@@ -1,7 +1,7 @@
 # 元数据裁决分期实施清单
 
 > 性质：阶段实施清单
-> 状态：进行中
+> 状态：阶段 0 已完成，当前进入阶段 1
 > 规范依据：[Metadata Resolution Contract](../../architecture/core/meta/metadata-resolution-contract.md)
 > 目标：逐步落地“属性级裁决、可追踪来源、模块独立运行、运行时闭环”。
 > 原则：每期只引入一个主要架构变化；每期结束必须可编译、可测试、可回滚。
@@ -10,7 +10,7 @@
 
 ```mermaid
 flowchart TD
-    P0["阶段 0<br/>当前基线与测试修复"] --> P1["阶段 1<br/>Contribution 与属性级 Resolver"]
+    P0["阶段 0（已完成）<br/>基线与测试修复"] --> P1["阶段 1（当前）<br/>Contribution 与属性级 Resolver"]
     P1 --> P2["阶段 2<br/>Meta Project Convention"]
     P2 --> P3["阶段 3<br/>CRUD Convention 与运行时闭环"]
     P3 --> P4["阶段 4<br/>架构守卫与全量测试"]
@@ -21,16 +21,18 @@ flowchart TD
 
 ## 清单
 
-### 阶段 0：基线整理（当前）
+### 阶段 0：基线整理（已完成）
 
 - [x] 完成 `modules / meta / integrations` 目录重构
 - [x] 将 CRUD Native Parser 归入 `ent-loom-crud-core`
-- [ ] 修复已有 `DefaultStatsQueryEngineTest` 失败
-- [ ] 建立 Native-only、Meta-only、Meta + Module 三类测试基线
+- [x] 确认 `DefaultStatsQueryEngineTest` 修复并持续通过
+- [x] 建立 Native-only、Meta-only、Meta + Module 三类测试基线
 
 **完成标志**：`mvn test` 全绿，且目录重构后的依赖边界稳定。
 
-### 阶段 1：公共裁决契约（P0）
+2026-08-20 使用 JDK 21 执行全仓 `mvn clean test` 已通过；Native-only、Meta-only、Meta + Module 分别由 CRUD native parser、Meta adapter acceptance 和 merger 测试覆盖。
+
+### 阶段 1：公共裁决契约（当前，P0）
 
 - [ ] 在 `ent-loom-meta-contract` 增加 `Contribution`、`RuleId`、`Priority`
 - [ ] 为结果保留 `value / source / ruleId`
@@ -54,16 +56,16 @@ flowchart TD
 
 - [ ] 增加 CRUD Built-in / Project Convention SPI
 - [ ] 接入创建填充、禁止更新、默认排序、导出格式
-- [ ] 统一 Native-only 与 Meta-enabled 两条建模路径
+- [x] 统一 Native-only 与 Meta-enabled 两条建模路径到 `CrudRuntimeModel`
 - [ ] Adapter 只负责 Meta Descriptor 投影
-- [ ] 形成唯一 CRUD Runtime Model
+- [x] 形成唯一 CRUD Runtime Model
 
 **完成标志**：Meta 属性实际影响 CRUD 查询、写入和导出行为。
 
 ### 阶段 4：守卫与回归（P1）
 
-- [ ] 增加 ArchUnit / Maven 依赖边界守卫
-- [ ] 固化 `Module Core -X-> meta-core`
+- [x] 建立现有 Meta / CRUD Core 的 ArchUnit 边界守卫基线
+- [ ] 补 Maven 依赖边界守卫并完整固化 `Module Core -X-> meta-core`
 - [ ] 增加规则顺序稳定性测试
 - [ ] 增加来源追踪和消费者闭环测试
 
