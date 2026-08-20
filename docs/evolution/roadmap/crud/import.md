@@ -4,7 +4,7 @@
 > 最近核验：2026-05-04
 > 范围：`ent-loom-crud`
 
-当前事实见 [Import 当前实现](../../../architecture/components/crud/import.md)。历史方案全文见 [Import 方案归档](../../../archive/crud/import-plan.md)。
+当前事实见 [Import 当前实现](../../../architecture/components/crud/import.md)。
 
 ## 已实现
 

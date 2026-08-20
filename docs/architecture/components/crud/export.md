@@ -1,10 +1,10 @@
 # Export 当前实现
 
 > 状态：Current
-> 最近核验：2026-05-04
+> 最近核验：2026-08-21
 > 范围：`ent-loom-crud`
 
-Export 是 CRUD 的一等能力域，和 Query、Command、Stats、Import 平级。历史阶段方案已归档到 [Export 方案归档](../../../archive/crud/export-plan.md)。
+Export 是 CRUD 的一等能力域，和 Query、Command、Stats、Import 平级。
 
 ## 主链
 
@@ -36,6 +36,17 @@ flowchart LR
 | 展示值 | `DefaultExportValueRenderer` 处理枚举、布尔、时间和字典展示 |
 | 文件生成 | `SUBMIT` 写入 `EXPORT_RESULT` 文件 |
 | 任务 | `SUBMIT` 创建终态 `CrudTask` |
+
+## 列与展示规则
+
+- 未显式传 `fields` 时，列按 Runtime Model 的字段顺序生成。
+- 主键、逻辑删除、关系对象、内置内部字段和默认不可见字段不会进入默认列。
+- 显式 `fields` 仍受字段白名单与导出元数据约束，不放行主键、外键 ID、逻辑删除和内部字段。
+- `displayField` 只支持合法的同表展示字段；当前不支持关系路径投影。
+- 枚举、布尔、时间、数字格式和字典文本统一由 `DefaultExportValueRenderer` 处理。
+- Preview 与 Submit 共用 `ExportTable` 列合同和渲染链。
+
+业务配置方式见 [Export 展示值配置](../../../guides/crud/export-rendering.md)。
 
 ## 治理边界
 

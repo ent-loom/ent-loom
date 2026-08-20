@@ -4,7 +4,7 @@
 > 最近核验：2026-08-20
 > 范围：`ent-loom-meta`、`ent-loom-integrations`
 
-本文记录 Meta -> CRUD / DOC 的当前闭环。历史推进清单已归档到 [Meta -> CRUD / DOC -> 业务层闭环待实现清单](../../../archive/meta/meta-business-todo-plan.md)。
+本文记录 Meta -> CRUD / DOC 的当前闭环。
 
 ## 当前结论
 

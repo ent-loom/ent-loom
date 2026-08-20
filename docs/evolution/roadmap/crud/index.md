@@ -14,6 +14,5 @@
 - [Export](export.md)
 - [Task / File](task-file.md)
 - [Relation Query](relation-query.md)
-- [JOIN_LIST 投影与排序](relation-query-join-list.md)
 
 能力增强不得越过重构路线中的合同门禁和模块边界。已完成能力以 Architecture 为准，不在路线图重复列出。

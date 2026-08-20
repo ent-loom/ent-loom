@@ -18,7 +18,7 @@
 
 ### 1. 外部契约回归门禁
 
-已有 [P0 Contract Baseline](../../../architecture/components/crud/p0-contract-baseline.md) 和部分 Starter contract 测试。剩余工作：
+当前 HTTP 契约见 [CRUD HTTP Contract](../../../architecture/components/crud/http-contract.md)，并已有部分 Starter contract 测试。剩余工作：
 
 - 成功与失败 JSON snapshot。
 - 错误 code、stage、reason 和 HTTP status 矩阵回归。

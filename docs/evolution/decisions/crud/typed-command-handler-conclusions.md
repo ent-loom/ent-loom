@@ -39,6 +39,14 @@
 
 Core 模板不依赖 Spring；事务模板属于 Starter。构造器注入和业务 Service 不进入框架 Core Contract。
 
+## 职责约束
+
+1. Spec 不承担 payload 解析，动态载荷统一由 Binder 转为强类型视图。
+2. Scene Handler 不直接依赖 JDBC 实现。
+3. delegate 可以复用默认执行链，但不是业务逻辑的唯一写入方式。
+4. 普通单表 Patch 不承担聚合关系同步职责。
+5. 包结构只表达职责，不能代替模型所有权和依赖边界。
+
 ## Patch 的位置
 
 `UpdatePatch<T>` 只用于需要区分 absent、explicit null 和 value 的场景，不作为 full update 默认入口。普通 Patch 与聚合 `EntityPatch<T>` 的命名和职责以强类型边界文档为准。

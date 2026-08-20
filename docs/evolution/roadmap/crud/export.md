@@ -1,10 +1,10 @@
 # Export 后续路线
 
 > 状态：Remaining
-> 最近核验：2026-05-04
+> 最近核验：2026-08-21
 > 范围：`ent-loom-crud`
 
-当前事实见 [Export 当前实现](../../../architecture/components/crud/export.md)。历史方案全文见 [Export 方案归档](../../../archive/crud/export-plan.md)。
+当前事实见 [Export 当前实现](../../../architecture/components/crud/export.md)。
 
 ## 已实现
 
@@ -26,3 +26,5 @@
 | 大文件 streaming / channel | 当前 `FileService` 面向小文件和字节数组 |
 | 更多格式 | 当前默认只注册 `excel-xlsx` |
 | 下载错误响应增强 | 二进制下载必须在写出前完成预检，复杂错误表达仍可继续增强 |
+| 关系路径展示列 | 当前 `displayField` 只支持同表字段，需等待受控关联投影能力 |
+| 组合展示列 | 一个展示列依赖多个原始字段时，当前由业务 Handler 处理 |

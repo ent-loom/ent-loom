@@ -1,9 +1,11 @@
 # Query/Command 协议与路由明细
 
 > 状态：Current
-> 最近核验：2026-08-20
+> 最近核验：2026-08-21
 
-本框架的运行时合同由不可变 `Spec`、`CrudRouteKey` 和 `SceneHandler` 组成。HTTP、SDK 或业务 Controller 最终都要收敛为 `QuerySpec`、`CommandSpec` 或 `StatsQuerySpec`。
+本框架的运行时合同由不可变 `Spec`、`CrudRouteKey` 和 `SceneHandler` 组成。HTTP、SDK 或业务
+Controller 最终都要收敛为 `QuerySpec`、`CommandSpec` 或 `StatsQuerySpec`。HTTP 路径、请求约束
+和响应结构以 [CRUD HTTP Contract](http-contract.md) 为准。
 
 ## Spec 模型
 
@@ -234,88 +236,6 @@ flowchart LR
 ```
 
 `targetFilters` 仍在 `CommandSpec` 上保留，但定位为高级目标选择器，用于内部编排、action 或定制代码；普通 `update/delete/saveOrUpdate` 不应把它作为主入口。
-
-## HTTP 合同
-
-默认控制器基础路径：`/api/ent-crud`，可用 `entloom.crud.controller.base-path` 修改。
-
-| 路由 | 请求 DTO | 入口 |
-|---|---|---|
-| `POST /{entity}/page[/scene]` | `CrudReadHttpRequest` | `QueryGateway.page` |
-| `POST /{entity}/list[/scene]` | `CrudReadHttpRequest` | `QueryGateway.list` |
-| `POST /{entity}/findOne[/scene]` | `CrudReadHttpRequest` | `QueryGateway.findOne` |
-| `POST /{entity}/detail[/scene]` | `CrudReadHttpRequest` | `QueryGateway.detail` |
-| `POST /{entity}/stats[/scene]` | `CrudStatsHttpRequest` | `StatsGateway.stats` |
-| `POST /{entity}/create[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/update[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/delete[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/saveOrUpdate[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/createBatch[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/updateBatch[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/deleteBatch[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/saveOrUpdateBatch[/scene]` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-| `POST /{entity}/action/{scene}` | `CrudCommandHttpRequest` | `CommandGateway.action` |
-
-HTTP 请求合同由 `RequestContractValidator` 统一校验：
-
-- `scene` 只能来自 URL 路径，`options.scene` 会被拒绝。
-- `options.sortExpression` 已移除，会被拒绝。
-- 未显式建模的 `options.*` 和顶层字段会被拒绝。
-- read/stats 当前仍保留 `filter`、`filters`、`filterMap`、`filterList`、`sort`、`sorts`，后续是否收敛以 远期增强 计划为准。
-
-## 错误信封
-
-失败响应会保留顶层 `code/message/requestId/traceId/operationDomain/operation`，同时提供结构化 `error`，方便前端展示、日志检索和问题定位。
-
-```json
-{
-  "success": false,
-  "code": "ROUTE_NOT_FOUND",
-  "message": "未找到查询路由: com.example.Order|QUERY/PAGE|missing",
-  "requestId": "req-1",
-  "traceId": "trace-1",
-  "operationDomain": "QUERY",
-  "operation": "PAGE",
-  "error": {
-    "code": "ROUTE_NOT_FOUND",
-    "message": "未找到查询路由: com.example.Order|QUERY/PAGE|missing",
-    "stage": "ROUTE",
-    "routeKey": "com.example.Order|QUERY/PAGE|missing",
-    "requestId": "req-1",
-    "traceId": "trace-1",
-    "reason": "ROUTE_NOT_FOUND"
-  },
-  "data": null,
-  "meta": {}
-}
-```
-
-```mermaid
-flowchart LR
-    http["HTTP contract"]
-    normalize["NORMALIZE"]
-    governance["GOVERNANCE"]
-    route["ROUTE"]
-    execute["EXECUTE"]
-    envelope["CrudErrorEnvelope"]
-
-    http --> envelope
-    normalize --> envelope
-    governance --> envelope
-    route --> envelope
-    execute --> envelope
-```
-
-阶段语义：
-
-| stage | 含义 |
-|---|---|
-| `HTTP_CONTRACT` | HTTP DTO、options、顶层字段、请求合同校验失败 |
-| `NORMALIZE` | Gateway 请求快照或 op 规范化失败 |
-| `GOVERNANCE` | subject、attribute、permission、data scope 治理失败 |
-| `ROUTE` | 显式 scene 路由未命中或路由冲突 |
-| `EXECUTE` | 默认引擎或 SceneHandler 执行失败 |
-| `UNKNOWN` | 非框架异常且无法归类 |
 
 ## Business Adapter SPI
 

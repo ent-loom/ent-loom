@@ -4,7 +4,7 @@
 > 最近核验：2026-05-04
 > 范围：`ent-loom-crud`
 
-Import 是 CRUD 的一等能力域，和 Query、Command、Stats、Export 平级。历史阶段方案已归档到 [Import 方案归档](../../../archive/crud/import-plan.md)。
+Import 是 CRUD 的一等能力域，和 Query、Command、Stats、Export 平级。
 
 ## 主链
 

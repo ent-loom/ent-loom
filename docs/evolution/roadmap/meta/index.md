@@ -29,8 +29,6 @@ Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚�
 - Native-only、Meta-only、Meta + Module 基础路径。
 - CRUD 唯一 Runtime Model 与冻结 Registry。
 
-历史推进全文见 [Meta 业务闭环归档](../../../archive/meta/meta-business-todo-plan.md)。
-
 ## 维护规则
 
 - 当前事实维护在 `docs/architecture/core/meta/`。

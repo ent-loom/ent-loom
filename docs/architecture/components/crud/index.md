@@ -1,7 +1,7 @@
 # CRUD 架构入口
 
 > 状态：Current
-> 最近核验：2026-08-20
+> 最近核验：2026-08-21
 
 本目录描述 CRUD 的当前合同和实现。阅读时先看总览，再按问题进入具体文档。
 
@@ -9,11 +9,9 @@
 
 1. [CRUD 核心组件](overview.md)
 2. [运行时架构](runtime-architecture.md)
-3. [稳定规则](stable-rules.md)
 
 ## 公开合同
 
-- [P0 外部契约基线](p0-contract-baseline.md)
 - [HTTP Contract](http-contract.md)
 - [Query/Command 协议与路由](query-command-contract.md)
 - [强类型边界](typed-boundary.md)
@@ -39,4 +37,4 @@
 - [CRUD 设计决策](../../../evolution/decisions/crud/index.md)
 - [CRUD 路线图](../../../evolution/roadmap/crud/index.md)
 
-本目录不保存实施步骤或历史方案。未完成目标进入 Roadmap，被替代方案进入 Archive。
+本目录不保存实施步骤或历史方案，未完成目标统一进入 Roadmap。

@@ -1,7 +1,7 @@
 # ent-loom 文档中心
 
 > 状态：Current
-> 最近核验：2026-08-20
+> 最近核验：2026-08-21
 
 本文档中心只回答四类问题：系统现在是什么、如何使用、为什么这样设计、下一步做什么。实现细节尽量留在对应模块，历史材料不参与当前架构判断。
 
@@ -11,7 +11,6 @@
 architecture  当前事实和必须遵守的架构契约
 guides        接入、开发和使用方式
 evolution     设计取舍与尚未完成的演进计划
-archive       已结束或被替代的历史材料
 ```
 
 权威顺序固定为：
@@ -21,7 +20,6 @@ Core Contract
   -> Component Architecture
   -> Guide
   -> Evolution Decision / Roadmap
-  -> Archive
 ```
 
 下游文档只能细化上游契约，不能覆盖它。发现冲突时，以更上游且状态有效的文档为准，并修正冲突文档。
@@ -51,7 +49,7 @@ Core Contract
 - [CRUD 开发指南](guides/crud/development-guide.md)
 - [CRUD 业务集成模板](guides/crud/integration-template.md)
 - [Meta-first 最佳实践](guides/meta/meta-first.md)
-- [Export 展示值渲染](guides/crud/export-rendering.md)
+- [Export 展示值配置](guides/crud/export-rendering.md)
 
 ## 演进入口
 
@@ -70,12 +68,11 @@ Core Contract
 | `In Progress` | 正在实施，不能代替当前架构事实 |
 | `Remaining` | 已确认但尚未开始或未完成的路线 |
 | `Superseded` | 已被其他文档替代，只保留决策背景 |
-| `Archived` | 仅供历史追溯 |
 
 ## 维护规则
 
 1. 一个结论只保留一个权威正文，其他文档使用链接。
 2. `architecture` 不保存实施步骤；`roadmap` 不保存已完成方案全文。
-3. 决策完成后保留取舍和后果，删除临时迁移清单与重复 API 说明。
+3. 决策完成后保留取舍和后果，删除临时迁移清单与重复 API 说明；历史通过 Git 追溯。
 4. 当前事实、目标状态和历史背景必须明确分开。
 5. 移动或删除文档后必须检查仓库内 Markdown 相对链接。

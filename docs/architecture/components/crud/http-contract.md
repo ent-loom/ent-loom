@@ -1,70 +1,106 @@
-# HTTP Contract 当前实现
+# CRUD HTTP Contract
 
 > 状态：Current
-> 最近核验：2026-05-04
+> 最近核验：2026-08-21
 > 范围：`ent-loom-crud-spring-boot-starter`
 
-本文记录 CRUD Starter 当前公开的 HTTP 入口和响应边界。HTTP 层只负责 DTO、上下文组装、Facade 调用和响应脱敏；执行语义由各 Gateway 承担。
+本文是 CRUD Starter HTTP 入口、请求约束和响应结构的唯一文档。Spec、routeKey 与 Handler
+语义见 [Query/Command 协议与路由](query-command-contract.md)。
 
-## Base Path
+## 启用方式
 
-默认 base path：
+默认 Controller 关闭，通过以下配置启用：
 
-```text
-/api/ent-crud
+```yaml
+entloom:
+  crud:
+    controller:
+      enabled: true
+      base-path: /api/ent-crud
+      default-timezone: Asia/Shanghai
 ```
 
-可通过 `entloom.crud.controller.base-path` 配置覆盖。
+Query、Command、Import、Export 还受各自的 `enabled` 开关控制。
 
 ## Query / Command / Stats
 
-Query、Command、Stats 使用各自 Controller / Facade / Assembler 组装 `QuerySpec`、`CommandSpec`、`StatsSpec`，进入对应 Gateway。
+下表路径均相对于默认 base path `/api/ent-crud`，`scene` 除 `ACTION` 外均可省略。
 
-详细 Spec 和 routeKey 合同见 [Query/Command 协议与路由明细](query-command-contract.md)。
+| Domain | Method | 路径 | 请求 DTO |
+|---|---|---|---|
+| QUERY | `POST` | `/{entity}/page[/{scene}]` | `CrudReadHttpRequest` |
+| QUERY | `POST` | `/{entity}/list[/{scene}]` | `CrudReadHttpRequest` |
+| QUERY | `POST` | `/{entity}/findOne[/{scene}]` | `CrudReadHttpRequest` |
+| QUERY | `POST` | `/{entity}/detail[/{scene}]` | `CrudReadHttpRequest` |
+| STATS | `POST` | `/{entity}/stats[/{scene}]` | `CrudStatsHttpRequest` |
+| COMMAND | `POST` | `/{entity}/create[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/update[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/delete[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/saveOrUpdate[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/createBatch[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/updateBatch[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/deleteBatch[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/saveOrUpdateBatch[/{scene}]` | `CrudCommandHttpRequest` |
+| COMMAND | `POST` | `/{entity}/action/{scene}` | `CrudCommandHttpRequest` |
 
-## Import
+## Import / Export
 
-当前路径：
+| Domain | Method | 路径 | 结果 |
+|---|---|---|---|
+| IMPORT | `POST` | `/{entity}/import/validate`、`/{entity}/import/{scene}/validate` | 校验结果 |
+| IMPORT | `POST` | `/{entity}/import/submit`、`/{entity}/import/{scene}/submit` | 提交结果 |
+| IMPORT | `POST` | `/{entity}/import/status`、`/{entity}/import/tasks/{taskId}/status` | 任务状态 |
+| IMPORT | `POST` | `/{entity}/import/error`、`/{entity}/import/tasks/{taskId}/errors/download` | 错误文件 |
+| EXPORT | `POST` | `/{entity}/export/preview`、`/{entity}/export/{scene}/preview` | 预览数据 |
+| EXPORT | `POST` | `/{entity}/export/submit`、`/{entity}/export/{scene}/submit` | 导出结果 |
+| EXPORT | `POST` | `/{entity}/export/status`、`/{entity}/export/tasks/{taskId}/status` | 任务状态 |
+| EXPORT | `POST` | `/{entity}/export/download`、`/{entity}/export/tasks/{taskId}/download` | 导出文件 |
+
+Import 需要业务先将源文件保存到 `FileService` 并提供 `sourceFile.fileId`；Starter 不提供通用上传入口。
+
+## 请求约束
+
+- `scene` 只能来自路径，客户端传入 `options.scene` 会被拒绝。
+- 未建模的顶层字段和 `options.*` 字段会被拒绝。
+- `options.sortExpression` 不受支持。
+- 服务端身份、访问入口和治理属性通过 `CrudInvocationContext` 提供，不能由普通 HTTP 参数注入。
+- 下载必须在打开文件流前完成任务归属、主体、用途、过期时间和文件元数据预检。
+
+## 响应结构
+
+普通入口返回 `CrudResponse<T>`，稳定字段包括：
 
 ```text
-POST /{entity}/import/validate
-POST /{entity}/import/{scene}/validate
-POST /{entity}/import/submit
-POST /{entity}/import/{scene}/submit
-POST /{entity}/import/status
-POST /{entity}/import/tasks/{taskId}/status
-POST /{entity}/import/error
-POST /{entity}/import/tasks/{taskId}/errors/download
+success / code / message / error
+requestId / traceId
+operationDomain / operation / capability
+data / meta
 ```
 
-HTTP DTO 经 `CrudImportExportSpecAssembler` 转成 `ImportSpec`。响应由 `CrudImportExportResponseAssembler` 转成脱敏 `CrudImportData` / `CrudTaskData`，错误文件下载成功时返回二进制。
+失败时 `error` 提供 `code`、`message`、`stage`、`routeKey`、`requestId`、`traceId`
+和 `reason`。二进制下载成功时直接返回文件流；开始写出后不能再切换为 JSON 错误。
 
-## Export
+错误阶段：
 
-当前路径：
+| Stage | 含义 |
+|---|---|
+| `HTTP_CONTRACT` | HTTP DTO、未知字段或请求结构校验失败 |
+| `NORMALIZE` | 请求快照或操作归一化失败 |
+| `GOVERNANCE` | 主体、权限或数据范围治理失败 |
+| `ROUTE` | scene 路由未命中或冲突 |
+| `EXECUTE` | Handler 或默认 Engine 执行失败 |
+| `UNKNOWN` | 无法归类的非框架异常 |
 
-```text
-POST /{entity}/export/preview
-POST /{entity}/export/{scene}/preview
-POST /{entity}/export/submit
-POST /{entity}/export/{scene}/submit
-POST /{entity}/export/status
-POST /{entity}/export/tasks/{taskId}/status
-POST /{entity}/export/download
-POST /{entity}/export/tasks/{taskId}/download
-```
+主要 HTTP 状态映射：
 
-HTTP DTO 经 `CrudImportExportSpecAssembler` 转成 `ExportSpec`。响应由 `CrudImportExportResponseAssembler` 转成脱敏 `CrudExportData` / `CrudTaskData`，下载成功时返回二进制。
+| HTTP | 错误码 |
+|---:|---|
+| 400 | `VALIDATION_ERROR`、`TYPE_RESOLUTION_FAILED`、`ENTITY_SCOPE_ILLEGAL`、`UNSUPPORTED_QUERY_STRATEGY`、`IDEMPOTENCY_KEY_REQUIRED` |
+| 403 | `PERMISSION_DENIED`、`DATA_SCOPE_DENIED` |
+| 404 | `ENTITY_NOT_EXPOSED`、`ROUTE_NOT_FOUND` |
+| 405 | `METHOD_NOT_ALLOWED` |
+| 409 | `ROUTE_AMBIGUOUS`、`QUERY_NOT_UNIQUE`、幂等进行中或载荷冲突 |
+| 500 | 其他未显式映射错误 |
 
-## 响应边界
-
-- HTTP 不直接长期暴露 `ImportResult`、`ExportResult`、`CrudTask` 或 `FileRef`。
-- task 响应不暴露 `contextSnapshot`。
-- file 响应不暴露 storageKey、本地路径、对象存储 key 或 checksum 原文。
-- 下载成功返回二进制；下载前的失败由异常翻译层返回统一错误。
-
-## 当前限制
-
-- Starter 不提供通用文件上传入口。
-- Import 需要业务先获得 `sourceFile.fileId`。
-- 二进制响应开始写出后不能再切换为 JSON 错误，因此下载预检必须发生在打开文件流之前。
+HTTP 层不直接长期暴露 `ImportResult`、`ExportResult`、`CrudTask` 或 `FileRef`；任务响应不暴露
+`contextSnapshot`，文件响应不暴露存储路径、对象存储 key 或 checksum 原文。

@@ -19,7 +19,6 @@
     - [Import 后续路线](../../docs/evolution/roadmap/crud/import.md)
     - [Export 后续路线](../../docs/evolution/roadmap/crud/export.md)
     - [Relation Query 后续路线](../../docs/evolution/roadmap/crud/relation-query.md)
-    - [Relation Query JOIN_LIST 投影与排序方案](../../docs/evolution/roadmap/crud/relation-query-join-list.md)
 - **[架构设计决策](../../docs/evolution/decisions/crud/)**:
     - [Operation Domain / Operation 决策](../../docs/evolution/decisions/crud/capability-operation-refactor.md)
 
@@ -37,4 +36,4 @@
 - **README**: 只保留项目定位、模块总览和核心文档导航。
 - **公共契约**: 统一维护在根目录 `docs/architecture/`。
 - **内部实现**: 维护在模块自身的 `docs/implementation/`。
-- **历史记录**: 归档在根目录 `docs/archive/`。
+- **历史记录**: 通过 Git 历史追溯，不进入当前文档导航。

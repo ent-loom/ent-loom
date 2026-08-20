@@ -1,66 +1,55 @@
 # Relation Query 后续路线
 
 > 状态：Remaining
+> 当前事实：[Query 当前实现](../../../architecture/components/crud/query.md)
 
-本文是下一阶段方案，不是当前已实现能力。当前实现只支持 `ROOT_FIRST` 默认读，不支持默认 `EXISTS/JOIN`、关联过滤、关联排序。
+当前默认查询使用 `ROOT_FIRST`：先按根实体过滤和分页，再批量补充关系数据。它不支持关联字段过滤、
+关联排序和 JOIN 投影；复杂场景当前使用业务 Scene Handler。
 
-## 目标
+## 目标边界
 
-在不破坏当前治理模型的前提下，为默认跨表查询增加“主表权限锚点”能力：
+后续默认引擎按风险分两类增强：
 
-- 治理范围仍优先落在 root entity。
-- 关联过滤可以通过 `EXISTS` 或 `JOIN` 编译到 SQL。
-- 默认仍保证字段白名单、参数限制、逻辑删除和审计语义。
-- 复杂跨服务、多跳、跨库关系仍不纳入默认引擎。
+| 能力 | 用途 | 首期边界 |
+|---|---|---|
+| `EXISTS` | 用关联条件筛选根实体 | 本地库、受控关系路径，不展开关联行 |
+| `JOIN_LIST` | 一跳维表投影和关联排序 | 仅 `N:1` / `1:1`，分页仍以 root 行为准 |
 
-## 推荐分层
+第一阶段必须保持：
 
-```mermaid
-flowchart TB
-    spec["QueryExecutionSpec"]
-    relation["RelationQueryCoordinator"]
-    strategy["QueryStrategyResolver"]
-    rootScope["Root Scope Predicate<br/>root governanceScope"]
-    exists["EXISTS Compiler"]
-    join["JOIN Compiler"]
-    rootFirst["ROOT_FIRST Compiler"]
-    executor["JdbcQueryExecutor"]
+- root entity 是租户、权限和数据范围的唯一默认锚点。
+- 表、列、alias 和关系路径只能由 Runtime Model 解析，不能接收原始 SQL。
+- 关联投影和排序使用结构化对象；排序表达式只开放枚举式内置能力。
+- data、count 和 root-id 查询使用相同过滤与治理条件。
+- 分页结果按 root 行去重，并追加稳定兜底排序。
 
-    spec --> relation --> strategy
-    strategy --> rootFirst
-    strategy --> exists
-    strategy --> join
-    rootScope --> rootFirst
-    rootScope --> exists
-    rootScope --> join
-    rootFirst --> executor
-    exists --> executor
-    join --> executor
+不进入默认引擎：任意多跳或 `1:N` JOIN 分页、跨库/跨服务自动 JOIN、原始 SQL 片段和自动推断
+关联表权限锚点。
+
+## 最小模型方向
+
+```text
+QueryExecutionSpec
+  -> relation filters / join projections / join sorts
+  -> RelationPath 绑定
+  -> QueryPlan(EXISTS | JOIN_LIST)
+  -> Guarded SQL
 ```
 
-## 策略边界
+建议先只开放 Java 内部模型，由业务 Handler 构造受控计划；只有字段名和安全语义稳定后再决定是否扩展
+HTTP 请求合同。
 
-| 策略 | 适合场景 | 风险 |
-|---|---|---|
-| `ROOT_FIRST` | 先按主表分页，再补子表展示 | 不能关联过滤/排序 |
-| `EXISTS` | 用子表条件筛主表，不展开子表行 | SQL 编译复杂度适中 |
-| `JOIN` | 需要按关联字段排序或直接投影 | 分页去重、计数和数据膨胀风险高 |
+## 启动条件
 
-一跳本地库 `JOIN` 列表的细化方案见 [Relation Query JOIN_LIST 投影与排序方案](relation-query-join-list.md)。
+1. 当前外部合同回归门禁稳定。
+2. RelationPath 能唯一绑定 Runtime Model 中的关系边。
+3. SQL Guard 支持受控 alias，并能验证所有 data/count/id SQL。
+4. 有至少两个真实的一跳列表场景验证公共抽象。
 
-## 实施建议
+## 验收条件
 
-1. 保留 `QueryPlan`，新增关系过滤/排序的结构化描述，不直接把字符串 SQL 塞进 Plan。
-2. 将 `JdbcQueryCompiler` 拆成根谓词、关联谓词、排序、分页四类组件。
-3. `SqlIdentifierAllowlistValidator` 需要从“允许单跳字段路径”升级为“字段路径解析 + 关系边绑定”。
-4. `DataScope` 仍只应用 root 表，除非业务显式贡献可验证的关联维度约束。
-5. 对 `JOIN` 分页必须有明确去重策略，例如先分页 root id，再回表补行。
-
-## 不建议放入默认引擎的能力
-
-- 远程服务自动补数。
-- 多跳任意路径 join。
-- 跨表写事务编排。
-- 自动推断业务语义型权限锚点。
-
-这些能力应继续通过业务场景 Handler 或单独 relation-query 内核扩展完成。
+- 关联投影、排序和空值排序均不接收 SQL 字符串。
+- root 数据范围始终进入查询，关联条件不能扩大授权范围。
+- 一跳 JOIN 不改变 root 分页计数和行唯一性。
+- 未支持的路径、基数和表达式在编译 SQL 前失败。
+- 远程、多跳和复杂报表仍能明确回退到 Scene Handler。
