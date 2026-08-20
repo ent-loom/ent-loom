@@ -102,5 +102,8 @@ data / meta
 | 409 | `ROUTE_AMBIGUOUS`、`QUERY_NOT_UNIQUE`、幂等进行中或载荷冲突 |
 | 500 | 其他未显式映射错误 |
 
+合同回归由 Starter 的 JSON snapshot、错误映射矩阵和配置条件合同共同守护；成功与失败响应、错误
+`code` / `stage` / `reason` 及 HTTP 状态的对应关系已在 JDK 21 下验证。
+
 HTTP 层不直接长期暴露 `ImportResult`、`ExportResult`、`CrudTask` 或 `FileRef`；任务响应不暴露
 `contextSnapshot`，文件响应不暴露存储路径、对象存储 key 或 checksum 原文。

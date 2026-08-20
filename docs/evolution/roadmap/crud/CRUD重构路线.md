@@ -16,17 +16,7 @@
 
 ## 当前执行队列
 
-### 1. 外部契约回归门禁
-
-当前 HTTP 契约见 [CRUD HTTP Contract](../../../architecture/components/crud/HTTP契约.md)，并已有部分 Starter contract 测试。剩余工作：
-
-- 成功与失败 JSON snapshot。
-- 错误 code、stage、reason 和 HTTP status 矩阵回归。
-- Starter 配置 Key、默认 Bean 和 AutoConfiguration 条件回归。
-
-完成后才能进行 Starter 包名和 Core 拆分。
-
-### 2. `UpdatePatch<T>` 闭环
+### 1. `UpdatePatch<T>` 闭环
 
 依据 [CRUD 强类型边界](../../../architecture/components/crud/强类型边界.md)：
 
@@ -36,7 +26,7 @@
 - 对齐 Binder、聚合 Handler 与 JDBC mapper 的字段语义。
 - 更新业务模板、Javadoc 和合同测试。
 
-### 3. Starter 包名统一
+### 2. Starter 包名统一
 
 - 统一到 `com.entloom.crud.starter.*`。
 - 删除 `com.entloom.crud.spring.config` 旧包。
@@ -45,27 +35,27 @@
 
 该闭环不同时拆分 CRUD Core。
 
-### 4. 拆薄 `ent-loom-crud-core`
+### 3. 拆薄 `ent-loom-crud-core`
 
 - 先用依赖图识别稳定边界，再决定 Maven artifact。
 - 优先分离 API/contract、runtime、默认实现和可选能力。
 - 禁止创建无调用者、无测试的占位模块。
 - 保持当前公开 artifact 和 Starter 回归可验证。
 
-### 5. 收窄 annotations 依赖
+### 4. 收窄 annotations 依赖
 
 - annotations 不依赖 Starter 或执行引擎。
 - 评估对 Meta Contract 的真实最小依赖。
 - 保证 CRUD-only 注解仍可独立生成 Runtime Model。
 
-### 6. 架构守卫
+### 5. 架构守卫
 
 - Core 禁止依赖 Spring、Servlet 和 Starter。
 - Starter 主包只能位于 `com.entloom.crud.starter..`。
 - Module Core 不依赖 Meta Core。
 - Runtime Model 和 Registry 不允许出现第二入口。
 
-### 7. 异步上下文治理
+### 6. 异步上下文治理
 
 - 将 ThreadLocal 限制在同步入口适配层。
 - 异步任务显式快照主体、scope 和审计上下文。
