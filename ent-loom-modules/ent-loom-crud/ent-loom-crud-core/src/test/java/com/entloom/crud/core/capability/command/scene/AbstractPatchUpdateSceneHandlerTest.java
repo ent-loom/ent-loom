@@ -3,7 +3,7 @@ package com.entloom.crud.core.capability.command.scene;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.QueryFilter;
-import com.entloom.crud.core.capability.command.patch.EntityPatch;
+import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -143,7 +143,7 @@ class AbstractPatchUpdateSceneHandlerTest {
     }
 
     static class TestPatchUpdateHandler extends AbstractPatchUpdateSceneHandler<TestEntity, Object> {
-        private EntityPatch<TestEntity> patch;
+        private UpdatePatch<TestEntity> patch;
 
         TestPatchUpdateHandler(EntityMetaRegistry entityMetaRegistry) {
             super(entityMetaRegistry, TestEntity.class, "patch");
@@ -151,7 +151,7 @@ class AbstractPatchUpdateSceneHandlerTest {
 
         @Override
         protected Object handlePatch(
-            CommandSpec<EntityPatch<TestEntity>> spec,
+            CommandSpec<UpdatePatch<TestEntity>> spec,
             SceneDelegate<CommandSpec<Object>, Object> delegate
         ) {
             patch = spec.getPayload();

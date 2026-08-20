@@ -13,7 +13,7 @@ import java.util.Set;
  *
  * @param <E> 实体类型
  */
-public class EntityPatch<E> implements com.entloom.crud.core.capability.command.patch.EntityPatch<E> {
+public class EntityPatch<E> {
     private final Class<E> entityType;
     private final E entity;
     private final Object id;
@@ -38,22 +38,18 @@ public class EntityPatch<E> implements com.entloom.crud.core.capability.command.
             : Collections.unmodifiableMap(new LinkedHashMap<String, Object>(valuesForDelegate));
     }
 
-    @Override
     public Class<E> getEntityType() {
         return entityType;
     }
 
-    @Override
     public E getEntity() {
         return entity;
     }
 
-    @Override
     public Object getId() {
         return id;
     }
 
-    @Override
     public Long getLongId() {
         if (id == null) {
             return null;
@@ -64,22 +60,18 @@ public class EntityPatch<E> implements com.entloom.crud.core.capability.command.
         return Long.valueOf(String.valueOf(id));
     }
 
-    @Override
     public Set<String> getPresentFields() {
         return presentFields;
     }
 
-    @Override
     public boolean hasField(String field) {
         return presentFields.contains(field);
     }
 
-    @Override
     public boolean isPersistableField(String field) {
         return valuesForDelegate.containsKey(field);
     }
 
-    @Override
     @SuppressWarnings("unchecked")
     public <V> V get(String field, Class<V> targetType) {
         Object value = fieldValue(field);
@@ -93,37 +85,30 @@ public class EntityPatch<E> implements com.entloom.crud.core.capability.command.
      * 框架内部或高级扩展用于透传默认写入引擎的字段集合。
      * 普通业务规则应优先使用 {@link #getEntity()}、{@link #hasField(String)} 和 {@link #getId()}。
      */
-    @Override
     public Map<String, Object> getValuesForDelegate() {
         return valuesForDelegate;
     }
 
-    @Override
     public Class<E> entityType() {
         return getEntityType();
     }
 
-    @Override
     public E entity() {
         return getEntity();
     }
 
-    @Override
     public Object id() {
         return getId();
     }
 
-    @Override
     public Long longId() {
         return getLongId();
     }
 
-    @Override
     public Set<String> presentFields() {
         return getPresentFields();
     }
 
-    @Override
     public Map<String, Object> valuesForDelegate() {
         return getValuesForDelegate();
     }

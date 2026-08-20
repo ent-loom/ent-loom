@@ -16,17 +16,7 @@
 
 ## 当前执行队列
 
-### 1. `UpdatePatch<T>` 闭环
-
-依据 [CRUD 强类型边界](../../../architecture/components/crud/强类型边界.md)：
-
-- 新增稳定 `UpdatePatch<T>` 与默认不可变实现。
-- 将普通 UPDATE Binder 和 Handler 回调迁移到稳定类型。
-- 保持聚合 `EntityPatch<T>` 职责不变。
-- 对齐 Binder、聚合 Handler 与 JDBC mapper 的字段语义。
-- 更新业务模板、Javadoc 和合同测试。
-
-### 2. Starter 包名统一
+### 1. Starter 包名统一
 
 - 统一到 `com.entloom.crud.starter.*`。
 - 删除 `com.entloom.crud.spring.config` 旧包。
@@ -35,27 +25,27 @@
 
 该闭环不同时拆分 CRUD Core。
 
-### 3. 拆薄 `ent-loom-crud-core`
+### 2. 拆薄 `ent-loom-crud-core`
 
 - 先用依赖图识别稳定边界，再决定 Maven artifact。
 - 优先分离 API/contract、runtime、默认实现和可选能力。
 - 禁止创建无调用者、无测试的占位模块。
 - 保持当前公开 artifact 和 Starter 回归可验证。
 
-### 4. 收窄 annotations 依赖
+### 3. 收窄 annotations 依赖
 
 - annotations 不依赖 Starter 或执行引擎。
 - 评估对 Meta Contract 的真实最小依赖。
 - 保证 CRUD-only 注解仍可独立生成 Runtime Model。
 
-### 5. 架构守卫
+### 4. 架构守卫
 
 - Core 禁止依赖 Spring、Servlet 和 Starter。
 - Starter 主包只能位于 `com.entloom.crud.starter..`。
 - Module Core 不依赖 Meta Core。
 - Runtime Model 和 Registry 不允许出现第二入口。
 
-### 6. 异步上下文治理
+### 5. 异步上下文治理
 
 - 将 ThreadLocal 限制在同步入口适配层。
 - 异步任务显式快照主体、scope 和审计上下文。

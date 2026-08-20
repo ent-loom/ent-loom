@@ -24,7 +24,7 @@ import java.util.Set;
 /**
  * core 默认命令 payload 绑定器。
  */
-public class DefaultCommandPayloadBinder implements CommandPayloadBinder, DefaultEntityPatch.ValueConverter {
+public class DefaultCommandPayloadBinder implements CommandPayloadBinder, DefaultUpdatePatch.ValueConverter {
     private static final String DEFAULT_ID_FIELD = "id";
     private static final String[] DATE_PATTERNS = new String[] {
         "yyyy-MM-dd HH:mm:ss",
@@ -38,12 +38,12 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
     };
 
     @Override
-    public <T> EntityPatch<T> bindEntityPatch(Object payload, Class<T> entityType, EntityMeta meta) {
-        return bindEntityPatch(payload, entityType, meta, java.util.Collections.<String>emptySet());
+    public <T> UpdatePatch<T> bindUpdatePatch(Object payload, Class<T> entityType, EntityMeta meta) {
+        return bindUpdatePatch(payload, entityType, meta, java.util.Collections.<String>emptySet());
     }
 
     @Override
-    public <T> EntityPatch<T> bindEntityPatch(
+    public <T> UpdatePatch<T> bindUpdatePatch(
         Object payload,
         Class<T> entityType,
         EntityMeta meta,
@@ -64,7 +64,7 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
                 valuesForDelegate.put(field, entry.getValue());
             }
         }
-        return new DefaultEntityPatch<T>(
+        return new DefaultUpdatePatch<T>(
             entityType,
             entity,
             id,

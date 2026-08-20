@@ -8,11 +8,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 默认不可变实体 PATCH 实现。
+ * 默认不可变的 {@link UpdatePatch} 实现。
  *
  * @param <T> 实体类型
  */
-public class DefaultEntityPatch<T> implements EntityPatch<T> {
+public class DefaultUpdatePatch<T> implements UpdatePatch<T> {
     private final Class<T> entityType;
     private final T entity;
     private final Object id;
@@ -22,7 +22,7 @@ public class DefaultEntityPatch<T> implements EntityPatch<T> {
     private final Map<String, Object> valuesForDelegate;
     private final ValueConverter valueConverter;
 
-    public DefaultEntityPatch(
+    public DefaultUpdatePatch(
         Class<T> entityType,
         T entity,
         Object id,
@@ -78,18 +78,19 @@ public class DefaultEntityPatch<T> implements EntityPatch<T> {
     }
 
     @Override
+    public Set<String> getPersistableFields() {
+        return persistableFields;
+    }
+
+    @Override
     public Map<String, Object> getValuesForDelegate() {
         return valuesForDelegate;
     }
 
     @Override
-    public boolean hasField(String field) {
-        return presentFields.contains(field);
-    }
-
-    @Override
-    public boolean isPersistableField(String field) {
-        return persistableFields.contains(field);
+    @SuppressWarnings("unchecked")
+    public <V> V get(String field) {
+        return (V) fieldValues.get(field);
     }
 
     @Override

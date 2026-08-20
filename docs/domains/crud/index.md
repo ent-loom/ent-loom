@@ -29,6 +29,6 @@
 
 ## 实施中能力
 
-- 强类型 Handler 边界：统一 Binder 和 Handler 基类已具备，稳定 `UpdatePatch<T>` 尚未落地。
+- 强类型 Handler 边界：统一 Binder、稳定 `UpdatePatch<T>` 和 Handler 基类已具备；聚合 Patch 保持独立职责。
 
 当前能力以 `architecture` 下的文档为准；指南、决策和路线图不能覆盖当前架构事实。

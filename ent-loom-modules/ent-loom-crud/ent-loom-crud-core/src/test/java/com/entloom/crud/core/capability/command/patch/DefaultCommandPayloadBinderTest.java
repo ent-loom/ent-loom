@@ -21,15 +21,18 @@ class DefaultCommandPayloadBinderTest {
         payload.put("age", "18");
         payload.put("unknown", "ignored");
 
-        EntityPatch<TestEntity> patch = binder.bindEntityPatch(payload, TestEntity.class, meta());
+        UpdatePatch<TestEntity> patch = binder.bindUpdatePatch(payload, TestEntity.class, meta());
 
         Assertions.assertEquals(12L, patch.getLongId().longValue());
         Assertions.assertTrue(patch.hasField("name"));
         Assertions.assertNull(patch.get("name", String.class));
+        Assertions.assertNull(patch.<String>get("name"));
         Assertions.assertTrue(patch.hasField("age"));
         Assertions.assertEquals(18, patch.get("age", Integer.class).intValue());
         Assertions.assertFalse(patch.hasField("remark"));
         Assertions.assertFalse(patch.hasField("unknown"));
+        Assertions.assertTrue(patch.getPersistableFields().contains("name"));
+        Assertions.assertFalse(patch.getPersistableFields().contains("id"));
         Assertions.assertFalse(patch.isPersistableField("id"));
         Assertions.assertTrue(patch.isPersistableField("name"));
         Assertions.assertFalse(patch.getValuesForDelegate().containsKey("id"));
@@ -45,7 +48,7 @@ class DefaultCommandPayloadBinderTest {
         payload.put("age", " ");
         payload.put("name", "");
 
-        EntityPatch<TestEntity> patch = binder.bindEntityPatch(payload, TestEntity.class, meta());
+        UpdatePatch<TestEntity> patch = binder.bindUpdatePatch(payload, TestEntity.class, meta());
 
         Assertions.assertNull(patch.getLongId());
         Assertions.assertNull(patch.getEntity().id);
@@ -73,7 +76,7 @@ class DefaultCommandPayloadBinderTest {
         payload.put("id", 1L);
         payload.put("name", "A");
 
-        EntityPatch<TestEntity> patch = binder.bindEntityPatch(payload, TestEntity.class, meta());
+        UpdatePatch<TestEntity> patch = binder.bindUpdatePatch(payload, TestEntity.class, meta());
 
         Assertions.assertThrows(UnsupportedOperationException.class, () -> patch.getValuesForDelegate().put("name", "B"));
         Assertions.assertThrows(UnsupportedOperationException.class, () -> patch.getPresentFields().add("remark"));
@@ -86,7 +89,7 @@ class DefaultCommandPayloadBinderTest {
         payload.put("name", "A");
         payload.put("mediaUrls", Collections.singletonList("a.png"));
 
-        EntityPatch<TestEntity> patch = binder.bindEntityPatch(
+        UpdatePatch<TestEntity> patch = binder.bindUpdatePatch(
             payload,
             TestEntity.class,
             meta(),
@@ -107,7 +110,7 @@ class DefaultCommandPayloadBinderTest {
         payload.put("id", 1L);
         payload.put("items", Collections.singletonList(child));
 
-        EntityPatch<TestEntity> patch = binder.bindEntityPatch(
+        UpdatePatch<TestEntity> patch = binder.bindUpdatePatch(
             payload,
             TestEntity.class,
             meta(),

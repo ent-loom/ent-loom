@@ -4,24 +4,28 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 通用实体字段 PATCH 视图。
+ * 普通单表局部更新的稳定强类型视图。
  *
  * @param <T> 实体类型
  */
-public interface EntityPatch<T> {
+public interface UpdatePatch<T> {
     Class<T> getEntityType();
 
     T getEntity();
 
     Object getId();
 
+    /**
+     * 数字主键的 Long 便捷视图。
+     */
     Long getLongId();
 
     Set<String> getPresentFields();
 
+    Set<String> getPersistableFields();
+
     /**
      * 框架内部或高级扩展用于透传默认写入引擎的字段集合。
-     * 普通业务规则应优先使用 {@link #getEntity()}、{@link #hasField(String)} 和 {@link #get(String, Class)}。
      */
     Map<String, Object> getValuesForDelegate();
 
@@ -37,25 +41,32 @@ public interface EntityPatch<T> {
         return getId();
     }
 
-    default Long longId() {
-        return getLongId();
-    }
-
     default Set<String> presentFields() {
         return getPresentFields();
+    }
+
+    default Set<String> persistableFields() {
+        return getPersistableFields();
     }
 
     default boolean hasField(String field) {
         return getPresentFields().contains(field);
     }
 
-    boolean isPersistableField(String field);
-
-    <V> V get(String field, Class<V> targetType);
+    default boolean isPersistableField(String field) {
+        return getPersistableFields().contains(field);
+    }
 
     /**
-     * 框架内部或高级扩展用于透传默认写入引擎的字段集合。
+     * 读取已识别字段的绑定值；字段未出现时返回 null。
      */
+    <V> V get(String field);
+
+    /**
+     * 读取字段并执行显式目标类型转换。
+     */
+    <V> V get(String field, Class<V> targetType);
+
     default Map<String, Object> valuesForDelegate() {
         return getValuesForDelegate();
     }

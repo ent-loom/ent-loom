@@ -4,7 +4,7 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.command.patch.CommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
-import com.entloom.crud.core.capability.command.patch.EntityPatch;
+import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -47,7 +47,7 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
     public Object handle(CommandSpec<Object> spec, SceneDelegate<CommandSpec<Object>, Object> delegate) {
         Class<T> actualEntityType = requireEntityType();
         EntityMeta meta = entityMeta();
-        EntityPatch<T> patch = requirePayloadBinder().bindEntityPatch(
+        UpdatePatch<T> patch = requirePayloadBinder().bindUpdatePatch(
             spec.getPayload(),
             actualEntityType,
             meta,
@@ -56,12 +56,12 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
         if (patch.getId() == null && !hasFilters(spec.getTargetFilters())) {
             throw new ValidationException("update patch 需要合法 id 或 targetFilters");
         }
-        CommandSpec<EntityPatch<T>> patchSpec = toPatchSpec(spec, patch);
+        CommandSpec<UpdatePatch<T>> patchSpec = toPatchSpec(spec, patch);
         return handlePatch(patchSpec, delegate);
     }
 
     protected abstract R handlePatch(
-        CommandSpec<EntityPatch<T>> spec,
+        CommandSpec<UpdatePatch<T>> spec,
         SceneDelegate<CommandSpec<Object>, Object> delegate
     );
 
@@ -70,18 +70,18 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
     }
 
     protected Object invokeDelegateUpdate(
-        CommandSpec<EntityPatch<T>> spec,
+        CommandSpec<UpdatePatch<T>> spec,
         SceneDelegate<CommandSpec<Object>, Object> delegate
     ) {
         return invokeDelegateUpdate(spec, delegate, spec.getPayload().getValuesForDelegate());
     }
 
     protected Object invokeDelegateUpdate(
-        CommandSpec<EntityPatch<T>> spec,
+        CommandSpec<UpdatePatch<T>> spec,
         SceneDelegate<CommandSpec<Object>, Object> delegate,
         Map<String, Object> values
     ) {
-        EntityPatch<T> patch = spec.getPayload();
+        UpdatePatch<T> patch = spec.getPayload();
         Map<String, Object> writeValues = values == null
             ? Collections.<String, Object>emptyMap()
             : new LinkedHashMap<String, Object>(values);
@@ -95,8 +95,8 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
         return delegate.invoke(toRawSpec(spec, writeCommand));
     }
 
-    private CommandSpec<EntityPatch<T>> toPatchSpec(CommandSpec<Object> source, EntityPatch<T> patch) {
-        return CommandSpec.<EntityPatch<T>>builder()
+    private CommandSpec<UpdatePatch<T>> toPatchSpec(CommandSpec<Object> source, UpdatePatch<T> patch) {
+        return CommandSpec.<UpdatePatch<T>>builder()
             .scene(source.getScene())
             .rootType(source.getRootType())
             .entityClasses(source.getEntityClasses())
@@ -115,7 +115,7 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
             .build();
     }
 
-    private CommandSpec<Object> toRawSpec(CommandSpec<EntityPatch<T>> source, Object payload) {
+    private CommandSpec<Object> toRawSpec(CommandSpec<UpdatePatch<T>> source, Object payload) {
         return CommandSpec.<Object>builder()
             .scene(source.getScene())
             .rootType(source.getRootType())
