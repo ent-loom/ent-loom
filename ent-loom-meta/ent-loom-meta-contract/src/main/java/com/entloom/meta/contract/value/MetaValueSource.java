@@ -10,6 +10,14 @@ public enum MetaValueSource {
     META_EXPLICIT,
     /** 子框架原生注解显式声明。 */
     NATIVE_EXPLICIT,
+    /** Meta 项目约定。 */
+    META_PROJECT_CONVENTION,
+    /** Module 项目约定。 */
+    MODULE_PROJECT_CONVENTION,
+    /** Meta 内置约定。 */
+    META_BUILT_IN_CONVENTION,
+    /** Module 内置约定。 */
+    MODULE_BUILT_IN_CONVENTION,
     /** 业务默认配置或 SPI 补充值。 */
     BUSINESS_DEFAULT_CONFIG,
     /** 框架按命名、Java 类型或上下文推断。 */

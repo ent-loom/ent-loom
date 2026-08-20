@@ -13,6 +13,9 @@ public final class MetaDiagnostic {
     private final String entityClass;
     private final String field;
     private final MetaValueSource source;
+    private final String ruleId;
+    private final MetaValueSource relatedSource;
+    private final String relatedRuleId;
     private final String property;
     private final String location;
     private final String message;
@@ -24,6 +27,9 @@ public final class MetaDiagnostic {
         this.entityClass = trimToNull(builder.entityClass);
         this.field = trimToNull(builder.field);
         this.source = builder.source;
+        this.ruleId = trimToNull(builder.ruleId);
+        this.relatedSource = builder.relatedSource;
+        this.relatedRuleId = trimToNull(builder.relatedRuleId);
         this.property = trimToNull(builder.property);
         this.location = trimToNull(builder.location);
         this.message = trimToNull(builder.message);
@@ -69,6 +75,18 @@ public final class MetaDiagnostic {
         return source;
     }
 
+    public String ruleId() {
+        return ruleId;
+    }
+
+    public MetaValueSource relatedSource() {
+        return relatedSource;
+    }
+
+    public String relatedRuleId() {
+        return relatedRuleId;
+    }
+
     public String property() {
         return property;
     }
@@ -96,6 +114,9 @@ public final class MetaDiagnostic {
             && Objects.equals(entityClass, that.entityClass)
             && Objects.equals(field, that.field)
             && source == that.source
+            && Objects.equals(ruleId, that.ruleId)
+            && relatedSource == that.relatedSource
+            && Objects.equals(relatedRuleId, that.relatedRuleId)
             && Objects.equals(property, that.property)
             && Objects.equals(location, that.location)
             && Objects.equals(message, that.message);
@@ -103,7 +124,20 @@ public final class MetaDiagnostic {
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, code, entity, entityClass, field, source, property, location, message);
+        return Objects.hash(
+            level,
+            code,
+            entity,
+            entityClass,
+            field,
+            source,
+            ruleId,
+            relatedSource,
+            relatedRuleId,
+            property,
+            location,
+            message
+        );
     }
 
     @Override
@@ -115,6 +149,9 @@ public final class MetaDiagnostic {
             + ", entityClass='" + entityClass + '\''
             + ", field='" + field + '\''
             + ", source=" + source
+            + ", ruleId='" + ruleId + '\''
+            + ", relatedSource=" + relatedSource
+            + ", relatedRuleId='" + relatedRuleId + '\''
             + ", property='" + property + '\''
             + ", location='" + location + '\''
             + ", message='" + message + '\''
@@ -136,6 +173,9 @@ public final class MetaDiagnostic {
         private String entityClass;
         private String field;
         private MetaValueSource source;
+        private String ruleId;
+        private MetaValueSource relatedSource;
+        private String relatedRuleId;
         private String property;
         private String location;
         private String message;
@@ -172,6 +212,21 @@ public final class MetaDiagnostic {
 
         public Builder source(MetaValueSource source) {
             this.source = source;
+            return this;
+        }
+
+        public Builder ruleId(String ruleId) {
+            this.ruleId = ruleId;
+            return this;
+        }
+
+        public Builder relatedSource(MetaValueSource relatedSource) {
+            this.relatedSource = relatedSource;
+            return this;
+        }
+
+        public Builder relatedRuleId(String relatedRuleId) {
+            this.relatedRuleId = relatedRuleId;
             return this;
         }
 
