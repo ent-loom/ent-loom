@@ -30,7 +30,7 @@ import org.springframework.core.annotation.Order;
 @ConditionalOnClass(ReflectiveEntMetaParser.class)
 @ConditionalOnProperty(prefix = "ent.loom.meta", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(EntLoomMetaProperties.class)
-@AutoConfigureBefore(name = "com.entloom.crud.spring.config.CrudAutoConfiguration")
+@AutoConfigureBefore(name = "com.entloom.crud.starter.config.CrudAutoConfiguration")
 public class EntLoomMetaAutoConfiguration {
 
     @Bean
