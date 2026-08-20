@@ -4,7 +4,7 @@ import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.exception.CrudException;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.starter.web.dto.CrudTimeFilter;
 import java.lang.reflect.Field;
 import java.sql.Date;

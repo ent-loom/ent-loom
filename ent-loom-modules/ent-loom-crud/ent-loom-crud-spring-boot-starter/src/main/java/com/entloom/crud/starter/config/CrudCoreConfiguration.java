@@ -1,12 +1,12 @@
-package com.entloom.crud.spring.config;
+package com.entloom.crud.starter.config;
 
-import com.entloom.crud.spring.config.module.CrudCommandEngineConfiguration;
-import com.entloom.crud.spring.config.module.CrudCommonConfiguration;
-import com.entloom.crud.spring.config.module.CrudGatewayConfiguration;
-import com.entloom.crud.spring.config.module.CrudIdempotencyConfiguration;
-import com.entloom.crud.spring.config.module.CrudQueryEngineConfiguration;
-import com.entloom.crud.spring.config.module.CrudSqlSecurityConfiguration;
-import com.entloom.crud.spring.config.module.CrudStatsEngineConfiguration;
+import com.entloom.crud.starter.config.module.CrudCommandEngineConfiguration;
+import com.entloom.crud.starter.config.module.CrudCommonConfiguration;
+import com.entloom.crud.starter.config.module.CrudGatewayConfiguration;
+import com.entloom.crud.starter.config.module.CrudIdempotencyConfiguration;
+import com.entloom.crud.starter.config.module.CrudQueryEngineConfiguration;
+import com.entloom.crud.starter.config.module.CrudSqlSecurityConfiguration;
+import com.entloom.crud.starter.config.module.CrudStatsEngineConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;

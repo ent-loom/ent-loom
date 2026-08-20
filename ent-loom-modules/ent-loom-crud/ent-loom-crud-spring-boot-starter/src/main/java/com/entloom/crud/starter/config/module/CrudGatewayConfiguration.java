@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
 import com.entloom.crud.core.capability.exporting.DefaultExportColumnResolver;
@@ -36,7 +36,7 @@ import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.foundation.write.DirectCrudWriteTransactionExecutor;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.gateway.CommandGatewayImpl;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
@@ -278,7 +278,7 @@ public class CrudGatewayConfiguration {
     public CrudWriteTransactionExecutor crudWriteTransactionExecutor(
         PlatformTransactionManager transactionManager
     ) {
-        return new com.entloom.crud.spring.config.write.SpringCrudWriteTransactionExecutor(transactionManager);
+        return new com.entloom.crud.starter.config.write.SpringCrudWriteTransactionExecutor(transactionManager);
     }
 
     @Bean

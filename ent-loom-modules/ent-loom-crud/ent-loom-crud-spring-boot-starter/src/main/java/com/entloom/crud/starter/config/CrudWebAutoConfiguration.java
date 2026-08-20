@@ -8,7 +8,7 @@ import com.entloom.crud.core.foundation.taskfile.FileService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.runtime.router.CommandActionSceneResolver;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.capability.stats.StatsPayloadCustomizerRegistry;
 import com.entloom.crud.starter.web.assembler.CrudCommandSpecAssembler;

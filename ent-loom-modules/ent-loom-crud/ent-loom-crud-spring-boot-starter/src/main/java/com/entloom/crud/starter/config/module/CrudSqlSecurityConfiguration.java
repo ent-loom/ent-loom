@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;

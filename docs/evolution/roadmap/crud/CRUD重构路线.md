@@ -16,36 +16,27 @@
 
 ## 当前执行队列
 
-### 1. Starter 包名统一
-
-- 统一到 `com.entloom.crud.starter.*`。
-- 删除 `com.entloom.crud.spring.config` 旧包。
-- 收敛 AutoConfiguration、配置 Properties 和 HTTP 装配入口。
-- 增加包名与条件装配守卫。
-
-该闭环不同时拆分 CRUD Core。
-
-### 2. 拆薄 `ent-loom-crud-core`
+### 1. 拆薄 `ent-loom-crud-core`
 
 - 先用依赖图识别稳定边界，再决定 Maven artifact。
 - 优先分离 API/contract、runtime、默认实现和可选能力。
 - 禁止创建无调用者、无测试的占位模块。
 - 保持当前公开 artifact 和 Starter 回归可验证。
 
-### 3. 收窄 annotations 依赖
+### 2. 收窄 annotations 依赖
 
 - annotations 不依赖 Starter 或执行引擎。
 - 评估对 Meta Contract 的真实最小依赖。
 - 保证 CRUD-only 注解仍可独立生成 Runtime Model。
 
-### 4. 架构守卫
+### 3. 架构守卫
 
 - Core 禁止依赖 Spring、Servlet 和 Starter。
 - Starter 主包只能位于 `com.entloom.crud.starter..`。
 - Module Core 不依赖 Meta Core。
 - Runtime Model 和 Registry 不允许出现第二入口。
 
-### 5. 异步上下文治理
+### 4. 异步上下文治理
 
 - 将 ThreadLocal 限制在同步入口适配层。
 - 异步任务显式快照主体、scope 和审计上下文。

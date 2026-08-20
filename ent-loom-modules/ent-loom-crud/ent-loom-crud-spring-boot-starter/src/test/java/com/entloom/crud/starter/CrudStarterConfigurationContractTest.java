@@ -5,7 +5,7 @@ import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
 import com.entloom.crud.starter.web.assembler.CrudCommandSpecAssembler;
@@ -29,6 +29,7 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.util.ClassUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -144,5 +145,17 @@ class CrudStarterConfigurationContractTest {
         contextRunner
             .withBean(CrudResponseBuilder.class, () -> businessResponseBuilder)
             .run(context -> assertThat(context.getBean(CrudResponseBuilder.class)).isSameAs(businessResponseBuilder));
+    }
+
+    @Test
+    void starter_configuration_should_have_no_legacy_spring_config_package() {
+        assertThat(CrudProperties.class.getPackage().getName())
+            .isEqualTo("com.entloom.crud.starter.config");
+        assertThat(CrudAutoConfiguration.class.getPackage().getName())
+            .isEqualTo("com.entloom.crud.starter.config");
+        assertThat(ClassUtils.isPresent(
+            "com.entloom.crud.spring.config.CrudProperties",
+            getClass().getClassLoader()
+        )).isFalse();
     }
 }

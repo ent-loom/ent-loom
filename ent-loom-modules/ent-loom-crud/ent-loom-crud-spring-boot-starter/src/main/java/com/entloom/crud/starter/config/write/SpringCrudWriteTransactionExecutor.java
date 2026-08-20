@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.write;
+package com.entloom.crud.starter.config.write;
 
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;

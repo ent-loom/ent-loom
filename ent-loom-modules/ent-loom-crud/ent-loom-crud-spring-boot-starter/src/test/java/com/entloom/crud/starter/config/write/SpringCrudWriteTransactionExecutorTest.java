@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.write;
+package com.entloom.crud.starter.config.write;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

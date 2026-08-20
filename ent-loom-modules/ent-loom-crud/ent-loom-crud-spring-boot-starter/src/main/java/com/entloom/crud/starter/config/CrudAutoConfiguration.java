@@ -1,6 +1,6 @@
 package com.entloom.crud.starter.config;
 
-import com.entloom.crud.spring.config.CrudCoreConfiguration;
+import com.entloom.crud.starter.config.CrudCoreConfiguration;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 

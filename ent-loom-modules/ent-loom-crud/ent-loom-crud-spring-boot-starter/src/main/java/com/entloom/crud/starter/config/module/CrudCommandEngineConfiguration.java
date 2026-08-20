@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -8,7 +8,7 @@ import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

@@ -1,11 +1,11 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.idempotency.IdempotencyManager;
 import com.entloom.crud.core.idempotency.IdempotencyStore;
 import com.entloom.crud.core.idempotency.InMemoryIdempotencyStore;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.idempotency.JdbcIdempotencyStore;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;

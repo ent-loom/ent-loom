@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.query.engine.QueryEngine;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -17,7 +17,7 @@ import com.entloom.crud.engine.jdbc.query.JdbcQueryCompiler;
 import com.entloom.crud.engine.jdbc.query.JdbcQueryEngine;
 import com.entloom.crud.engine.jdbc.query.JdbcQueryExecutor;
 import com.entloom.crud.engine.jdbc.query.RootFirstQueryPlanner;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import java.util.Arrays;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config;
+package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CommandOperation;

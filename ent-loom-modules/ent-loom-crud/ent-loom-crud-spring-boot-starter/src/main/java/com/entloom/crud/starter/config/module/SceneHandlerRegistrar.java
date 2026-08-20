@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
 import com.entloom.crud.annotations.EntCrudQueryHandler;

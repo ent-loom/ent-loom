@@ -1,4 +1,4 @@
-package com.entloom.crud.spring.config.module;
+package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.adapter.AccessEntryResolver;
 import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
@@ -32,7 +32,7 @@ import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.governance.JdbcCrudGovernanceAuditRecorder;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.log.SqlLogLevel;
-import com.entloom.crud.spring.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudProperties;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
