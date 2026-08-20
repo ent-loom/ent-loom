@@ -2,9 +2,11 @@ package com.entloom.crud.core.foundation.taskfile;
 
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -15,6 +17,9 @@ public final class CrudTaskContextSnapshot {
     private final Class<?> rootType;
     private final CrudOperationKey operationKey;
     private final SubjectContext subject;
+    private final CrudDataScope grantedScope;
+    private final CrudDataScope governanceScope;
+    private final Map<String, Object> auditContext;
     private final Map<String, Object> attributes;
 
     private CrudTaskContextSnapshot(Builder builder) {
@@ -22,6 +27,9 @@ public final class CrudTaskContextSnapshot {
         this.rootType = builder.rootType;
         this.operationKey = builder.operationKey;
         this.subject = copySubject(builder.subject);
+        this.grantedScope = copyScope(builder.grantedScope);
+        this.governanceScope = copyScope(builder.governanceScope);
+        this.auditContext = Collections.unmodifiableMap(copyAttributes(builder.auditContext));
         this.attributes = Collections.unmodifiableMap(copyAttributes(builder.attributes));
     }
 
@@ -38,6 +46,9 @@ public final class CrudTaskContextSnapshot {
             .rootType(spec.getRootType())
             .operationKey(operationKey)
             .subject(spec.getSubject())
+            .grantedScope(spec.getGrantedScope())
+            .governanceScope(spec.getGovernanceScope())
+            .auditContext(auditContext(spec.getAttributes()))
             .attributes(spec.getAttributes())
             .build();
     }
@@ -58,6 +69,18 @@ public final class CrudTaskContextSnapshot {
         return copySubject(subject);
     }
 
+    public CrudDataScope getGrantedScope() {
+        return copyScope(grantedScope);
+    }
+
+    public CrudDataScope getGovernanceScope() {
+        return copyScope(governanceScope);
+    }
+
+    public Map<String, Object> getAuditContext() {
+        return copyAttributes(auditContext);
+    }
+
     public Map<String, Object> getAttributes() {
         return copyAttributes(attributes);
     }
@@ -73,8 +96,28 @@ public final class CrudTaskContextSnapshot {
         return target;
     }
 
+    private static CrudDataScope copyScope(CrudDataScope source) {
+        return source == null ? null : new CrudDataScope(source.isExplicitAll(), source.getDimensions());
+    }
+
     private static Map<String, Object> copyAttributes(Map<String, Object> source) {
-        return source == null ? new HashMap<String, Object>() : new HashMap<String, Object>(source);
+        return source == null ? new LinkedHashMap<String, Object>() : new LinkedHashMap<String, Object>(source);
+    }
+
+    private static Map<String, Object> auditContext(Map<String, Object> source) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (source == null) {
+            return result;
+        }
+        copyIfPresent(source, result, "requestId");
+        copyIfPresent(source, result, "traceId");
+        return result;
+    }
+
+    private static void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key) && source.get(key) != null) {
+            target.put(key, source.get(key));
+        }
     }
 
     public static final class Builder {
@@ -82,6 +125,9 @@ public final class CrudTaskContextSnapshot {
         private Class<?> rootType;
         private CrudOperationKey operationKey;
         private SubjectContext subject;
+        private CrudDataScope grantedScope;
+        private CrudDataScope governanceScope;
+        private Map<String, Object> auditContext = new LinkedHashMap<String, Object>();
         private Map<String, Object> attributes = new HashMap<String, Object>();
 
         public Builder scene(String scene) {
@@ -101,6 +147,21 @@ public final class CrudTaskContextSnapshot {
 
         public Builder subject(SubjectContext subject) {
             this.subject = copySubject(subject);
+            return this;
+        }
+
+        public Builder grantedScope(CrudDataScope grantedScope) {
+            this.grantedScope = copyScope(grantedScope);
+            return this;
+        }
+
+        public Builder governanceScope(CrudDataScope governanceScope) {
+            this.governanceScope = copyScope(governanceScope);
+            return this;
+        }
+
+        public Builder auditContext(Map<String, Object> auditContext) {
+            this.auditContext = copyAttributes(auditContext);
             return this;
         }
 

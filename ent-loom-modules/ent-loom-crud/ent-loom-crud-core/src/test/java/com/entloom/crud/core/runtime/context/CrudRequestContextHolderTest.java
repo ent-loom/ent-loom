@@ -3,6 +3,9 @@ package com.entloom.crud.core.runtime.context;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -54,5 +57,25 @@ class CrudRequestContextHolderTest {
 
         Assertions.assertEquals(Collections.singletonMap("tenant", "tenant-a"), nested);
         Assertions.assertTrue(CrudRequestContextHolder.attributes().isEmpty());
+    }
+
+    @Test
+    void request_context_should_not_follow_thread_pool_reuse_implicitly() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            String explicit = executor.submit(() -> CrudRequestContextHolder.withAttribute(
+                "accessEntry",
+                "explicit",
+                () -> CrudRequestContextHolder.getStringAttribute("accessEntry")
+            )).get();
+            String leaked = executor.submit(() -> CrudRequestContextHolder.getStringAttribute("accessEntry")).get();
+
+            Assertions.assertEquals("explicit", explicit);
+            Assertions.assertNull(leaked);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+            CrudRequestContextHolder.clear();
+        }
     }
 }

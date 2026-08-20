@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.ImportOperation;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,12 +24,17 @@ class TaskFileContractTest {
         subject.setSubjectId("tester");
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put("requestId", "REQ-1");
+        attributes.put("traceId", "TRACE-1");
+        Map<String, Object> dimensions = new HashMap<String, Object>();
+        dimensions.put("tenantId", "tenant-a");
         ImportSpec spec = ImportSpec.builder()
             .scene("student.import")
             .rootType(Object.class)
             .operation(ImportOperation.SUBMIT)
             .subject(subject)
             .attributes(attributes)
+            .grantedScope(CrudDataScope.scoped(dimensions))
+            .governanceScope(CrudDataScope.scoped(dimensions))
             .build();
 
         CrudTaskContextSnapshot snapshot = CrudTaskContextSnapshot.fromSpec(spec, spec.getOperationKey());
@@ -38,6 +44,10 @@ class TaskFileContractTest {
         Assertions.assertEquals("student.import", snapshot.getScene());
         Assertions.assertEquals("tester", snapshot.getSubject().getSubjectId());
         Assertions.assertEquals("REQ-1", snapshot.getAttributes().get("requestId"));
+        Assertions.assertEquals("REQ-1", snapshot.getAuditContext().get("requestId"));
+        Assertions.assertEquals("TRACE-1", snapshot.getAuditContext().get("traceId"));
+        Assertions.assertEquals("tenant-a", snapshot.getGrantedScope().getDimensions().get("tenantId"));
+        Assertions.assertEquals("tenant-a", snapshot.getGovernanceScope().getDimensions().get("tenantId"));
     }
 
     @Test
@@ -64,6 +74,12 @@ class TaskFileContractTest {
         LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
         CrudTask created = taskService.create(CrudTask.builder()
             .status(CrudTaskStatus.SUCCEEDED)
+            .contextSnapshot(CrudTaskContextSnapshot.builder()
+                .subject(subjectWith("tester", "tenant-a", "org-a"))
+                .grantedScope(CrudDataScope.scoped(singletonAttribute("tenantId", "tenant-a")))
+                .governanceScope(CrudDataScope.scoped(singletonAttribute("orgId", "org-a")))
+                .auditContext(singletonAttribute("traceId", "TRACE-LOCAL"))
+                .build())
             .resultFile(file)
             .progress(Integer.valueOf(100))
             .build());
@@ -72,7 +88,11 @@ class TaskFileContractTest {
         LocalTaskService reloadedTaskService = new LocalTaskService(tempDir.resolve("tasks").toString());
 
         Assertions.assertEquals("ok", new String(reloadedFileService.read(file), StandardCharsets.UTF_8));
-        Assertions.assertEquals(file.getFileId(), reloadedTaskService.getRequired(created.getTaskId()).getResultFile().getFileId());
+        CrudTask reloaded = reloadedTaskService.getRequired(created.getTaskId());
+        Assertions.assertEquals(file.getFileId(), reloaded.getResultFile().getFileId());
+        Assertions.assertEquals("tenant-a", reloaded.getContextSnapshot().getGrantedScope().getDimensions().get("tenantId"));
+        Assertions.assertEquals("org-a", reloaded.getContextSnapshot().getGovernanceScope().getDimensions().get("orgId"));
+        Assertions.assertEquals("TRACE-LOCAL", reloaded.getContextSnapshot().getAuditContext().get("traceId"));
     }
 
     @Test
@@ -154,6 +174,14 @@ class TaskFileContractTest {
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put(key, value);
         return attributes;
+    }
+
+    private static SubjectContext subjectWith(String subjectId, String tenantId, String orgId) {
+        SubjectContext subject = new SubjectContext();
+        subject.setSubjectId(subjectId);
+        subject.setTenantId(tenantId);
+        subject.setOrgId(orgId);
+        return subject;
     }
 
     private static byte[] copyToByteArray(InputStream inputStream) throws IOException {

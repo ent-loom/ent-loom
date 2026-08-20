@@ -6,11 +6,13 @@ import com.entloom.crud.api.enums.CrudOperationDomain;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
@@ -137,6 +139,11 @@ public class LocalTaskService implements TaskService {
         set(properties, "context.rootType", context.getRootType() == null ? null : context.getRootType().getName());
         set(properties, "context.operationDomain", context.getOperationKey() == null ? null : context.getOperationKey().getDomain().name());
         set(properties, "context.operation", context.getOperationKey() == null ? null : context.getOperationKey().getOperation());
+        writeScope(properties, "context.grantedScope.", context.getGrantedScope());
+        writeScope(properties, "context.governanceScope.", context.getGovernanceScope());
+        for (Map.Entry<String, Object> entry : context.getAuditContext().entrySet()) {
+            set(properties, "context.audit." + entry.getKey(), entry.getValue());
+        }
         SubjectContext subject = context.getSubject();
         if (subject != null) {
             set(properties, "context.subjectId", subject.getSubjectId());
@@ -170,7 +177,51 @@ public class LocalTaskService implements TaskService {
             .rootType(rootType)
             .operationKey(operationKey)
             .subject(subject)
+            .grantedScope(readScope(properties, "context.grantedScope."))
+            .governanceScope(readScope(properties, "context.governanceScope."))
+            .auditContext(auditContext(properties))
             .build();
+    }
+
+    private static void writeScope(Properties properties, String prefix, CrudDataScope scope) {
+        if (scope == null) {
+            return;
+        }
+        set(properties, prefix + "explicitAll", Boolean.valueOf(scope.isExplicitAll()));
+        for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                set(properties, prefix + "dimension." + entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    private static CrudDataScope readScope(Properties properties, String prefix) {
+        String explicitAll = properties.getProperty(prefix + "explicitAll");
+        Map<String, Object> dimensions = new LinkedHashMap<String, Object>();
+        String dimensionPrefix = prefix + "dimension.";
+        for (String name : properties.stringPropertyNames()) {
+            if (name.startsWith(dimensionPrefix)) {
+                dimensions.put(name.substring(dimensionPrefix.length()), properties.getProperty(name));
+            }
+        }
+        if (explicitAll == null && dimensions.isEmpty()) {
+            return null;
+        }
+        return new CrudDataScope(Boolean.parseBoolean(explicitAll), dimensions);
+    }
+
+    private static Map<String, Object> auditContext(Properties properties) {
+        Map<String, Object> auditContext = new LinkedHashMap<String, Object>();
+        copyIfPresent(properties, auditContext, "requestId");
+        copyIfPresent(properties, auditContext, "traceId");
+        return auditContext;
+    }
+
+    private static void copyIfPresent(Properties properties, Map<String, Object> target, String key) {
+        String value = properties.getProperty("context.audit." + key);
+        if (value != null) {
+            target.put(key, value);
+        }
     }
 
     private static void writeFile(Properties properties, String prefix, FileRef file) {

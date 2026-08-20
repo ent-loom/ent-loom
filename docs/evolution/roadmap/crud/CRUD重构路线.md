@@ -1,7 +1,7 @@
 # CRUD 重构路线
 
 > 状态：Remaining
-> 最近核验：2026-08-20
+> 最近核验：2026-08-21
 > 当前事实：[CRUD 架构文档入口](../../../architecture/components/crud/index.md)
 
 本路线只保留未完成工作和执行顺序。已完成方案已提炼到 Architecture 或 Decision，不再在这里保留全文。
@@ -18,9 +18,9 @@
 
 ### 1. 异步上下文治理
 
-- 将 ThreadLocal 限制在同步入口适配层。
-- 异步任务显式快照主体、scope 和审计上下文。
-- 禁止依赖线程复用隐式传播权限状态。
+C7 已完成当前闭环：`CrudRequestContextHolder` 只在同步 Facade 作用域内使用；`CrudTaskContextSnapshot` 显式保存主体、已授予 scope、最终治理 scope 和 `requestId`/`traceId`，并由本地任务服务完成往返持久化；线程池复用测试证明上下文不会隐式泄漏。
+
+后续只保留完整异步 Worker 调度、快照过期和重新授权策略，不在本路线提前创建公共异步 SPI。
 
 ## 已完成基线
 
