@@ -67,7 +67,7 @@ Normalize -> Govern -> Route/Execute -> Audit
 
 Query、Command 和 Stats 可进入 Scene Handler 或默认 Engine；Import/Export 使用独立 Engine 与 Task/File 能力。JDBC 只是默认执行实现，不是 Core Contract。
 
-详细内容见 [CRUD 架构入口](components/crud/index.md)。
+详细内容见 [CRUD 架构文档入口](components/crud/index.md)。
 
 ## 目标与当前事实
 

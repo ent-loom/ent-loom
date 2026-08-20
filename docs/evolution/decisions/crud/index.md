@@ -2,6 +2,8 @@
 
 > 状态：Current
 
+CRUD 的完整文档导航见 [CRUD 领域总览](../../../domains/crud/index.md)。
+
 | 决策 | 状态 | 当前权威来源 |
 |---|---|---|
 | [Operation Domain / Operation](capability-operation-refactor.md) | Accepted / Implemented | [CRUD 协议](../../../architecture/components/crud/query-command-contract.md) |

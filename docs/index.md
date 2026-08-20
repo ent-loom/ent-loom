@@ -8,6 +8,7 @@
 ## 文档结构
 
 ```text
+domains       按领域聚合的阅读入口，不新增权威正文
 architecture  当前事实和必须遵守的架构契约
 guides        接入、开发和使用方式
 evolution     设计取舍与尚未完成的演进计划
@@ -26,36 +27,19 @@ Core Contract
 
 ## 从这里开始
 
-1. [系统架构总览](architecture/overview.md)：模块、依赖、建模和执行主链。
-2. [Core 架构入口](architecture/core/index.md)：跨模块必须共同遵守的契约。
-3. [组件架构入口](architecture/components/index.md)：CRUD 等组件当前如何工作。
-4. [使用指南](guides/index.md)：业务项目如何接入。
-5. [演进记录](evolution/index.md)：为什么这样设计，以及尚未完成什么。
+1. [系统架构总览](architecture/overview.md)：先了解模块、依赖、建模和执行主链。
+2. [CRUD 领域总览](domains/crud/index.md)：按当前架构、业务接入、设计决策和路线图阅读 CRUD。
+3. [Meta 领域总览](domains/meta/index.md)：按核心契约、实现参考、使用指南和路线图阅读 Meta。
+4. [Core Contract](architecture/core/index.md)：查看跨模块必须共同遵守的契约。
+5. [使用指南](guides/index.md)：按文档类型查找业务接入说明。
+6. [架构演进](evolution/index.md)：查看设计取舍和未完成目标。
 
-## Core Contract
+## 按文档类型查看
 
-- [元数据约定与裁决契约](architecture/core/metadata-resolution-contract.md)：定义属性来源、逐属性裁决、诊断、模块独立运行和消费者闭环。
-- [组件边界与依赖规则](architecture/core/component-boundaries.md)：定义 Core、Adapter、Starter 和业务项目之间的依赖方向。
-- [治理执行主链](architecture/core/governance/pipeline.md)：定义请求进入执行器前必须经过的治理阶段。
-
-## 当前组件
-
-- [CRUD](architecture/components/crud/index.md)：Query、Command、Stats、Import、Export 和 Task/File。
-- [Meta 建模](architecture/core/meta/layering-summary.md)：通用 Meta 输入、模块原生输入和 Adapter 投影。
-- [DOC 实现说明](../ent-loom-modules/ent-loom-doc/docs/implementation.md)
-
-## 常用指南
-
-- [CRUD 开发指南](guides/crud/development-guide.md)
-- [CRUD 业务集成模板](guides/crud/integration-template.md)
-- [Meta-first 最佳实践](guides/meta/meta-first.md)
-- [Export 展示值配置](guides/crud/export-rendering.md)
-
-## 演进入口
-
-- [设计决策](evolution/decisions/index.md)
-- [路线图](evolution/roadmap/index.md)
-- [当前实施计划](evolution/roadmap/current.md)
+- [架构文档](architecture/index.md)：当前事实、稳定契约和实现边界。
+- [使用指南](guides/index.md)：业务项目的接入、开发和配置方式。
+- [设计决策](evolution/decisions/index.md)：为什么采用当前方案，以及方案后果。
+- [路线图](evolution/roadmap/index.md)：尚未完成的目标和当前实施计划。
 
 ## 文档状态
 

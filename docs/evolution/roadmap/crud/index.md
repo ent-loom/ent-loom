@@ -1,7 +1,9 @@
 # CRUD 路线图
 
 > 状态：Remaining
-> 当前事实：[CRUD 架构入口](../../../architecture/components/crud/index.md)
+> 当前事实：[CRUD 架构文档入口](../../../architecture/components/crud/index.md)
+
+CRUD 的完整文档导航见 [CRUD 领域总览](../../../domains/crud/index.md)。
 
 ## 当前主线
 

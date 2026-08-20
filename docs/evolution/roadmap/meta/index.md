@@ -3,6 +3,8 @@
 > 状态：Remaining
 > 上游契约：[元数据约定与裁决契约](../../../architecture/core/metadata-resolution-contract.md)
 
+Meta 的完整文档导航见 [Meta 领域总览](../../../domains/meta/index.md)。
+
 Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚未完成的跨模块裁决能力，不重复当前架构和历史实施过程。
 
 ## 当前主线

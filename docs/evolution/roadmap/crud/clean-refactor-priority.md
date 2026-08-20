@@ -2,7 +2,7 @@
 
 > 状态：Remaining
 > 最近核验：2026-08-20
-> 当前事实：[CRUD 架构入口](../../../architecture/components/crud/index.md)
+> 当前事实：[CRUD 架构文档入口](../../../architecture/components/crud/index.md)
 
 本路线只保留未完成工作和执行顺序。已完成方案已提炼到 Architecture 或 Decision，不再在这里保留全文。
 
