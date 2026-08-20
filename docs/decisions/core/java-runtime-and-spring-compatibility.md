@@ -11,10 +11,15 @@
 ```text
 共享核心模块                         尽量 Java 8
 Spring Boot 2 兼容线                 Java 8 + Spring 5.3 + Boot 2.7 + javax.servlet
-Spring Boot 3 主线                   Java 17 + Spring 6.2 + Boot 3.5 + jakarta.servlet
+Spring Boot 3 过渡线                 Java 17 + Spring 6.2 + Boot 3.5 + jakarta.servlet
+Spring Boot 4 目标主线               Java 17 + Spring 7.x + Boot 4.x + jakarta.servlet
 ```
 
 Boot 3 模块以 Java 17 作为编译基线时，可以运行在 Java 17、21、25。支持 Java 25 不等于必须使用 `--release 25` 编译。
+
+## Spring Boot 4 目标
+
+Spring Boot 4.x / Spring Framework 7.x 作为后续主线；当前 Boot 3.5 仅作为迁移过渡。Boot 4 集成层以 Java 17 为最低运行线，项目开发和默认构建采用 Java 21，CI 额外验证 Java 25。Java 8 只保留给框架无关核心和独立 Boot 2 兼容线。
 
 ## 约束原因
 
@@ -53,7 +58,7 @@ ent-loom-spring-boot-starter           Java 17 目标，Boot 3.5，jakarta.servl
 
 - `ent-loom-crud-core`、Meta core、各类 API/契约模块优先保持核心层边界。
 - 当前 `ent-loom-crud-engine-jdbc` 中的 Spring JDBC 依赖，后续评估拆为原生 JDBC 核心和 Spring JDBC 适配。
-- 当前 `ent-loom-crud-spring-boot-starter` 保留为 Boot 3 主线。
+- 当前 `ent-loom-crud-spring-boot-starter` 暂保留为 Boot 3 过渡线，Boot 4 使用独立依赖管理和迁移后的 Starter 版本，不混用 Boot 3/4 的 Spring 依赖。
 - Boot 2 使用独立 artifact，例如 `ent-loom-spring-boot2-starter`，不与 Boot 3 共用同一 Starter 坐标。
 
 兼容性版本线的覆盖范围不只包括 CRUD：`ent-loom-meta-spring-boot-starter`、`ent-loom-ddl-spring` 和 `ent-loom-ddl-spring-boot-starter` 也属于 Spring 集成边界。它们在引入 Boot 2 兼容线时必须分别评估对应的 Spring 5 / Boot 2 构件；Meta adapter、DOC 和 UI 只有在实际引入 Spring 依赖时才进入对应版本线。
@@ -85,10 +90,10 @@ Boot 2 和 Boot 3 兼容线放在同一个 Git 仓库和 IDEA 工作空间中，
 
 ## 实施顺序
 
-1. 先保持当前 Java 25 + Boot 3 主线可用，不在未拆分前引入 Boot 2 依赖。
+1. 先保持当前 Boot 3.5 基线可用，完成 Boot 4 / Spring 7 依赖审计。
 2. 盘点核心模块的 JDK API、第三方依赖和 Spring 类型，确认 Java 8 可编译边界。
 3. 将 `JdbcTemplate`、事务和 Web/Servlet 依赖收敛到适配层。
-4. 将 Boot 3 模块编译目标调整为 Java 17，并验证 JDK 17、21、25。
+4. 以 Java 17 为 Boot 4 编译目标，使用 Java 21 开发，并验证 JDK 17、21、25。
 5. 再增加独立 Boot 2/`javax.servlet` 兼容模块，验证 Java 8 运行。
 6. 最后把各模块纳入对应的 Maven/CI 矩阵，避免把“编译成功”误认为“运行环境全部支持”。
 
@@ -99,5 +104,5 @@ Boot 2 和 Boot 3 兼容线放在同一个 Git 仓库和 IDEA 工作空间中，
 ## 非目标
 
 - 不承诺支持所有历史 Java 小版本或所有 Spring 小版本。
-- 不为了 Java 8 兼容而删除 Boot 3 的自动装配、事务、MVC 和配置绑定便利性。
+- 不为了 Java 8 兼容而删除 Boot 3/4 的自动装配、事务、MVC 和配置绑定便利性。
 - 不在同一个 Starter 中同时维护 `javax.servlet` 和 `jakarta.servlet` 两套 Web API。
