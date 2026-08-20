@@ -25,6 +25,10 @@
 - Query、Command、Stats
 - Import、Export、Task / File
 - 治理 Pipeline、路由、默认 Engine 和 Runtime Registry
-- 强类型 Handler 边界与业务 Adapter SPI
+- 业务 Adapter SPI
+
+## 实施中能力
+
+- 强类型 Handler 边界：统一 Binder 和 Handler 基类已具备，稳定 `UpdatePatch<T>` 尚未落地。
 
 当前能力以 `architecture` 下的文档为准；指南、决策和路线图不能覆盖当前架构事实。
