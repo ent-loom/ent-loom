@@ -64,6 +64,26 @@ class CrudNativeParserAndMergerTest {
     }
 
     @Test
+    void native_convention_order_should_not_change_winner_or_source() {
+        CrudConvention zRule = projectWritable("z-rule", Boolean.FALSE);
+        CrudConvention aRule = projectWritable("a-rule", Boolean.TRUE);
+
+        CrudNativeEntityModel firstOrder = new CrudNativeAnnotationParser(Arrays.asList(zRule, aRule))
+            .parseWithDiagnostics(NativeDateTimeOrder.class)
+            .value();
+        CrudNativeEntityModel reverseOrder = new CrudNativeAnnotationParser(Arrays.asList(aRule, zRule))
+            .parseWithDiagnostics(NativeDateTimeOrder.class)
+            .value();
+
+        CrudNativeFieldModel firstField = field(firstOrder, "createdAt");
+        CrudNativeFieldModel reverseField = field(reverseOrder, "createdAt");
+        Assertions.assertEquals(Boolean.TRUE, firstField.writable().value());
+        Assertions.assertEquals(firstField.writable().value(), reverseField.writable().value());
+        Assertions.assertEquals(MetaValueSource.MODULE_PROJECT_CONVENTION, firstField.writable().source());
+        Assertions.assertEquals(firstField.writable().source(), reverseField.writable().source());
+    }
+
+    @Test
     void native_parser_should_mark_annotation_defaults_as_unknown_not_explicit() {
         CrudNativeEntityModel model = new CrudNativeAnnotationParser()
             .parseWithDiagnostics(NativeOrder.class)
@@ -136,6 +156,17 @@ class CrudNativeParserAndMergerTest {
             }
         }
         return false;
+    }
+
+    private CrudConvention projectWritable(String ruleId, Boolean value) {
+        return context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(value)
+            .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+            .ruleId(ruleId)
+            .priority(Priority.MODULE_PROJECT_CONVENTION)
+            .build());
     }
 
     private CrudNativeFieldModel field(CrudNativeEntityModel model, String name) {

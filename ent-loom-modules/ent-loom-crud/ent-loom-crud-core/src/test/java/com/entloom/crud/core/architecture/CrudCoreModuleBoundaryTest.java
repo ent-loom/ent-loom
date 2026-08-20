@@ -31,6 +31,15 @@ class CrudCoreModuleBoundaryTest {
         Assertions.assertEquals(EXPECTED_COMPILE_DEPENDENCIES, compileDependencies);
     }
 
+    @Test
+    void core_should_not_depend_on_meta_core_or_leaf_implementations() throws Exception {
+        Set<String> compileDependencies = readCompileDependencies(Paths.get("pom.xml").toFile());
+
+        Assertions.assertFalse(compileDependencies.contains("ent-loom-meta-core"));
+        Assertions.assertFalse(compileDependencies.contains("ent-loom-crud-engine-jdbc"));
+        Assertions.assertFalse(compileDependencies.contains("ent-loom-crud-spring-boot-starter"));
+    }
+
     private Set<String> readCompileDependencies(File pomFile) throws Exception {
         Document document = DocumentBuilderFactory.newInstance()
             .newDocumentBuilder()
