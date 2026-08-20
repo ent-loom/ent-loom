@@ -13,6 +13,7 @@ public final class CrudRuntimeProperties {
     public static final String JAVA_TYPE = "javaType";
     public static final String COLUMN_NAME = "columnName";
     public static final String NULLABLE = "nullable";
+    public static final String WRITABLE = "writable";
     public static final String TARGET_SERVICE = "targetService";
     public static final String TARGET_ENTITY = "targetEntity";
     public static final String TARGET_CLASS = "targetClass";

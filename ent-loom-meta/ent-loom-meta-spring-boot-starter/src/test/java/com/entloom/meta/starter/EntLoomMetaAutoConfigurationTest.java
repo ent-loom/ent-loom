@@ -2,6 +2,8 @@ package com.entloom.meta.starter;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
@@ -173,6 +175,26 @@ class EntLoomMetaAutoConfigurationTest {
     }
 
     @Test
+    void customCrudConventionBeanShouldChangeMetaCrudRuntimeModel() {
+        new ApplicationContextRunner()
+            .withUserConfiguration(
+                MinimalCrudRegistryConfiguration.class,
+                EntLoomMetaAutoConfiguration.class,
+                ProjectCrudConventionConfiguration.class
+            )
+            .withPropertyValues(entityClasses(StarterCrudConventionEntity.class))
+            .run(context -> {
+                EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+                Assertions.assertTrue(
+                    registry.getEntityMeta(StarterCrudConventionEntity.class)
+                        .getFieldMetas()
+                        .get("createdAt")
+                        .isWritable()
+                );
+            });
+    }
+
+    @Test
     void duplicateAdapterOutputShouldFailFastAtRegistryBoundary() {
         new ApplicationContextRunner()
             .withUserConfiguration(
@@ -298,6 +320,26 @@ class EntLoomMetaAutoConfigurationTest {
         }
     }
 
+    @Configuration
+    static class ProjectCrudConventionConfiguration {
+        @Bean
+        CrudConvention projectCrudConvention() {
+            return context -> {
+                if (context.field().getName().equals("createdAt")) {
+                    return Collections.singletonList(Contribution.<Boolean>builder()
+                        .target(context.entityClass().getName() + "#" + context.field().getName())
+                        .property(CrudConventionProperties.WRITABLE)
+                        .value(Boolean.TRUE)
+                        .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+                        .ruleId("test.starter.project.created-at.writable")
+                        .priority(Priority.MODULE_PROJECT_CONVENTION)
+                        .build());
+                }
+                return Collections.emptyList();
+            };
+        }
+    }
+
     @EntEntity(entity = "p1_meta_order", label = "Meta Order", service = "order-service")
     static class MetaOrder {
         @EntField(value = EntFieldKind.ID, required = OptionalBoolean.TRUE)
@@ -321,6 +363,12 @@ class EntLoomMetaAutoConfigurationTest {
 
     @EntEntity(entity = "starter_convention_entity")
     static class StarterConventionEntity {
+        private LocalDateTime createdAt;
+    }
+
+    @EntEntity(entity = "starter_crud_convention_entity")
+    @EntCrudEntity(name = "starter_crud_convention_entity")
+    static class StarterCrudConventionEntity {
         private LocalDateTime createdAt;
     }
 

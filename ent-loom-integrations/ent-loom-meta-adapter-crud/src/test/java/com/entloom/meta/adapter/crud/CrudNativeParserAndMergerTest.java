@@ -7,6 +7,7 @@ import com.entloom.crud.enums.RelationScope;
 import com.entloom.meta.adapter.crud.merge.CrudRuntimeModelMerger;
 import com.entloom.meta.adapter.crud.model.CrudEntityRuntimeModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
+import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeRelationModel;
 import com.entloom.meta.adapter.crud.model.CrudRelationRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudRuntimeProperties;
@@ -18,8 +19,14 @@ import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
-import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.crud.core.convention.CrudConventionProperties;
+import com.entloom.meta.enums.RelationCardinality;
+import java.time.LocalDateTime;
+import java.util.Arrays;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import com.entloom.meta.enums.EntFieldKind;
 import java.util.List;
@@ -27,6 +34,34 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CrudNativeParserAndMergerTest {
+
+    @Test
+    void native_convention_should_protect_created_time_and_allow_project_override() {
+        CrudNativeAnnotationParser parser = new CrudNativeAnnotationParser();
+        CrudNativeEntityModel builtIn = parser.parseWithDiagnostics(NativeDateTimeOrder.class).value();
+        CrudNativeFieldModel builtInField = field(builtIn, "createdAt");
+
+        Assertions.assertEquals(Boolean.FALSE, builtInField.writable().value());
+        Assertions.assertEquals(MetaValueSource.MODULE_BUILT_IN_CONVENTION, builtInField.writable().source());
+
+        CrudConvention projectConvention = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+            .ruleId("test.project.created-time.writable")
+            .priority(Priority.MODULE_PROJECT_CONVENTION)
+            .build());
+        CrudNativeEntityModel overridden = new CrudNativeAnnotationParser(Arrays.asList(projectConvention))
+            .parseWithDiagnostics(NativeDateTimeOrder.class)
+            .value();
+
+        Assertions.assertEquals(Boolean.TRUE, field(overridden, "createdAt").writable().value());
+        Assertions.assertEquals(
+            MetaValueSource.MODULE_PROJECT_CONVENTION,
+            field(overridden, "createdAt").writable().source()
+        );
+    }
 
     @Test
     void native_parser_should_mark_annotation_defaults_as_unknown_not_explicit() {
@@ -103,6 +138,16 @@ class CrudNativeParserAndMergerTest {
         return false;
     }
 
+    private CrudNativeFieldModel field(CrudNativeEntityModel model, String name) {
+        for (CrudNativeFieldModel field : model.fields()) {
+            if (name.equals(field.fieldName())) {
+                return field;
+            }
+        }
+        Assertions.fail("Missing field " + name);
+        return null;
+    }
+
     @EntCrudEntity(name = "native_order", table = "native_order_table")
     private static final class NativeOrder {
         private Long id;
@@ -110,6 +155,12 @@ class CrudNativeParserAndMergerTest {
 
         @EntCrudField(targetClass = NativeCustomer.class)
         private Long customerId;
+    }
+
+    @EntCrudEntity(name = "native_datetime_order")
+    private static final class NativeDateTimeOrder {
+        private Long id;
+        private LocalDateTime createdAt;
     }
 
     @EntCrudEntity(name = "native_customer", table = "native_customer")

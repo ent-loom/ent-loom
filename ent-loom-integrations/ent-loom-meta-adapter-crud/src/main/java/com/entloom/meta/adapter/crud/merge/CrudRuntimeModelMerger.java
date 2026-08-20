@@ -3,16 +3,21 @@ package com.entloom.meta.adapter.crud.merge;
 import com.entloom.crud.api.enums.JoinType;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.enums.RelationScope;
+import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.meta.adapter.crud.model.CrudEntityRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudFieldRuntimeModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeRelationModel;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.contribution.PropertyContributionResolver;
 import com.entloom.meta.adapter.crud.model.CrudRelationRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudRuntimeProperties;
 import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
 import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
+import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
@@ -31,6 +36,7 @@ import java.util.Map;
  * CRUD P0 最小合并器。
  */
 public class CrudRuntimeModelMerger {
+    private final PropertyContributionResolver contributionResolver = new PropertyContributionResolver();
 
     public MetaDiagnosticResult<CrudEntityRuntimeModel> merge(
         Class<?> entityClass,
@@ -44,7 +50,7 @@ public class CrudRuntimeModelMerger {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
-        SourcedValue<String> idField = choose(
+        SourcedValue<String> idField = resolveProperty(
             CrudRuntimeProperties.ID_FIELD,
             entityClass,
             null,
@@ -55,22 +61,27 @@ public class CrudRuntimeModelMerger {
         );
         CrudEntityRuntimeModel model = new CrudEntityRuntimeModel(
             entityClass,
-            choose(CrudRuntimeProperties.RESOURCE_CODE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.resourceCode(),
+            resolveProperty(CrudRuntimeProperties.RESOURCE_CODE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.resourceCode(),
                 meta == null ? null : SourcedValue.metaExplicit(meta.entityName())),
-            choose(CrudRuntimeProperties.TABLE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.table(),
+            resolveProperty(CrudRuntimeProperties.TABLE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.table(),
                 SourcedValue.inferred(defaultTable(entityClass))),
             idField,
-            choose(CrudRuntimeProperties.LOGIC_DELETE_FIELD, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.logicDeleteField(),
+            resolveProperty(CrudRuntimeProperties.LOGIC_DELETE_FIELD, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.logicDeleteField(),
                 SourcedValue.defaulted("")),
-            choose(CrudRuntimeProperties.OWNER_SERVICE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.ownerService(),
+            resolveProperty(CrudRuntimeProperties.OWNER_SERVICE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.ownerService(),
                 meta == null ? null : stringMeta(meta.serviceName())),
-            mergeFields(entityClass, meta, nativeModel),
+            mergeFields(entityClass, meta, nativeModel, diagnostics),
             mergeRelations(entityClass, meta, nativeModel, idField.value(), diagnostics)
         );
         return MetaDiagnosticResult.of(model, diagnostics.diagnostics());
     }
 
-    private List<CrudFieldRuntimeModel> mergeFields(Class<?> entityClass, EntEntityDescriptor meta, CrudNativeEntityModel nativeModel) {
+    private List<CrudFieldRuntimeModel> mergeFields(
+        Class<?> entityClass,
+        EntEntityDescriptor meta,
+        CrudNativeEntityModel nativeModel,
+        MetaDiagnosticCollector diagnostics
+    ) {
         LinkedHashSet<String> fieldNames = new LinkedHashSet<String>();
         Map<String, EntFieldDescriptor> metaFields = new LinkedHashMap<String, EntFieldDescriptor>();
         if (meta != null) {
@@ -90,6 +101,7 @@ public class CrudRuntimeModelMerger {
         for (String fieldName : fieldNames) {
             EntFieldDescriptor metaField = metaFields.get(fieldName);
             CrudNativeFieldModel nativeField = nativeFields.get(fieldName);
+            collectUnsupportedMetaProperties(entityClass, metaField, diagnostics);
             Class<?> javaType = metaField != null && metaField.javaType() != null
                 ? metaField.javaType()
                 : nativeField == null ? Object.class : nativeField.javaType();
@@ -100,7 +112,7 @@ public class CrudRuntimeModelMerger {
             SourcedValue<Boolean> nullable = metaField == null
                 ? nativeField == null ? SourcedValue.inferred(Boolean.TRUE) : nativeField.nullable()
                 : SourcedValue.metaExplicit(Boolean.valueOf(metaField.required() == null || !metaField.required().booleanValue()));
-            boolean writable = metaField == null || !Boolean.TRUE.equals(metaField.readOnly());
+            SourcedValue<Boolean> writable = resolveWritable(entityClass, fieldName, metaField, nativeField, diagnostics);
             fields.add(new CrudFieldRuntimeModel(
                 fieldName,
                 javaType,
@@ -109,12 +121,135 @@ public class CrudRuntimeModelMerger {
                 false,
                 true,
                 true,
-                writable,
+                writable.value() == null || writable.value().booleanValue(),
                 false,
                 false
             ));
         }
         return fields;
+    }
+
+    private SourcedValue<Boolean> resolveWritable(
+        Class<?> entityClass,
+        String fieldName,
+        EntFieldDescriptor metaField,
+        CrudNativeFieldModel nativeField,
+        MetaDiagnosticCollector diagnostics
+    ) {
+        String target = entityClass.getName() + "#" + fieldName;
+        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
+        if (nativeField != null) {
+            addContribution(
+                contributions,
+                target,
+                CrudConventionProperties.WRITABLE,
+                nativeField.writable(),
+                "crud.native." + fieldName + ".writable"
+            );
+        }
+        if (metaField != null) {
+            com.entloom.meta.contract.value.SourcedValue<?> readOnly = metaField.sourcedValue(
+                MetaDescriptorProperties.READ_ONLY
+            );
+            if (readOnly == null && metaField.readOnly() != null) {
+                readOnly = SourcedValue.metaExplicit(metaField.readOnly());
+            }
+            if (readOnly != null && readOnly.value() != null) {
+                addContribution(
+                    contributions,
+                    target,
+                    CrudConventionProperties.WRITABLE,
+                    Boolean.valueOf(!Boolean.TRUE.equals(readOnly.value())),
+                    "meta." + fieldName + ".readOnly",
+                    readOnly.source()
+                );
+            }
+        }
+        if (contributions.isEmpty()) {
+            addContribution(
+                contributions,
+                target,
+                CrudConventionProperties.WRITABLE,
+                Boolean.TRUE,
+                "crud.default." + fieldName + ".writable",
+                MetaValueSource.INFERRED
+            );
+        }
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<Map<String, Contribution<?>>> result =
+            contributionResolver.resolve(contributions);
+        diagnostics.addAll(result.diagnostics());
+        Contribution<?> winner = result.value().get(target + "." + CrudConventionProperties.WRITABLE);
+        if (winner == null) {
+            return SourcedValue.inferred(Boolean.TRUE);
+        }
+        return SourcedValue.of(
+            (Boolean) winner.value(),
+            winner.source(),
+            winner.source() == MetaValueSource.INFERRED
+                ? com.entloom.meta.contract.value.MetaValueState.INFERRED
+                : com.entloom.meta.contract.value.MetaValueState.DEFAULTED,
+            false
+        );
+    }
+
+    private void addContribution(
+        List<Contribution<?>> contributions,
+        String target,
+        String property,
+        SourcedValue<?> value,
+        String ruleId
+    ) {
+        if (value != null) {
+            addContribution(contributions, target, property, value.value(), ruleId, value.source());
+        }
+    }
+
+    private void addContribution(
+        List<Contribution<?>> contributions,
+        String target,
+        String property,
+        Object value,
+        String ruleId,
+        MetaValueSource source
+    ) {
+        if (value == null || source == null) {
+            return;
+        }
+        Priority priority = Priority.fromSource(source);
+        if (priority == null) {
+            return;
+        }
+        contributions.add(Contribution.builder()
+            .target(target)
+            .property(property)
+            .value(value)
+            .source(source)
+            .ruleId(ruleId)
+            .priority(priority)
+            .build());
+    }
+
+    private void collectUnsupportedMetaProperties(
+        Class<?> entityClass,
+        EntFieldDescriptor metaField,
+        MetaDiagnosticCollector diagnostics
+    ) {
+        if (metaField == null || metaField.role() == null || !metaField.role().startsWith("DATETIME.")) {
+            return;
+        }
+        if ("DATETIME.CREATED_TIME".equals(metaField.role())) {
+            return;
+        }
+        com.entloom.meta.contract.value.SourcedValue<?> role = metaField.sourcedValue(MetaDescriptorProperties.ROLE);
+        diagnostics.add(MetaDiagnostic.warn(MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY)
+            .entityClass(entityClass)
+            .field(metaField.fieldName())
+            .source(role == null ? MetaValueSource.META_EXPLICIT : role.source())
+            .ruleId("crud.consumer.datetime.role")
+            .property(MetaDescriptorProperties.ROLE)
+            .location(entityClass.getName() + "#" + metaField.fieldName())
+            .message("CRUD 当前仅消费 DATETIME.CREATED_TIME 的只读语义，暂不执行: " + metaField.role())
+            .build());
     }
 
     private List<CrudRelationRuntimeModel> mergeRelations(
@@ -150,28 +285,28 @@ public class CrudRuntimeModelMerger {
                 continue;
             }
             SourcedValue<Class<?>> targetClass = nativeRelation == null ? null : nativeRelation.targetClass();
-            SourcedValue<RelationCardinality> cardinality = choose(CrudRuntimeProperties.CARDINALITY, entityClass, relationField, diagnostics,
+            SourcedValue<RelationCardinality> cardinality = resolveProperty(CrudRuntimeProperties.CARDINALITY, entityClass, relationField, diagnostics,
                 nativeRelation == null ? null : nativeRelation.cardinality(),
                 metaRelation == null ? null : relationValue(metaRelation.cardinality(), metaRelation, CrudRuntimeProperties.CARDINALITY),
                 SourcedValue.defaulted(RelationCardinality.MANY_TO_ONE));
             relations.add(new CrudRelationRuntimeModel(
                 nativeRelation == null ? relationField : nativeRelation.fieldName(),
-                choose(CrudRuntimeProperties.TARGET_SERVICE, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.TARGET_SERVICE, entityClass, relationField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.targetService(),
                     metaRelation == null ? null : stringMeta(metaRelation.targetService())),
-                choose(CrudRuntimeProperties.TARGET_ENTITY, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.TARGET_ENTITY, entityClass, relationField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.targetEntity(),
                     metaRelation == null ? null : stringMeta(metaRelation.targetEntity()),
                     targetClass == null || targetClass.value() == null ? null : SourcedValue.inferred(targetClass.value().getSimpleName())),
                 targetClass == null ? SourcedValue.unknown(null) : targetClass,
-                choose(CrudRuntimeProperties.SOURCE_FIELD, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.SOURCE_FIELD, entityClass, relationField, diagnostics,
                     normalizeInferredSourceField(nativeRelation == null ? null : nativeRelation.sourceField(), cardinality, idField),
                     normalizeInferredSourceField(
                         metaRelation == null ? null : sourceValue(metaRelation.sourceField(), metaRelation.sourceFieldInferred()),
                         cardinality,
                         idField
                     )),
-                choose(CrudRuntimeProperties.TARGET_FIELD, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.TARGET_FIELD, entityClass, relationField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.targetField(),
                     metaRelation == null ? null : relationValue(metaRelation.targetField(), metaRelation, CrudRuntimeProperties.TARGET_FIELD),
                     SourcedValue.defaulted("id")),
@@ -179,9 +314,9 @@ public class CrudRuntimeModelMerger {
                 metaRelation == null
                     ? SourcedValue.inferred(ownerSide(nativeRelation == null ? RelationCardinality.MANY_TO_ONE : nativeRelation.cardinality().value()))
                     : SourcedValue.inferred(metaRelation.ownerSide()),
-                choose(CrudRuntimeProperties.SCOPE, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.SCOPE, entityClass, relationField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.scope(), SourcedValue.defaulted(RelationScope.LOCAL_DB)),
-                choose(CrudRuntimeProperties.JOIN_TYPE, entityClass, relationField, diagnostics,
+                resolveProperty(CrudRuntimeProperties.JOIN_TYPE, entityClass, relationField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.joinType(), SourcedValue.defaulted(JoinType.LEFT))
             ));
         }
@@ -203,7 +338,7 @@ public class CrudRuntimeModelMerger {
     }
 
     @SafeVarargs
-    private final <T> SourcedValue<T> choose(
+    private final <T> SourcedValue<T> resolveProperty(
         String property,
         Class<?> entityClass,
         String field,
@@ -217,17 +352,74 @@ public class CrudRuntimeModelMerger {
             }
         }
         warnExplicitConflict(property, entityClass, field, values, diagnostics);
+        String target = entityClass.getName() + (field == null ? "" : "#" + field);
+        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
         for (SourcedValue<T> value : values) {
-            if (value.explicit()) {
-                return value;
-            }
+            addContribution(
+                contributions,
+                target,
+                property,
+                value,
+                candidateRuleId(property, value)
+            );
         }
-        for (SourcedValue<T> value : values) {
-            if (value.value() != null) {
-                return value;
-            }
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<Map<String, Contribution<?>>> result =
+            contributionResolver.resolve(contributions);
+        diagnostics.addAll(result.diagnostics());
+        Contribution<?> winner = result.value().get(target + "." + property);
+        if (winner == null) {
+            return SourcedValue.unknown(null);
         }
-        return SourcedValue.unknown(null);
+        @SuppressWarnings("unchecked")
+        T winnerValue = (T) winner.value();
+        return SourcedValue.of(
+            winnerValue,
+            winner.source(),
+            state(winner.source()),
+            isExplicit(winner.source())
+        );
+    }
+
+    private String candidateRuleId(String property, SourcedValue<?> value) {
+        MetaValueSource source = value == null ? null : value.source();
+        if (source == MetaValueSource.NATIVE_EXPLICIT) {
+            return "crud.native." + property;
+        }
+        if (source == MetaValueSource.META_EXPLICIT) {
+            return "meta.explicit." + property;
+        }
+        if (source == MetaValueSource.MODULE_PROJECT_CONVENTION) {
+            return "crud.project." + property;
+        }
+        if (source == MetaValueSource.META_PROJECT_CONVENTION) {
+            return "meta.project." + property;
+        }
+        if (source == MetaValueSource.MODULE_BUILT_IN_CONVENTION) {
+            return "crud.built-in." + property;
+        }
+        if (source == MetaValueSource.META_BUILT_IN_CONVENTION) {
+            return "meta.built-in." + property;
+        }
+        return "crud.candidate." + property;
+    }
+
+    private com.entloom.meta.contract.value.MetaValueState state(MetaValueSource source) {
+        if (isExplicit(source)) {
+            return com.entloom.meta.contract.value.MetaValueState.EXPLICIT;
+        }
+        if (source == MetaValueSource.INFERRED) {
+            return com.entloom.meta.contract.value.MetaValueState.INFERRED;
+        }
+        if (source == MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN) {
+            return com.entloom.meta.contract.value.MetaValueState.UNKNOWN;
+        }
+        return com.entloom.meta.contract.value.MetaValueState.DEFAULTED;
+    }
+
+    private boolean isExplicit(MetaValueSource source) {
+        return source == MetaValueSource.META_EXPLICIT
+            || source == MetaValueSource.NATIVE_EXPLICIT
+            || source == MetaValueSource.BUSINESS_EXPLICIT_OVERRIDE;
     }
 
     private <T> void add(List<SourcedValue<T>> values, SourcedValue<T> value) {

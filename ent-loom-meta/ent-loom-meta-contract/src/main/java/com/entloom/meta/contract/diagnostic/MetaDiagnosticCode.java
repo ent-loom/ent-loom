@@ -23,5 +23,7 @@ public enum MetaDiagnosticCode {
     /** Contribution 同级规则产生不同值。 */
     CONTRIBUTION_SAME_PRIORITY_CONFLICT,
     /** 同一属性的 Contribution 值类型不一致。 */
-    CONTRIBUTION_TYPE_MISMATCH
+    CONTRIBUTION_TYPE_MISMATCH,
+    /** 消费者识别到当前声明，但尚未实现该属性语义。 */
+    CONSUMER_UNSUPPORTED_PROPERTY
 }

@@ -15,6 +15,7 @@ import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.meta.adapter.crud.model.CrudRelationRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudRuntimeProperties;
 import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
+import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
@@ -62,6 +63,21 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
 
     public MetaCrudAdapter(Collection<Class<?>> entityClasses, EntMetaParser parser, MetaDiagnosticPolicy diagnosticPolicy) {
         this(entityClasses, parser, new CrudNativeAnnotationParser(), new CrudRuntimeModelMerger(), diagnosticPolicy);
+    }
+
+    public MetaCrudAdapter(
+        Collection<Class<?>> entityClasses,
+        EntMetaParser parser,
+        Collection<? extends CrudConvention> conventions,
+        MetaDiagnosticPolicy diagnosticPolicy
+    ) {
+        this(
+            entityClasses,
+            parser,
+            new CrudNativeAnnotationParser(conventions),
+            new CrudRuntimeModelMerger(),
+            diagnosticPolicy
+        );
     }
 
     public MetaCrudAdapter(

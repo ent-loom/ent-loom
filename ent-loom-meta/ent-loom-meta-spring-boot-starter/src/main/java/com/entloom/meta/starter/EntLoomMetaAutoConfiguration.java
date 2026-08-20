@@ -1,6 +1,7 @@
 package com.entloom.meta.starter;
 
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
+import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.crud.MetaCrudAdapter;
@@ -56,9 +57,12 @@ public class EntLoomMetaAutoConfiguration {
     @ConditionalOnMissingBean(MetaCrudAdapter.class)
     public ResourceCatalogAdapter entLoomMetaCrudAdapter(
         EntLoomMetaProperties properties,
-        EntMetaParser parser
+        EntMetaParser parser,
+        ObjectProvider<CrudConvention> conventionProvider
     ) {
-        return new MetaCrudAdapter(resolveEntityClasses(properties), parser, diagnosticPolicy(properties));
+        List<CrudConvention> conventions = new ArrayList<CrudConvention>();
+        conventionProvider.orderedStream().forEach(conventions::add);
+        return new MetaCrudAdapter(resolveEntityClasses(properties), parser, conventions, diagnosticPolicy(properties));
     }
 
     @Bean

@@ -3,24 +3,50 @@ package com.entloom.crud.core.runtime.model.input;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.crud.api.enums.JoinType;
+import com.entloom.crud.core.convention.BuiltInDateTimeConvention;
+import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.crud.core.convention.CrudConventionContext;
+import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.enums.RelationScope;
-import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
-import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
-import com.entloom.crud.core.runtime.model.input.CrudNativeRelationModel;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.contribution.PropertyContributionResolver;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * 解析 CRUD 原生注解为中间模型，不直接注册 runtime。
  */
 public class CrudNativeAnnotationParser {
+    private final List<CrudConvention> conventions;
+    private final PropertyContributionResolver contributionResolver;
+
+    public CrudNativeAnnotationParser() {
+        this(Collections.<CrudConvention>emptyList());
+    }
+
+    public CrudNativeAnnotationParser(Collection<? extends CrudConvention> conventions) {
+        this.conventions = new ArrayList<CrudConvention>();
+        this.conventions.add(new BuiltInDateTimeConvention());
+        if (conventions != null) {
+            for (CrudConvention convention : conventions) {
+                if (convention != null && !(convention instanceof BuiltInDateTimeConvention)) {
+                    this.conventions.add(convention);
+                }
+            }
+        }
+        this.contributionResolver = new PropertyContributionResolver();
+    }
 
     public MetaDiagnosticResult<CrudNativeEntityModel> parseWithDiagnostics(Class<?> entityClass) {
         if (entityClass == null) {
@@ -32,6 +58,7 @@ public class CrudNativeAnnotationParser {
         }
         List<CrudNativeFieldModel> fields = new ArrayList<CrudNativeFieldModel>();
         List<CrudNativeRelationModel> relations = new ArrayList<CrudNativeRelationModel>();
+        MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
         for (Field field : getAllFields(entityClass)) {
             if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
                 continue;
@@ -41,7 +68,7 @@ public class CrudNativeAnnotationParser {
                 relations.add(toRelationModel(field, relation));
             }
             if (isPersistentField(field)) {
-                fields.add(toFieldModel(field));
+                fields.add(toFieldModel(entityClass, field, diagnostics));
             }
         }
         return MetaDiagnosticResult.of(
@@ -55,17 +82,56 @@ public class CrudNativeAnnotationParser {
                 fields,
                 relations
             ),
-            java.util.Collections.emptyList()
+            diagnostics.diagnostics()
         );
     }
 
-    private CrudNativeFieldModel toFieldModel(Field field) {
+    private CrudNativeFieldModel toFieldModel(
+        Class<?> entityClass,
+        Field field,
+        MetaDiagnosticCollector diagnostics
+    ) {
+        String target = entityClass.getName() + "#" + field.getName();
+        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
+        contributions.add(Contribution.<Boolean>builder()
+            .target(target)
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.INFERRED)
+            .ruleId("crud.parser.field.writable.default")
+            .priority(Priority.META_INFERENCE)
+            .build());
+        for (CrudConvention convention : conventions) {
+            Collection<? extends Contribution<?>> contributed = convention.contribute(
+                new CrudConventionContext(entityClass, field)
+            );
+            if (contributed != null) {
+                contributions.addAll(contributed);
+            }
+        }
+        MetaDiagnosticResult<java.util.Map<String, Contribution<?>>> resolved = contributionResolver.resolve(contributions);
+        diagnostics.addAll(resolved.diagnostics());
+        Contribution<?> writable = resolved.value().get(target + "." + CrudConventionProperties.WRITABLE);
         return new CrudNativeFieldModel(
             field.getName(),
             field.getType(),
             SourcedValue.inferred(NamingUtils.camelToSnake(field.getName())),
-            SourcedValue.inferred(Boolean.valueOf(!field.getType().isPrimitive()))
+            SourcedValue.inferred(Boolean.valueOf(!field.getType().isPrimitive())),
+            writable == null ? SourcedValue.inferred(Boolean.TRUE) : sourcedValue(writable)
         );
+    }
+
+    private SourcedValue<Boolean> sourcedValue(Contribution<?> contribution) {
+        MetaValueSource source = contribution.source();
+        boolean explicit = source == MetaValueSource.META_EXPLICIT
+            || source == MetaValueSource.NATIVE_EXPLICIT
+            || source == MetaValueSource.BUSINESS_EXPLICIT_OVERRIDE;
+        com.entloom.meta.contract.value.MetaValueState state = explicit
+            ? com.entloom.meta.contract.value.MetaValueState.EXPLICIT
+            : source == MetaValueSource.INFERRED
+                ? com.entloom.meta.contract.value.MetaValueState.INFERRED
+                : com.entloom.meta.contract.value.MetaValueState.DEFAULTED;
+        return SourcedValue.of((Boolean) contribution.value(), source, state, explicit);
     }
 
     private CrudNativeRelationModel toRelationModel(Field field, EntCrudField relation) {
