@@ -2,7 +2,6 @@ package com.entloom.crud.annotations;
 
 import com.entloom.crud.api.enums.JoinType;
 import com.entloom.crud.enums.RelationScope;
-import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
 import com.entloom.meta.enums.RelationCardinality;
 
 import java.lang.annotation.ElementType;
@@ -18,40 +17,35 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface EntCrudField {
-    // EntRelationDescriptor 通用关系语义：与 EntRelation 对齐。
+    // 通用关系语义与 Meta Relation Descriptor 对齐，但不直接依赖 Meta Contract。
 
     /**
      * 目标实体所属服务。
      *
-     * @see EntRelationDescriptor#targetService()
      */
     String targetService() default "";
 
     /**
      * 目标实体名，用于无法直接依赖实体 Class 的场景。
      *
-     * @see EntRelationDescriptor#targetEntity()
      */
     String targetEntity() default "";
 
     /**
      * 当前实体字段名，空字符串表示使用被注解字段名。
      *
-     * @see EntRelationDescriptor#sourceField()
      */
     String sourceField() default "";
 
     /**
      * 目标字段名。
      *
-     * @see EntRelationDescriptor#targetField()
      */
     String targetField() default "id";
 
     /**
      * 关系基数。
      *
-     * @see EntRelationDescriptor#cardinality()
      */
     RelationCardinality cardinality() default RelationCardinality.MANY_TO_ONE;
 
