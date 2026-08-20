@@ -2,7 +2,7 @@
 
 当前关系查询是 `ROOT_FIRST` 的 MVP-1：先查根实体，再按关系边批量补数。它不是默认 JOIN 查询，也不支持关联字段过滤/排序。
 
-一跳 JOIN 投影、关联排序、null 排序和稳定分页的待扩展方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/relation-query.md)。
+一跳 JOIN 投影、关联排序、null 排序和稳定分页的待扩展方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/关系查询后续路线.md)。
 
 ## 当前执行模型
 
@@ -112,5 +112,5 @@ flowchart LR
 
 - 普通列表详情需要子集合时，用 `entityCodes` 或 `expandRelations` 触发 ROOT_FIRST 展开。
 - 需要关联过滤、关联排序、跨服务补数或复杂聚合时，优先写 `Query*SceneHandler` 或 `StatsSceneHandler`。
-- 需要“主表列表 + 一跳维表投影 + 跨表稳定排序”时，当前仍走定制 `Query*SceneHandler`；通用化方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/relation-query.md)。
+- 需要“主表列表 + 一跳维表投影 + 跨表稳定排序”时，当前仍走定制 `Query*SceneHandler`；通用化方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/关系查询后续路线.md)。
 - 需要“一次写主子表”时，用 `CommandCreate/Update/DeleteSceneHandler` 包住默认 delegate，再做子表同步。

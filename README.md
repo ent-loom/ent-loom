@@ -23,7 +23,7 @@ Meta 不是所有组件必须依赖的统一运行时模型，而是一套可选
 - 多个来源按属性独立裁决，不整模型覆盖，也不依赖 Bean 加载顺序解决冲突。
 - 运行时只消费各组件拥有的 Runtime Model。
 
-完整规则见 [元数据约定与裁决契约](./docs/architecture/core/metadata-resolution-contract.md)。
+完整规则见 [元数据约定与裁决契约](./docs/architecture/core/元数据约定与裁决契约.md)。
 
 ## 当前能力
 
@@ -41,7 +41,7 @@ Meta 不是所有组件必须依赖的统一运行时模型，而是一套可选
 | DOC          | Core / Meta Adapter              | 已实现        | OpenAPI 投影不在当前闭环                 |
 | UI           | 基础 Contract                      | 已实现        | Meta Adapter 和默认渲染未实现            |
 
-尚未完成的工作统一维护在 [当前实施总览](./docs/evolution/roadmap/current.md)，不在 README 中重复展开。
+尚未完成的工作统一维护在 [当前实施总览](./docs/evolution/roadmap/当前实施总览.md)，不在 README 中重复展开。
 
 ## 仓库结构
 
@@ -60,7 +60,7 @@ ent-loom-integrations          Meta -> Module Adapter
 ```
 
 业务模块应按职责依赖具体叶子模块，不依赖聚合 POM 作为运行时
-API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/architecture/core/component-boundaries.md)。
+API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/architecture/core/组件边界与依赖规则.md)。
 
 ## 构建与验证
 
@@ -73,9 +73,9 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 ## 使用与文档
 
 - [文档中心](./docs/index.md)：文档结构和推荐阅读路径。
-- [系统架构总览](./docs/architecture/overview.md)：模块、建模与执行关系。
+- [系统架构总览](./docs/architecture/架构总览.md)：模块、建模与执行关系。
 - [Core Contract](./docs/architecture/core/index.md)：跨模块稳定契约。
-- [CRUD 业务集成模板](./docs/guides/crud/integration-template.md)：业务项目接入方式。
-- [Meta-first 最佳实践](./docs/guides/meta/meta-first.md)：通用语义声明与 Adapter 使用。
+- [CRUD 业务集成模板](./docs/guides/crud/业务集成模板.md)：业务项目接入方式。
+- [Meta-first 最佳实践](./docs/guides/meta/Meta优先指南.md)：通用语义声明与 Adapter 使用。
 - [设计决策](./docs/evolution/decisions/index.md)：关键取舍及其状态。
 - [路线图](./docs/evolution/roadmap/index.md)：当前和后续工作。

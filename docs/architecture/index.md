@@ -6,7 +6,7 @@
 
 ## 阅读顺序
 
-1. [系统架构总览](overview.md)
+1. [系统架构总览](架构总览.md)
 2. [Core Contract](core/index.md)
 3. [组件架构](components/index.md)
 

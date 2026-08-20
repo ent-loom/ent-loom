@@ -7,28 +7,28 @@
 
 ## 总览
 
-1. [CRUD 核心组件](overview.md)
-2. [运行时架构](runtime-architecture.md)
+1. [CRUD 架构总览](架构总览.md)
+2. [运行时架构](运行时架构.md)
 
 ## 公开合同
 
-- [HTTP Contract](http-contract.md)
-- [Query/Command 协议与路由](query-command-contract.md)
-- [强类型边界](typed-boundary.md)
+- [HTTP 契约](HTTP契约.md)
+- [查询命令协议与路由](查询命令协议.md)
+- [强类型边界](强类型边界.md)
 
 ## 能力域
 
-- [Query](query.md)
-- [Command](command.md)
-- [Stats](stats.md)
-- [Import](import.md)
-- [Export](export.md)
-- [Task / File](task-file.md)
+- [查询](查询.md)
+- [命令](命令.md)
+- [统计](统计.md)
+- [导入](导入.md)
+- [导出](导出.md)
+- [任务 / 文件](任务文件.md)
 
 ## 默认实现
 
-- [Default Engine](default-engine.md)
-- [Runtime Registry](runtime-registry.md)
+- [默认引擎](默认引擎.md)
+- [运行时注册表](运行时注册表.md)
 - [关系查询实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md)
 - [Stats 引擎实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)
 

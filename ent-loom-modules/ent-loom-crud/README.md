@@ -6,21 +6,21 @@
 
 - **[公共契约与概览](../../docs/architecture/components/crud/index.md)**: 了解 CRUD 的能力边界、核心概念和接入方式（面向使用者）。
 - **能力域**:
-    - [Query](../../docs/architecture/components/crud/query.md)
-    - [Command](../../docs/architecture/components/crud/command.md)
-    - [Stats](../../docs/architecture/components/crud/stats.md)
-    - [Import](../../docs/architecture/components/crud/import.md)
-    - [Export](../../docs/architecture/components/crud/export.md)
-    - [Task / File](../../docs/architecture/components/crud/task-file.md)
+    - [查询](../../docs/architecture/components/crud/查询.md)
+    - [命令](../../docs/architecture/components/crud/命令.md)
+    - [统计](../../docs/architecture/components/crud/统计.md)
+    - [导入](../../docs/architecture/components/crud/导入.md)
+    - [导出](../../docs/architecture/components/crud/导出.md)
+    - [任务 / 文件](../../docs/architecture/components/crud/任务文件.md)
 - **[内部实现细节](./docs/implementation/)**:
     - [关系查询算法与逻辑](./docs/implementation/relation-query-logic.md)
     - [单表统计引擎架构](./docs/implementation/stats-engine-logic.md)
 - **[路线图](../../docs/evolution/roadmap/crud/)**:
-    - [Import 后续路线](../../docs/evolution/roadmap/crud/import.md)
-    - [Export 后续路线](../../docs/evolution/roadmap/crud/export.md)
-    - [Relation Query 后续路线](../../docs/evolution/roadmap/crud/relation-query.md)
+    - [导入后续路线](../../docs/evolution/roadmap/crud/导入后续路线.md)
+    - [导出后续路线](../../docs/evolution/roadmap/crud/导出后续路线.md)
+    - [关系查询后续路线](../../docs/evolution/roadmap/crud/关系查询后续路线.md)
 - **[架构设计决策](../../docs/evolution/decisions/crud/)**:
-    - [Operation Domain / Operation 决策](../../docs/evolution/decisions/crud/capability-operation-refactor.md)
+    - [能力操作重构决策](../../docs/evolution/decisions/crud/能力操作重构.md)
 
 ## 🏗️ 核心模块
 

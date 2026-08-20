@@ -119,4 +119,4 @@
 - **不定义传输协议**：只提供 Service 层能力，不绑定特定的 HTTP 规范。
 - **元数据适配**：与其他组件（如 CRUD）的交互应通过适配层（Adapter）完成。
 
-详细的组件协作规约见：[Ent-Loom 组件边界与协作规约](../../../docs/architecture/core/component-boundaries.md)。
+详细的组件协作规约见：[Ent-Loom 组件边界与协作规约](../../../docs/architecture/core/组件边界与依赖规则.md)。

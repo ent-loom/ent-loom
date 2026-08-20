@@ -8,9 +8,9 @@
 
 | 目的 | 入口 | 内容边界 |
 |---|---|---|
-| 核心契约 | [元数据约定与裁决契约](../../architecture/core/metadata-resolution-contract.md) | 属性来源、优先级、诊断和 Runtime Model 闭环 |
-| 架构总览 | [Meta 分层与运行模型](../../architecture/core/meta/layering-summary.md) | Module-only、Meta-first、模块分层和模型投影 |
-| 实现参考 | [Meta 解析引擎](../../architecture/core/meta/parsing-engine.md)、[Runtime Adapters](../../architecture/core/meta/runtime-adapters.md) | 当前解析、装配和已验证路径 |
+| 核心契约 | [元数据约定与裁决契约](../../architecture/core/元数据约定与裁决契约.md) | 属性来源、优先级、诊断和 Runtime Model 闭环 |
+| 架构总览 | [Meta 分层与运行模型](../../architecture/core/meta/分层与运行模型.md) | Module-only、Meta-first、模块分层和模型投影 |
+| 实现参考 | [Meta 解析引擎](../../architecture/core/meta/元数据解析引擎.md)、[Runtime Adapters](../../architecture/core/meta/运行时适配器.md) | 当前解析、装配和已验证路径 |
 | 使用指南 | [Meta 指南](../../guides/meta/index.md) | Meta-first 的依赖选择、覆盖规则和使用边界 |
 | 后续工作 | [Meta 路线图](../../evolution/roadmap/meta/index.md) | 裁决能力、Convention 和消费者闭环的实施计划 |
 

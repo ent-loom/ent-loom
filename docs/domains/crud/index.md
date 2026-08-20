@@ -6,7 +6,7 @@
 
 ## 阅读路径
 
-1. 先看 [CRUD 架构总览](../../architecture/components/crud/overview.md)，了解操作域、运行时模型和执行边界。
+1. 先看 [CRUD 架构总览](../../architecture/components/crud/架构总览.md)，了解操作域、运行时模型和执行边界。
 2. 再看 [CRUD 架构文档入口](../../architecture/components/crud/index.md)，按合同、能力域和默认实现查阅当前事实。
 3. 需要接入业务时，进入 [CRUD 使用指南](../../guides/crud/index.md)。
 4. 需要了解取舍或后续工作时，进入 [CRUD 设计决策](../../evolution/decisions/crud/index.md) 或 [CRUD 路线图](../../evolution/roadmap/crud/index.md)。

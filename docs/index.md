@@ -27,7 +27,7 @@ Core Contract
 
 ## 从这里开始
 
-1. [系统架构总览](architecture/overview.md)：先了解模块、依赖、建模和执行主链。
+1. [系统架构总览](architecture/架构总览.md)：先了解模块、依赖、建模和执行主链。
 2. [CRUD 领域总览](domains/crud/index.md)：按当前架构、业务接入、设计决策和路线图阅读 CRUD。
 3. [Meta 领域总览](domains/meta/index.md)：按核心契约、实现参考、使用指南和路线图阅读 Meta。
 4. [Core Contract](architecture/core/index.md)：查看跨模块必须共同遵守的契约。

@@ -20,7 +20,7 @@
 
 设计概要见：
 
-- [元数据约定与裁决契约](../docs/architecture/core/metadata-resolution-contract.md)
-- [Meta 分层与运行模型](../docs/architecture/core/meta/layering-summary.md)
-- [Ent Loom Meta-first 最佳实践](../docs/guides/meta/meta-first.md)
+- [元数据约定与裁决契约](../docs/architecture/core/元数据约定与裁决契约.md)
+- [Meta 分层与运行模型](../docs/architecture/core/meta/分层与运行模型.md)
+- [Ent Loom Meta-first 最佳实践](../docs/guides/meta/Meta优先指南.md)
 - [Meta 后续路线](../docs/evolution/roadmap/meta/index.md)：属性级裁决、Convention、DDL/UI Adapter 等后续增强。

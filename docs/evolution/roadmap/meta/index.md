@@ -1,7 +1,7 @@
 # Meta 路线图
 
 > 状态：Remaining
-> 上游契约：[元数据约定与裁决契约](../../../architecture/core/metadata-resolution-contract.md)
+> 上游契约：[元数据约定与裁决契约](../../../architecture/core/元数据约定与裁决契约.md)
 
 Meta 的完整文档导航见 [Meta 领域总览](../../../domains/meta/index.md)。
 
@@ -9,7 +9,7 @@ Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚�
 
 ## 当前主线
 
-[元数据裁决实施计划](metadata-resolution-phase-plan.md) 当前推进公共 Contribution、属性级 Resolver 和来源诊断，然后依次接入 Meta Convention 与 CRUD 消费闭环。
+[元数据裁决实施计划](元数据裁决实施计划.md) 当前推进公共 Contribution、属性级 Resolver 和来源诊断，然后依次接入 Meta Convention 与 CRUD 消费闭环。
 
 ## 后续目标
 
