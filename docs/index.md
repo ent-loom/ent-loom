@@ -40,6 +40,7 @@ Core Contract
 - [使用指南](guides/index.md)：业务项目的接入、开发和配置方式。
 - [设计决策](evolution/decisions/index.md)：为什么采用当前方案，以及方案后果。
 - [路线图](evolution/roadmap/index.md)：尚未完成的目标和当前实施计划。
+- [框架实施清单](evolution/roadmap/实施清单.md)：按依赖顺序逐项完成并打钩。
 
 ## 文档状态
 
