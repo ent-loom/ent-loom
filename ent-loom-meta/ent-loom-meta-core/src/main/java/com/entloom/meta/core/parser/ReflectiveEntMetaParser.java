@@ -22,6 +22,8 @@ import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.EntIndexDescriptor;
 import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
@@ -36,6 +38,12 @@ import com.entloom.meta.core.descriptor.DefaultEntFieldDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntIndexDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntRelationDescriptor;
 import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.meta.contract.value.MetaValueState;
+import com.entloom.meta.core.convention.BuiltInDateTimeConvention;
+import com.entloom.meta.core.convention.MetaConvention;
+import com.entloom.meta.core.convention.MetaConventionContext;
+import com.entloom.meta.core.resolution.PropertyContributionResolver;
 import com.entloom.meta.enums.EntFieldKind;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -48,6 +56,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -59,6 +69,25 @@ import java.util.Set;
  * Reflection-based parser for Ent meta annotations.
  */
 public class ReflectiveEntMetaParser implements EntMetaParser {
+    private final List<MetaConvention> conventions;
+    private final PropertyContributionResolver contributionResolver;
+
+    public ReflectiveEntMetaParser() {
+        this(Collections.<MetaConvention>emptyList());
+    }
+
+    public ReflectiveEntMetaParser(Collection<? extends MetaConvention> conventions) {
+        this.conventions = new ArrayList<MetaConvention>();
+        this.conventions.add(new BuiltInDateTimeConvention());
+        if (conventions != null) {
+            for (MetaConvention convention : conventions) {
+                if (convention != null && !(convention instanceof BuiltInDateTimeConvention)) {
+                    this.conventions.add(convention);
+                }
+            }
+        }
+        this.contributionResolver = new PropertyContributionResolver();
+    }
 
     @Override
     public EntEntityDescriptor parse(Class<?> entityClass) {
@@ -98,7 +127,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             EntField entField = findAnnotation(field, EntField.class);
             EntRelation relation = findAnnotation(field, EntRelation.class);
             if (shouldDescribeAsField(field, entField, relation)) {
-                fields.add(toFieldDescriptor(field, entField, diagnostics));
+                fields.add(toFieldDescriptor(entityClass, field, entField, diagnostics));
             }
             if (relation != null) {
                 relations.add(toRelationDescriptor(field, relation));
@@ -126,19 +155,35 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         return MetaDiagnosticResult.of(descriptor, diagnostics.diagnostics());
     }
 
-    private EntFieldDescriptor toFieldDescriptor(Field field, EntField entField, MetaDiagnosticCollector diagnostics) {
+    private EntFieldDescriptor toFieldDescriptor(
+        Class<?> entityClass,
+        Field field,
+        EntField entField,
+        MetaDiagnosticCollector diagnostics
+    ) {
         EntFieldKind kind = fieldKind(field, entField);
         boolean explicitField = entField != null;
         TypedDefaultValue defaultValue = typedDefaultValue(field, entField, diagnostics);
         SourcedValue<String> role = fieldRole(field, kind);
         List<EntFieldConstraintDescriptor> constraints = constraints(field);
         Map<String, SourcedValue<?>> sources = fieldSources(field, entField, kind, explicitField, defaultValue, role, constraints);
+        FieldConventionValues conventionValues = applyConventions(entityClass, field, entField, role, diagnostics);
+        if (conventionValues.role != null) {
+            role = conventionValues.role;
+            sources.put(MetaDescriptorProperties.ROLE, role);
+        }
+        if (conventionValues.label != null || conventionValues.labelSource != null) {
+            sources.put(MetaDescriptorProperties.LABEL, conventionValues.labelSource);
+        }
+        if (conventionValues.readOnly != null || conventionValues.readOnlySource != null) {
+            sources.put(MetaDescriptorProperties.READ_ONLY, conventionValues.readOnlySource);
+        }
         return new DefaultEntFieldDescriptor(
             field.getName(),
             field.getType(),
             kind.name(),
             role.value(),
-            entField == null ? null : emptyToNull(entField.label()),
+            conventionValues.label,
             entField == null ? null : emptyToNull(entField.description()),
             entField == null ? java.util.Collections.<String>emptyList() : Arrays.asList(entField.examples()),
             defaultValue.rawValue,
@@ -146,9 +191,164 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             defaultValue.typedValue,
             constraints,
             entField == null ? null : toBoolean(entField.required()),
-            entField == null ? null : toBoolean(entField.readOnly()),
+            conventionValues.readOnly,
             sources
         );
+    }
+
+    private FieldConventionValues applyConventions(
+        Class<?> entityClass,
+        Field field,
+        EntField entField,
+        SourcedValue<String> role,
+        MetaDiagnosticCollector diagnostics
+    ) {
+        String target = entityClass.getName() + "#" + field.getName();
+        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
+        addCandidate(contributions, target, MetaDescriptorProperties.ROLE, role.value(), role.source());
+        if (entField != null) {
+            addCandidate(
+                contributions,
+                target,
+                MetaDescriptorProperties.LABEL,
+                emptyToNull(entField.label()),
+                emptyToNull(entField.label()) == null ? null : MetaValueSource.META_EXPLICIT
+            );
+            addCandidate(
+                contributions,
+                target,
+                MetaDescriptorProperties.READ_ONLY,
+                toBoolean(entField.readOnly()),
+                entField.readOnly() == null || entField.readOnly() == OptionalBoolean.UNSET
+                    ? null
+                    : MetaValueSource.META_EXPLICIT
+            );
+        }
+        for (MetaConvention convention : conventions) {
+            Collection<? extends Contribution<?>> contributed = convention.contribute(new MetaConventionContext(entityClass, field));
+            if (contributed != null) {
+                contributions.addAll(contributed);
+            }
+        }
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<Map<String, Contribution<?>>> result =
+            contributionResolver.resolve(contributions);
+        Map<String, Contribution<?>> resolved = result.value();
+        diagnostics.addAll(result.diagnostics());
+        Contribution<?> resolvedRole = resolved.get(target + "." + MetaDescriptorProperties.ROLE);
+        Contribution<?> resolvedLabel = resolved.get(target + "." + MetaDescriptorProperties.LABEL);
+        Contribution<?> resolvedReadOnly = resolved.get(target + "." + MetaDescriptorProperties.READ_ONLY);
+        return new FieldConventionValues(
+            resolvedRole == null ? role : sourcedString(resolvedRole),
+            resolvedLabel == null ? null : String.valueOf(resolvedLabel.value()),
+            resolvedReadOnly == null ? null : (Boolean) resolvedReadOnly.value(),
+            resolvedLabel == null ? null : sourcedValue(resolvedLabel),
+            resolvedReadOnly == null ? null : sourcedValue(resolvedReadOnly)
+        );
+    }
+
+    private void addCandidate(
+        List<Contribution<?>> contributions,
+        String target,
+        String property,
+        Object value,
+        MetaValueSource source
+    ) {
+        if (value == null || source == null) {
+            return;
+        }
+        Priority priority = priority(source);
+        if (priority == null) {
+            return;
+        }
+        contributions.add(Contribution.builder()
+            .target(target)
+            .property(property)
+            .value(value)
+            .source(source)
+            .ruleId("parser.explicit." + property)
+            .priority(priority)
+            .build());
+    }
+
+    private SourcedValue<String> sourcedString(Contribution<?> contribution) {
+        return SourcedValue.of(
+            String.valueOf(contribution.value()),
+            contribution.source(),
+            state(contribution.source()),
+            isExplicit(contribution.source())
+        );
+    }
+
+    private SourcedValue<?> sourcedValue(Contribution<?> contribution) {
+        return SourcedValue.of(
+            contribution.value(),
+            contribution.source(),
+            state(contribution.source()),
+            isExplicit(contribution.source())
+        );
+    }
+
+    private Priority priority(MetaValueSource source) {
+        if (source == null) {
+            return null;
+        }
+        switch (source) {
+            case BUSINESS_EXPLICIT_OVERRIDE:
+            case NATIVE_EXPLICIT:
+                return Priority.MODULE_EXPLICIT;
+            case META_EXPLICIT:
+                return Priority.META_EXPLICIT;
+            case MODULE_PROJECT_CONVENTION:
+                return Priority.MODULE_PROJECT_CONVENTION;
+            case META_PROJECT_CONVENTION:
+                return Priority.META_PROJECT_CONVENTION;
+            case MODULE_BUILT_IN_CONVENTION:
+                return Priority.MODULE_BUILT_IN_CONVENTION;
+            case META_BUILT_IN_CONVENTION:
+                return Priority.META_BUILT_IN_CONVENTION;
+            case INFERRED:
+                return Priority.META_INFERENCE;
+            case BUSINESS_DEFAULT_CONFIG:
+            case DEFAULT:
+            case DEFAULT_OR_EXPLICIT_UNKNOWN:
+                return Priority.FRAMEWORK_DEFAULT;
+            default:
+                return null;
+        }
+    }
+
+    private MetaValueState state(MetaValueSource source) {
+        return isExplicit(source)
+            ? MetaValueState.EXPLICIT
+            : source == MetaValueSource.INFERRED ? MetaValueState.INFERRED : MetaValueState.DEFAULTED;
+    }
+
+    private boolean isExplicit(MetaValueSource source) {
+        return source == MetaValueSource.META_EXPLICIT
+            || source == MetaValueSource.NATIVE_EXPLICIT
+            || source == MetaValueSource.BUSINESS_EXPLICIT_OVERRIDE;
+    }
+
+    private static final class FieldConventionValues {
+        private final SourcedValue<String> role;
+        private final String label;
+        private final Boolean readOnly;
+        private final SourcedValue<?> labelSource;
+        private final SourcedValue<?> readOnlySource;
+
+        private FieldConventionValues(
+            SourcedValue<String> role,
+            String label,
+            Boolean readOnly,
+            SourcedValue<?> labelSource,
+            SourcedValue<?> readOnlySource
+        ) {
+            this.role = role;
+            this.label = label;
+            this.readOnly = readOnly;
+            this.labelSource = labelSource;
+            this.readOnlySource = readOnlySource;
+        }
     }
 
     private EntRelationDescriptor toRelationDescriptor(Field field, EntRelation relation) {

@@ -19,8 +19,17 @@ import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.doc.MetaDocAdapter;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
+import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
+import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.meta.core.convention.MetaConvention;
+import com.entloom.meta.core.convention.MetaConventionContext;
+import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.enums.EntFieldKind;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import org.junit.jupiter.api.Assertions;
@@ -141,6 +150,29 @@ class EntLoomMetaAutoConfigurationTest {
     }
 
     @Test
+    void customMetaConventionBeanShouldBeCollectedByStarter() {
+        new ApplicationContextRunner()
+            .withUserConfiguration(
+                MinimalCrudRegistryConfiguration.class,
+                EntLoomMetaAutoConfiguration.class,
+                ProjectMetaConventionConfiguration.class
+            )
+            .withPropertyValues(entityClasses(StarterConventionEntity.class))
+            .run(context -> {
+                EntMetaParser parser = context.getBean(EntMetaParser.class);
+                EntFieldDescriptor field = parser.parse(StarterConventionEntity.class).fields().get(0);
+
+                Assertions.assertEquals("项目创建时间", field.label());
+                Assertions.assertEquals(
+                    MetaValueSource.META_PROJECT_CONVENTION,
+                    field.sourcedValue(MetaDescriptorProperties.LABEL).source()
+                );
+                Assertions.assertEquals("DATETIME.CREATED_TIME", field.role());
+                Assertions.assertEquals(Boolean.TRUE, field.readOnly());
+            });
+    }
+
+    @Test
     void duplicateAdapterOutputShouldFailFastAtRegistryBoundary() {
         new ApplicationContextRunner()
             .withUserConfiguration(
@@ -246,6 +278,26 @@ class EntLoomMetaAutoConfigurationTest {
         }
     }
 
+    @Configuration
+    static class ProjectMetaConventionConfiguration {
+        @Bean
+        MetaConvention projectMetaConvention() {
+            return context -> {
+                if (context.field().getName().equals("createdAt")) {
+                    return Collections.singletonList(Contribution.<String>builder()
+                        .target(context.entityClass().getName() + "#" + context.field().getName())
+                        .property(MetaDescriptorProperties.LABEL)
+                        .value("项目创建时间")
+                        .source(MetaValueSource.META_PROJECT_CONVENTION)
+                        .ruleId("test.project.created-at.label")
+                        .priority(Priority.META_PROJECT_CONVENTION)
+                        .build());
+                }
+                return Collections.emptyList();
+            };
+        }
+    }
+
     @EntEntity(entity = "p1_meta_order", label = "Meta Order", service = "order-service")
     static class MetaOrder {
         @EntField(value = EntFieldKind.ID, required = OptionalBoolean.TRUE)
@@ -265,6 +317,11 @@ class EntLoomMetaAutoConfigurationTest {
 
         @EntField(value = EntFieldKind.TEXT)
         private String name;
+    }
+
+    @EntEntity(entity = "starter_convention_entity")
+    static class StarterConventionEntity {
+        private LocalDateTime createdAt;
     }
 
     @EntCrudEntity(name = "p1_crud_only_order", table = "p1_crud_only_order")
