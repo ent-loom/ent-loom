@@ -1,9 +1,7 @@
 # ent-loom
 
-ent-loom 是一个模块化、元数据驱动的 Java 后端框架。它通过可独立运行的组件模型和统一治理主链，为
-Query、Command、Stats、Import、Export，以及后续 DDL、DOC、UI 投影提供基础能力。
-
-项目当前处于框架能力收敛阶段，优先稳定建模、治理、公开契约和模块边界，不以兼容所有历史 API 为目标。
+ent-loom 是一个模块化、元数据驱动的 Java 后端框架，面向实体建模与业务能力扩展，
+提供可独立运行、按需组合的组件。
 
 ## 核心架构
 
@@ -25,27 +23,9 @@ Meta 不是所有组件必须依赖的统一运行时模型，而是一套可选
 - 多个来源按属性独立裁决，不整模型覆盖，也不依赖 Bean 加载顺序解决冲突。
 - 运行时只消费各组件拥有的 Runtime Model。
 
-当前已实现 Meta -> CRUD / DOC；Project Convention、统一属性级 Resolver、DDL/UI Adapter
-仍在演进中。完整规则见 [元数据约定与裁决契约](./docs/architecture/core/metadata-resolution-contract.md)。
-
-### CRUD 治理执行
-
-```text
-HTTP / SDK / 业务调用
-  -> 不可变 Spec
-  -> Normalize
-  -> Govern
-  -> Scene Handler 或 Engine
-  -> Audit / Result
-```
-
-通过内置 Gateway 的请求必须经过主体、权限、数据范围和审计主链。直接调用底层 Engine
-不自动获得治理保证。详细边界见 [CRUD 架构入口](./docs/architecture/components/crud/index.md)。
+完整规则见 [元数据约定与裁决契约](./docs/architecture/core/metadata-resolution-contract.md)。
 
 ## 当前能力
-
-`ent-loom-crud` 包含 Query、Command、Stats、Import、Export 五个一级 Operation Domain。Import / Export 属于 CRUD，复用 CRUD 的
-Spec、治理、审计、场景机制和 Task / File 基础能力，同时保留独立的 Engine SPI。
 
 | 归属组件         | 能力域                              | 状态         | 边界                               |
 |--------------|----------------------------------|------------|----------------------------------|
