@@ -1,5 +1,8 @@
 # 元数据解析引擎 (Meta Parsing Engine)
 
+> 状态：Current
+> 上游契约：[元数据约定与裁决契约](../metadata-resolution-contract.md)
+
 `ent-loom-meta-core` 提供了将 Java 类及注解解析为归一化元数据描述符（Descriptor）的核心能力。
 
 ## 1. 核心接口：`EntMetaParser`

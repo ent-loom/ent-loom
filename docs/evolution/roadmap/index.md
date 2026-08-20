@@ -1,0 +1,24 @@
+# 路线图
+
+> 状态：Current
+
+路线图只维护尚未完成的目标。当前正在执行的事项统一汇总在 [当前实施](current.md)，详细计划按领域维护。
+
+## 当前实施
+
+- [当前实施总览](current.md)
+- [CRUD 重构路线](crud/clean-refactor-priority.md)
+- [Meta 裁决实施计划](meta/metadata-resolution-phase-plan.md)
+
+## 长期路线
+
+- [CRUD](crud/index.md)
+- [Meta](meta/index.md)
+- [Core 兼容性](core/index.md)
+
+## 维护规则
+
+1. 已完成任务从路线图正文删除，事实回写 Architecture。
+2. 重要取舍提炼为 Decision，不保留完整实施过程。
+3. 当前计划只展开正在实施和紧邻阶段。
+4. 尚未启动的远期方向必须写明启动条件。

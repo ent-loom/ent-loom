@@ -1,34 +1,42 @@
-# CRUD 文档入口
+# CRUD 架构入口
 
-本目录记录 `ent-loom` 整体框架视角下的 CRUD 当前事实、公共契约和能力边界。
+> 状态：Current
+> 最近核验：2026-08-20
 
-## 规范性文档
+本目录描述 CRUD 的当前合同和实现。阅读时先看总览，再按问题进入具体文档。
 
-1. [CRUD P0 外部契约基线](p0-contract-baseline.md)
-2. [稳定规则清单](stable-rules.md)
+## 总览
 
-## 当前实现参考
+1. [CRUD 核心组件](overview.md)
+2. [运行时架构](runtime-architecture.md)
+3. [稳定规则](stable-rules.md)
 
-1. [CRUD 核心组件架构](overview.md)
-2. [总体运行时架构](runtime-architecture.md)
-3. [Query 当前实现](query.md)
-4. [Command 当前实现](command.md)
-5. [Stats 当前实现](stats.md)
-6. [Import 当前实现](import.md)
-7. [Export 当前实现](export.md)
-8. [Task / File 当前实现](task-file.md)
-9. [HTTP Contract 当前实现](http-contract.md)
-10. [Query/Command 协议与路由明细](query-command-contract.md)
-11. [Default Engine 当前实现](default-engine.md)
+## 公开合同
 
-## 实施材料
+- [P0 外部契约基线](p0-contract-baseline.md)
+- [HTTP Contract](http-contract.md)
+- [Query/Command 协议与路由](query-command-contract.md)
+- [强类型边界](typed-boundary.md)
 
-- [CRUD 实施工作区](../../../work/crud/index.md)
+## 能力域
 
-## 文档边界
+- [Query](query.md)
+- [Command](command.md)
+- [Stats](stats.md)
+- [Import](import.md)
+- [Export](export.md)
+- [Task / File](task-file.md)
 
-- 本目录只放 CRUD 的当前能力、公共契约和框架级说明。
-- CRUD 内部算法、包结构和维护细节放在 `ent-loom-modules/ent-loom-crud/docs/implementation/`。
-- 尚未完全落地的增强项按能力域放在 `docs/roadmap/crud/`。
-- 当前仍在设计或实施中的边界方案放在 `docs/work/crud/`。
-- 破坏式重构建议和已接受的设计取舍放在 `docs/decisions/crud/`。
+## 默认实现
+
+- [Default Engine](default-engine.md)
+- [Runtime Registry](runtime-registry.md)
+- [关系查询实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md)
+- [Stats 引擎实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)
+
+## 演进
+
+- [CRUD 设计决策](../../../evolution/decisions/crud/index.md)
+- [CRUD 路线图](../../../evolution/roadmap/crud/index.md)
+
+本目录不保存实施步骤或历史方案。未完成目标进入 Roadmap，被替代方案进入 Archive。

@@ -1,8 +1,8 @@
 # Task / File 当前实现
 
-> Status: Current
-> Verified: 2026-05-04
-> Scope: `ent-loom-crud`
+> 状态：Current
+> 最近核验：2026-05-04
+> 范围：`ent-loom-crud`
 
 Task / File 是 Import 和 Export 共享的基础能力。它放在 CRUD core 的 `foundation.taskfile` 下，负责小文件、任务状态和下载预检，不绑定 Excel 或 HTTP。
 

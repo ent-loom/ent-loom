@@ -1,5 +1,8 @@
 # 总体架构总览
 
+> 状态：Current
+> 最近核验：2026-08-20
+
 `ent-loom-crud` 的当前实现是一条“统一网关 + 治理主链 + 可截获路由 + 默认 JDBC 引擎”的 CRUD 主链。框架把普通单表 CRUD、ROOT_FIRST 关系读、Stats 聚合、业务场景 Handler、权限治理、SQL 安全和 Spring Boot HTTP 接入收敛到同一套 Spec 与 routeKey 上。
 
 ## 分层结构

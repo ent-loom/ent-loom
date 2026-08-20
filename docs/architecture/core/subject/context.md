@@ -1,36 +1,38 @@
-# 执行上下文与主体 (Context & Subject)
+# 执行上下文与主体
 
-在 `ent-loom` 中，每一个请求的身份信息和执行状态都由专门的上下文对象承载，确保在分层架构中信息能安全、一致地传递。
+> 状态：Current
+> 最近核验：2026-08-20
 
-## 1. 请求主体：`SubjectContext`
+## `SubjectContext`
 
-`SubjectContext` 定义了“谁”正在发起请求。它是治理逻辑的输入核心。
+`SubjectContext` 描述谁发起调用，主要包含 `subjectId`、`tenantId` 和 `orgId`。它可以由上游显式传入，也可以由 `CrudSubjectResolver` 从真实登录态解析；默认 Resolver 在无法获得主体时 fail closed。
 
-- **`subjectId`**: 调用者的唯一标识（如用户 ID、服务名）。
-- **`tenantId`**: 多租户环境下的租户标识。
-- **`orgId`**: 调用者所属的组织/部门标识。
+## `CrudExecutionContext`
 
-这些信息通常由 `CrudSubjectResolver` 从安全框架（如 Spring Security, Shiro）或请求头中解析得到。
+`CrudExecutionContext` 是 JDBC 安全、日志和执行阶段使用的只读上下文，包含 operation、scene、阶段、开始时间和扩展属性。它不是登录态，也不代替治理结果。
 
-## 2. 执行上下文：`CrudExecutionContext`
+## `CrudRequestContextHolder`
 
-`CrudExecutionContext` 是一个轻量级的只读接口，描述了当前操作的运行时状态。
+当前实现使用 ThreadLocal 在同步 Facade 调用范围内传递受信任 attributes。Facade 通过 `withAttributes(...)` 建立作用域，并在调用结束后恢复或清理。
 
-- **`routeKey`**: 本次操作的路由标识（如 `student:PAGE:default`）。
-- **`scene`**: 当前业务场景。
-- **`startTimeMs`**: 操作开始的时间戳，用于性能监控和超时控制。
-- **`attributes`**: 存储在整个生命周期内传递的扩展属性。
+约束：
 
-## 3. 请求上下文持有者：`CrudRequestContextHolder`
+1. 只允许同步入口适配使用。
+2. 不把 HTTP options 直接复制为受信任属性。
+3. 嵌套作用域结束后必须恢复外层状态。
+4. 异步任务不得依赖线程复用继承上下文。
 
-框架提供了一个基于 `ThreadLocal` 的持有者，用于在当前线程中存储和获取 `CrudInvocationContext`。
+ThreadLocal 的进一步收窄见 [CRUD 重构路线](../../../evolution/roadmap/crud/clean-refactor-priority.md)。
 
-- **隐式传递**: 使得在 Service 深层或拦截器中无需显式传递参数即可获取当前 Subject。
-- **安全清理**: 必须确保在请求结束时（如通过 Filter 或 Interceptor）调用 `clear()`，防止线程污染。
+## 异步任务快照
 
-## 4. 治理快照：`GovernanceSnapshot`
+Import/Export 的 `CrudTaskContextSnapshot` 会保存任务需要的 operation key、主体和治理相关上下文。Worker 应显式读取任务快照，不重新读取创建请求线程的 ThreadLocal。
 
-对于异步任务（如导入导出），框架会将治理结果（Subject, Scope, Decision）序列化为快照。
+当前默认 Import/Export 仍以同步小文件闭环为主；完整异步 Worker、快照完整性和重新授权策略属于后续能力，不能描述为已经完成。
 
-- **环境重建**: 当异步任务被 Worker 执行时，框架会基于快照重建执行环境，确保异步执行时的权限检查与任务创建时刻完全一致。
-- **防止篡改**: 异步任务不应重新调用 `SubjectResolver`，而应严格遵循快照中的身份信息。
+## 安全边界
+
+- Subject 是治理输入，ExecutionContext 是执行记录，两者不可混用。
+- 请求筛选只能收窄 scope，不能作为主体或授权来源。
+- 快照持久化前应明确敏感字段、过期时间和防篡改策略。
+- 任何绕过 Gateway 直接调用 Engine 的代码都要自行承担主体、治理和审计责任。

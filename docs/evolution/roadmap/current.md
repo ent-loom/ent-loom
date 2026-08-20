@@ -1,0 +1,32 @@
+# 当前实施总览
+
+> 状态：In Progress
+> 最近核验：2026-08-20
+
+本页只提供跨领域执行顺序，不复制各计划的验收细节。
+
+## 当前主线
+
+| 顺序 | 领域 | 当前闭环 | 详细计划 |
+|---:|---|---|---|
+| 1 | CRUD | 外部契约 snapshot 回归门禁 | [CRUD 重构路线](crud/clean-refactor-priority.md) |
+| 2 | CRUD | 稳定 `UpdatePatch<T>` API | [强类型边界](../../architecture/components/crud/typed-boundary.md) |
+| 3 | CRUD | Starter 包名统一 | [CRUD 重构路线](crud/clean-refactor-priority.md) |
+| 4 | Meta | Contribution 与属性级 Resolver | [Meta 实施计划](meta/metadata-resolution-phase-plan.md) |
+
+CRUD 的前三项具有前置关系：合同回归保护后再稳定业务 API，随后进行 Starter 破坏式改包。Meta 裁决是独立主线，可以按模块测试范围并行推进，但不能在同一个提交中同时修改 CRUD 公开 Patch API。
+
+## 紧邻阶段
+
+- CRUD：Core 拆分、annotations 依赖收窄、架构守卫、异步上下文。
+- Meta：Meta Convention、CRUD 消费闭环、来源与依赖守卫。
+- Core：Java/Spring 兼容线仍处于依赖审计和边界设计阶段。
+
+## 更新规则
+
+一个闭环完成后：
+
+1. 更新 Architecture 中的当前事实。
+2. 从详细路线删除已完成正文。
+3. 将本页下一项提升为当前项。
+4. 只有存在长期取舍时才新增 Decision。

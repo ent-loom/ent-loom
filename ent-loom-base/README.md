@@ -5,4 +5,4 @@ OptionalBoolean
 
 ## Docs
 
-- [SceneValidator 场景校验设计](../docs/decisions/core/scene-validation-design.md)
+- [SceneValidator 场景校验设计](../docs/evolution/decisions/core/scene-validation-design.md)

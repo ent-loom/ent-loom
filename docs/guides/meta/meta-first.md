@@ -1,5 +1,7 @@
 # Ent Loom Meta-first 最佳实践
 
+> 状态：Current
+
 ## 1. 核心结论
 
 建议采用 **Meta-first，子框架覆盖** 的模式。

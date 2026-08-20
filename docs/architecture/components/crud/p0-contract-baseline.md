@@ -1,5 +1,8 @@
 # CRUD P0 Contract Baseline
 
+> 状态：Current
+> 最近核验：2026-08-20
+
 本文记录 P0 干净重构后的外部运行契约和内部迁移替代表。它用于评审破坏式内部重构是否误伤 HTTP / JSON / 配置入口。
 
 ## HTTP 路由

@@ -1,8 +1,8 @@
 # HTTP Contract 当前实现
 
-> Status: Current
-> Verified: 2026-05-04
-> Scope: `ent-loom-crud-spring-boot-starter`
+> 状态：Current
+> 最近核验：2026-05-04
+> 范围：`ent-loom-crud-spring-boot-starter`
 
 本文记录 CRUD Starter 当前公开的 HTTP 入口和响应边界。HTTP 层只负责 DTO、上下文组装、Facade 调用和响应脱敏；执行语义由各 Gateway 承担。
 

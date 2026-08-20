@@ -1,8 +1,8 @@
 # Stats 当前实现
 
-> Status: Current
-> Verified: 2026-05-04
-> Scope: `ent-loom-crud`
+> 状态：Current
+> 最近核验：2026-05-04
+> 范围：`ent-loom-crud`
 
 Stats 是 CRUD 的统计能力域，和 Query、Command、Import、Export 平级。它不是 Query 的附属模式，而是独立 operation domain。
 

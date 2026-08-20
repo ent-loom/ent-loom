@@ -1,8 +1,8 @@
 # Command 当前实现
 
-> Status: Current
-> Verified: 2026-05-04
-> Scope: `ent-loom-crud`
+> 状态：Current
+> 最近核验：2026-05-04
+> 范围：`ent-loom-crud`
 
 Command 是 CRUD 的写入能力域，负责默认单表写、批量写、场景命令、幂等和强类型业务 Handler。
 

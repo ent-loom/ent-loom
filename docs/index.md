@@ -1,63 +1,81 @@
-# ent-loom 框架文档中心
+# ent-loom 文档中心
 
-本文档中心按文档性质组织，避免同一结论在多个位置重复维护。根目录 `docs/` 记录框架级公共契约和跨模块关系；模块内部实现细节保留在对应子模块的 `docs/implementation/`。
+> 状态：Current
+> 最近核验：2026-08-20
 
-## 文档分层与权威关系
+本文档中心只回答四类问题：系统现在是什么、如何使用、为什么这样设计、下一步做什么。实现细节尽量留在对应模块，历史材料不参与当前架构判断。
+
+## 文档结构
 
 ```text
-architecture  当前事实、公共契约和能力边界
-standards     跨组件适用的工程与设计标准
-guides        使用者和业务接入方的操作说明
-decisions     为什么这样设计，以及已接受的取舍
-roadmap       已确认但尚未完成的目标和优先级
-work          当前实施中的计划、清单和过程记录
-archive       被替代或已结束的历史材料
+architecture  当前事实和必须遵守的架构契约
+guides        接入、开发和使用方式
+evolution     设计取舍与尚未完成的演进计划
+archive       已结束或被替代的历史材料
 ```
 
-权威关系始终是：`architecture` 定义当前契约，`decisions` 解释原因，`roadmap/work` 描述变化；计划和过程文档不得覆盖当前契约。一个规则只保留一个规范性来源，其他文档通过链接引用。
+权威顺序固定为：
 
-## 核心规范
+```text
+Core Contract
+  -> Component Architecture
+  -> Guide
+  -> Evolution Decision / Roadmap
+  -> Archive
+```
 
-- 元数据裁决规范（P0）：[Metadata Resolution Contract](architecture/core/meta/metadata-resolution-contract.md)
+下游文档只能细化上游契约，不能覆盖它。发现冲突时，以更上游且状态有效的文档为准，并修正冲突文档。
 
-## 当前事实
+## 从这里开始
 
-- 核心边界：[组件边界](architecture/core/component-boundaries.md)
-- 治理主链：[治理 Pipeline](architecture/core/governance/pipeline.md) | [治理 Core 架构](architecture/core/governance/core-architecture.md)
-- 元数据系统：[注解架构](architecture/core/meta/annotation-architecture.md) | [注解分层与适配](architecture/core/meta/layering-summary.md) | [Runtime Adapters](architecture/core/meta/runtime-adapters.md)
-- CRUD 能力：[CRUD 文档入口](architecture/components/crud/index.md) | [Query](architecture/components/crud/query.md) | [Command](architecture/components/crud/command.md) | [Stats](architecture/components/crud/stats.md) | [Import](architecture/components/crud/import.md) | [Export](architecture/components/crud/export.md)
-- DOC 能力：[DOC 实现说明](../ent-loom-modules/ent-loom-doc/docs/implementation.md)
+1. [系统架构总览](architecture/overview.md)：模块、依赖、建模和执行主链。
+2. [Core 架构入口](architecture/core/index.md)：跨模块必须共同遵守的契约。
+3. [组件架构入口](architecture/components/index.md)：CRUD 等组件当前如何工作。
+4. [使用指南](guides/index.md)：业务项目如何接入。
+5. [演进记录](evolution/index.md)：为什么这样设计，以及尚未完成什么。
 
-## 跨能力标准
+## Core Contract
 
-- [强类型边界与动态载荷](standards/typed-boundary.md)
+- [元数据约定与裁决契约](architecture/core/metadata-resolution-contract.md)：定义属性来源、逐属性裁决、诊断、模块独立运行和消费者闭环。
+- [组件边界与依赖规则](architecture/core/component-boundaries.md)：定义 Core、Adapter、Starter 和业务项目之间的依赖方向。
+- [治理执行主链](architecture/core/governance/pipeline.md)：定义请求进入执行器前必须经过的治理阶段。
 
-## 使用指南
+## 当前组件
 
-- CRUD：[开发指南](guides/crud/development-guide.md) | [业务集成模板](guides/crud/integration-template.md)
-- 导出：[展示值渲染规范](guides/crud/export-rendering.md)
-- Meta-first：[元数据驱动最佳实践](guides/meta/meta-first.md)
+- [CRUD](architecture/components/crud/index.md)：Query、Command、Stats、Import、Export 和 Task/File。
+- [Meta 建模](architecture/core/meta/layering-summary.md)：通用 Meta 输入、模块原生输入和 Adapter 投影。
+- [DOC 实现说明](../ent-loom-modules/ent-loom-doc/docs/implementation.md)
 
-## 路线图
+## 常用指南
 
-- CRUD：[CRUD 路线图](roadmap/crud/index.md)
-- Meta：[Meta -> CRUD / DOC -> 业务层闭环](roadmap/meta/business-todo.md)
-- Core：[Java 运行时与 Spring 兼容性版本线](roadmap/core/java-runtime-and-spring-compatibility.md)
+- [CRUD 开发指南](guides/crud/development-guide.md)
+- [CRUD 业务集成模板](guides/crud/integration-template.md)
+- [Meta-first 最佳实践](guides/meta/meta-first.md)
+- [Export 展示值渲染](guides/crud/export-rendering.md)
 
-## 当前实施
+## 演进入口
 
-- Meta：[Meta 实施工作区](work/meta/index.md)
+- [设计决策](evolution/decisions/index.md)
+- [路线图](evolution/roadmap/index.md)
+- [当前实施计划](evolution/roadmap/current.md)
 
-## 设计决策
+## 文档状态
 
-- CRUD：[CRUD 设计决策索引](decisions/crud/index.md)
-- Core：[Core 设计决策索引](decisions/core/index.md)
+非索引文档应在标题后声明状态：
 
-## 历史归档
+| 状态 | 含义 |
+|---|---|
+| `Current` | 已由当前代码或稳定契约支持 |
+| `Target` | 已接受但尚未完全落地的规范性目标 |
+| `In Progress` | 正在实施，不能代替当前架构事实 |
+| `Remaining` | 已确认但尚未开始或未完成的路线 |
+| `Superseded` | 已被其他文档替代，只保留决策背景 |
+| `Archived` | 仅供历史追溯 |
 
-- [2026-05-04 架构审计报告](archive/audit-report-20260504.md)
-- [第 1 期已实现/未实现清单](archive/tasks/phase1-status.md)
+## 维护规则
 
-## 模块内部实现
-
-- CRUD：[关系查询算法](../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md) | [统计引擎细节](../ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)
+1. 一个结论只保留一个权威正文，其他文档使用链接。
+2. `architecture` 不保存实施步骤；`roadmap` 不保存已完成方案全文。
+3. 决策完成后保留取舍和后果，删除临时迁移清单与重复 API 说明。
+4. 当前事实、目标状态和历史背景必须明确分开。
+5. 移动或删除文档后必须检查仓库内 Markdown 相对链接。

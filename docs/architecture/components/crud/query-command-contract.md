@@ -1,5 +1,8 @@
 # Query/Command 协议与路由明细
 
+> 状态：Current
+> 最近核验：2026-08-20
+
 本框架的运行时合同由不可变 `Spec`、`CrudRouteKey` 和 `SceneHandler` 组成。HTTP、SDK 或业务 Controller 最终都要收敛为 `QuerySpec`、`CommandSpec` 或 `StatsQuerySpec`。
 
 ## Spec 模型
@@ -72,7 +75,8 @@ classDiagram
 | Query | `LIST` | 列表查询，默认 limit=200，最大 limit=1000 |
 | Query | `FIND_ONE` | 允许不存在；0 条返回 `null`，多条抛 `QUERY_NOT_UNIQUE` |
 | Query | `DETAIL` | 必须存在；0 条抛 `NOT_FOUND`，多条抛 `QUERY_NOT_UNIQUE` |
-| Stats | `STATS` | 聚合查询，走 StatsGateway/StatsQueryEngine |
+| Stats | `QUERY` | 聚合查询，走 StatsGateway/StatsQueryEngine |
+| Stats | `PREVIEW` | 统计预览，仍属于 STATS Domain |
 | Command | `CREATE` | 单表插入，可返回生成主键 |
 | Command | `UPDATE` | 单表更新，默认通过 `payload.id` 定位，core 归一为 `WriteCommand(id, values)` |
 | Command | `DELETE` | 单表删除或逻辑删除，默认通过 `payload.id` 定位 |
@@ -88,15 +92,15 @@ classDiagram
 `CrudRouteKey` 由三段组成：
 
 ```text
-entityTypeName[>entityTypeName...] | operation | scene
+entityTypeName[>entityTypeName...] | operationDomain/operation | scene
 ```
 
 示例：
 
 ```text
-com.example.Order|PAGE
-com.example.Order>com.example.OrderItem|PAGE|full
-com.example.Order|ACTION|submit
+com.example.Order|QUERY/PAGE
+com.example.Order>com.example.OrderItem|QUERY/PAGE|full
+com.example.Order|COMMAND/ACTION|submit
 ```
 
 构建规则：
@@ -261,21 +265,22 @@ HTTP 请求合同由 `RequestContractValidator` 统一校验：
 
 ## 错误信封
 
-失败响应会保留顶层 `code/message/requestId/traceId/op`，同时提供结构化 `error`，方便前端展示、日志检索和问题定位。
+失败响应会保留顶层 `code/message/requestId/traceId/operationDomain/operation`，同时提供结构化 `error`，方便前端展示、日志检索和问题定位。
 
 ```json
 {
   "success": false,
   "code": "ROUTE_NOT_FOUND",
-  "message": "未找到查询路由: com.example.Order|PAGE|missing",
+  "message": "未找到查询路由: com.example.Order|QUERY/PAGE|missing",
   "requestId": "req-1",
   "traceId": "trace-1",
-  "op": "PAGE",
+  "operationDomain": "QUERY",
+  "operation": "PAGE",
   "error": {
     "code": "ROUTE_NOT_FOUND",
-    "message": "未找到查询路由: com.example.Order|PAGE|missing",
+    "message": "未找到查询路由: com.example.Order|QUERY/PAGE|missing",
     "stage": "ROUTE",
-    "routeKey": "com.example.Order|PAGE|missing",
+    "routeKey": "com.example.Order|QUERY/PAGE|missing",
     "requestId": "req-1",
     "traceId": "trace-1",
     "reason": "ROUTE_NOT_FOUND"

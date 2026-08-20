@@ -1,5 +1,7 @@
 # 业务接入模板
 
+> 状态：Current
+
 业务接入有两种方式：原生接入和业务桥接接入。原生接入适合新服务直接采用 `@EntCrudEntity`；business v2 当前采用桥接接入，复用已有 `@ResourceMeta`、MyBatis-Plus 元数据和业务权限体系。
 
 ## 原生接入最小闭环

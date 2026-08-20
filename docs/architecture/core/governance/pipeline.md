@@ -1,57 +1,63 @@
-# 治理主链 (Governance Pipeline)
+# CRUD 治理 Pipeline
 
-`ent-loom` 所有的核心操作（Query, Command, Stats, Import, Export）都必须经过统一的治理主链。这确保了安全性、合规性和一致性。
+> 性质：Core Contract
+> 状态：Current
+> 最近核验：2026-08-20
 
-## 1. 核心契约：`CrudGovernanceService`
+通过内置 Query、Command、Stats、Import、Export Gateway 的请求必须先完成治理，再进入 Scene Handler、Engine 或 Task/File 操作。直接调用底层 Engine 不自动获得这项保证。
 
-该服务定义了治理的入口。每个一级能力都有对应的 `govern` 方法。
+## 七个阶段
 
-```java
-public interface CrudGovernanceService {
-    <R> CrudGovernanceResult<QueryExecutionSpec<R>> governQuery(QuerySpec<R> spec);
-    <P> CrudGovernanceResult<CommandExecutionSpec<P>> governCommand(CommandSpec<P> spec);
-    <S extends BaseSpec & GovernableSpec<S>> CrudGovernanceResult<S> governStats(S spec);
-    // ... import / export
-}
+```mermaid
+flowchart LR
+    subject["1 SUBJECT"] --> attributes["2 ATTRIBUTES"]
+    attributes --> validate["3 VALIDATE"]
+    validate --> resource["4 RESOURCE"]
+    resource --> permission["5 PERMISSION"]
+    permission --> scope["6 SCOPE"]
+    scope --> enrich["7 ENRICH"]
 ```
 
-## 2. 治理七阶段
+| 阶段 | 输入与产出 |
+|---|---|
+| SUBJECT | 解析并规范化 `SubjectContext`；缺少 subjectId 默认拒绝 |
+| ATTRIBUTES | 移除调用方保留键，合并受信任 Contributor 属性 |
+| VALIDATE | 校验并规范化 Spec |
+| RESOURCE | 从 CRUD Registry 解析资源与 operation key |
+| PERMISSION | 生成访问决策；DENY 立即失败 |
+| SCOPE | 解析授权范围，与业务 Contributor 约束取交集 |
+| ENRICH | 构造治理后的有效 Spec 与治理结果 |
 
-在 `DefaultCrudGovernanceService` 中，治理流程被严格划分为七个阶段（Stage）：
+治理不执行 SQL，也不选择业务 Handler。
 
-### 2.1 SUBJECT (主体识别)
-*   **职责**: 通过 `CrudSubjectResolver` 解析当前请求的调用者身份（Subject）。
-*   **产出**: 包含 `subjectId`、`tenantId`、`orgId` 的 `SubjectContext`。
+## Fail-closed 规则
 
-### 2.2 ATTRIBUTES (属性解析)
-*   **职责**: 解析请求中的扩展属性，为后续校验提供上下文。
+- 默认 Subject Resolver 在没有真实身份来源时拒绝。
+- 无匹配权限、显式 DENY 或非法 operation 拒绝。
+- 非全量 scope 没有有效维度时拒绝。
+- 业务 scope 只能收窄授权范围，不能扩大。
+- 请求 attributes 不能注入框架治理保留键。
 
-### 2.3 VALIDATE (规格校验)
-*   **职责**: 检查 Spec 格式是否合法。例如：分页参数是否越界、排序字段是否在白名单内。
+## 结果与执行
 
-### 2.4 RESOURCE (资源识别)
-*   **职责**: 结合 `EntityMeta` 确定本次操作的目标资源（Resource）和动作（Action）。
-*   **产出**: `CrudResourceAction`。
+治理成功后返回 `CrudGovernanceResult`，包括主体、资源动作、决策、授权范围、最终范围和有效 Spec。Gateway 随后执行：
 
-### 2.5 PERMISSION (权限判定)
-*   **职责**: 调用 `CrudPermissionService` 判断当前 Subject 是否有权对该 Resource 执行该 Action。
-*   **逻辑**: 默认采用 `Fail-Closed`（默认拒绝）策略。
+```text
+governed Spec -> Scene Handler or Engine/Task Service -> audit -> result
+```
 
-### 2.6 SCOPE (范围解析)
-*   **职责**: 调用 `CrudDataScopeResolver` 解析数据范围。
-*   **产出**: `CrudDataScope`。例如：只能查看本部门的数据。
-*   **后续**: 该范围会通过 `CrudScopeIntersectionService` 与业务强制约束取交集。
+ACTION 等高风险 scene 的额外 Scene Policy 仍处于实施阶段，见 [Scene Policy 计划](../../../evolution/roadmap/crud/scene-policy-governance.md)。
 
-### 2.7 ENRICH (规格增强)
-*   **职责**: 将治理产生的所有元数据（Subject, Decision, Scope）注入到原始 Spec 中，生成最终的 `ExecutionSpec`。
+## 审计时点
 
-## 3. 治理结果：`CrudGovernanceResult`
+- 治理拒绝：治理服务记录 deny。
+- 执行成功：Execution Pipeline 记录 allow/success。
+- 执行失败：Execution Pipeline 记录 execution failure。
 
-治理结果包含了执行所需的所有上下文：
-- **`effectiveSpec`**: 增强后的执行规格，后续引擎直接使用。
-- **`accessDecision`**: 访问决策（ALLOW / DENY / MASK / FILTER）。
-- **`governanceScope`**: 最终生效的数据范围约束。
+审计至少关联 request/trace、subject、resource、operation、scene、decision、scope、结果和耗时。
 
-## 4. 审计记录
+## 扩展边界
 
-主链在完成后会触发 `recordAllow` 或 `recordExecutionFailure`，通过 `CrudGovernanceAuditRecorder` 记录审计日志。审计信息包含了请求、主体、资源、决策以及最终执行结果，是系统合规性的重要保障。
+业务可以实现 Subject Resolver、Permission Service、Data Scope Resolver 和 Scope Contributor。扩展实现仍必须返回统一模型，不得绕开阶段顺序或从请求筛选重新构造授权范围。
+
+当前默认实现细节见 [治理 Core 架构](core-architecture.md)。

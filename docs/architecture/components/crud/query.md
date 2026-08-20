@@ -1,8 +1,8 @@
 # Query 当前实现
 
-> Status: Current
-> Verified: 2026-05-04
-> Scope: `ent-loom-crud`
+> 状态：Current
+> 最近核验：2026-05-04
+> 范围：`ent-loom-crud`
 
 Query 是 CRUD 的只读能力域，负责单表读取、受控关系展开、场景查询和默认 JDBC 查询。
 

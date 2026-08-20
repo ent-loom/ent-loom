@@ -1,5 +1,7 @@
 # Export 展示值渲染最佳实践
 
+> 状态：Current
+
 本文描述通用导出在字段选择、列名展示、枚举/布尔/时间格式化上的默认规范。它补充 [Export 当前实现](../../architecture/components/crud/export.md)，只关注“导出的表格内容应该长什么样”，不重复导出主链、权限、Task/File 和下载安全规则。
 
 本文按三个层次做决策：

@@ -15,13 +15,13 @@
 - **[内部实现细节](./docs/implementation/)**:
     - [关系查询算法与逻辑](./docs/implementation/relation-query-logic.md)
     - [单表统计引擎架构](./docs/implementation/stats-engine-logic.md)
-- **[路线图](../../docs/roadmap/crud/)**:
-    - [Import 后续路线](../../docs/roadmap/crud/import.md)
-    - [Export 后续路线](../../docs/roadmap/crud/export.md)
-    - [Relation Query 后续路线](../../docs/roadmap/crud/relation-query.md)
-    - [Relation Query JOIN_LIST 投影与排序方案](../../docs/roadmap/crud/relation-query-join-list.md)
-- **[架构设计决策](../../docs/decisions/crud/)**:
-    - [Capability / Operation 重构式设计](../../docs/decisions/crud/capability-operation-refactor.md)
+- **[路线图](../../docs/evolution/roadmap/crud/)**:
+    - [Import 后续路线](../../docs/evolution/roadmap/crud/import.md)
+    - [Export 后续路线](../../docs/evolution/roadmap/crud/export.md)
+    - [Relation Query 后续路线](../../docs/evolution/roadmap/crud/relation-query.md)
+    - [Relation Query JOIN_LIST 投影与排序方案](../../docs/evolution/roadmap/crud/relation-query-join-list.md)
+- **[架构设计决策](../../docs/evolution/decisions/crud/)**:
+    - [Operation Domain / Operation 决策](../../docs/evolution/decisions/crud/capability-operation-refactor.md)
 
 ## 🏗️ 核心模块
 

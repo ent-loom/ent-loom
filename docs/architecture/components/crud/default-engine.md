@@ -1,5 +1,8 @@
 # Default Engine 当前实现
 
+> 状态：Current
+> 最近核验：2026-08-20
+
 默认引擎由 `JdbcQueryEngine` 和 `RegistryBackedCommandEngine` 组成，目标是提供安全的单表 CRUD 与有限 ROOT_FIRST 关系读。它不是通用 SQL 生成器，也不是完整 ORM。
 
 ## 默认 Query 执行链

@@ -20,7 +20,7 @@
 
 设计概要见：
 
-- [Meta 注解架构设计概要](../docs/architecture/core/meta/annotation-architecture.md)
-- [Ent Loom 注解分层与适配提要](../docs/architecture/core/meta/layering-summary.md)
+- [元数据约定与裁决契约](../docs/architecture/core/metadata-resolution-contract.md)
+- [Meta 分层与运行模型](../docs/architecture/core/meta/layering-summary.md)
 - [Ent Loom Meta-first 最佳实践](../docs/guides/meta/meta-first.md)
-- [Meta 后续路线](../docs/roadmap/meta/business-todo.md)：DDL、UI、包扫描、API 文档和运行期动态刷新等后续增强。
+- [Meta 后续路线](../docs/evolution/roadmap/meta/index.md)：属性级裁决、Convention、DDL/UI Adapter 等后续增强。

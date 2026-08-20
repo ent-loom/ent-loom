@@ -1,5 +1,8 @@
 # 权限治理 Core 架构
 
+> 状态：Current
+> 最近核验：2026-08-20
+
 `DefaultCrudGovernanceService` 是 Query、Command、Stats 的共同治理主链。它不执行 SQL，也不做业务路由，只负责把请求 Spec 转成可执行 Spec，并在成功、拒绝、执行失败时记录审计。
 
 ## 主链顺序

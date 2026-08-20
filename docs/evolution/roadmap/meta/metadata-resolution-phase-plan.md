@@ -1,0 +1,82 @@
+# 元数据裁决实施计划
+
+> 状态：In Progress
+> 当前阶段：阶段 1，公共 Contribution 与属性级 Resolver
+> 上游契约：[元数据约定与裁决契约](../../../architecture/core/metadata-resolution-contract.md)
+
+本计划只维护当前主线及紧邻阶段。长期 DDL、DOC、UI 目标见 [Meta 路线图](index.md)。
+
+## 实施顺序
+
+```mermaid
+flowchart LR
+    done["阶段 0 已完成<br/>基线与测试"] --> current["阶段 1 当前<br/>Contribution 与 Resolver"]
+    current --> meta["阶段 2<br/>Meta Convention"]
+    meta --> crud["阶段 3<br/>CRUD 消费闭环"]
+    crud --> guards["阶段 4<br/>守卫与回归"]
+```
+
+## 阶段 0：基线与测试
+
+状态：已完成。
+
+- [x] CRUD Native Parser 归入 CRUD Core。
+- [x] Native-only、Meta-only、Meta + Module 测试基线。
+- [x] CRUD 唯一 `CrudRuntimeModel` 和冻结 Registry。
+- [x] JDK 21 全仓测试通过。
+
+## 阶段 1：公共裁决契约
+
+- [ ] 在 `ent-loom-meta-contract` 增加 `Contribution`、`RuleId`、`Priority`。
+- [ ] 裁决结果保留 `value / source / ruleId`。
+- [ ] 实现逐属性 Resolver。
+- [ ] 增加同级冲突、类型错误和结构冲突诊断。
+- [ ] 明确统一的 fail / warn / ignore 策略边界。
+
+完成标志：不同属性独立取值，同级冲突不依赖加载顺序。
+
+## 阶段 2：Meta Convention
+
+- [ ] 定义 Meta Convention SPI 和排序规则。
+- [ ] 完成 `createTime / createdAt + 时间类型` 首个切片。
+- [ ] 贡献角色、只读和 label，并保留来源。
+- [ ] 证明显式 Meta Annotation 可以逐属性覆盖 Convention。
+- [ ] Starter 收集规则 Bean，但不通过 Bean 顺序裁决。
+
+完成标志：无字段注解也能生成来源明确的 Meta Descriptor。
+
+## 阶段 3：CRUD 消费闭环
+
+- [ ] 定义 CRUD Built-in / Project Convention。
+- [ ] Native-only 与 Meta-enabled 共用裁决合同。
+- [ ] 让创建填充或禁止更新成为第一个可观察效果。
+- [ ] Adapter 只投影 Contribution，不实施优先级算法。
+- [ ] 补消费者不支持属性时的诊断策略。
+
+完成标志：项目规则真实改变 CRUD 行为，而不只停留在元数据中。
+
+## 阶段 4：守卫与回归
+
+- [ ] 补 Maven 依赖边界守卫。
+- [ ] 增加规则顺序稳定性与来源追踪测试。
+- [ ] 固化 Module Core 不依赖 Meta Core。
+- [ ] 全仓 JDK 21 测试通过。
+
+## 切片约束
+
+每个切片只允许一个主要运行时效果，并遵守：
+
+1. 公共抽象必须是全局不变量，或已有两个真实模块共同使用。
+2. 不因未来 DDL、DOC、UI 接入创建占位 SPI 或空泛型层级。
+3. Convention 只产生 Contribution，不直接修改冻结模型。
+4. 同一切片同时修改裁决算法、多个 Starter 和多个消费者时必须拆分。
+5. 新扩展点必须有当前调用者、测试和可观察收益。
+
+## 固定验收
+
+- [ ] 相关模块编译和单元测试通过。
+- [ ] Native-only 路径仍可运行。
+- [ ] Meta-enabled 结果来源可追踪。
+- [ ] 只有一个 Module Runtime Model 和 Registry。
+- [ ] 至少一个消费者行为测试。
+- [ ] 当前架构和路线图同步更新。
