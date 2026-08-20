@@ -1,0 +1,21 @@
+{
+  "success": false,
+  "code": "VALIDATION_ERROR",
+  "message": "不支持 options.resultMode: DTO，仅支持 ENTITY 或 MAP",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "不支持 options.resultMode: DTO，仅支持 ENTITY 或 MAP",
+    "stage": "HTTP_CONTRACT",
+    "routeKey": null,
+    "requestId": "req-snapshot-failure",
+    "traceId": null,
+    "reason": "VALIDATION_ERROR"
+  },
+  "requestId": "req-snapshot-failure",
+  "traceId": null,
+  "operationDomain": "QUERY",
+  "operation": "PAGE",
+  "capability": null,
+  "data": null,
+  "meta": {}
+}

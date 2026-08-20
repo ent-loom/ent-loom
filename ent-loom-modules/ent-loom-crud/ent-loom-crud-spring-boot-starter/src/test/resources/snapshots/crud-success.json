@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "code": "OK",
+  "message": "OK",
+  "error": null,
+  "requestId": "req-snapshot-success",
+  "traceId": null,
+  "operationDomain": "COMMAND",
+  "operation": "CREATE",
+  "capability": null,
+  "data": {
+    "rows": 1,
+    "id": 1001
+  },
+  "meta": {}
+}
