@@ -1,12 +1,28 @@
-文档中心
-├─ 系统架构总览
-├─ Core Contract
-├─ CRUD 总览
-│  ├─ 当前架构
-│  ├─ 使用指南
-│  ├─ 设计决策
-│  └─ 演进路线
-└─ Meta 总览
-   ├─ 当前架构
-   ├─ 使用指南
-   └─ 演进路线
+ent-loom 文档说明
+
+路径基准：以下路径均相对于 ent-loom/docs/ 目录。
+
+推荐阅读顺序
+1. 系统架构总览：了解整体模块和执行流程。
+2. Core Contract：了解跨模块的核心契约。
+3. CRUD 总览：了解 CRUD 当前能力、使用方式和后续计划。
+4. Meta 总览：了解 Meta 的契约、实现和使用边界。
+
+文档目录
+├─ 文档中心：index.md
+├─ 系统架构：architecture/架构总览.md
+├─ Core Contract：architecture/core/index.md
+├─ CRUD 总览：domains/crud/index.md
+│  ├─ 当前架构：architecture/components/crud/index.md
+│  ├─ 使用指南：guides/crud/index.md
+│  ├─ 设计决策：evolution/decisions/crud/index.md
+│  └─ 路线图：evolution/roadmap/crud/index.md
+├─ Meta 总览：domains/meta/index.md
+│  ├─ 核心契约：architecture/core/元数据约定与裁决契约.md
+│  ├─ 架构与实现：architecture/core/meta/
+│  ├─ 使用指南：guides/meta/index.md
+│  └─ 路线图：evolution/roadmap/meta/index.md
+└─ 按类型查看
+   ├─ 使用指南：guides/index.md
+   ├─ 设计决策：evolution/decisions/index.md
+   └─ 路线图：evolution/roadmap/index.md
