@@ -267,7 +267,12 @@ public class LocalTaskService implements TaskService {
     }
 
     private Path taskPath(String taskId) {
-        return rootDirectory.resolve(taskId + ".properties").toAbsolutePath().normalize();
+        String safeTaskId = requiredTaskId(taskId);
+        Path path = rootDirectory.resolve(safeTaskId + ".properties").toAbsolutePath().normalize();
+        if (!path.startsWith(rootDirectory) || !rootDirectory.equals(path.getParent())) {
+            throw new ValidationException("任务 ID 不允许访问任务根目录之外的路径: " + taskId);
+        }
+        return path;
     }
 
     private void ensureDirectory() {
@@ -303,7 +308,11 @@ public class LocalTaskService implements TaskService {
         if (isBlank(taskId)) {
             throw new ValidationException("任务 ID 不能为空");
         }
-        return taskId.trim();
+        String normalized = taskId.trim();
+        if (normalized.indexOf('/') >= 0 || normalized.indexOf('\\') >= 0) {
+            throw new ValidationException("任务 ID 不允许包含路径分隔符: " + taskId);
+        }
+        return normalized;
     }
 
     private static void set(Properties properties, String key, Object value) {

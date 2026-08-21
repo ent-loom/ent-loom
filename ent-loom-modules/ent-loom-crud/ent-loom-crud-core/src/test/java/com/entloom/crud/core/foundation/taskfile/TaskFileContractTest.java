@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.ImportOperation;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -93,6 +94,18 @@ class TaskFileContractTest {
         Assertions.assertEquals("tenant-a", reloaded.getContextSnapshot().getGrantedScope().getDimensions().get("tenantId"));
         Assertions.assertEquals("org-a", reloaded.getContextSnapshot().getGovernanceScope().getDimensions().get("orgId"));
         Assertions.assertEquals("TRACE-LOCAL", reloaded.getContextSnapshot().getAuditContext().get("traceId"));
+    }
+
+    @Test
+    void local_task_service_should_reject_path_traversal_task_id() throws IOException {
+        Path tempDir = Files.createTempDirectory("entloom-crud-task-id-test");
+        LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
+
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> taskService.create(CrudTask.builder().taskId("../outside").build())
+        );
+        Assertions.assertFalse(Files.exists(tempDir.resolve("outside.properties")));
     }
 
     @Test
