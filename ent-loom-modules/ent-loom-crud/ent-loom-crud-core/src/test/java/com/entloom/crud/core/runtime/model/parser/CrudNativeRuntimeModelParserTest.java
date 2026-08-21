@@ -3,6 +3,8 @@ package com.entloom.crud.core.runtime.model.parser;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudExportField;
 import com.entloom.crud.annotations.EntCrudField;
+import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
@@ -10,12 +12,36 @@ import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.value.MetaValueSource;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CrudNativeRuntimeModelParserTest {
+
+    @Test
+    void should_apply_convention_to_native_only_runtime_model() {
+        CrudConvention projectConvention = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+            .ruleId("test.native-only.created-time.writable")
+            .priority(Priority.MODULE_PROJECT_CONVENTION)
+            .build());
+
+        EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
+            new CrudNativeRuntimeModelParser(Arrays.asList(projectConvention))
+                .parse(Arrays.<Class<?>>asList(NativeDateTimeOrder.class))
+        );
+
+        Assertions.assertTrue(registry.getEntityMeta(NativeDateTimeOrder.class).getFieldMetas()
+            .get("createdAt").isWritable());
+    }
 
     @Test
     void should_include_reachable_multi_hop_edges_in_frozen_root_relation_graph() {
@@ -169,5 +195,11 @@ class CrudNativeRuntimeModelParserTest {
         Long studentId;
 
         String studentName;
+    }
+
+    @EntCrudEntity
+    private static class NativeDateTimeOrder {
+        Long id;
+        LocalDateTime createdAt;
     }
 }

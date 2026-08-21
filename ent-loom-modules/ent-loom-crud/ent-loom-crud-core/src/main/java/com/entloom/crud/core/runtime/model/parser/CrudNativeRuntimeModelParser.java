@@ -9,7 +9,11 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
+import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
+import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
+import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.util.NamingUtils;
+import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -25,6 +29,16 @@ import java.util.Set;
  * 解析 CRUD native 注解为统一运行时模型。
  */
 public class CrudNativeRuntimeModelParser {
+    private final CrudNativeAnnotationParser annotationParser;
+
+    public CrudNativeRuntimeModelParser() {
+        this(java.util.Collections.<CrudConvention>emptyList());
+    }
+
+    public CrudNativeRuntimeModelParser(Collection<? extends CrudConvention> conventions) {
+        this.annotationParser = new CrudNativeAnnotationParser(conventions);
+    }
+
     public CrudRuntimeModel parse(Collection<Class<?>> entityClasses) {
         List<EntityMeta> entityMetas = new ArrayList<EntityMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
@@ -46,6 +60,7 @@ public class CrudNativeRuntimeModelParser {
         if (entity == null) {
             throw new ValidationException("缺少 @EntCrudEntity 注解: " + entityClass.getName());
         }
+        CrudNativeEntityModel nativeModel = annotationParser.parseWithDiagnostics(entityClass).value();
 
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
@@ -59,7 +74,7 @@ public class CrudNativeRuntimeModelParser {
                 relationEdges.add(toRelationEdge(entityClass, field, relation, idField));
             }
             if (isPersistentField(field)) {
-                fieldMetas.put(field.getName(), toFieldMeta(field));
+                fieldMetas.put(field.getName(), toFieldMeta(field, findFieldModel(nativeModel, field.getName())));
             }
         }
 
@@ -80,7 +95,7 @@ public class CrudNativeRuntimeModelParser {
         return new ParsedEntity(entityMeta, relationEdges);
     }
 
-    private EntityFieldMeta toFieldMeta(Field field) {
+    private EntityFieldMeta toFieldMeta(Field field, CrudNativeFieldModel nativeField) {
         EntCrudExportField exportField = field.getAnnotation(EntCrudExportField.class);
         return new EntityFieldMeta(
             field.getName(),
@@ -90,6 +105,10 @@ public class CrudNativeRuntimeModelParser {
             false,
             true,
             true,
+            nativeField == null || nativeField.writable() == null || nativeField.writable().value() == null
+                || nativeField.writable().value().booleanValue(),
+            false,
+            false,
             exportField == null ? null : Boolean.valueOf(exportField.exportable()),
             exportField == null ? null : Boolean.valueOf(exportField.defaultVisible()),
             exportField == null ? null : exportField.label(),
@@ -97,6 +116,18 @@ public class CrudNativeRuntimeModelParser {
             exportField == null ? null : exportField.dictionaryCode(),
             exportField == null ? null : exportField.displayField()
         );
+    }
+
+    private CrudNativeFieldModel findFieldModel(CrudNativeEntityModel model, String fieldName) {
+        if (model == null) {
+            return null;
+        }
+        for (CrudNativeFieldModel field : model.fields()) {
+            if (fieldName.equals(field.fieldName())) {
+                return field;
+            }
+        }
+        return null;
     }
 
     private RelationEdge toRelationEdge(
