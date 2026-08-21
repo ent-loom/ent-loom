@@ -160,7 +160,7 @@ public class CrudRuntimeModelMerger {
                     target,
                     CrudConventionProperties.WRITABLE,
                     Boolean.valueOf(!Boolean.TRUE.equals(readOnly.value())),
-                    "meta." + fieldName + ".readOnly",
+                    isBlank(readOnly.ruleId()) ? "meta." + fieldName + ".readOnly" : readOnly.ruleId(),
                     readOnly.source()
                 );
             }

@@ -8,10 +8,12 @@ import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.role.DateTimeRole;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
@@ -54,6 +56,39 @@ class CrudConventionConsumerTest {
             new ReflectiveEntMetaParser(),
             Collections.singletonList(projectConvention),
             DefaultMetaDiagnosticPolicy.failFast()
+        );
+
+        Assertions.assertTrue(
+            adapter.runtimeModel().getEntity(MetaAndNativeCreatedTimeOrder.class)
+                .getField("createdAt")
+                .isWritable()
+        );
+    }
+
+    @Test
+    void meta_read_only_rule_id_should_participate_in_crud_tie_breaking() {
+        MetaConvention metaConvention = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(MetaDescriptorProperties.READ_ONLY)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.META_PROJECT_CONVENTION)
+            .ruleId("z-meta-read-only")
+            .priority(Priority.META_PROJECT_CONVENTION)
+            .build());
+        CrudConvention nativeConvention = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.META_PROJECT_CONVENTION)
+            .ruleId("n-native-writable")
+            .priority(Priority.META_PROJECT_CONVENTION)
+            .build());
+
+        MetaCrudAdapter adapter = new MetaCrudAdapter(
+            Collections.<Class<?>>singletonList(MetaAndNativeCreatedTimeOrder.class),
+            new ReflectiveEntMetaParser(Collections.singletonList(metaConvention)),
+            Collections.singletonList(nativeConvention),
+            DefaultMetaDiagnosticPolicy.lenient()
         );
 
         Assertions.assertTrue(

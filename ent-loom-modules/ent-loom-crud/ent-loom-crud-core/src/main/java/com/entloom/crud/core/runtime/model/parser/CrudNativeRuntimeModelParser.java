@@ -14,6 +14,7 @@ import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -60,7 +61,10 @@ public class CrudNativeRuntimeModelParser {
         if (entity == null) {
             throw new ValidationException("缺少 @EntCrudEntity 注解: " + entityClass.getName());
         }
-        CrudNativeEntityModel nativeModel = annotationParser.parseWithDiagnostics(entityClass).value();
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<CrudNativeEntityModel> nativeResult =
+            annotationParser.parseWithDiagnostics(entityClass);
+        DefaultMetaDiagnosticPolicy.failFast().evaluate(nativeResult.diagnostics());
+        CrudNativeEntityModel nativeModel = nativeResult.value();
 
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();

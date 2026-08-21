@@ -14,6 +14,7 @@ import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaR
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
 import com.entloom.meta.contract.value.MetaValueSource;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -41,6 +42,32 @@ class CrudNativeRuntimeModelParserTest {
 
         Assertions.assertTrue(registry.getEntityMeta(NativeDateTimeOrder.class).getFieldMetas()
             .get("createdAt").isWritable());
+    }
+
+    @Test
+    void should_fail_fast_when_native_conventions_have_same_priority_conflict() {
+        CrudConvention first = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.FALSE)
+            .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+            .ruleId("a-native-rule")
+            .priority(Priority.MODULE_PROJECT_CONVENTION)
+            .build());
+        CrudConvention second = context -> Arrays.asList(Contribution.<Boolean>builder()
+            .target(context.entityClass().getName() + "#" + context.field().getName())
+            .property(CrudConventionProperties.WRITABLE)
+            .value(Boolean.TRUE)
+            .source(MetaValueSource.MODULE_PROJECT_CONVENTION)
+            .ruleId("b-native-rule")
+            .priority(Priority.MODULE_PROJECT_CONVENTION)
+            .build());
+
+        Assertions.assertThrows(
+            MetaDiagnosticException.class,
+            () -> new CrudNativeRuntimeModelParser(Arrays.asList(first, second))
+                .parse(Arrays.<Class<?>>asList(NativeDateTimeOrder.class))
+        );
     }
 
     @Test
