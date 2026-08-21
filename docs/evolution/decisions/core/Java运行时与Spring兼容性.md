@@ -84,7 +84,7 @@ Boot 2 和 Boot 3 兼容线放在同一个 Git 仓库和 IDEA 工作空间中，
 
 | 场景 | 约束 |
 |---|---|
-| 完整 Maven Reactor | 使用 JDK 21 执行 `mvn install` |
+| 完整 Maven Reactor | 使用 JDK 21 执行 `./mvnw install` |
 | 核心 / Boot 2 产物 | 模块使用 `maven.compiler.release=8` |
 | Boot 3 产物 | 模块使用 `maven.compiler.release=17` |
 | Boot 3 运行验证 | JDK 17、21、25 |
