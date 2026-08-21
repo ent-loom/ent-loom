@@ -109,16 +109,16 @@ public final class SourcedValue<T> {
             return false;
         }
         SourcedValue<?> that = (SourcedValue<?>) other;
+        // ruleId 仅用于来源追踪，不改变引入规则来源前的值对象相等语义。
         return explicit == that.explicit
             && Objects.equals(value, that.value)
             && source == that.source
-            && state == that.state
-            && Objects.equals(ruleId, that.ruleId);
+            && state == that.state;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, source, state, Boolean.valueOf(explicit), ruleId);
+        return Objects.hash(value, source, state, Boolean.valueOf(explicit));
     }
 
     @Override
