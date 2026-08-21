@@ -68,6 +68,22 @@ class PropertyContributionResolverTest {
     }
 
     @Test
+    void same_priority_and_rule_id_conflict_should_not_depend_on_input_order() {
+        Contribution<String> first = contribution("same-rule", "label", "Z", Priority.META_PROJECT_CONVENTION);
+        Contribution<String> second = contribution("same-rule", "label", "A", Priority.META_PROJECT_CONVENTION);
+
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<Map<String, Contribution<?>>> forward =
+            new PropertyContributionResolver(MetaConflictPolicy.WARN)
+                .resolve(Arrays.<Contribution<?>>asList(first, second));
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<Map<String, Contribution<?>>> reverse =
+            new PropertyContributionResolver(MetaConflictPolicy.WARN)
+                .resolve(Arrays.<Contribution<?>>asList(second, first));
+
+        Assertions.assertEquals("A", forward.value().get("Order.name.label").value());
+        Assertions.assertEquals("A", reverse.value().get("Order.name.label").value());
+    }
+
+    @Test
     void resolver_should_report_type_and_structural_errors() {
         Contribution<String> text = contribution("text-rule", "label", "A", Priority.META_PROJECT_CONVENTION);
         Contribution<Integer> number = Contribution.<Integer>builder()

@@ -26,11 +26,34 @@ public final class PropertyContributionResolver {
             if (priority != 0) {
                 return priority;
             }
-            return left.ruleId().compareTo(right.ruleId());
+            int ruleId = left.ruleId().compareTo(right.ruleId());
+            if (ruleId != 0) {
+                return ruleId;
+            }
+            int value = stableValue(left.value()).compareTo(stableValue(right.value()));
+            if (value != 0) {
+                return value;
+            }
+            return sourceName(left).compareTo(sourceName(right));
         }
     };
 
     private final MetaConflictPolicy conflictPolicy;
+
+    private static String stableValue(Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof Enum<?>) {
+            Enum<?> enumValue = (Enum<?>) value;
+            return value.getClass().getName() + "#" + enumValue.name();
+        }
+        return value.getClass().getName() + "#" + String.valueOf(value);
+    }
+
+    private static String sourceName(Contribution<?> contribution) {
+        return contribution.source() == null ? "" : contribution.source().name();
+    }
 
     public PropertyContributionResolver() {
         this(MetaConflictPolicy.FAIL);
