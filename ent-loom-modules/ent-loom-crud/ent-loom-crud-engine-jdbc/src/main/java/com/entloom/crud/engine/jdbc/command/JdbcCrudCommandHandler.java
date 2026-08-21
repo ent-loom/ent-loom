@@ -478,9 +478,6 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
                 fields.add(field);
                 continue;
             }
-            if (!fieldMeta.isWritable()) {
-                throw new ValidationException("创建载荷包含不可写字段: " + field);
-            }
             fields.add(field);
         }
         return fields;

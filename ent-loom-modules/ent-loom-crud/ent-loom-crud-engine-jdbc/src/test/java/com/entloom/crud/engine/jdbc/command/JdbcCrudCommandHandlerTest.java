@@ -112,6 +112,27 @@ class JdbcCrudCommandHandlerTest {
     }
 
     @Test
+    void create_should_allow_non_writable_field_when_not_immutable() {
+        EntityMeta meta = testMeta(EntityIdPolicy.GENERATED);
+        RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        executor.generatedKey = Long.valueOf(1004L);
+        JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>> handler = new JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>>(
+            new SingleEntityMetaRegistry(meta),
+            executor
+        );
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("createdAt", "2026-05-03 21:00:00");
+        payload.put("name", "Alice");
+
+        Map<String, Object> result = handler.create(spec(CommandOperation.CREATE, payload, Map.class));
+
+        assertTrue(executor.insertCalled);
+        assertEquals(Long.valueOf(1004L), result.get("id"));
+        assertTrue(executor.lastInsertArgs.contains("2026-05-03 21:00:00"));
+    }
+
+    @Test
     void save_or_update_should_create_without_id_for_generated_policy() {
         EntityMeta meta = testMeta(EntityIdPolicy.GENERATED);
         RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
@@ -382,6 +403,7 @@ class JdbcCrudCommandHandlerTest {
         LinkedHashMap<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
         fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
         fields.put("name", new EntityFieldMeta("name", String.class, "name", true, false, true, true));
+        fields.put("createdAt", new EntityFieldMeta("createdAt", String.class, "created_at", true, false, true, true, false, false, false));
         fields.put("schoolId", new EntityFieldMeta("schoolId", Long.class, "school_id", false, false, true, true, false, true, false));
         fields.put("updateTime", new EntityFieldMeta("updateTime", String.class, "update_time", true, false, true, true, false, false, true));
         return new EntityMeta(
