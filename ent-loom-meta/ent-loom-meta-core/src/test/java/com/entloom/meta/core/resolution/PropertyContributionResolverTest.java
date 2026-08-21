@@ -8,7 +8,10 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
 import com.entloom.meta.contract.value.MetaValueSource;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -81,6 +84,47 @@ class PropertyContributionResolverTest {
 
         Assertions.assertEquals("A", forward.value().get("Order.name.label").value());
         Assertions.assertEquals("A", reverse.value().get("Order.name.label").value());
+    }
+
+    @Test
+    void structured_values_should_have_order_independent_stable_keys() {
+        Contribution<String[]> arrayFirst = contribution(
+            "same-rule", "array", new String[] {"z"}, Priority.META_PROJECT_CONVENTION);
+        Contribution<String[]> arraySecond = contribution(
+            "same-rule", "array", new String[] {"a"}, Priority.META_PROJECT_CONVENTION);
+
+        Map<String, Integer> mapFirstValue = new LinkedHashMap<String, Integer>();
+        mapFirstValue.put("z", Integer.valueOf(2));
+        mapFirstValue.put("a", Integer.valueOf(1));
+        Map<String, Integer> mapSecondValue = new LinkedHashMap<String, Integer>();
+        mapSecondValue.put("a", Integer.valueOf(3));
+        mapSecondValue.put("z", Integer.valueOf(4));
+        Contribution<Map<String, Integer>> mapFirst = contribution(
+            "same-rule", "map", mapFirstValue, Priority.META_PROJECT_CONVENTION);
+        Contribution<Map<String, Integer>> mapSecond = contribution(
+            "same-rule", "map", mapSecondValue, Priority.META_PROJECT_CONVENTION);
+
+        Set<String> setFirstValue = new LinkedHashSet<String>(Arrays.asList("z", "a"));
+        Set<String> setSecondValue = new LinkedHashSet<String>(Arrays.asList("b", "c"));
+        Contribution<Set<String>> setFirst = contribution(
+            "same-rule", "set", setFirstValue, Priority.META_PROJECT_CONVENTION);
+        Contribution<Set<String>> setSecond = contribution(
+            "same-rule", "set", setSecondValue, Priority.META_PROJECT_CONVENTION);
+
+        PropertyContributionResolver resolver = new PropertyContributionResolver(MetaConflictPolicy.WARN);
+        Map<String, Contribution<?>> forward = resolver.resolve(Arrays.<Contribution<?>>asList(
+            arrayFirst, arraySecond, mapFirst, mapSecond, setFirst, setSecond)).value();
+        Map<String, Contribution<?>> reverse = resolver.resolve(Arrays.<Contribution<?>>asList(
+            setSecond, setFirst, mapSecond, mapFirst, arraySecond, arrayFirst)).value();
+
+        Assertions.assertArrayEquals(
+            new String[] {"a"}, (String[]) forward.get("Order.name.array").value());
+        Assertions.assertArrayEquals(
+            new String[] {"a"}, (String[]) reverse.get("Order.name.array").value());
+        Assertions.assertEquals(mapFirstValue, forward.get("Order.name.map").value());
+        Assertions.assertEquals(mapFirstValue, reverse.get("Order.name.map").value());
+        Assertions.assertEquals(setFirstValue, forward.get("Order.name.set").value());
+        Assertions.assertEquals(setFirstValue, reverse.get("Order.name.set").value());
     }
 
     @Test

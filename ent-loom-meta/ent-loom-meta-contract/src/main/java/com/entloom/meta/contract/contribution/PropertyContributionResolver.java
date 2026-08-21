@@ -4,13 +4,16 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -40,15 +43,108 @@ public final class PropertyContributionResolver {
 
     private final MetaConflictPolicy conflictPolicy;
 
+    /**
+     * 生成只用于同级候选裁决的稳定值键。
+     *
+     * <p>数组、Set、Map 会按结构递归规范化，普通 Collection 保留迭代顺序。无法确认内容稳定性的
+     * 自定义对象只按类型作为不透明值处理，不调用默认 {@code Object.toString()}，避免把对象地址带入
+     * 裁决结果；这类对象应由调用方保证同一 ruleId 只产生一个候选。</p>
+     */
     private static String stableValue(Object value) {
+        return stableValue(value, new IdentityHashMap<Object, Boolean>());
+    }
+
+    private static String stableValue(Object value, IdentityHashMap<Object, Boolean> visiting) {
         if (value == null) {
-            return "";
+            return "null";
         }
+        Class<?> valueType = value.getClass();
         if (value instanceof Enum<?>) {
             Enum<?> enumValue = (Enum<?>) value;
-            return value.getClass().getName() + "#" + enumValue.name();
+            return valueType.getName() + "#" + enumValue.name();
         }
-        return value.getClass().getName() + "#" + String.valueOf(value);
+        if (value instanceof CharSequence
+            || value instanceof Character
+            || value instanceof Boolean
+            || value instanceof Number
+            || value instanceof Class<?>
+            || value instanceof java.util.Date
+            || value instanceof java.time.temporal.TemporalAccessor
+            || value instanceof java.time.temporal.TemporalAmount
+            || value instanceof java.util.UUID) {
+            return valueType.getName() + "#" + String.valueOf(value);
+        }
+        if (valueType.isArray()) {
+            if (visiting.put(value, Boolean.TRUE) != null) {
+                return valueType.getName() + "#<cycle>";
+            }
+            try {
+                List<String> elements = new ArrayList<String>(Array.getLength(value));
+                for (int i = 0; i < Array.getLength(value); i++) {
+                    elements.add(stableValue(Array.get(value, i), visiting));
+                }
+                return valueType.getName() + "[" + join(elements) + "]";
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        if (value instanceof Map<?, ?>) {
+            if (visiting.put(value, Boolean.TRUE) != null) {
+                return valueType.getName() + "#<cycle>";
+            }
+            try {
+                List<String> entries = new ArrayList<String>(((Map<?, ?>) value).size());
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                    entries.add(stableValue(entry.getKey(), visiting)
+                        + "=" + stableValue(entry.getValue(), visiting));
+                }
+                Collections.sort(entries);
+                return valueType.getName() + "{" + join(entries) + "}";
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        if (value instanceof Set<?>) {
+            if (visiting.put(value, Boolean.TRUE) != null) {
+                return valueType.getName() + "#<cycle>";
+            }
+            try {
+                List<String> elements = new ArrayList<String>(((Set<?>) value).size());
+                for (Object element : (Set<?>) value) {
+                    elements.add(stableValue(element, visiting));
+                }
+                Collections.sort(elements);
+                return valueType.getName() + "{" + join(elements) + "}";
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        if (value instanceof Collection<?>) {
+            if (visiting.put(value, Boolean.TRUE) != null) {
+                return valueType.getName() + "#<cycle>";
+            }
+            try {
+                List<String> elements = new ArrayList<String>(((Collection<?>) value).size());
+                for (Object element : (Collection<?>) value) {
+                    elements.add(stableValue(element, visiting));
+                }
+                return valueType.getName() + "[" + join(elements) + "]";
+            } finally {
+                visiting.remove(value);
+            }
+        }
+        return valueType.getName() + "#<opaque>";
+    }
+
+    private static String join(List<String> values) {
+        StringBuilder result = new StringBuilder();
+        for (String value : values) {
+            if (result.length() > 0) {
+                result.append('|');
+            }
+            result.append(value.length()).append(':').append(value);
+        }
+        return result.toString();
     }
 
     private static String sourceName(Contribution<?> contribution) {
