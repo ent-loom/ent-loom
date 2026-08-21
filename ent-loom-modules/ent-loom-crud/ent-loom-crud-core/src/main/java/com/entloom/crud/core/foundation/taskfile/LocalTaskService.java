@@ -17,9 +17,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +39,10 @@ public class LocalTaskService implements TaskService {
     private static final String ATTR_PREFIX = "attr.";
     private static final String ATTR_VALUE_PREFIX = "value.";
     private static final String ATTR_TYPE_PREFIX = "type.";
+    private static final String ATTR_FORMAT_KEY = "__entloom_format";
+    private static final String ATTR_COUNT_KEY = "__entloom_count";
+    private static final String ATTR_FORMAT_VERSION = "2";
+    private static final String ATTR_ENTRY_PREFIX = "entry.";
 
     private final Path rootDirectory;
 
@@ -228,6 +236,8 @@ public class LocalTaskService implements TaskService {
         if (attributes == null) {
             return;
         }
+        set(properties, prefix + ATTR_FORMAT_KEY, ATTR_FORMAT_VERSION);
+        int index = 0;
         for (Map.Entry<String, Object> entry : attributes.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
@@ -235,25 +245,75 @@ public class LocalTaskService implements TaskService {
                 continue;
             }
             String type = attributeType(value);
-            set(properties, prefix + ATTR_VALUE_PREFIX + key, value);
-            set(properties, prefix + ATTR_TYPE_PREFIX + key, type);
+            String entryPrefix = prefix + ATTR_ENTRY_PREFIX + index + ".";
+            set(properties, entryPrefix + "key", encodeAttributeKey(key));
+            set(properties, entryPrefix + "type", type);
+            set(properties, entryPrefix + "value", value);
+            index++;
         }
+        set(properties, prefix + ATTR_COUNT_KEY, Integer.valueOf(index));
     }
 
     private static Map<String, Object> readAttributes(Properties properties, String prefix) {
+        if (ATTR_FORMAT_VERSION.equals(properties.getProperty(prefix + ATTR_FORMAT_KEY))) {
+            return readVersionedAttributes(properties, prefix);
+        }
+        return readLegacyAttributes(properties, prefix);
+    }
+
+    private static Map<String, Object> readVersionedAttributes(Properties properties, String prefix) {
+        Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+        String countValue = properties.getProperty(prefix + ATTR_COUNT_KEY, "0");
+        int count;
+        try {
+            count = Integer.parseInt(countValue);
+        } catch (NumberFormatException ex) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "读取任务属性数量失败", ex);
+        }
+        if (count < 0) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "读取任务属性数量失败: " + count);
+        }
+        for (int index = 0; index < count; index++) {
+            String entryPrefix = prefix + ATTR_ENTRY_PREFIX + index + ".";
+            String encodedKey = properties.getProperty(entryPrefix + "key");
+            if (encodedKey == null) {
+                throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "任务属性缺少名称: " + index);
+            }
+            String key = decodeAttributeKey(encodedKey);
+            String type = properties.getProperty(entryPrefix + "type", "string");
+            attributes.put(key, decodeAttribute(key, type, properties.getProperty(entryPrefix + "value")));
+        }
+        return attributes;
+    }
+
+    private static Map<String, Object> readLegacyAttributes(Properties properties, String prefix) {
         Map<String, Object> attributes = new LinkedHashMap<String, Object>();
         String valuePrefix = prefix + ATTR_VALUE_PREFIX;
         String typePrefix = prefix + ATTR_TYPE_PREFIX;
+        Set<String> typedValueNames = new HashSet<String>();
         for (String name : properties.stringPropertyNames()) {
             if (!name.startsWith(valuePrefix)) {
                 continue;
             }
             String key = name.substring(valuePrefix.length());
-            String type = properties.getProperty(typePrefix + key, "string");
+            String type = properties.getProperty(typePrefix + key);
+            if (!isAttributeType(type)) {
+                continue;
+            }
+            typedValueNames.add(name);
             attributes.put(key, decodeAttribute(key, type, properties.getProperty(name)));
         }
         for (String name : properties.stringPropertyNames()) {
-            if (!name.startsWith(prefix) || name.startsWith(valuePrefix) || name.startsWith(typePrefix)) {
+            if (!name.startsWith(prefix)
+                || name.equals(prefix + ATTR_FORMAT_KEY)
+                || name.equals(prefix + ATTR_COUNT_KEY)) {
+                continue;
+            }
+            if (typedValueNames.contains(name)) {
+                continue;
+            }
+            if (name.startsWith(typePrefix)
+                && typedValueNames.contains(valuePrefix + name.substring(typePrefix.length()))) {
                 continue;
             }
             String key = name.substring(prefix.length());
@@ -262,6 +322,46 @@ public class LocalTaskService implements TaskService {
             }
         }
         return attributes;
+    }
+
+    private static boolean isAttributeType(String type) {
+        if (type == null) {
+            return false;
+        }
+        switch (type) {
+            case "string":
+            case "boolean":
+            case "byte":
+            case "short":
+            case "integer":
+            case "long":
+            case "float":
+            case "double":
+            case "bigInteger":
+            case "bigDecimal":
+            case "char":
+            case "instant":
+            case "localDate":
+            case "localDateTime":
+            case "offsetDateTime":
+            case "zonedDateTime":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static String encodeAttributeKey(String key) {
+        return Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(key.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decodeAttributeKey(String encodedKey) {
+        try {
+            return new String(Base64.getUrlDecoder().decode(encodedKey), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "任务属性名称编码非法", ex);
+        }
     }
 
     private static String attributeType(Object value) {

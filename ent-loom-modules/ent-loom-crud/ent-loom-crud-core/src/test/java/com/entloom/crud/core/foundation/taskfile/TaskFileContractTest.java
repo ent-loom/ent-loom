@@ -10,12 +10,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +90,8 @@ class TaskFileContractTest {
         contextAttributes.put("attempt", Integer.valueOf(3));
         contextAttributes.put("enabled", Boolean.TRUE);
         contextAttributes.put("startedAt", Instant.parse("2026-05-02T00:00:00Z"));
+        contextAttributes.put("value.original", "VALUE");
+        contextAttributes.put("type.original", "TYPE");
         LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
         CrudTask created = taskService.create(CrudTask.builder()
             .status(CrudTaskStatus.SUCCEEDED)
@@ -119,6 +123,30 @@ class TaskFileContractTest {
             Instant.parse("2026-05-02T00:00:00Z"),
             reloaded.getContextSnapshot().getAttributes().get("startedAt")
         );
+        Assertions.assertEquals("VALUE", reloaded.getContextSnapshot().getAttributes().get("value.original"));
+        Assertions.assertEquals("TYPE", reloaded.getContextSnapshot().getAttributes().get("type.original"));
+    }
+
+    @Test
+    void local_task_service_should_preserve_legacy_attribute_names_with_reserved_prefixes() throws IOException {
+        Path tempDir = Files.createTempDirectory("entloom-crud-legacy-task-attribute-test");
+        Path taskDir = tempDir.resolve("tasks");
+        Files.createDirectories(taskDir);
+        Properties properties = new Properties();
+        properties.setProperty("taskId", "legacy");
+        properties.setProperty("status", CrudTaskStatus.PENDING.name());
+        properties.setProperty("context.audit.value.requestId", "legacy-value");
+        properties.setProperty("context.audit.type.traceId", "legacy-type");
+        try (OutputStream output = Files.newOutputStream(taskDir.resolve("legacy.properties"))) {
+            properties.store(output, "legacy task metadata");
+        }
+
+        CrudTaskContextSnapshot snapshot = new LocalTaskService(taskDir.toString())
+            .getRequired("legacy")
+            .getContextSnapshot();
+
+        Assertions.assertEquals("legacy-value", snapshot.getAuditContext().get("value.requestId"));
+        Assertions.assertEquals("legacy-type", snapshot.getAuditContext().get("type.traceId"));
     }
 
     @Test
