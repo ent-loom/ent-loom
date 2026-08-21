@@ -131,7 +131,13 @@ public class CrudNativeAnnotationParser {
             : source == MetaValueSource.INFERRED
                 ? com.entloom.meta.contract.value.MetaValueState.INFERRED
                 : com.entloom.meta.contract.value.MetaValueState.DEFAULTED;
-        return SourcedValue.of((Boolean) contribution.value(), source, state, explicit);
+        return SourcedValue.of(
+            (Boolean) contribution.value(),
+            source,
+            state,
+            explicit,
+            contribution.ruleId().value()
+        );
     }
 
     private CrudNativeRelationModel toRelationModel(Field field, EntCrudField relation) {

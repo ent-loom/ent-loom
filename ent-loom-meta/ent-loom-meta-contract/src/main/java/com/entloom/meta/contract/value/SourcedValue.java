@@ -10,12 +10,24 @@ public final class SourcedValue<T> {
     private final MetaValueSource source;
     private final MetaValueState state;
     private final boolean explicit;
+    private final String ruleId;
 
     private SourcedValue(T value, MetaValueSource source, MetaValueState state, boolean explicit) {
+        this(value, source, state, explicit, null);
+    }
+
+    private SourcedValue(
+        T value,
+        MetaValueSource source,
+        MetaValueState state,
+        boolean explicit,
+        String ruleId
+    ) {
         this.value = value;
         this.source = source == null ? MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN : source;
         this.state = state == null ? MetaValueState.UNKNOWN : state;
         this.explicit = explicit;
+        this.ruleId = trimToNull(ruleId);
     }
 
     public static <T> SourcedValue<T> explicit(T value, MetaValueSource source) {
@@ -54,6 +66,16 @@ public final class SourcedValue<T> {
         return new SourcedValue<T>(value, source, state, explicit);
     }
 
+    public static <T> SourcedValue<T> of(
+        T value,
+        MetaValueSource source,
+        MetaValueState state,
+        boolean explicit,
+        String ruleId
+    ) {
+        return new SourcedValue<T>(value, source, state, explicit, ruleId);
+    }
+
     public T value() {
         return value;
     }
@@ -74,6 +96,10 @@ public final class SourcedValue<T> {
         return explicit;
     }
 
+    public String ruleId() {
+        return ruleId;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -86,12 +112,13 @@ public final class SourcedValue<T> {
         return explicit == that.explicit
             && Objects.equals(value, that.value)
             && source == that.source
-            && state == that.state;
+            && state == that.state
+            && Objects.equals(ruleId, that.ruleId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, source, state, Boolean.valueOf(explicit));
+        return Objects.hash(value, source, state, Boolean.valueOf(explicit), ruleId);
     }
 
     @Override
@@ -101,6 +128,15 @@ public final class SourcedValue<T> {
             + ", source=" + source
             + ", state=" + state
             + ", explicit=" + explicit
+            + ", ruleId='" + ruleId + '\''
             + '}';
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

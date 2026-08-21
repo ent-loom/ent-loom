@@ -186,7 +186,8 @@ public class CrudRuntimeModelMerger {
             (Boolean) winner.value(),
             winner.source(),
             state(winner.source()),
-            isExplicit(winner.source())
+            isExplicit(winner.source()),
+            winner.ruleId().value()
         );
     }
 
@@ -198,7 +199,14 @@ public class CrudRuntimeModelMerger {
         String ruleId
     ) {
         if (value != null) {
-            addContribution(contributions, target, property, value.value(), ruleId, value.source());
+            addContribution(
+                contributions,
+                target,
+                property,
+                value.value(),
+                isBlank(value.ruleId()) ? ruleId : value.ruleId(),
+                value.source()
+            );
         }
     }
 
@@ -374,11 +382,15 @@ public class CrudRuntimeModelMerger {
             winnerValue,
             winner.source(),
             state(winner.source()),
-            isExplicit(winner.source())
+            isExplicit(winner.source()),
+            winner.ruleId().value()
         );
     }
 
     private String candidateRuleId(String property, SourcedValue<?> value) {
+        if (value != null && !isBlank(value.ruleId())) {
+            return value.ruleId();
+        }
         MetaValueSource source = value == null ? null : value.source();
         if (source == MetaValueSource.NATIVE_EXPLICIT) {
             return "crud.native." + property;
@@ -470,7 +482,7 @@ public class CrudRuntimeModelMerger {
     private <T> SourcedValue<T> relationValue(T value, EntRelationDescriptor relation, String property) {
         com.entloom.meta.contract.value.SourcedValue<?> sourced = relation.sourcedValue(property);
         if (sourced != null && sourced.explicit()) {
-            return SourcedValue.metaExplicit(value);
+            return SourcedValue.of(value, sourced.source(), sourced.state(), true, sourced.ruleId());
         }
         return SourcedValue.unknown(value);
     }

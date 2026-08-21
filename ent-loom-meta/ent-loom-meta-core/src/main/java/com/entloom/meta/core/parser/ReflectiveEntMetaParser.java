@@ -275,7 +275,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             String.valueOf(contribution.value()),
             contribution.source(),
             state(contribution.source()),
-            isExplicit(contribution.source())
+            isExplicit(contribution.source()),
+            contribution.ruleId().value()
         );
     }
 
@@ -284,7 +285,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             contribution.value(),
             contribution.source(),
             state(contribution.source()),
-            isExplicit(contribution.source())
+            isExplicit(contribution.source()),
+            contribution.ruleId().value()
         );
     }
 

@@ -43,6 +43,7 @@ class CrudNativeParserAndMergerTest {
 
         Assertions.assertEquals(Boolean.FALSE, builtInField.writable().value());
         Assertions.assertEquals(MetaValueSource.MODULE_BUILT_IN_CONVENTION, builtInField.writable().source());
+        Assertions.assertEquals("crud.datetime.created-time.writable", builtInField.writable().ruleId());
 
         CrudConvention projectConvention = context -> Arrays.asList(Contribution.<Boolean>builder()
             .target(context.entityClass().getName() + "#" + context.field().getName())
@@ -60,6 +61,10 @@ class CrudNativeParserAndMergerTest {
         Assertions.assertEquals(
             MetaValueSource.MODULE_PROJECT_CONVENTION,
             field(overridden, "createdAt").writable().source()
+        );
+        Assertions.assertEquals(
+            "test.project.created-time.writable",
+            field(overridden, "createdAt").writable().ruleId()
         );
     }
 
@@ -139,6 +144,7 @@ class CrudNativeParserAndMergerTest {
 
         Assertions.assertEquals("merge_order_native", merged.value().resourceCode().value());
         Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, merged.value().resourceCode().source());
+        Assertions.assertEquals("crud.native.resourceCode", merged.value().resourceCode().ruleId());
         CrudRelationRuntimeModel relation = merged.value().relations().get(0);
         Assertions.assertEquals("customerCode", relation.targetField().value());
         Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, relation.targetField().source());
