@@ -6,6 +6,8 @@
 当前完整 Reactor 使用 JDK 21、Spring Boot 3.5 和 Spring Framework 6.2。Java 8 核心、Boot 2
 兼容线及 Boot 4 主线尚未完成，不能作为当前支持能力声明。
 
+当前对外支持：完整 Reactor 使用 JDK 21+。当前主开发和构建 JDK 为 21；未来按模块提供 Core/Boot 2 的 Java 8 目标线和 Boot 3/4 的 Java 17 目标线。
+
 ## 当前差距
 
 | 领域 | 差距 |
@@ -23,6 +25,7 @@
 - 登记每个发布模块的 JDK API、字节码目标、Spring/Servlet 依赖和测试入口。
 - 确认可使用 `release=8` 的核心模块，并审计 Lombok、Jackson、ArchUnit 等依赖边界。
 - 明确公共依赖管理与各 Spring 版本线 BOM 的责任边界。
+- 提交 Maven Wrapper 固定 Maven 3.9.12；`.java-version=21` 仅作本地提示，并保持根 POM 默认 `release=21` 和完整 Reactor 的 JDK 21 Enforcer。
 
 ### P1：核心边界
 

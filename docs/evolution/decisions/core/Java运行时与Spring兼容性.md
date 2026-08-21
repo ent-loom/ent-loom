@@ -6,6 +6,8 @@
 
 已接受，作为后续框架模块拆分、POM 调整和 CI 设计的约束。当前仓库采用 JDK 21 + Spring Boot 3.5 基线；本文描述目标架构，不表示兼容线已经全部实现。
 
+当前对外支持口径只有完整 Reactor 的 JDK 21+。Java 8 Core、Boot 2 和 Boot 4 兼容线在完成对应模块、依赖和运行验证前，均属于目标能力，不提前对外承诺。
+
 ## 核心结论
 
 框架不追求“一个构件支持所有 Java 版本”。核心能力与 Spring 集成层解耦，按 Spring 生态大版本提供独立适配线：
@@ -33,6 +35,8 @@ Java 字节码版本、JDK API 和 Spring 生态最低 JDK 共同决定运行边
 | Spring Boot 3.x / Spring 6.x | Java 17 | `jakarta.servlet` | 新项目主线 |
 
 `javax.servlet` 与 `jakarta.servlet` 是不同包名。Boot 2 和 Boot 3 的 Web Starter、依赖管理和自动装配不应放在同一个实现模块中。Java 8 也不能运行 Boot 3，因此不能通过降低根 POM 的 Java 版本实现全版本兼容。
+
+Java 8 语法可覆盖大部分框架业务逻辑，但“使用 Java 8 语法”不等于“支持 JDK 8 运行”。最终边界由字节码目标、JDK API、第三方依赖和 Spring 生态最低版本共同决定。
 
 ## 模块边界
 
@@ -86,9 +90,11 @@ Boot 2 和 Boot 3 兼容线放在同一个 Git 仓库和 IDEA 工作空间中，
 | Boot 3 运行验证 | JDK 17、21、25 |
 | Java 8 运行验证 | 仅核心和 Boot 2 模块 |
 
-当前完整 Reactor 使用 JDK 21 构建。后续按模块设置 `maven.compiler.release` 后，可以在同一 Reactor 中生成 Java 8 和 Java 17 字节码。不能在 JDK 8 下安装包含 Boot 3 的完整项目；JDK 8 只用于兼容模块的单独测试。
+当前完整 Reactor 使用 JDK 21 构建。项目提交 Maven Wrapper，推荐使用 `./mvnw` 固定 Maven 版本；Wrapper 不负责切换 JDK，JDK 由 IDEA、CI 或本地版本管理器配置，最终由 Enforcer 校验。后续按模块设置 `maven.compiler.release` 后，可以在同一 Reactor 中生成 Java 8 和 Java 17 字节码。不能在 JDK 8 下安装包含 Boot 3 的完整项目；JDK 8 只用于兼容模块的单独测试。
 
 根 POM 的 Enforcer 当前约束构建 JDK 至少为 Java 21。每个模块通过 `maven.compiler.release` 声明自己的字节码目标；当前统一继承 Java 21，后续兼容线拆分时再按模块下调。IDEA 的 Maven Importer 和 Maven Runner 使用 JDK 21，CI 再按运行矩阵验证实际兼容性。
+
+当前根 POM 保持 `java.version=21`、默认 `maven.compiler.release=21` 和构建 JDK `21+` 校验。未来兼容线落地时，只在已审计的 Core、Boot 2 或 Boot 3/4 模块中分别覆盖 `release=8` 或 `release=17`，不通过降低根 POM 伪造全仓 Java 8 支持。
 
 ## 实施顺序
 

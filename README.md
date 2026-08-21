@@ -64,15 +64,20 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 
 ## 构建与验证
 
-| 构建系列         |  JDK | Spring Boot | Spring Framework |
-|--------------|-----:|-------------|------------------|
-| 支持范围         | 8-26 | 2-4         | 5-7              |
-| 当前完整 Reactor |   21 | 3.5.x       | 6.2.x            |
+| 口径 | JDK | Spring Boot | Spring Framework |
+|---|---:|---|---|
+| 当前完整 Reactor | 21+ | 3.5.x | 6.2.x |
+| 目标框架无关 Core | 8 | - | - |
+| 目标 Boot 2 集成线 | 8 | 2.7.x | 5.3.x |
+| 目标 Boot 3 / Boot 4 集成线 | 17+ | 3.5.x / 4.x | 6.2.x / 7.x |
 
+当前完整 Reactor 的默认开发、构建和验证基线为 JDK 21。推荐使用 `./mvnw test`，Wrapper 固定 Maven 3.9.12，Enforcer 校验构建 JDK 21+；`.java-version` 仅作本地版本提示。Java 8、Boot 2 和 Boot 4 属于分阶段目标兼容线，尚不代表当前全仓支持；详细边界见
+[Java 运行时与 Spring 兼容性版本线](./docs/evolution/decisions/core/Java运行时与Spring兼容性.md)。
 
 ## 使用与文档
 
 - [文档中心](./docs/index.md)：文档结构和推荐阅读路径。
+- [开发环境与 JDK 管理](./docs/guides/开发环境与JDK管理.md)：多 JDK、jenv、Maven Wrapper 和 IDEA 配置。
 - [系统架构总览](./docs/architecture/架构总览.md)：模块、建模与执行关系。
 - [Core Contract](./docs/architecture/core/index.md)：跨模块稳定契约。
 - [CRUD 业务集成模板](./docs/guides/crud/业务集成模板.md)：业务项目接入方式。
