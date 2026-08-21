@@ -185,10 +185,8 @@ public class CrudRuntimeModelMerger {
         return SourcedValue.of(
             (Boolean) winner.value(),
             winner.source(),
-            winner.source() == MetaValueSource.INFERRED
-                ? com.entloom.meta.contract.value.MetaValueState.INFERRED
-                : com.entloom.meta.contract.value.MetaValueState.DEFAULTED,
-            false
+            state(winner.source()),
+            isExplicit(winner.source())
         );
     }
 
