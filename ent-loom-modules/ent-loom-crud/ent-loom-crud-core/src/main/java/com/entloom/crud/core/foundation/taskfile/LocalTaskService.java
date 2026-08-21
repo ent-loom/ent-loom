@@ -7,11 +7,16 @@ import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
-import java.util.HashMap;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -28,6 +33,8 @@ public class LocalTaskService implements TaskService {
     private static final String RESULT_PREFIX = "resultFile.";
     private static final String ERROR_PREFIX = "errorFile.";
     private static final String ATTR_PREFIX = "attr.";
+    private static final String ATTR_VALUE_PREFIX = "value.";
+    private static final String ATTR_TYPE_PREFIX = "type.";
 
     private final Path rootDirectory;
 
@@ -141,9 +148,8 @@ public class LocalTaskService implements TaskService {
         set(properties, "context.operation", context.getOperationKey() == null ? null : context.getOperationKey().getOperation());
         writeScope(properties, "context.grantedScope.", context.getGrantedScope());
         writeScope(properties, "context.governanceScope.", context.getGovernanceScope());
-        for (Map.Entry<String, Object> entry : context.getAuditContext().entrySet()) {
-            set(properties, "context.audit." + entry.getKey(), entry.getValue());
-        }
+        writeAttributes(properties, "context.audit.", context.getAuditContext());
+        writeAttributes(properties, "context.attr.", context.getAttributes());
         SubjectContext subject = context.getSubject();
         if (subject != null) {
             set(properties, "context.subjectId", subject.getSubjectId());
@@ -179,7 +185,8 @@ public class LocalTaskService implements TaskService {
             .subject(subject)
             .grantedScope(readScope(properties, "context.grantedScope."))
             .governanceScope(readScope(properties, "context.governanceScope."))
-            .auditContext(auditContext(properties))
+            .auditContext(readAttributes(properties, "context.audit."))
+            .attributes(readAttributes(properties, "context.attr."))
             .build();
     }
 
@@ -210,17 +217,149 @@ public class LocalTaskService implements TaskService {
         return new CrudDataScope(Boolean.parseBoolean(explicitAll), dimensions);
     }
 
-    private static Map<String, Object> auditContext(Properties properties) {
-        Map<String, Object> auditContext = new LinkedHashMap<String, Object>();
-        copyIfPresent(properties, auditContext, "requestId");
-        copyIfPresent(properties, auditContext, "traceId");
-        return auditContext;
+    /**
+     * 任务文件只持久化可跨进程解析的标量属性，旧格式没有类型标记时按字符串兼容读取。
+     */
+    private static void writeAttributes(
+        Properties properties,
+        String prefix,
+        Map<String, Object> attributes
+    ) {
+        if (attributes == null) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (key == null || value == null) {
+                continue;
+            }
+            String type = attributeType(value);
+            set(properties, prefix + ATTR_VALUE_PREFIX + key, value);
+            set(properties, prefix + ATTR_TYPE_PREFIX + key, type);
+        }
     }
 
-    private static void copyIfPresent(Properties properties, Map<String, Object> target, String key) {
-        String value = properties.getProperty("context.audit." + key);
-        if (value != null) {
-            target.put(key, value);
+    private static Map<String, Object> readAttributes(Properties properties, String prefix) {
+        Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+        String valuePrefix = prefix + ATTR_VALUE_PREFIX;
+        String typePrefix = prefix + ATTR_TYPE_PREFIX;
+        for (String name : properties.stringPropertyNames()) {
+            if (!name.startsWith(valuePrefix)) {
+                continue;
+            }
+            String key = name.substring(valuePrefix.length());
+            String type = properties.getProperty(typePrefix + key, "string");
+            attributes.put(key, decodeAttribute(key, type, properties.getProperty(name)));
+        }
+        for (String name : properties.stringPropertyNames()) {
+            if (!name.startsWith(prefix) || name.startsWith(valuePrefix) || name.startsWith(typePrefix)) {
+                continue;
+            }
+            String key = name.substring(prefix.length());
+            if (!attributes.containsKey(key)) {
+                attributes.put(key, properties.getProperty(name));
+            }
+        }
+        return attributes;
+    }
+
+    private static String attributeType(Object value) {
+        if (value instanceof String) {
+            return "string";
+        }
+        if (value instanceof Boolean) {
+            return "boolean";
+        }
+        if (value instanceof Byte) {
+            return "byte";
+        }
+        if (value instanceof Short) {
+            return "short";
+        }
+        if (value instanceof Integer) {
+            return "integer";
+        }
+        if (value instanceof Long) {
+            return "long";
+        }
+        if (value instanceof Float) {
+            return "float";
+        }
+        if (value instanceof Double) {
+            return "double";
+        }
+        if (value instanceof BigInteger) {
+            return "bigInteger";
+        }
+        if (value instanceof BigDecimal) {
+            return "bigDecimal";
+        }
+        if (value instanceof Character) {
+            return "char";
+        }
+        if (value instanceof Instant) {
+            return "instant";
+        }
+        if (value instanceof LocalDate) {
+            return "localDate";
+        }
+        if (value instanceof LocalDateTime) {
+            return "localDateTime";
+        }
+        if (value instanceof OffsetDateTime) {
+            return "offsetDateTime";
+        }
+        if (value instanceof ZonedDateTime) {
+            return "zonedDateTime";
+        }
+        throw new ValidationException("任务属性不支持持久化类型: " + value.getClass().getName());
+    }
+
+    private static Object decodeAttribute(String key, String type, String value) {
+        if (value == null || "string".equals(type)) {
+            return value;
+        }
+        try {
+            switch (type) {
+                case "boolean":
+                    return Boolean.valueOf(value);
+                case "byte":
+                    return Byte.valueOf(value);
+                case "short":
+                    return Short.valueOf(value);
+                case "integer":
+                    return Integer.valueOf(value);
+                case "long":
+                    return Long.valueOf(value);
+                case "float":
+                    return Float.valueOf(value);
+                case "double":
+                    return Double.valueOf(value);
+                case "bigInteger":
+                    return new BigInteger(value);
+                case "bigDecimal":
+                    return new BigDecimal(value);
+                case "char":
+                    if (value.length() != 1) {
+                        throw new IllegalArgumentException("字符长度不是 1");
+                    }
+                    return Character.valueOf(value.charAt(0));
+                case "instant":
+                    return Instant.parse(value);
+                case "localDate":
+                    return LocalDate.parse(value);
+                case "localDateTime":
+                    return LocalDateTime.parse(value);
+                case "offsetDateTime":
+                    return OffsetDateTime.parse(value);
+                case "zonedDateTime":
+                    return ZonedDateTime.parse(value);
+                default:
+                    throw new IllegalArgumentException("未知属性类型: " + type);
+            }
+        } catch (RuntimeException ex) {
+            throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "读取任务属性失败: " + key, ex);
         }
     }
 
@@ -235,11 +374,7 @@ public class LocalTaskService implements TaskService {
         set(properties, prefix + "storageType", file.getStorageType() == null ? null : file.getStorageType().name());
         set(properties, prefix + "storageKey", file.getStorageKey());
         set(properties, prefix + "expiresAt", file.getExpiresAt());
-        for (Map.Entry<String, Object> entry : file.getAttributes().entrySet()) {
-            if (entry.getKey() != null && entry.getValue() != null) {
-                set(properties, prefix + ATTR_PREFIX + entry.getKey(), entry.getValue());
-            }
-        }
+        writeAttributes(properties, prefix + ATTR_PREFIX, file.getAttributes());
     }
 
     private static FileRef readFile(Properties properties, String prefix) {
@@ -247,13 +382,7 @@ public class LocalTaskService implements TaskService {
         if (isBlank(fileId)) {
             return null;
         }
-        Map<String, Object> attributes = new HashMap<String, Object>();
-        String attrPrefix = prefix + ATTR_PREFIX;
-        for (String name : properties.stringPropertyNames()) {
-            if (name.startsWith(attrPrefix)) {
-                attributes.put(name.substring(attrPrefix.length()), properties.getProperty(name));
-            }
-        }
+        Map<String, Object> attributes = readAttributes(properties, prefix + ATTR_PREFIX);
         return FileRef.builder()
             .fileId(fileId)
             .fileName(properties.getProperty(prefix + "fileName"))

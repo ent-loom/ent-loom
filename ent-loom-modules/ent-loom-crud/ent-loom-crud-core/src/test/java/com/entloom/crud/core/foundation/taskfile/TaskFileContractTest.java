@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -72,6 +73,21 @@ class TaskFileContractTest {
             .contentType("text/plain")
             .content("ok".getBytes(StandardCharsets.UTF_8))
             .build());
+        Map<String, Object> fileAttributes = new HashMap<String, Object>();
+        fileAttributes.put("purpose", "EXPORT_RESULT");
+        fileAttributes.put("attempt", Integer.valueOf(2));
+        FileRef taskFile = FileRef.builder()
+            .fileId(file.getFileId())
+            .fileName(file.getFileName())
+            .contentType(file.getContentType())
+            .size(file.getSize())
+            .attributes(fileAttributes)
+            .build();
+        Map<String, Object> contextAttributes = new HashMap<String, Object>();
+        contextAttributes.put("requestId", "REQ-LOCAL");
+        contextAttributes.put("attempt", Integer.valueOf(3));
+        contextAttributes.put("enabled", Boolean.TRUE);
+        contextAttributes.put("startedAt", Instant.parse("2026-05-02T00:00:00Z"));
         LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
         CrudTask created = taskService.create(CrudTask.builder()
             .status(CrudTaskStatus.SUCCEEDED)
@@ -80,8 +96,9 @@ class TaskFileContractTest {
                 .grantedScope(CrudDataScope.scoped(singletonAttribute("tenantId", "tenant-a")))
                 .governanceScope(CrudDataScope.scoped(singletonAttribute("orgId", "org-a")))
                 .auditContext(singletonAttribute("traceId", "TRACE-LOCAL"))
+                .attributes(contextAttributes)
                 .build())
-            .resultFile(file)
+            .resultFile(taskFile)
             .progress(Integer.valueOf(100))
             .build());
 
@@ -91,9 +108,32 @@ class TaskFileContractTest {
         Assertions.assertEquals("ok", new String(reloadedFileService.read(file), StandardCharsets.UTF_8));
         CrudTask reloaded = reloadedTaskService.getRequired(created.getTaskId());
         Assertions.assertEquals(file.getFileId(), reloaded.getResultFile().getFileId());
+        Assertions.assertEquals(Integer.valueOf(2), reloaded.getResultFile().getAttributes().get("attempt"));
         Assertions.assertEquals("tenant-a", reloaded.getContextSnapshot().getGrantedScope().getDimensions().get("tenantId"));
         Assertions.assertEquals("org-a", reloaded.getContextSnapshot().getGovernanceScope().getDimensions().get("orgId"));
         Assertions.assertEquals("TRACE-LOCAL", reloaded.getContextSnapshot().getAuditContext().get("traceId"));
+        Assertions.assertEquals("REQ-LOCAL", reloaded.getContextSnapshot().getAttributes().get("requestId"));
+        Assertions.assertEquals(Integer.valueOf(3), reloaded.getContextSnapshot().getAttributes().get("attempt"));
+        Assertions.assertEquals(Boolean.TRUE, reloaded.getContextSnapshot().getAttributes().get("enabled"));
+        Assertions.assertEquals(
+            Instant.parse("2026-05-02T00:00:00Z"),
+            reloaded.getContextSnapshot().getAttributes().get("startedAt")
+        );
+    }
+
+    @Test
+    void local_task_service_should_reject_unsupported_attribute_type() throws IOException {
+        Path tempDir = Files.createTempDirectory("entloom-crud-task-attribute-test");
+        LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
+
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> taskService.create(CrudTask.builder()
+                .contextSnapshot(CrudTaskContextSnapshot.builder()
+                    .attributes(singletonAttribute("unsupported", new Object()))
+                    .build())
+                .build())
+        );
     }
 
     @Test
