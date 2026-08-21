@@ -6,6 +6,8 @@ import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.api.model.CrudErrorEnvelope;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.starter.web.controller.EntCrudCommandController;
+import com.entloom.crud.starter.web.controller.EntCrudExportController;
+import com.entloom.crud.starter.web.controller.EntCrudImportController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
@@ -21,7 +23,13 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
  * 控制器异常映射器。
  */
 @RestControllerAdvice(
-    assignableTypes = {EntCrudQueryController.class, EntCrudCommandController.class, EntCrudStatsController.class}
+    assignableTypes = {
+        EntCrudQueryController.class,
+        EntCrudCommandController.class,
+        EntCrudStatsController.class,
+        EntCrudImportController.class,
+        EntCrudExportController.class
+    }
 )
 @RequiredArgsConstructor
 public class CrudHttpExceptionTranslator {

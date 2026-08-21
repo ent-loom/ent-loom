@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
 import com.entloom.crud.starter.web.controller.EntCrudCommandController;
+import com.entloom.crud.starter.web.controller.EntCrudExportController;
+import com.entloom.crud.starter.web.controller.EntCrudImportController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
@@ -65,6 +67,23 @@ class CrudHttpContractSnapshotTest {
         });
     }
 
+    @Test
+    void import_validation_failure_should_use_unified_http_error_response() throws Exception {
+        contextRunner.run(context -> {
+            MvcResult result = buildMockMvc(context)
+                .perform(post("/api/ent-crud/TestOrderEntity/import/validate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"mode\":\"unsupported-mode\"}"))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+            JsonNode actual = context.getBean(ObjectMapper.class)
+                .readTree(result.getResponse().getContentAsString());
+            Assertions.assertEquals("VALIDATION_ERROR", actual.path("error").path("code").asText());
+            Assertions.assertEquals("HTTP_CONTRACT", actual.path("error").path("stage").asText());
+        });
+    }
+
     private void assertSnapshot(String resource, MvcResult result, ObjectMapper objectMapper) throws IOException {
         JsonNode actual = objectMapper.readTree(result.getResponse().getContentAsString());
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
@@ -80,7 +99,9 @@ class CrudHttpContractSnapshotTest {
         return MockMvcBuilders.standaloneSetup(
                 context.getBean(EntCrudQueryController.class),
                 context.getBean(EntCrudCommandController.class),
-                context.getBean(EntCrudStatsController.class)
+                context.getBean(EntCrudStatsController.class),
+                context.getBean(EntCrudImportController.class),
+                context.getBean(EntCrudExportController.class)
             )
             .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class))
             .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
