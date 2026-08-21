@@ -9,15 +9,12 @@ Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚�
 
 ## 当前主线
 
-[元数据裁决实施计划](元数据裁决实施计划.md) 当前推进公共 Contribution、属性级 Resolver 和来源诊断，然后依次接入 Meta Convention 与 CRUD 消费闭环。
+当前无进行中闭环。[元数据裁决实施计划](元数据裁决实施计划.md) 的阶段 1-4 已完成；后续只保留尚未启动的跨模块目标。
 
 ## 后续目标
 
 | 优先级 | 目标 | 启动条件 |
 |---|---|---|
-| P0 | 公共 Contribution 与属性级 Resolver | 当前实施主线 |
-| P0 | Meta / CRUD Project Convention | Resolver 契约稳定 |
-| P1 | Maven 边界守卫与来源闭环测试 | 核心消费者闭环完成 |
 | P1 | DDL Adapter | DDL Runtime Model 边界稳定 |
 | P1 | DOC Resolver 收敛 | 公共 Resolver 已有两个真实消费者 |
 | P2 | UI Adapter | UI Runtime Model 和 API 稳定 |
