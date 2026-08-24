@@ -1,0 +1,50 @@
+:root {
+  --ifm-color-primary: #0b6e69;
+  --ifm-color-primary-dark: #095e5a;
+  --ifm-color-primary-darker: #085954;
+  --ifm-color-primary-darkest: #064842;
+  --ifm-color-primary-light: #16837d;
+  --ifm-color-primary-lighter: #238f89;
+  --ifm-color-primary-lightest: #42a29d;
+  --ifm-font-family-base: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ifm-heading-font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ifm-code-font-size: 92%;
+  --ifm-navbar-height: 4rem;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #69c4bb;
+  --ifm-color-primary-dark: #4eb8ae;
+  --ifm-color-primary-darker: #42b2a8;
+  --ifm-color-primary-darkest: #2d958c;
+  --ifm-color-primary-light: #84d0c8;
+  --ifm-color-primary-lighter: #90d5ce;
+  --ifm-color-primary-lightest: #b3e3de;
+}
+
+.navbar__title {
+  letter-spacing: 0.02em;
+}
+
+.theme-doc-markdown h1 {
+  letter-spacing: 0;
+}
+
+.theme-doc-markdown blockquote {
+  border-left-color: #b56a12;
+}
+
+.theme-doc-markdown table {
+  display: table;
+  width: 100%;
+}
+
+.theme-doc-markdown pre {
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+@media (max-width: 996px) {
+  .navbar__item--show-once {
+    display: none;
+  }
+}

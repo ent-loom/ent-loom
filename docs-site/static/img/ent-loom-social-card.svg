@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">ent-loom 文档中心</title>
+  <desc id="desc">面向实体编程的业务友好型框架当前主线文档</desc>
+  <rect width="1200" height="630" fill="#f2f6f4"/>
+  <rect x="80" y="80" width="1040" height="470" fill="#fff" stroke="#c8d8d3" stroke-width="3"/>
+  <rect x="80" y="80" width="16" height="470" fill="#0b6e69"/>
+  <text x="150" y="250" fill="#132a2c" font-family="sans-serif" font-size="72" font-weight="700">ent-loom</text>
+  <text x="150" y="335" fill="#41565a" font-family="sans-serif" font-size="38">当前主线文档中心</text>
+  <text x="150" y="430" fill="#b56a12" font-family="sans-serif" font-size="24" font-weight="700">ENTITY · META · CRUD</text>
+</svg>

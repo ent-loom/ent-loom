@@ -29,8 +29,8 @@
 
 - [默认引擎](默认引擎.md)
 - [运行时注册表](运行时注册表.md)
-- [关系查询实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md)
-- [Stats 引擎实现](../../../../ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)
+- [关系查询实现（维护者参考）](https://github.com/ent-loom/ent-loom/blob/main/ent-loom-modules/ent-loom-crud/docs/implementation/relation-query-logic.md)
+- [Stats 引擎实现（维护者参考）](https://github.com/ent-loom/ent-loom/blob/main/ent-loom-modules/ent-loom-crud/docs/implementation/stats-engine-logic.md)
 
 ## 演进
 

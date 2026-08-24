@@ -12,7 +12,7 @@
 | 架构总览 | `Current` | [Meta 分层与运行模型](../../architecture/core/meta/分层与运行模型.md) | Module-only、Meta-first、模块分层和模型投影 |
 | 实现参考 | `Current` | [Meta 解析引擎](../../architecture/core/meta/元数据解析引擎.md)、[运行时适配器](../../architecture/core/meta/运行时适配器.md) | 当前解析、装配和已验证路径 |
 | 使用指南 | `Current` | [Meta 指南](../../guides/meta/index.md) | Meta-first 的依赖选择、覆盖规则和使用边界 |
-| 后续工作 | `In Progress / Remaining` | [Meta 路线图](../../evolution/roadmap/meta/index.md) | 裁决能力、Convention 和消费者闭环的实施计划 |
+| 后续工作 | `Remaining` | [Meta 路线图](../../evolution/roadmap/meta/index.md) | 已确认但尚未完成的跨模块目标 |
 
 ## 阅读规则
 

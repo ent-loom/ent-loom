@@ -76,6 +76,7 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 
 ## 使用与文档
 
+- [Docusaurus 文档站](./docs-site/README.md)：独立展示工程、本地启动和静态构建方式。
 - [文档中心](./docs/index.md)：文档结构和推荐阅读路径。
 - [开发环境与 JDK 管理](./docs/guides/开发环境与JDK管理.md)：多 JDK、jenv、Maven Wrapper 和 IDEA 配置。
 - [系统架构总览](./docs/architecture/架构总览.md)：模块、建模与执行关系。
