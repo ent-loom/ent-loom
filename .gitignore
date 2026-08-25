@@ -7,6 +7,10 @@ target/
 hs_err_pid*
 replay_pid*
 
+# Local environment
+.env.local
+.env.*.local
+
 # IDE (IntelliJ IDEA)
 .idea/
 *.iml
