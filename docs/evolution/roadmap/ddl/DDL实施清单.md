@@ -1,10 +1,10 @@
 # DDL 实施清单
 
-> 状态：E1 已完成
-> 当前大项：E2（待开始）
-> 当前小项：E2.1，发现合同与测试边界（待启动）
+> 状态：E4 进行中
+> 当前大项：E4
+> 当前小项：E4，Meta -> DDL Adapter（待启动）
 > 阻塞项：无
-> 最近核验：2026-08-25，E1 Core 测试通过
+> 最近核验：2026-08-25，E3 字段与索引差异合同测试通过
 
 本文是 DDL 的唯一执行看板。它把模块 README 中的能力设想收敛为可验收的阶段，后续每次只推进一个小项。
 
@@ -45,13 +45,14 @@ flowchart TB
 | DDL API / Annotations | 已具备基础类型 | 已有实体、字段、索引和执行请求契约 |
 | DDL Core | E1 已完成 | 已建立稳定元数据合同、确定性 CREATE 编排和执行结果分类 |
 | MySQL 建表 SQL | E1 已完成 | 已覆盖类型映射、主键、唯一约束、普通索引和表达式索引 |
-| 实体解析 | 部分实现 | 已有显式类解析和 Spring 注解包扫描入口 |
-| 实际数据库执行 | 未形成默认闭环 | 默认不再装配 Noop SPI；真实数据库 QueryStrategy / SqlExecutor 留待 E2 |
-| 字段 / 索引差异 | 未实现 | 尚无稳定 ADD / MODIFY 计划 |
+| 实体解析 | E2.2 已完成 | Bootstrap 和 Spring 均已统一显式类、包扫描、去重和稳定排序；Starter 可绑定显式实体类名 |
+| 实际数据库执行 | E2.5 已完成 | `ent-loom-ddl-spring` 已提供 Spring JDBC `QueryStrategy` / `SqlExecutor`，并有真实 MySQL 8 建库建表证据 |
+| 消费者接入 | E2.4 已完成 | 独立消费者测试模块仅通过公开 Annotations、API 和 Bootstrap 构件完成最小实体接入 |
+| 字段 / 索引差异 | E3 已完成 | 已有表结构快照、稳定差异计划和受控 ADD / MODIFY SQL |
 | Meta -> DDL | 未开始 | `ent-loom-meta-adapter-ddl` 当前为空模块 |
-| DDL 测试基线 | 已建立 | `ent-loom-ddl-core` 已覆盖 SQL、类型、约束、空输入、异常和模块边界 |
+| DDL 测试基线 | 已建立 | Core 21 项、Spring 14 项测试覆盖 SQL、差异、H2 读取 / 执行和模块边界 |
 
-当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md` 及现有实现；E1 完成后再回写组件 Architecture。
+当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md` 及现有实现；E3 完成后进入 Meta -> DDL Adapter 设计。
 
 ## 范围与边界
 
@@ -128,28 +129,80 @@ E1 只解决“给定 DDL Runtime Model，能稳定生成建表 SQL”的核心�
 - 测试结果：Core Reactor 构建成功，`ent-loom-ddl-core` 共 17 项测试通过，0 失败、0 错误；扩展 DDL Reactor 共 22 项测试通过，0 失败、0 错误。
 - 测试覆盖：Core 的 `MysqlCreateTableSqlBuilderTest`、`DdlMetadataContractTest`、`DefaultDdlEngineTest`、`DdlCoreBoundaryTest`，以及 Bootstrap/Spring/Starter 的主键推导和默认 SPI 测试。
 - 边界验证：Core 运行时仅依赖 `ent-loom-ddl-api`，ArchUnit 验证不依赖 Spring、Servlet、Starter 或 Meta 包；测试依赖不进入运行时构件。
-- 未完成工作：E2 实体发现与真实数据库执行器；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
+- 未完成工作（记录时）：E2 剩余的 Spring JDBC 执行器与真实数据库执行；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
 
 ## 后续阶段清单
 
 ### E2：实体发现与实际执行
 
-- [ ] **E2.1 发现合同**：`DdlBootstrap` 统一显式类列表和包扫描入口；覆盖空输入、重复类、不可加载类和稳定顺序。
-- [ ] **E2.2 Spring 装配合同**：为 `SpringAnnotationMetadataLoader`、实体 / 字段 / 索引解析和 `SpringPackageEntityClassResolver` 补齐测试；验证配置开关和缺少真实 SPI 时的诊断。
-- [ ] **E2.3 执行器合同**：增加基于 Spring JDBC 的 `QueryStrategy` 和 `SqlExecutor` 实现，放在 `ent-loom-ddl-spring`；覆盖执行异常、资源释放和结果保留。
-- [ ] **E2.4 消费者冒烟**：使用公开注解和 API 完成最小实体接入测试，不引用 Core 包内实现。
-- [ ] **E2.5 MySQL 8 证据**：使用专用 profile 或 Testcontainers 完成一次真实建库 / 建表验证，检查关键字段、主键和索引。
+- [x] **E2.1 发现合同**：`DdlBootstrap` 统一显式类列表和包扫描入口；覆盖空输入、重复类、不可加载类、稳定排序和重复调用。
+
+E2.1 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-bootstrap -am test`。
+- 测试结果：`ent-loom-ddl-bootstrap` 共 5 项测试通过，0 失败、0 错误；其上游 `ent-loom-ddl-core` 共 17 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- 合同覆盖：显式类与包扫描合并、重复类去重、空输入、不可加载类跳过、按类名稳定排序，以及重复调用重新生成相同结果。
+- 边界验证：Bootstrap 仅通过 `core`、`annotations` 和公开 DDL API 工作；Core 不依赖 Spring、Servlet、Starter 或 Meta Core；测试 fake 只实现公开 `DdlEngine` 接口。
+- 未完成工作（记录时）：E2.2 Spring 配置与 Starter 装配；E2.3 Spring JDBC 执行器；E2.4 消费者测试；E2.5 MySQL 8 / Testcontainers；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
+- [x] **E2.2 Spring 装配合同**：为 `SpringAnnotationMetadataLoader`、实体 / 字段 / 索引解析和 `SpringPackageEntityClassResolver` 补齐测试；验证配置开关和缺少真实 SPI 时的诊断。
+
+E2.2 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-spring-boot-starter -am test`。
+- 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-spring` 共 8 项、`ent-loom-ddl-spring-boot-starter` 共 4 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- 合同覆盖：Spring 实体、字段、索引解析；空输入、重复包、不可扫描包、显式类与包扫描去重、稳定排序；`enabled=false` 不加载实体且不调用引擎；重复刷新只执行一次；缺少 QueryStrategy / SqlExecutor 时快速失败并保留中文诊断。
+- 装配证据：Starter 标记 `@AutoConfiguration`，提供 Boot 3 `AutoConfiguration.imports`，保留 `spring.factories` 兼容入口；配置属性可绑定并装配 DDL 运行选项。
+- 未完成工作（记录时）：E2.3 Spring JDBC 执行器；E2.4 消费者测试；E2.5 MySQL 8 / Testcontainers；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。本次未实现 JDBC、MySQL 或 Testcontainers。
+- [x] **E2.3 执行器合同**：增加基于 Spring JDBC 的 `QueryStrategy` 和 `SqlExecutor` 实现，放在 `ent-loom-ddl-spring`；覆盖空输入、按输入顺序执行、执行异常、资源释放和结果保留。
+
+E2.3 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-bootstrap,ent-loom-modules/ent-loom-ddl/ent-loom-ddl-spring-boot-starter -am test`。
+- 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-bootstrap` 共 5 项、`ent-loom-ddl-spring` 共 12 项、`ent-loom-ddl-spring-boot-starter` 共 5 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- 合同覆盖：H2 验证表存在查询和逐条 DDL 执行；有依赖关系的两条 SQL 验证输入顺序；空输入不获取连接；Spring JDBC 数据访问异常向上保留；`JdbcTemplate` 管理连接释放；Core `DdlExecutionResult` 保留 generated / errors 并不伪造 executed 结果。
+- 装配证据：存在 `DataSource` 且用户未提供 SPI 时，Starter 自动装配 `SpringJdbcQueryStrategy` 和 `SpringJdbcSqlExecutor`；用户自定义 SPI 仍由 `@ConditionalOnMissingBean` 保留；无 `DataSource` 时不装配默认 JDBC SPI。
+- 边界验证：Spring JDBC 与 H2 仅进入 `ent-loom-ddl-spring` / Starter；Core 仍不依赖 Spring、Servlet、Starter 或 Meta Core；本次未引入 MySQL 驱动、Testcontainers、消费者测试或 E3/E4/E5 能力。
+- 未完成工作（记录时）：E2.4 消费者测试；E2.5 MySQL 8 / Testcontainers；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
+- [x] **E2.4 消费者冒烟**：使用公开注解和 API 完成最小实体接入测试，不引用 Core 包内实现。
+
+E2.4 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-tests/ent-loom-ddl-consumer-test -am test`。
+- 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-bootstrap` 共 5 项、`ent-loom-ddl-consumer-test` 共 1 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- 合同覆盖：独立消费者实体只使用 `@EntDbEntity` / `@EntDbField`；通过公开 `DdlBootstrap` 和 `DdlBootstrapRequest` 完成显式实体接入；公开 `QueryStrategy` / `SqlExecutor` fake 观察 generated / executed SQL 和最小建表字段。
+- 边界验证：消费者测试没有导入 `com.entloom.ddl.core`、Spring、Servlet、Starter 或 Meta Core 包；测试构件仅声明 Annotations、API、Bootstrap 和 JUnit 依赖；本次未引入 MySQL 驱动或 Testcontainers。
+- 未完成工作（记录时）：E2.5 MySQL 8 / Testcontainers；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
+- [x] **E2.5 MySQL 8 证据**：使用专用 profile 完成一次真实建库 / 建表验证，检查关键字段、主键和索引。
+
+E2.5 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -Pmysql-integration -pl ent-loom-tests/ent-loom-ddl-mysql-integration-test -am test`。
+- 测试环境：本机隔离 MySQL `8.0.45` 临时数据目录，专用 `mysql-integration` Maven profile，MySQL Connector/J 仅作为集成测试依赖；测试结束后临时 schema 已确认无残留。
+- 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-spring` 共 12 项、`ent-loom-ddl-spring-boot-starter` 共 5 项、`ent-loom-ddl-mysql-integration-test` 共 1 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- 合同覆盖：通过 Starter 自动配置按实体包扫描发现测试实体，并由 Spring JDBC 实际创建 schema 与表；验证 `id BIGINT`、`display_name VARCHAR(80)`、主键 `PRIMARY` 和 `idx_mysql_account_display_name` 普通索引。
+- 边界验证：本次只验证 E2 建库建表执行，不实现 ALTER 差异、Meta Adapter 或 CRUD/DOC/UI 全链路；未引入 Testcontainers，E3、E4、E5 保持未开始。
+- 未完成工作：E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
 
 阶段门禁：Spring Boot 配置一个实体包即可在 MySQL 8 中完成建表；关闭 `enabled` 时不执行任何 DDL。E3 差异计划、E4 Meta Adapter 和 E5 跨 DDL / CRUD / DOC / UI 全链路不纳入 E2。
 
 ### E3：字段与索引差异
 
-- [ ] 抽象当前数据库表结构读取模型。
-- [ ] 实现表注释、字段、主键、唯一约束和索引的差异计算。
-- [ ] 实现新增字段和新增索引的 ALTER SQL。
-- [ ] 实现有限字段修改，并明确不兼容变化的拒绝原因。
-- [ ] 让 `CREATE_*` 与 `MODIFY_*` 执行模式有可测试的合法矩阵。
-- [ ] 建立执行前 SQL 预览和失败结果合同。
+- [x] 抽象当前数据库表结构读取模型：公开 `DdlColumnMetadata`、`DdlTableSnapshot` 和 `QueryStrategy.readTable`。
+- [x] 实现表注释、字段、主键、唯一约束和索引的差异计算，并统一数据库标识符大小写比较。
+- [x] 实现新增字段和新增索引的确定性 `ALTER TABLE` SQL。
+- [x] 实现有限字段修改和受控 `renameFrom`，明确删除、主键变化、索引重建和不兼容变化的拒绝原因。
+- [x] 让 `CREATE_*` 与 `MODIFY_*` 执行模式有可测试的合法矩阵；删除模式仍拒绝。
+- [x] 建立执行前 SQL 预览和失败结果合同；发现危险差异时不执行部分计划。
+
+E3 验收证据（2026-08-25）：
+
+- Core 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-core -am test`。
+- Spring 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-spring -am test`。
+- 测试结果：Core 25 项、Spring 14 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- Core 合同：`DdlSchemaDiffer` / `DdlSchemaDiff` 覆盖表注释、ADD 字段、ADD 普通 / 唯一索引、安全类型扩容、DECIMAL 整数位保护、字段重命名、自增属性保留、预览结果和危险差异拒绝；`DefaultDdlEngine` 逐条执行并保留已确认执行进度。
+- Spring 合同：`SpringJdbcQueryStrategy` 通过 JDBC `DatabaseMetaData` 读取字段、主键、唯一索引、表注释和自增属性；MySQL 路径补充读取表达式索引；H2 实际执行新增字段并验证读取结果。
+- 边界验证：Core 仍只依赖 DDL API，ArchUnit 继续验证不依赖 Spring、Servlet、Starter 或 Meta Core；测试 fake 只实现公开 API。
+- 未完成工作：E4 Meta -> DDL Adapter；E5 DDL、CRUD、DOC、UI 实体全链路验收。
 
 阶段门禁：从旧模型升级到新模型只执行声明允许的 ALTER，危险变更默认拒绝。
 

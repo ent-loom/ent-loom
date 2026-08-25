@@ -29,6 +29,7 @@
         <module>ent-loom-meta</module>
         <module>ent-loom-modules</module>
         <module>ent-loom-integrations</module>
+        <module>ent-loom-tests</module>
     </modules>
 
     <dependencyManagement>

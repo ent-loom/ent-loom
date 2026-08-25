@@ -5,6 +5,9 @@ import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlExecutionMode;
 import com.entloom.ddl.api.DdlExecutionRequest;
 import com.entloom.ddl.api.DdlExecutionResult;
+import com.entloom.ddl.api.DdlFieldMetadata;
+import com.entloom.ddl.api.DdlIndexMetadata;
+import com.entloom.ddl.api.DdlTableSnapshot;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.SqlExecutor;
 import java.util.ArrayList;
@@ -16,6 +19,8 @@ import java.util.List;
  */
 public final class DefaultDdlEngine implements DdlEngine {
     private final MysqlCreateTableSqlBuilder createTableSqlBuilder;
+    private final MysqlAlterTableSqlBuilder alterTableSqlBuilder;
+    private final DdlSchemaDiffer schemaDiffer;
 
     public DefaultDdlEngine() {
         this(new MysqlCreateTableSqlBuilder());
@@ -23,6 +28,8 @@ public final class DefaultDdlEngine implements DdlEngine {
 
     public DefaultDdlEngine(MysqlCreateTableSqlBuilder createTableSqlBuilder) {
         this.createTableSqlBuilder = createTableSqlBuilder == null ? new MysqlCreateTableSqlBuilder() : createTableSqlBuilder;
+        this.alterTableSqlBuilder = new MysqlAlterTableSqlBuilder(this.createTableSqlBuilder);
+        this.schemaDiffer = new DdlSchemaDiffer();
     }
 
     @Override
@@ -40,8 +47,15 @@ public final class DefaultDdlEngine implements DdlEngine {
         List<String> errors = new ArrayList<String>();
 
         if (request.mode() != DdlExecutionMode.CREATE_TABLE
-                && request.mode() != DdlExecutionMode.CREATE_TABLE_AND_METAS) {
-            errors.add("E1 不支持执行模式: " + request.mode());
+                && request.mode() != DdlExecutionMode.CREATE_TABLE_AND_METAS
+                && request.mode() != DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS) {
+            errors.add("E3 不支持执行模式: " + request.mode());
+            return new DdlExecutionResult(generatedSql, executedSql, errors);
+        }
+
+        boolean modifyMode = request.mode() == DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS;
+        if (modifyMode && queryStrategy == null) {
+            errors.add("E3 修改模式需要 QueryStrategy.readTable 提供当前表结构");
             return new DdlExecutionResult(generatedSql, executedSql, errors);
         }
 
@@ -53,9 +67,21 @@ public final class DefaultDdlEngine implements DdlEngine {
         for (DdlEntityMetadata entity : request.entities()) {
             String schema = resolveSchema(entity, globalSchema);
             try {
-                boolean tableExists = queryStrategy != null && queryStrategy.tableExists(schema, entity.tableName());
-                if (!tableExists) {
-                    generatedSql.add(createTableSqlBuilder.build(entity, schema));
+                if (modifyMode) {
+                    DdlTableSnapshot current = queryStrategy.readTable(schema, entity.tableName());
+                    if (current == null) {
+                        throw new IllegalStateException("QueryStrategy.readTable 返回了 null");
+                    }
+                    if (!current.exists()) {
+                        generatedSql.add(createTableSqlBuilder.build(entity, schema));
+                    } else {
+                        appendModifySql(entity, schema, current, generatedSql, errors);
+                    }
+                } else {
+                    boolean tableExists = queryStrategy != null && queryStrategy.tableExists(schema, entity.tableName());
+                    if (!tableExists) {
+                        generatedSql.add(createTableSqlBuilder.build(entity, schema));
+                    }
                 }
             } catch (RuntimeException ex) {
                 errors.add(formatError(entity, ex));
@@ -64,16 +90,48 @@ public final class DefaultDdlEngine implements DdlEngine {
 
         // 生成阶段有错误时不执行不完整的计划，避免把部分结果误报为完整执行。
         if (errors.isEmpty() && !generatedSql.isEmpty() && sqlExecutor != null) {
-            try {
-                sqlExecutor.execute(generatedSql);
-                if (!sqlExecutor.isDryRun()) {
-                    executedSql.addAll(generatedSql);
+            for (String sql : generatedSql) {
+                try {
+                    sqlExecutor.executeOne(sql);
+                    if (!sqlExecutor.isDryRun()) {
+                        executedSql.add(sql);
+                    }
+                } catch (RuntimeException ex) {
+                    String prefix = executedSql.isEmpty()
+                            ? "SQL 执行失败"
+                            : "SQL 执行失败，已确认执行 " + executedSql.size() + " 条";
+                    errors.add(formatError(prefix, ex));
+                    break;
                 }
-            } catch (RuntimeException ex) {
-                errors.add(formatError("SQL 执行失败", ex));
             }
         }
         return new DdlExecutionResult(generatedSql, executedSql, errors);
+    }
+
+    private void appendModifySql(DdlEntityMetadata entity,
+                                 String schema,
+                                 DdlTableSnapshot current,
+                                 List<String> generatedSql,
+                                 List<String> errors) {
+        DdlSchemaDiff diff = schemaDiffer.diff(entity, current);
+        if (!diff.errors().isEmpty()) {
+            errors.add("表 " + entity.tableName() + " 差异校验失败: " + diff.errors());
+            return;
+        }
+        if (diff.tableCommentChanged()) {
+            generatedSql.add(alterTableSqlBuilder.buildComment(entity, schema));
+        }
+        for (DdlFieldMetadata field : diff.addedFields()) {
+            generatedSql.add(alterTableSqlBuilder.buildAddColumn(entity, schema, field));
+        }
+        for (DdlFieldChange change : diff.changedFields()) {
+            generatedSql.add(change.renamed()
+                    ? alterTableSqlBuilder.buildChangeColumn(entity, schema, change)
+                    : alterTableSqlBuilder.buildModifyColumn(entity, schema, change));
+        }
+        for (DdlIndexMetadata index : diff.addedIndexes()) {
+            generatedSql.add(alterTableSqlBuilder.buildAddIndex(entity, schema, index));
+        }
     }
 
     private static String resolveSchema(DdlEntityMetadata entity, String fallback) {

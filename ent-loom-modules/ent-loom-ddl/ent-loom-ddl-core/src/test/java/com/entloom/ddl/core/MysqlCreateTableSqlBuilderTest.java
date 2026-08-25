@@ -4,6 +4,7 @@ import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
+import com.entloom.ddl.enums.GenerationStrategy;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -98,6 +99,17 @@ class MysqlCreateTableSqlBuilderTest {
         assertEquals("datetime", mapper.toSqlType(field("createdAt", "created_at", LocalDateTime.class, false, false, false)));
         assertEquals("blob", mapper.toSqlType(field("payload", "payload", byte[].class, true, false, false)));
         assertEquals("varchar(64)", mapper.toSqlType(field("state", "state", SampleState.class, true, false, false)));
+    }
+
+    @Test
+    @DisplayName("AUTO_INCREMENT 生成策略必须进入 MySQL 列定义")
+    void shouldRenderAutoIncrementColumn() {
+        DdlFieldMetadata id = new DdlFieldMetadata("id", "id", Long.class, "", false, false,
+                true, true, -1, -1, -1, "", "主键", "", GenerationStrategy.AUTO_INCREMENT);
+        DdlEntityMetadata entity = new DdlEntityMetadata("Account", "", "account", "",
+                DdlTableSize.UNSET, Arrays.asList(id), Arrays.<DdlIndexMetadata>asList());
+
+        assertTrue(builder.build(entity, "").contains("`id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键'"));
     }
 
     private static DdlEntityMetadata userEntity() {

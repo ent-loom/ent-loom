@@ -8,17 +8,17 @@ import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
+import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.ddl.api.MetadataLoadRequest;
 import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.enums.NamingStrategy;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Spring 侧注解元数据加载器。
@@ -32,13 +32,10 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
 
     @Override
     public List<DdlEntityMetadata> load(MetadataLoadRequest request) {
-        Set<Class<?>> allClasses = new LinkedHashSet<Class<?>>();
-        if (request != null) {
-            allClasses.addAll(request.entityClasses());
-            if (classResolver != null) {
-                allClasses.addAll(classResolver.resolve(request.basePackages()));
-            }
+        if (request == null) {
+            return new ArrayList<DdlEntityMetadata>();
         }
+        List<Class<?>> allClasses = discoverClasses(request);
 
         List<DdlEntityMetadata> entities = new ArrayList<DdlEntityMetadata>();
         for (Class<?> candidate : allClasses) {
@@ -52,6 +49,31 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             entities.add(buildEntity(candidate, entityAnn));
         }
         return entities;
+    }
+
+    /**
+     * 合并显式类和包扫描结果，并固定实体发现顺序。
+     */
+    private List<Class<?>> discoverClasses(MetadataLoadRequest request) {
+        Map<String, Class<?>> classesByName = new LinkedHashMap<String, Class<?>>();
+        addClasses(classesByName, request.entityClasses());
+        if (classResolver != null) {
+            addClasses(classesByName, classResolver.resolve(request.basePackages()));
+        }
+        List<Class<?>> classes = new ArrayList<Class<?>>(classesByName.values());
+        classes.sort(Comparator.comparing(Class::getName));
+        return classes;
+    }
+
+    private static void addClasses(Map<String, Class<?>> classesByName, List<Class<?>> classes) {
+        if (classes == null || classes.isEmpty()) {
+            return;
+        }
+        for (Class<?> candidate : classes) {
+            if (candidate != null) {
+                classesByName.putIfAbsent(candidate.getName(), candidate);
+            }
+        }
     }
 
     private DdlEntityMetadata buildEntity(Class<?> entityClass, EntDbEntity entityAnn) {
@@ -104,7 +126,8 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
                     ann == null ? -1 : ann.scale(),
                     ann == null ? "" : ann.defaultValue(),
                     ann == null ? "" : ann.comment(),
-                    ann == null ? "" : ann.renameFrom()));
+                    ann == null ? "" : ann.renameFrom(),
+                    ann == null ? GenerationStrategy.UNSET : ann.generationStrategy()));
         }
         return fields;
     }

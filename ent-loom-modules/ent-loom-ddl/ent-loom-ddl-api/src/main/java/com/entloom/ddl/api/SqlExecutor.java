@@ -1,12 +1,20 @@
 package com.entloom.ddl.api;
 
 import java.util.List;
+import java.util.Collections;
 
 /**
  * SQL 执行器。
  */
 public interface SqlExecutor {
     void execute(List<String> sqlStatements);
+
+    /**
+     * 执行一条 SQL。默认实现保持旧的批量执行器兼容，并为引擎提供逐条进度边界。
+     */
+    default void executeOne(String sqlStatement) {
+        execute(Collections.singletonList(sqlStatement));
+    }
 
     /**
      * 判断当前执行器是否只做 SQL 预览而不落库。

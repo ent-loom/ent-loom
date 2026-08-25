@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,6 +71,70 @@ class SpringAnnotationMetadataLoaderTest {
                 () -> executor.onApplicationEvent(new ContextRefreshedEvent(new StaticApplicationContext())));
     }
 
+    @Test
+    @DisplayName("关闭 DDL 时不加载实体也不调用引擎")
+    void shouldSkipWhenDisabled() {
+        CountingDdlEngine engine = new CountingDdlEngine();
+        EntDdlSpringOptions options = new EntDdlSpringOptions();
+        options.setMode(DdlExecutionMode.CREATE_TABLE);
+        EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
+                engine,
+                request -> {
+                    throw new AssertionError("关闭 DDL 时不应加载实体");
+                },
+                null,
+                null,
+                options);
+
+        executor.onApplicationEvent(new ContextRefreshedEvent(new StaticApplicationContext()));
+
+        assertEquals(0, engine.calls);
+    }
+
+    @Test
+    @DisplayName("Spring 容器重复刷新时只执行一次 DDL")
+    void shouldExecuteOnlyOnceAfterRepeatedRefreshEvents() {
+        CountingDdlEngine engine = new CountingDdlEngine();
+        EntDdlSpringOptions options = new EntDdlSpringOptions();
+        options.setEnabled(true);
+        options.setMode(DdlExecutionMode.CREATE_TABLE);
+        EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
+                engine,
+                request -> Collections.<DdlEntityMetadata>emptyList(),
+                (schema, tableName) -> false,
+                sqlStatements -> {
+                },
+                options);
+
+        executor.onApplicationEvent(new ContextRefreshedEvent(new StaticApplicationContext()));
+        executor.onApplicationEvent(new ContextRefreshedEvent(new StaticApplicationContext()));
+
+        assertEquals(1, engine.calls);
+    }
+
+    @Test
+    @DisplayName("引擎失败结果保留错误信息并向 Spring 暴露诊断")
+    void shouldPreserveEngineErrors() {
+        EntDdlSpringOptions options = new EntDdlSpringOptions();
+        options.setEnabled(true);
+        options.setMode(DdlExecutionMode.CREATE_TABLE);
+        EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
+                (request, queryStrategy, sqlExecutor) -> new DdlExecutionResult(
+                        Collections.singletonList("CREATE TABLE `account`"),
+                        Collections.<String>emptyList(),
+                        Collections.singletonList("数据库连接失败")),
+                request -> Collections.<DdlEntityMetadata>emptyList(),
+                (schema, tableName) -> false,
+                sqlStatements -> {
+                },
+                options);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> executor.onApplicationEvent(new ContextRefreshedEvent(new StaticApplicationContext())));
+
+        assertTrue(exception.getMessage().contains("数据库连接失败"));
+    }
+
     @EntDbEntity(table = "account")
     private static final class AccountEntity {
         private Long id;
@@ -81,6 +146,19 @@ class SpringAnnotationMetadataLoaderTest {
         public DdlExecutionResult execute(com.entloom.ddl.api.DdlExecutionRequest request,
                                           QueryStrategy queryStrategy,
                                           SqlExecutor sqlExecutor) {
+            return new DdlExecutionResult(Collections.<String>emptyList(),
+                    Collections.<String>emptyList(), Collections.<String>emptyList());
+        }
+    }
+
+    private static final class CountingDdlEngine implements DdlEngine {
+        private int calls;
+
+        @Override
+        public DdlExecutionResult execute(com.entloom.ddl.api.DdlExecutionRequest request,
+                                          QueryStrategy queryStrategy,
+                                          SqlExecutor sqlExecutor) {
+            calls++;
             return new DdlExecutionResult(Collections.<String>emptyList(),
                     Collections.<String>emptyList(), Collections.<String>emptyList());
         }

@@ -8,20 +8,27 @@ import com.entloom.ddl.core.DefaultDdlEngine;
 import com.entloom.ddl.spring.EntDdlSpringExecutor;
 import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.spring.SpringAnnotationMetadataLoader;
+import com.entloom.ddl.spring.SpringJdbcQueryStrategy;
+import com.entloom.ddl.spring.SpringJdbcSqlExecutor;
 import com.entloom.ddl.spring.SpringPackageEntityClassResolver;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * ent-loom-ddl Spring Boot 自动配置。
  */
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(EntDdlSpringExecutor.class)
 @EnableConfigurationProperties(EntDdlProperties.class)
 public class EntDdlAutoConfiguration {
@@ -35,6 +42,20 @@ public class EntDdlAutoConfiguration {
     @ConditionalOnMissingBean
     public MetadataLoader entDdlMetadataLoader() {
         return new SpringAnnotationMetadataLoader(new SpringPackageEntityClassResolver(null));
+    }
+
+    @Bean
+    @ConditionalOnBean(DataSource.class)
+    @ConditionalOnMissingBean
+    public QueryStrategy entDdlQueryStrategy(DataSource dataSource) {
+        return new SpringJdbcQueryStrategy(dataSource);
+    }
+
+    @Bean
+    @ConditionalOnBean(DataSource.class)
+    @ConditionalOnMissingBean
+    public SqlExecutor entDdlSqlExecutor(DataSource dataSource) {
+        return new SpringJdbcSqlExecutor(dataSource);
     }
 
     @Bean
@@ -63,10 +84,10 @@ public class EntDdlAutoConfiguration {
     }
 
     private List<Class<?>> resolveClasses(List<String> classNames) {
-        List<Class<?>> classes = new ArrayList<Class<?>>();
         if (classNames == null || classNames.isEmpty()) {
-            return classes;
+            return Collections.emptyList();
         }
+        Map<String, Class<?>> classesByName = new TreeMap<String, Class<?>>();
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if (classLoader == null) {
             classLoader = EntDdlAutoConfiguration.class.getClassLoader();
@@ -76,11 +97,12 @@ public class EntDdlAutoConfiguration {
                 continue;
             }
             try {
-                classes.add(Class.forName(className.trim(), false, classLoader));
-            } catch (ClassNotFoundException ignored) {
-                // ignore invalid class names from external config
+                Class<?> entityClass = Class.forName(className.trim(), false, classLoader);
+                classesByName.putIfAbsent(entityClass.getName(), entityClass);
+            } catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
+                // 外部配置中的不可加载类不应阻断其他显式实体。
             }
         }
-        return classes;
+        return new ArrayList<Class<?>>(classesByName.values());
     }
 }

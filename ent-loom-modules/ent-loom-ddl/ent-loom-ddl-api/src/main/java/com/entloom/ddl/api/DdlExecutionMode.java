@@ -10,7 +10,7 @@ public enum DdlExecutionMode {
     CREATE_TABLE,
     /** E1：创建不存在的表，并为后续 Meta 扩展保留模式边界。 */
     CREATE_TABLE_AND_METAS,
-    /** 后续 E3：允许表结构修改和 Meta 处理。 */
+    /** E3：允许新增字段、索引和有限字段修改，并保留 Meta 处理边界。 */
     CREATE_MODIFY_TABLE_AND_METAS,
     /** 后续阶段：允许删除全部差异。 */
     CREATE_MODIFY_DELETE_ALL

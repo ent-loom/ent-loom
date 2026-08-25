@@ -1,5 +1,6 @@
 package com.entloom.ddl.api;
 
+import com.entloom.ddl.enums.GenerationStrategy;
 import java.util.Objects;
 
 /**
@@ -24,6 +25,7 @@ public final class DdlFieldMetadata {
     private final String defaultValue;
     private final String comment;
     private final String renameFrom;
+    private final GenerationStrategy generationStrategy;
 
     public DdlFieldMetadata(String fieldName,
                             String columnName,
@@ -39,6 +41,25 @@ public final class DdlFieldMetadata {
                             String defaultValue,
                             String comment,
                             String renameFrom) {
+        this(fieldName, columnName, javaType, columnDefinition, nullable, unique, persisted, primaryKey,
+                length, precision, scale, defaultValue, comment, renameFrom, GenerationStrategy.UNSET);
+    }
+
+    public DdlFieldMetadata(String fieldName,
+                            String columnName,
+                            Class<?> javaType,
+                            String columnDefinition,
+                            boolean nullable,
+                            boolean unique,
+                            boolean persisted,
+                            boolean primaryKey,
+                            int length,
+                            int precision,
+                            int scale,
+                            String defaultValue,
+                            String comment,
+                            String renameFrom,
+                            GenerationStrategy generationStrategy) {
         this.fieldName = requireText(fieldName, "fieldName");
         this.columnName = requireText(columnName, "columnName");
         this.javaType = Objects.requireNonNull(javaType, "javaType must not be null");
@@ -53,6 +74,7 @@ public final class DdlFieldMetadata {
         this.defaultValue = trim(defaultValue);
         this.comment = trim(comment);
         this.renameFrom = trim(renameFrom);
+        this.generationStrategy = generationStrategy == null ? GenerationStrategy.UNSET : generationStrategy;
         validate();
     }
 
@@ -110,6 +132,13 @@ public final class DdlFieldMetadata {
 
     public String renameFrom() {
         return renameFrom;
+    }
+
+    /**
+     * 数据库值生成策略。
+     */
+    public GenerationStrategy generationStrategy() {
+        return generationStrategy;
     }
 
     private void validate() {

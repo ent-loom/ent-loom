@@ -111,6 +111,29 @@ class DefaultDdlEngineTest {
     }
 
     @Test
+    @DisplayName("逐条执行遇到异常时保留已确认执行的 SQL")
+    void shouldPreserveCompletedStatementsWhenLaterStatementFails() {
+        List<String> completed = new ArrayList<String>();
+        SqlExecutor partiallyFailingExecutor = statements -> {
+            if (completed.size() == 1) {
+                throw new IllegalStateException("第二条 SQL 失败");
+            }
+            completed.addAll(statements);
+        };
+
+        DdlExecutionResult result = engine.execute(
+                request(DdlExecutionMode.CREATE_TABLE,
+                        Arrays.asList(entity("first"), entity("second"))),
+                (schema, table) -> false,
+                partiallyFailingExecutor);
+
+        assertEquals(2, result.generatedSql().size());
+        assertEquals(1, result.executedSql().size());
+        assertEquals(completed, result.executedSql());
+        assertTrue(result.errors().get(0).contains("已确认执行 1 条"));
+    }
+
+    @Test
     @DisplayName("查询异常阻止不完整计划执行并保留错误上下文")
     void shouldClassifyQueryException() {
         RecordingExecutor executor = new RecordingExecutor();
@@ -127,16 +150,16 @@ class DefaultDdlEngineTest {
     }
 
     @Test
-    @DisplayName("E1 明确拒绝后续修改和删除模式")
-    void shouldRejectModesOutsideE1() {
+    @DisplayName("E3 明确拒绝删除模式")
+    void shouldRejectDeleteModeOutsideE3() {
         DdlExecutionResult result = engine.execute(
-                request(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS, entity("account")),
+                request(DdlExecutionMode.CREATE_MODIFY_DELETE_ALL, entity("account")),
                 (schema, table) -> false,
                 new RecordingExecutor());
 
         assertTrue(result.generatedSql().isEmpty());
         assertTrue(result.executedSql().isEmpty());
-        assertEquals(Collections.singletonList("E1 不支持执行模式: CREATE_MODIFY_TABLE_AND_METAS"), result.errors());
+        assertEquals(Collections.singletonList("E3 不支持执行模式: CREATE_MODIFY_DELETE_ALL"), result.errors());
     }
 
     @Test
@@ -174,7 +197,7 @@ class DefaultDdlEngineTest {
 
         @Override
         public void execute(List<String> sqlStatements) {
-            statements = new ArrayList<String>(sqlStatements);
+            statements.addAll(sqlStatements);
         }
     }
 

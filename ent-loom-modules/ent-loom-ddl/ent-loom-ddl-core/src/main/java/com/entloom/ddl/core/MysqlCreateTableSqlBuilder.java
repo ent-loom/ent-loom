@@ -3,6 +3,7 @@ package com.entloom.ddl.core;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
+import com.entloom.ddl.enums.GenerationStrategy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,9 +64,16 @@ public final class MysqlCreateTableSqlBuilder {
         return sql.toString();
     }
 
-    private String buildColumnSql(DdlFieldMetadata field) {
+    String buildColumnSql(DdlFieldMetadata field) {
+        return quote(field.columnName()) + " " + buildColumnDefinition(field);
+    }
+
+    String buildColumnDefinition(DdlFieldMetadata field) {
+        return buildColumnDefinition(field, false);
+    }
+
+    String buildColumnDefinition(DdlFieldMetadata field, boolean existingAutoIncrement) {
         StringBuilder sb = new StringBuilder();
-        sb.append(quote(field.columnName())).append(" ");
         if (!trim(field.columnDefinition()).isEmpty()) {
             sb.append(field.columnDefinition());
         } else {
@@ -75,6 +83,9 @@ public final class MysqlCreateTableSqlBuilder {
         if (!trim(field.defaultValue()).isEmpty()) {
             sb.append(" DEFAULT ").append(defaultLiteral(field.defaultValue(), field.javaType()));
         }
+        if (field.generationStrategy() == GenerationStrategy.AUTO_INCREMENT || existingAutoIncrement) {
+            sb.append(" AUTO_INCREMENT");
+        }
         if (!trim(field.comment()).isEmpty()) {
             sb.append(" COMMENT '").append(escapeQuote(field.comment())).append("'");
         }
@@ -82,13 +93,13 @@ public final class MysqlCreateTableSqlBuilder {
     }
 
     private String buildFieldUniqueSql(String tableName, String columnName) {
-        String indexName = "uk_" + normalize(tableName) + "_" + normalize(columnName);
+        String indexName = fieldUniqueIndexName(tableName, columnName);
         return "UNIQUE KEY " + quote(indexName) + " (" + quote(columnName) + ")";
     }
 
-    private String buildIndexSql(DdlIndexMetadata index) {
+    String buildIndexSql(DdlIndexMetadata index) {
         String name = trim(index.name());
-        String resolvedName = name.isEmpty() ? "idx_auto_" + Integer.toHexString(index.hashCode()) : name;
+        String resolvedName = resolvedIndexName(index);
         if (!trim(index.expression()).isEmpty()) {
             return (index.unique() ? "UNIQUE KEY " : "KEY ")
                     + quote(resolvedName)
@@ -141,7 +152,7 @@ public final class MysqlCreateTableSqlBuilder {
         return "'" + escapeQuote(text) + "'";
     }
 
-    private static String fullTableName(String schema, String tableName) {
+    static String fullTableName(String schema, String tableName) {
         String cleanSchema = trim(schema);
         if (cleanSchema.isEmpty()) {
             return quote(tableName);
@@ -149,7 +160,7 @@ public final class MysqlCreateTableSqlBuilder {
         return quote(cleanSchema) + "." + quote(tableName);
     }
 
-    private static String quote(String value) {
+    static String quote(String value) {
         return "`" + value.replace("`", "``") + "`";
     }
 
@@ -157,7 +168,7 @@ public final class MysqlCreateTableSqlBuilder {
         return value == null ? "" : value.replace("'", "''");
     }
 
-    private static String normalize(String value) {
+    static String normalize(String value) {
         String text = trim(value).replaceAll("[^a-zA-Z0-9_]+", "_");
         return text.isEmpty() ? "auto" : text;
     }
@@ -175,5 +186,14 @@ public final class MysqlCreateTableSqlBuilder {
 
     private static String trim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    static String resolvedIndexName(DdlIndexMetadata index) {
+        String name = trim(index.name());
+        return name.isEmpty() ? "idx_auto_" + Integer.toHexString(index.hashCode()) : name;
+    }
+
+    static String fieldUniqueIndexName(String tableName, String columnName) {
+        return "uk_" + normalize(tableName) + "_" + normalize(columnName);
     }
 }

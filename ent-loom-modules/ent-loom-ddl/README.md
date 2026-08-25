@@ -72,7 +72,7 @@ DDL 当前主线是“实体声明 -> DDL Runtime Model -> MySQL 8 结构执行�
 
 ## 5. 当前实现基线
 
-当前代码已经具备 API、注解、元数据加载器、MySQL 建表 SQL 生成和 Spring Boot 配置骨架；E1 已为 DDL Core 建立稳定元数据合同、确定性建表 SQL、执行结果分类和模块边界测试。Noop QueryStrategy / SqlExecutor 仅作为显式测试或预览实现，Spring、Starter 和 Bootstrap 不再默认装配它们；真实 MySQL 执行闭环、字段和索引差异、Meta -> DDL Adapter 按路线图后续阶段推进。
+当前代码已经具备 API、注解、元数据加载器、MySQL 建表 SQL 生成、受控 ALTER 差异和 Spring Boot 配置骨架；E1-E3 已建立稳定元数据、结构快照、差异计划、执行结果分类和模块边界测试。Noop QueryStrategy / SqlExecutor 仅作为显式测试或预览实现，Spring、Starter 和 Bootstrap 不再默认装配它们；Meta -> DDL Adapter 和跨 DDL / CRUD / DOC / UI 全链路仍按路线图后续阶段推进。
 
 ## 6. 非核心边界（避免 ddl-core 过重）
 

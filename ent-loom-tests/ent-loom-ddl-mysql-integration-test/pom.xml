@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.entloom</groupId>
+        <artifactId>ent-loom-tests</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ent-loom-ddl-mysql-integration-test</artifactId>
+
+    <properties>
+        <entloom.ddl.mysql.integration>false</entloom.ddl.mysql.integration>
+        <entloom.ddl.mysql.url>jdbc:mysql://127.0.0.1:3307/</entloom.ddl.mysql.url>
+        <entloom.ddl.mysql.username>root</entloom.ddl.mysql.username>
+        <entloom.ddl.mysql.password></entloom.ddl.mysql.password>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>mysql-integration</id>
+            <properties>
+                <entloom.ddl.mysql.integration>true</entloom.ddl.mysql.integration>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <entloom.ddl.mysql.integration>${entloom.ddl.mysql.integration}</entloom.ddl.mysql.integration>
+                                <entloom.ddl.mysql.url>${entloom.ddl.mysql.url}</entloom.ddl.mysql.url>
+                                <entloom.ddl.mysql.username>${entloom.ddl.mysql.username}</entloom.ddl.mysql.username>
+                                <entloom.ddl.mysql.password>${entloom.ddl.mysql.password}</entloom.ddl.mysql.password>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

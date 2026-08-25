@@ -11,6 +11,9 @@ import com.entloom.ddl.core.DefaultDdlEngine;
 
 /**
  * 无 Spring 场景下的 DDL 启动入口。
+ *
+ * <p>显式实体类和实体包统一通过 {@link DdlBootstrapRequest} 进入发现流程。
+ * 每次调用都会重新发现并按类名稳定排序；重复调用不会复用或追加上一次调用的状态。</p>
  */
 public final class DdlBootstrap {
     private final DdlEngine ddlEngine;
@@ -19,7 +22,7 @@ public final class DdlBootstrap {
     private final SqlExecutor sqlExecutor;
 
     public DdlBootstrap() {
-        this(new DefaultDdlEngine(), new AnnotationMetadataLoader(), null, null);
+        this(new DefaultDdlEngine(), new AnnotationMetadataLoader(new ClasspathEntityClassResolver(null)), null, null);
     }
 
     public DdlBootstrap(DdlEngine ddlEngine,
