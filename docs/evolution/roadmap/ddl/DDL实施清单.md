@@ -1,6 +1,6 @@
 # DDL 实施清单
 
-> 状态：E5 进行中
+> 状态：E4 已完成，E5 待启动
 > 当前大项：E5
 > 当前小项：E5，实体全链路验收（待启动）
 > 阻塞项：无
@@ -50,7 +50,7 @@ flowchart TB
 | 消费者接入 | E2.4 已完成 | 独立消费者测试模块仅通过公开 Annotations、API 和 Bootstrap 构件完成最小实体接入 |
 | 字段 / 索引差异 | E3 已完成 | 已有表结构快照、稳定差异计划和受控 ADD / MODIFY SQL |
 | Meta -> DDL | 已完成 | `MetaDdlAdapter` 已提供 Meta-only、DDL-only 和 Meta + DDL override 投影 |
-| DDL 测试基线 | 已建立 | Core 25 项、Spring 14 项和 Meta Adapter 5 项测试覆盖 SQL、差异、H2 读取 / 执行、投影和模块边界 |
+| DDL 测试基线 | 已建立 | Core 25 项、Spring 14 项和 Meta Adapter 7 项测试覆盖 SQL、差异、H2 读取 / 执行、投影、诊断和模块边界 |
 
 当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md`、`ent-loom-integrations/README.md` 及现有实现；E4 完成后进入 E5 实体全链路验收。
 
@@ -210,7 +210,7 @@ E3 验收证据（2026-08-25）：
 
 - [x] 明确 Meta Descriptor 到 DDL 字段、实体和关系边界的映射表。
 - [x] 实现 `ent-loom-meta-adapter-ddl` 的最小静态适配器。
-- [x] 保留 DDL 专属属性在 DDL 模型中，不扩张通用 Meta。
+- [x] DDL 专属属性不扩张通用 Meta；Runtime Model 已支持的属性进入 DDL 模型，暂未承接的显式属性通过结构化诊断暴露。
 - [x] 覆盖 Meta-only、DDL-only、Meta + DDL override 三条路径。
 - [x] 复用来源和诊断语义，冲突在 Adapter / Registry 边界暴露。
 
@@ -221,19 +221,19 @@ E4 映射边界：
 | `entityName` | `tableName` | Meta-only 使用实体名；未提供时按 Java 类名推导 snake_case；DDL `@EntDbEntity.table` 显式覆盖 |
 | `description` | 实体 / 字段 `comment` | 仅作为通用说明投影；DDL 显式注释优先 |
 | `fieldName`、`javaType` | `fieldName`、`javaType` | 保留 Java 字段身份和类型，物理列名按 snake_case 推导 |
-| `EntFieldKind.ID` | `primaryKey` | ID 字段投影为主键；`EntMetaId.AUTO` 映射为 `AUTO_INCREMENT`，其他生成器不伪造数据库生成语义 |
+| `EntFieldKind.ID` | `primaryKey` | ID 字段投影为主键；通用 `EntMetaId.AUTO` 不自动推导数据库生成策略，数据库自增必须由 DDL 原生属性显式声明 |
 | `required`、文本长度、数值精度 / 小数位约束 | `nullable`、`length`、`precision`、`scale` | 只投影可表达的通用结构约束；业务 `createDefaultValue` 不转成数据库 DEFAULT |
 | `EntIndexDescriptor` | `DdlIndexMetadata` | Meta 字段名先转换为物理列名；唯一性和字段顺序保留 |
 | `EntRelationDescriptor` | 无直接 DDL 结构 | E4 只要求 source field 可作为字段投影，不生成外键、联表或跨服务结构 |
-| DDL `schema`、表规模、列定义、数据库默认值、重命名、生成策略、表达式索引 | DDL 专属属性 | 仅保留在 DDL 模型，不扩张通用 Meta Contract |
+| DDL `schema`、表规模、列定义、数据库默认值、重命名、生成策略、表达式索引 | DDL 专属属性 | Runtime Model 已支持的属性仅保留在 DDL 模型，不扩张通用 Meta Contract；暂未承接的显式属性发出 `CONSUMER_UNSUPPORTED_PROPERTY` 警告 |
 
 覆盖规则：同一属性同时有 Meta 与 DDL 显式值时采用 DDL 值，并产生 `EXPLICIT_VALUE_CONFLICT` 诊断；Meta 推断值被 DDL 显式值覆盖时不构成冲突。
 
 E4 验收证据（2026-08-25）：
 
 - [x] 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-integrations/ent-loom-meta-adapter-ddl -am test`。
-- [x] 测试结果：`ent-loom-meta-adapter-ddl` 5 项、上游 `ent-loom-meta-core` 21 项、`ent-loom-ddl-core` 25 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
-- [x] 合同覆盖：Meta-only 的表名、主键、自动生成、长度、精度、索引；DDL-only 的 schema、注释、表规模、数据库默认值、重命名、生成策略和唯一索引；Meta + DDL override 的优先级及 `nullable` 显式冲突诊断；空输入、重复类去重和稳定排序。
+- [x] 测试结果：`ent-loom-meta-adapter-ddl` 7 项、上游 `ent-loom-meta-core` 21 项、`ent-loom-ddl-core` 25 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
+- [x] 合同覆盖：Meta-only 的表名、主键、长度、精度、索引和不自动推导数据库生成策略；DDL-only 的 schema、注释、表规模、数据库默认值、重命名、显式生成策略和唯一索引；Meta + DDL override 的优先级及 `nullable` 显式冲突诊断；`AS_IS` 命名策略；未承接 DDL 属性的结构化警告；空输入、重复类去重和稳定排序。
 - [x] 边界验证：适配器仅依赖 Meta Core、DDL Annotations / Core；实现和测试不引入 Spring、Servlet、Starter；测试只通过 `MetaDdlAdapter`、DDL API、Meta Annotations / Diagnostics 等公开 API 验证。
 - [x] 阶段门禁：Meta-first 实体的通用字段、主键、索引和类型参数可投影为与等价 DDL-native 声明一致的 DDL Runtime Model；DDL 专属属性不进入通用 Meta。
 

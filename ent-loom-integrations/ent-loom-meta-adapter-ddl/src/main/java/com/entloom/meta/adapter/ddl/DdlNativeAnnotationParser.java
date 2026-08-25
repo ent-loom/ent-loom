@@ -6,6 +6,15 @@ import com.entloom.ddl.annotations.EntDbField;
 import com.entloom.ddl.annotations.EntDbIndex;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.ddl.enums.IndexType;
+import com.entloom.ddl.enums.NamingStrategy;
+import com.entloom.ddl.enums.UniqueScope;
+import com.entloom.ddl.enums.SqlType;
+import com.entloom.ddl.enums.WritePolicy;
+import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
+import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -18,7 +27,7 @@ import java.util.Map;
  * 读取 DDL 原生注解；该解析器不依赖 Spring，供 Meta DDL Adapter 使用。
  */
 final class DdlNativeAnnotationParser {
-    DdlNativeEntityModel parse(Class<?> entityClass) {
+    DdlNativeEntityModel parse(Class<?> entityClass, MetaDiagnosticCollector diagnostics) {
         EntDbEntity entity = entityClass.getAnnotation(EntDbEntity.class);
         if (entity == null) {
             return null;
@@ -29,20 +38,22 @@ final class DdlNativeAnnotationParser {
                 || field.isSynthetic()) {
                 continue;
             }
-            fields.put(field.getName(), toField(field));
+            fields.put(field.getName(), toField(entityClass, field, diagnostics));
         }
         List<DdlNativeIndexModel> indexes = new ArrayList<DdlNativeIndexModel>();
         for (EntDbIndex index : entityClass.getAnnotationsByType(EntDbIndex.class)) {
-            indexes.add(toIndex(index, fields, null));
+            indexes.add(toIndex(entityClass, index, fields, null, diagnostics));
         }
         for (Field field : allFields(entityClass)) {
             for (EntDbIndex index : field.getAnnotationsByType(EntDbIndex.class)) {
-                indexes.add(toIndex(index, fields, field.getName()));
+                indexes.add(toIndex(entityClass, index, fields, field.getName(), diagnostics));
             }
         }
         return new DdlNativeEntityModel(
             blankAsNull(entity.table()) == null
-                ? SourcedValue.inferred(toSnake(entityClass.getSimpleName()))
+                ? SourcedValue.inferred(entity.namingStrategy() == NamingStrategy.AS_IS
+                    ? entityClass.getSimpleName()
+                    : toSnake(entityClass.getSimpleName()))
                 : nativeValue(entity.table().trim()),
             blankAsNull(entity.schema()) == null
                 ? SourcedValue.unknown(null)
@@ -58,8 +69,17 @@ final class DdlNativeAnnotationParser {
         );
     }
 
-    private DdlNativeFieldModel toField(Field field) {
+    private DdlNativeFieldModel toField(Class<?> entityClass, Field field, MetaDiagnosticCollector diagnostics) {
         EntDbField annotation = field.getAnnotation(EntDbField.class);
+        if (annotation != null) {
+            warnUnsupported(entityClass, field.getName(), "sqlType", annotation.sqlType() != SqlType.AUTO, diagnostics);
+            warnUnsupported(entityClass, field.getName(), "collation", blankAsNull(annotation.collation()) != null, diagnostics);
+            warnUnsupported(entityClass, field.getName(), "dialectOptions", blankAsNull(annotation.dialectOptions()) != null, diagnostics);
+            warnUnsupported(entityClass, field.getName(), "defaultValueHint",
+                annotation.defaultValueHint() != com.entloom.base.util.value.TypedValueType.UNSET, diagnostics);
+            warnUnsupported(entityClass, field.getName(), "writePolicy",
+                annotation.writePolicy() != WritePolicy.READ_WRITE, diagnostics);
+        }
         boolean inferredPrimaryKey = "id".equals(field.getName());
         String column = annotation == null ? null : blankAsNull(annotation.column());
         String definition = annotation == null ? null : blankAsNull(annotation.columnDefinition());
@@ -113,9 +133,13 @@ final class DdlNativeAnnotationParser {
         );
     }
 
-    private DdlNativeIndexModel toIndex(EntDbIndex annotation,
+    private DdlNativeIndexModel toIndex(Class<?> entityClass,
+                                        EntDbIndex annotation,
                                         Map<String, DdlNativeFieldModel> fields,
-                                        String fieldName) {
+                                        String fieldName,
+                                        MetaDiagnosticCollector diagnostics) {
+        warnUnsupported(entityClass, null, "uniqueScope", annotation.uniqueScope() != UniqueScope.ALL_ROWS, diagnostics);
+        warnUnsupported(entityClass, null, "type", annotation.type() != IndexType.BTREE, diagnostics);
         List<String> indexFields = new ArrayList<String>();
         for (String field : annotation.fields()) {
             if (field != null && !field.trim().isEmpty()) {
@@ -136,6 +160,24 @@ final class DdlNativeAnnotationParser {
                 : nativeValue(Boolean.valueOf(annotation.unique() == OptionalBoolean.TRUE)),
             blankAsNull(annotation.expression())
         );
+    }
+
+    private void warnUnsupported(Class<?> entityClass,
+                                 String fieldName,
+                                 String property,
+                                 boolean explicit,
+                                 MetaDiagnosticCollector diagnostics) {
+        if (!explicit || diagnostics == null) {
+            return;
+        }
+        diagnostics.add(MetaDiagnostic.warn(MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY)
+            .entityClass(entityClass)
+            .field(fieldName)
+            .source(MetaValueSource.NATIVE_EXPLICIT)
+            .property(property)
+            .location(entityClass.getName() + (fieldName == null ? "" : "#" + fieldName))
+            .message("DDL Adapter 当前不承接原生属性 " + property + "，已保留诊断并继续使用可表达的 DDL 模型")
+            .build());
     }
 
     private static List<Field> allFields(Class<?> type) {

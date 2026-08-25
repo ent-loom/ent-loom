@@ -8,6 +8,11 @@ import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.ddl.enums.IndexType;
+import com.entloom.ddl.enums.NamingStrategy;
+import com.entloom.ddl.enums.SqlType;
+import com.entloom.ddl.enums.UniqueScope;
+import com.entloom.ddl.enums.WritePolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntIndex;
@@ -38,7 +43,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertEquals(DdlTableSize.UNSET, model.tableSize());
         Assertions.assertEquals("id", model.fields().get(0).columnName());
         Assertions.assertTrue(model.fields().get(0).primaryKey());
-        Assertions.assertEquals(GenerationStrategy.AUTO_INCREMENT, model.fields().get(0).generationStrategy());
+        Assertions.assertEquals(GenerationStrategy.UNSET, model.fields().get(0).generationStrategy());
         DdlFieldMetadata displayName = field(model, "displayName");
         Assertions.assertEquals("display_name", displayName.columnName());
         Assertions.assertEquals(64, displayName.length());
@@ -96,6 +101,28 @@ class MetaDdlAdapterP0AcceptanceTest {
         MetaDdlAdapter adapter = new MetaDdlAdapter(Arrays.<Class<?>>asList(MetaOnlyAccount.class, DdlOnlyAccount.class));
         Assertions.assertEquals(DdlOnlyAccount.class.getName(), adapter.models().get(0).entityClassName());
         Assertions.assertEquals(MetaOnlyAccount.class.getName(), adapter.models().get(1).entityClassName());
+    }
+
+    @Test
+    void DDL原生命名策略应生效() {
+        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(AsIsAccount.class));
+
+        Assertions.assertEquals("AsIsAccount", adapter.models().get(0).tableName());
+    }
+
+    @Test
+    void 未承接的DDL显式属性应暴露结构化警告而不是静默丢失() {
+        MetaDdlAdapter adapter = new MetaDdlAdapter(
+            Collections.<Class<?>>singletonList(UnsupportedDdlProperties.class)
+        );
+
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "sqlType"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "collation"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "dialectOptions"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "defaultValueHint"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "writePolicy"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "uniqueScope"));
+        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "type"));
     }
 
     @Test
@@ -203,8 +230,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     @EntDbEntity(table = "meta_only_account")
     @EntDbIndex(name = "uk_meta_account_display_name", fields = {"display_name"}, unique = OptionalBoolean.TRUE)
     private static final class EquivalentDdlAccount {
-        @EntDbField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
-            generationStrategy = GenerationStrategy.AUTO_INCREMENT)
+        @EntDbField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
         private Long id;
 
         @EntDbField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE)
@@ -214,5 +240,22 @@ class MetaDdlAdapterP0AcceptanceTest {
         private BigDecimal amount;
 
         private Long tenantId;
+    }
+
+    @EntDbEntity(namingStrategy = NamingStrategy.AS_IS)
+    private static final class AsIsAccount {
+        private Long id;
+    }
+
+    @EntDbEntity
+    @EntDbIndex(name = "idx_unsupported_payload", fields = {"payload"},
+        uniqueScope = UniqueScope.ACTIVE_ONLY, type = IndexType.FULLTEXT)
+    private static final class UnsupportedDdlProperties {
+        private Long id;
+
+        @EntDbField(sqlType = SqlType.JSON, collation = "utf8mb4_bin", dialectOptions = "VISIBLE",
+            defaultValueHint = com.entloom.base.util.value.TypedValueType.STRING,
+            writePolicy = WritePolicy.READ_ONLY)
+        private String payload;
     }
 }

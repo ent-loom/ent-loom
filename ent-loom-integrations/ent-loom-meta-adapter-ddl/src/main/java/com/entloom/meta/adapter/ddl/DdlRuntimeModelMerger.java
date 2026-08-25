@@ -404,13 +404,7 @@ final class DdlRuntimeModelMerger {
     }
 
     private SourcedValue<GenerationStrategy> metaGenerationStrategy(EntFieldDescriptor field) {
-        if (field == null || !isId(field)) {
-            return null;
-        }
-        String generator = constraintValue(field, "id.generator");
-        if ("AUTO".equals(generator)) {
-            return sourcedConstraint(field, "id.generator", GenerationStrategy.AUTO_INCREMENT);
-        }
+        // Meta 的生成器是通用应用语义；数据库自增必须由 DDL 原生属性显式声明。
         return null;
     }
 

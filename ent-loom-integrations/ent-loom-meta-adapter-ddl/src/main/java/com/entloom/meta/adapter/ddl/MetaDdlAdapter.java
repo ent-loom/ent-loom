@@ -49,7 +49,7 @@ public final class MetaDdlAdapter {
         List<DdlEntityMetadata> parsed = new ArrayList<DdlEntityMetadata>();
         for (Class<?> entityClass : stableClasses(entityClasses)) {
             boolean hasMeta = entityClass.getAnnotation(EntEntity.class) != null;
-            DdlNativeEntityModel nativeModel = nativeParser.parse(entityClass);
+            DdlNativeEntityModel nativeModel = nativeParser.parse(entityClass, diagnostics);
             if (!hasMeta && nativeModel == null) {
                 continue;
             }
