@@ -1,10 +1,10 @@
 # DDL 实施清单
 
-> 状态：E4 已完成，E5 待启动
-> 当前大项：E5
-> 当前小项：E5，实体全链路验收（待启动）
+> 状态：E5 已完成，后续 DDL 阶段未排期
+> 当前大项：无
+> 当前小项：无
 > 阻塞项：无
-> 最近核验：2026-08-25，E4 Meta -> DDL Adapter 合同测试通过
+> 最近核验：2026-08-26，E5 实体全链路验收与使用说明完成
 
 本文是 DDL 的唯一执行看板。它把模块 README 中的能力设想收敛为可验收的阶段，后续每次只推进一个小项。
 
@@ -51,8 +51,9 @@ flowchart TB
 | 字段 / 索引差异 | E3 已完成 | 已有表结构快照、稳定差异计划和受控 ADD / MODIFY SQL |
 | Meta -> DDL | 已完成 | `MetaDdlAdapter` 已提供 Meta-only、DDL-only 和 Meta + DDL override 投影 |
 | DDL 测试基线 | 已建立 | Core 25 项、Spring 14 项和 Meta Adapter 7 项测试覆盖 SQL、差异、H2 读取 / 执行、投影、诊断和模块边界 |
+| 实体全链路验收 | E5 已完成 | `CustomerProfile` 已覆盖静态 Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 与使用说明 |
 
-当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md`、`ent-loom-integrations/README.md` 及现有实现；E4 完成后进入 E5 实体全链路验收。
+当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md`、`ent-loom-integrations/README.md`、[实体全链路验收](../../../guides/ddl/实体全链路验收.md) 及现有实现；E1-E5 已完成，后续 DDL 阶段尚未排期。
 
 ## 范围与边界
 
@@ -243,14 +244,42 @@ E4 验收证据（2026-08-25）：
 
 ### E5：实体全链路验收
 
-- [ ] 选择一个简单实体作为真实验收对象，第一阶段不引入复杂关系。
-- [ ] 完成 MySQL 8 建表和 CRUD HTTP 验证。
-- [ ] 输出 DOC 实体和字段模型。
-- [ ] 输出 UI Schema，至少覆盖文本、数字、日期和图片字段。
-- [ ] 补充从实体声明到各 Runtime Model 的 Mermaid 和使用说明。
-- [ ] 建立一条可重复执行的集成测试或示例工程命令。
+- [x] **E5.1 选择简单实体并完成静态模型组合验收**：使用 `CustomerProfile`，只包含主键、文本、数值、日期时间和图片地址字段，不声明复杂关系。
+- [x] **E5.1 Meta / DDL / CRUD / DOC / UI Runtime Model**：通过公开构件完成内存模型投影；校验字段身份、snake_case 列名、类型参数、主键 / 索引、DOC 字段模型和 UI 的文本 / 数字 / 日期 / 图片组件。
+- [x] **E5.1 可重复执行命令**：建立独立消费者测试模块 `ent-loom-tests/ent-loom-e5-static-test`，不进入生产依赖。
+- [x] **E5.2 MySQL 8 与 CRUD HTTP 验证**：复用 `CustomerProfile`；通过 MySQL 8 DDL Starter 验证实际建库建表、字段、主键和唯一索引，并使用 H2 + MockMvc 覆盖 `create`、`detail`、`update`、`delete`。
+- [x] **E5.3 Mermaid 与使用说明**：已在 [实体全链路验收](../../../guides/ddl/实体全链路验收.md) 记录实体投影主链、测试边界和 JDK 21 Maven Wrapper 命令；不扩展文档站和跨模块运行时接入。
 
-阶段门禁：一个实体可以从声明开始，完成数据库结构、CRUD 操作、文档模型和 UI Schema 的组合验收。
+E5.1 阶段门禁（已完成）：一个简单实体可以在内存中组合 Meta、DDL、CRUD、DOC、UI Runtime Model；不宣称已完成数据库执行或 HTTP 验收。
+
+E5.1 验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-tests/ent-loom-e5-static-test -am test`。
+- 测试结果：`ent-loom-e5-static-test` 静态验收测试 1 项通过，0 失败、0 错误；上游 Reactor 构件测试通过；JDK 21 Enforcer 通过。
+- 合同覆盖：同一 `CustomerProfile` 由 Meta Parser 生成 Descriptor，由 `MetaDdlAdapter` 生成 DDL Runtime Model 和确定性 MySQL CREATE SQL，由 `MetaCrudAdapter` 生成冻结 CRUD Runtime Model，由 `MetaDocAdapter` 生成 DOC Runtime Model 和边界输出；UI Runtime Model 在测试中仅使用公开 UI Contract，并从 Meta Descriptor 组装字段身份、展示名称和组件类型。
+- 边界验证：测试仅使用公开构件和内存对象；不启动 Spring，不连接 MySQL，不发 HTTP，不使用 Testcontainers，不声明复杂关系或业务权限。
+
+E5.2 阶段门禁（已完成）：同一简单实体可由 DDL Starter 在 MySQL 8 创建实际表结构，并可在不启动真实 HTTP 服务的 MockMvc 环境完成最小 CRUD 命令与详情查询。
+
+E5.2 验收证据（2026-08-26）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -Pmysql-integration -pl ent-loom-tests/ent-loom-e5-static-test -am test`。
+- 前置条件：MySQL 8 实例需在 `entloom.e5.mysql.url`（默认 `127.0.0.1:3307`）可达，测试账号需具备建库、建表和删库权限；密码可通过 `entloom.e5.mysql.password` 或环境变量 `ENTLOOM_E5_MYSQL_PASSWORD` 提供。
+- 测试环境：本机隔离 MySQL `8.0.45` 临时数据目录，端口 `3307`；测试为每次执行生成随机 schema，并在 `finally` 中删除，无 Testcontainers。
+- 测试结果：`ent-loom-e5-static-test` 共 3 项测试通过，0 失败、0 错误、0 跳过；上游 Reactor 构件测试通过；JDK 21 Enforcer 通过。
+- DDL 合同：`E5MysqlDdlAcceptanceTest` 通过 `EntDdlAutoConfiguration` 的显式实体入口创建 `customer_profile`，验证 `BIGINT` 主键自增、`VARCHAR(64)`、`DECIMAL(10,2)`、`DATETIME`、`VARCHAR(255)` 与唯一索引 `uk_customer_profile_display_name`，并以公开 `QueryStrategy` 读取表快照。
+- CRUD HTTP 合同：`E5CrudMvcAcceptanceTest` 使用 H2 与 MockMvc，不启动真实 HTTP 服务；依次验证 `create`、`detail`、`update`、`delete` 的成功响应、请求标识和实际 JDBC 影响行数。
+- 边界验证：继续复用无关系的 `CustomerProfile`，只新增等价 `@EntDbIndex` 以让 DDL Starter 读取唯一索引；不引入 Testcontainers、复杂关系、业务权限或生产依赖。
+
+E5.3 阶段门禁（已完成）：使用者可从同一实体的声明理解 Meta、DDL、CRUD、DOC、UI 的验收投影，并可用 JDK 21 Maven Wrapper 复现静态、MockMvc 与 MySQL 8 测试。
+
+E5.3 验收证据（2026-08-26）：
+
+- 使用说明：[实体全链路验收](../../../guides/ddl/实体全链路验收.md) 明确 `CustomerProfile` 主链、索引物理列名边界、三项测试入口、MySQL 8 前置条件和两条 Maven Wrapper 命令。
+- Mermaid：使用说明中的主链图区分静态 Runtime Model 投影、DDL Starter 到 MySQL 8、CRUD 到 H2 + MockMvc；不把它们表述为同一业务进程或同一数据源。
+- 边界验证：不新增生产模块、Testcontainers、真实 HTTP 服务、复杂关系或业务权限。
+
+E5 阶段门禁（已完成）：一个无关系的 `CustomerProfile` 已贯通静态 Meta / DDL / CRUD / DOC / UI Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 和可重复的使用说明。当前 DDL 主线停在 E5，后续阶段未排期。
 
 ## 依赖与禁止跨越
 

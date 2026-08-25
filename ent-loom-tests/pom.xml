@@ -15,6 +15,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>ent-loom-e5-static-test</module>
         <module>ent-loom-ddl-consumer-test</module>
         <module>ent-loom-ddl-mysql-integration-test</module>
     </modules>
