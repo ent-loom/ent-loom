@@ -36,6 +36,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'domains/crud/index',
+        'domains/ddl/index',
         'domains/meta/index',
       ],
     },

@@ -29,10 +29,11 @@ Core Contract
 
 1. [系统架构总览](architecture/架构总览.md)：先了解模块、依赖、建模和执行主链。
 2. [CRUD 领域总览](domains/crud/index.md)：按当前架构、业务接入、设计决策和路线图阅读 CRUD。
-3. [Meta 领域总览](domains/meta/index.md)：按核心契约、实现参考、使用指南和路线图阅读 Meta。
-4. [Core Contract](architecture/core/index.md)：查看跨模块必须共同遵守的契约。
-5. [使用指南](guides/index.md)：按文档类型查找业务接入说明。
-6. [架构演进](evolution/index.md)：查看设计取舍和未完成目标。
+3. [DDL 领域总览](domains/ddl/index.md)：按实体到 MySQL 8 的路线和实施清单阅读 DDL。
+4. [Meta 领域总览](domains/meta/index.md)：按核心契约、实现参考、使用指南和路线图阅读 Meta。
+5. [Core Contract](architecture/core/index.md)：查看跨模块必须共同遵守的契约。
+6. [使用指南](guides/index.md)：按文档类型查找业务接入说明。
+7. [架构演进](evolution/index.md)：查看设计取舍和未完成目标。
 
 ## 按文档类型查看
 

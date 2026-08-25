@@ -85,6 +85,10 @@ const config: Config = {
               to: '/docs/domains/crud',
             },
             {
+              label: 'DDL 领域',
+              to: '/docs/domains/ddl',
+            },
+            {
               label: 'Meta 领域',
               to: '/docs/domains/meta',
             },

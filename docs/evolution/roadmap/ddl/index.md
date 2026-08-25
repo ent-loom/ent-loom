@@ -1,0 +1,46 @@
+# DDL 路线图
+
+> 状态：In Progress
+> 当前阶段：E1，DDL Core 建表闭环
+> 最近核验：2026-08-25
+
+DDL 路线围绕一个目标推进：让实体声明可以稳定生成并执行 MySQL 8 数据库结构，同时为后续 Meta、CRUD、DOC、UI 共享同一个实体能力闭环提供基础。
+
+## 阅读路径
+
+1. 先看[DDL 实施清单](DDL实施清单.md)，确认总目标、阶段顺序和当前小项。
+2. 需要了解模块边界、注解和构件职责时，查看模块文件 `ent-loom-modules/ent-loom-ddl/README.md`。
+3. E1/E2 完成后，再建立 DDL 当前架构文档；当前不提前创建未稳定的 Architecture 占位页。
+
+## 总体关系
+
+```mermaid
+flowchart LR
+    entity["实体类与 DDL 注解"]
+    meta["可选：Meta Descriptor"]
+    loader["MetadataLoader"]
+    model["DdlEntityMetadata"]
+    plan["DDL Plan / Diff"]
+    sql["MySQL SQL"]
+    execute["QueryStrategy + SqlExecutor"]
+    result["DdlExecutionResult"]
+
+    entity --> loader
+    meta -. "E4 投影" .-> loader
+    loader --> model --> plan --> sql --> execute --> result
+```
+
+## 当前文档分层
+
+| 文档 | 职责 |
+|---|---|
+| 本页 | DDL 路线入口和阅读顺序 |
+| [DDL 实施清单](DDL实施清单.md) | 当前阶段、子任务、验收和证据 |
+| `ent-loom-modules/ent-loom-ddl/README.md` | 模块定位、依赖边界和能力范围 |
+| `docs/architecture/components/ddl/` | E1/E2 稳定后维护当前架构，暂不创建 |
+
+## 不在当前主线
+
+- 不先做 Boot 2/Boot 4 兼容构件。
+- 不先做通用迁移平台、任意 SQL 编排或复杂回滚引擎。
+- 不把 UI 菜单、路由、权限等业务语义放入 DDL Core。

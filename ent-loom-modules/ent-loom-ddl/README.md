@@ -2,6 +2,8 @@
 
 目标：承接 `framework-java-to-db` 中“Java 实体 -> MySQL DDL”相关能力，做成更清晰、可扩展、可控执行的重构版实现。
 
+DDL 当前主线是“实体声明 -> DDL Runtime Model -> MySQL 8 结构执行”。具体阶段、当前小项和验收门禁统一维护在 [DDL 实施清单](../../docs/evolution/roadmap/ddl/DDL实施清单.md)，本 README 只维护模块定位和边界。
+
 参考来源：`/Users/zubin/IdeaProjects/baoyi-cloud-back/framework-cloud/framework-java-to-db/README.md`
 
 ## 1. 适合归类到 ent-loom-ddl 的需求
@@ -62,15 +64,17 @@
 4. 删除策略开关：字段/索引删除是否允许（全局 + 局部）
 5. 表规模级别：`SMALL/MEDIUM/LARGE`（用于风险策略）
 
-## 4. MVP 分期（推荐）
+## 4. 文档入口
 
-1. M1：`api + annotations + core`，打通 MySQL `CREATE DATABASE/TABLE`
-2. M2：`core` 完成字段/索引差异 `ALTER`（新增、修改）
-3. M3：`bootstrap` 落地（扫描 + 注解解析 + 启动执行）
-4. M4：`spring + starter` 落地（自动装配 + 配置化启停）
-5. M5：`renameFrom`、分级执行策略、删除保护、大表风险防护补齐
+- [DDL 领域总览](../../docs/domains/ddl/index.md)：面向整体实体能力的阅读入口。
+- [DDL 路线图](../../docs/evolution/roadmap/ddl/index.md)：阶段依赖和文档分层。
+- [DDL 实施清单](../../docs/evolution/roadmap/ddl/DDL实施清单.md)：唯一执行看板和验收标准。
 
-## 5. 非核心边界（避免 ddl-core 过重）
+## 5. 当前实现基线
+
+当前代码已经具备 API、注解、元数据加载器、MySQL 建表 SQL 生成和 Spring Boot 配置骨架；默认 Spring 适配仍使用 `NoopQueryStrategy` / `NoopSqlExecutor`，尚未形成实际 MySQL 执行闭环。字段和索引差异、Meta -> DDL Adapter、DDL 测试基线均按路线图后续阶段推进。
+
+## 6. 非核心边界（避免 ddl-core 过重）
 
 以下能力建议不直接塞进 `ddl-core`，而是放扩展模块：
 

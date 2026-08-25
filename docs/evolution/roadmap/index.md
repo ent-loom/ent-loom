@@ -8,12 +8,14 @@
 
 - [框架实施清单](实施清单.md)：按依赖顺序逐项打钩的执行视图。
 - [当前实施总览](当前实施总览.md)
+- [DDL 路线图](ddl/index.md)：当前主线，围绕实体到 MySQL 8 的能力闭环。
 - [CRUD 重构路线](crud/CRUD重构路线.md)
 - [Meta 裁决实施计划](meta/元数据裁决实施计划.md)
 
 ## 长期路线
 
 - [CRUD](crud/index.md)
+- [DDL](ddl/index.md)
 - [Meta](meta/index.md)
 - [Core 兼容性](core/index.md)
 
