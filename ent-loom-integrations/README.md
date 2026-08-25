@@ -15,7 +15,7 @@ ent-loom-integrations
 定位:
 
 1. `ent-loom-meta-adapter-crud`: Meta Descriptor 到 CRUD 运行时模型的适配；P0 已覆盖 Meta-only、CRUD-only、Meta + CRUD override、关系方向和诊断。
-2. `ent-loom-meta-adapter-ddl`: Meta Descriptor 到 DDL 执行层的适配。
+2. `ent-loom-meta-adapter-ddl`: Meta Descriptor 到 DDL 执行层的适配；E4 已提供 `MetaDdlAdapter`，覆盖 Meta-only、DDL-only 和 Meta + DDL override，DDL 专属属性不进入通用 Meta Contract。
 3. `ent-loom-meta-adapter-doc`: Meta Descriptor 到 DOC 输出模型的适配；P0 已覆盖 Meta-only、DOC-only、Meta + DOC override、稳定 DOC Runtime Model、关系/索引文档和诊断。
 4. `ent-loom-meta-spring-boot-starter`: P1 装配层，只负责条件注册 `MetaCrudAdapter` / `MetaDocAdapter`，不承载合并规则。
 
