@@ -43,6 +43,13 @@ public final class DdlExecutionRequest {
         if (source == null || source.isEmpty()) {
             return Collections.emptyList();
         }
-        return Collections.unmodifiableList(new ArrayList<DdlEntityMetadata>(source));
+        List<DdlEntityMetadata> copy = new ArrayList<DdlEntityMetadata>(source.size());
+        for (DdlEntityMetadata entity : source) {
+            if (entity == null) {
+                throw new IllegalArgumentException("entities must not contain null");
+            }
+            copy.add(entity);
+        }
+        return Collections.unmodifiableList(copy);
     }
 }

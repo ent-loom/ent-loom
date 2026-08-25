@@ -1,7 +1,13 @@
 package com.entloom.ddl.api;
 
+import java.util.Objects;
+
 /**
- * 字段元数据。
+ * DDL 字段元数据。
+ *
+ * <p>字段名、列名和 Java 类型是必填项。{@code -1} 表示长度、精度或小数位
+ * 未显式指定；其他负数属于非法输入。主键和唯一约束只能作用于持久化字段，
+ * 主键字段不允许声明为可空。</p>
  */
 public final class DdlFieldMetadata {
     private final String fieldName;
@@ -35,7 +41,7 @@ public final class DdlFieldMetadata {
                             String renameFrom) {
         this.fieldName = requireText(fieldName, "fieldName");
         this.columnName = requireText(columnName, "columnName");
-        this.javaType = javaType == null ? Object.class : javaType;
+        this.javaType = Objects.requireNonNull(javaType, "javaType must not be null");
         this.columnDefinition = trim(columnDefinition);
         this.nullable = nullable;
         this.unique = unique;
@@ -47,6 +53,7 @@ public final class DdlFieldMetadata {
         this.defaultValue = trim(defaultValue);
         this.comment = trim(comment);
         this.renameFrom = trim(renameFrom);
+        validate();
     }
 
     public String fieldName() {
@@ -103,6 +110,24 @@ public final class DdlFieldMetadata {
 
     public String renameFrom() {
         return renameFrom;
+    }
+
+    private void validate() {
+        if (length < -1) {
+            throw new IllegalArgumentException("length must be -1 or greater");
+        }
+        if (precision < -1) {
+            throw new IllegalArgumentException("precision must be -1 or greater");
+        }
+        if (scale < -1) {
+            throw new IllegalArgumentException("scale must be -1 or greater");
+        }
+        if (!persisted && (unique || primaryKey)) {
+            throw new IllegalArgumentException("non-persisted field must not be unique or primary key");
+        }
+        if (primaryKey && nullable) {
+            throw new IllegalArgumentException("primary key field must not be nullable");
+        }
     }
 
     private static String requireText(String value, String fieldName) {

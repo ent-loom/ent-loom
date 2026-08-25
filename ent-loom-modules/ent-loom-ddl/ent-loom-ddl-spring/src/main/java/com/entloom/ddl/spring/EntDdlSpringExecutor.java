@@ -2,6 +2,8 @@ package com.entloom.ddl.spring;
 
 import com.entloom.ddl.api.DdlEngine;
 import com.entloom.ddl.api.DdlExecutionRequest;
+import com.entloom.ddl.api.DdlExecutionMode;
+import com.entloom.ddl.api.DdlExecutionResult;
 import com.entloom.ddl.api.MetadataLoadRequest;
 import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.api.QueryStrategy;
@@ -41,11 +43,20 @@ public final class EntDdlSpringExecutor implements ApplicationListener<ContextRe
         if (options == null || !options.isEnabled()) {
             return;
         }
+        if (options.getMode() == DdlExecutionMode.NONE) {
+            return;
+        }
+        if (queryStrategy == null || sqlExecutor == null) {
+            throw new IllegalStateException("DDL 已启用但未配置 QueryStrategy 或 SqlExecutor");
+        }
         DdlExecutionRequest request = new DdlExecutionRequest(
                 options.getSchema(),
                 options.isCreateDatabaseIfMissing(),
                 options.getMode(),
                 metadataLoader.load(new MetadataLoadRequest(options.getBasePackages(), options.getEntityClasses())));
-        ddlEngine.execute(request, queryStrategy, sqlExecutor);
+        DdlExecutionResult result = ddlEngine.execute(request, queryStrategy, sqlExecutor);
+        if (!result.success()) {
+            throw new IllegalStateException("DDL 执行失败: " + result.errors());
+        }
     }
 }

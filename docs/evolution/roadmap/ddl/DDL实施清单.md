@@ -1,10 +1,10 @@
 # DDL 实施清单
 
-> 状态：In Progress
-> 当前大项：E1
-> 当前小项：E1.1，稳定建表模型与 SQL 生成合同
+> 状态：E1 已完成
+> 当前大项：E2（待开始）
+> 当前小项：等待 E2 任务启动
 > 阻塞项：无
-> 最近核验：2026-08-25
+> 最近核验：2026-08-25，E1 Core 测试通过
 
 本文是 DDL 的唯一执行看板。它把模块 README 中的能力设想收敛为可验收的阶段，后续每次只推进一个小项。
 
@@ -43,13 +43,13 @@ flowchart TB
 | 项目 | 当前状态 | 说明 |
 |---|---|---|
 | DDL API / Annotations | 已具备基础类型 | 已有实体、字段、索引和执行请求契约 |
-| DDL Core | 部分实现 | 当前主要覆盖不存在表时的 CREATE 路径 |
-| MySQL 建表 SQL | 部分实现 | 已有类型映射、主键、唯一约束和索引生成器 |
+| DDL Core | E1 已完成 | 已建立稳定元数据合同、确定性 CREATE 编排和执行结果分类 |
+| MySQL 建表 SQL | E1 已完成 | 已覆盖类型映射、主键、唯一约束、普通索引和表达式索引 |
 | 实体解析 | 部分实现 | 已有显式类解析和 Spring 注解包扫描入口 |
-| 实际数据库执行 | 未形成默认闭环 | 默认仍是 `NoopQueryStrategy` 和 `NoopSqlExecutor` |
+| 实际数据库执行 | 未形成默认闭环 | 默认不再装配 Noop SPI；真实数据库 QueryStrategy / SqlExecutor 留待 E2 |
 | 字段 / 索引差异 | 未实现 | 尚无稳定 ADD / MODIFY 计划 |
 | Meta -> DDL | 未开始 | `ent-loom-meta-adapter-ddl` 当前为空模块 |
-| DDL 测试基线 | 未建立 | 当前没有 DDL 模块测试目录 |
+| DDL 测试基线 | 已建立 | `ent-loom-ddl-core` 已覆盖 SQL、类型、约束、空输入、异常和模块边界 |
 
 当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md` 及现有实现；E1 完成后再回写组件 Architecture。
 
@@ -91,36 +91,44 @@ flowchart LR
 | E4 | 接入通用 Meta 语义 | `ent-loom-meta-adapter-ddl` | Meta-first 实体可以投影到 DDL 模型 |
 | E5 | 用真实实体验证整体能力 | 示例 / 集成测试 / 文档 | 一个实体贯通 DDL、CRUD、DOC、UI 验收路径 |
 
-## 当前执行：E1
+## E1（已完成）：Core 建表闭环
 
 E1 只解决“给定 DDL Runtime Model，能稳定生成建表 SQL”的核心问题，不提前引入 Meta、UI 或复杂迁移策略。
 
 ### E1.1 稳定建表模型与 SQL 生成合同
 
-- [ ] 明确 `DdlEntityMetadata`、`DdlFieldMetadata`、`DdlIndexMetadata` 的必填字段和非法输入行为。
-- [ ] 明确单主键、复合主键、唯一字段、普通索引和表达式索引的 SQL 语义。
-- [ ] 明确 `DdlExecutionMode` 在 E1 中只开放 `NONE`、`CREATE_TABLE`、`CREATE_TABLE_AND_METAS` 的边界。
-- [ ] 保证同一元数据输入生成稳定、可比较的 SQL 顺序。
-- [ ] 为类型映射、默认值、注释、转义和标识符引用建立 Core 单测。
+- [x] 明确 `DdlEntityMetadata`、`DdlFieldMetadata`、`DdlIndexMetadata` 的必填字段和非法输入行为。
+- [x] 明确单主键、复合主键、唯一字段、普通索引和表达式索引的 SQL 语义。
+- [x] 明确 `DdlExecutionMode` 在 E1 中只开放 `NONE`、`CREATE_TABLE`、`CREATE_TABLE_AND_METAS` 的边界。
+- [x] 保证同一元数据输入生成稳定、可比较的 SQL 顺序。
+- [x] 为类型映射、默认值、注释、转义和标识符引用建立 Core 单测。
 
 验收证据：`ent-loom-ddl-core` 测试通过，SQL snapshot 或等价字符串合同稳定。
 
 ### E1.2 建立 Core 执行编排
 
-- [ ] `DefaultDdlEngine` 对数据库、表、字段和索引生成结果进行明确分类。
-- [ ] `DdlExecutionResult` 能区分 generated、executed 和 errors。
-- [ ] `QueryStrategy`、`SqlExecutor` 保持 SPI 边界，Core 不引入 Spring JDBC。
-- [ ] `NoopQueryStrategy`、`NoopSqlExecutor` 仅作为显式测试 / dry-run 实现，不伪装成生产执行器。
-- [ ] 补充执行异常和空输入测试。
+- [x] `DefaultDdlEngine` 对数据库、表、字段和索引生成结果进行明确分类。
+- [x] `DdlExecutionResult` 能区分 generated、executed 和 errors。
+- [x] `QueryStrategy`、`SqlExecutor` 保持 SPI 边界，Core 不引入 Spring JDBC。
+- [x] `NoopQueryStrategy`、`NoopSqlExecutor` 仅作为显式测试 / dry-run 实现，不伪装成生产执行器。
+- [x] 补充执行异常和空输入测试。
 
 验收证据：Core 可在无 Spring 场景下完成生成模式和注入 fake executor 的执行模式测试。
 
 ### E1.3 E1 阶段门禁
 
-- [ ] `./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-core -am test` 通过。
-- [ ] DDL Core 无 Spring、Servlet、Starter 依赖。
-- [ ] 代码、测试和 README 对 E1 当前边界一致。
-- [ ] 更新本清单当前事实，并把 E2 设为当前阶段。
+- [x] `./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-core -am test` 通过。
+- [x] DDL Core 无 Spring、Servlet、Starter 依赖。
+- [x] 代码、测试和 README 对 E1 当前边界一致。
+- [x] 更新本清单当前事实，并把 E2 设为当前阶段。
+
+验收证据（2026-08-25）：
+
+- 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-ddl/ent-loom-ddl-core -am test`。
+- 测试结果：Core Reactor 构建成功，`ent-loom-ddl-core` 共 17 项测试通过，0 失败、0 错误；扩展 DDL Reactor 共 21 项测试通过，0 失败、0 错误。
+- 测试覆盖：Core 的 `MysqlCreateTableSqlBuilderTest`、`DdlMetadataContractTest`、`DefaultDdlEngineTest`、`DdlCoreBoundaryTest`，以及 Bootstrap/Spring/Starter 的主键推导和默认 SPI 测试。
+- 边界验证：Core 运行时仅依赖 `ent-loom-ddl-api`，ArchUnit 验证不依赖 Spring、Servlet、Starter 或 Meta 包；测试依赖不进入运行时构件。
+- 未完成工作：E2 实体发现与真实数据库执行器；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
 
 ## 后续阶段清单
 

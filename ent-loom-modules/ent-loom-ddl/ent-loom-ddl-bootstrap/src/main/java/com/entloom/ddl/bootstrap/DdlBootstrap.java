@@ -8,8 +8,6 @@ import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.SqlExecutor;
 import com.entloom.ddl.core.DefaultDdlEngine;
-import com.entloom.ddl.core.NoopQueryStrategy;
-import com.entloom.ddl.core.NoopSqlExecutor;
 
 /**
  * 无 Spring 场景下的 DDL 启动入口。
@@ -21,7 +19,7 @@ public final class DdlBootstrap {
     private final SqlExecutor sqlExecutor;
 
     public DdlBootstrap() {
-        this(new DefaultDdlEngine(), new AnnotationMetadataLoader(), new NoopQueryStrategy(), new NoopSqlExecutor());
+        this(new DefaultDdlEngine(), new AnnotationMetadataLoader(), null, null);
     }
 
     public DdlBootstrap(DdlEngine ddlEngine,
@@ -30,8 +28,8 @@ public final class DdlBootstrap {
                         SqlExecutor sqlExecutor) {
         this.ddlEngine = ddlEngine == null ? new DefaultDdlEngine() : ddlEngine;
         this.metadataLoader = metadataLoader == null ? new AnnotationMetadataLoader() : metadataLoader;
-        this.queryStrategy = queryStrategy == null ? new NoopQueryStrategy() : queryStrategy;
-        this.sqlExecutor = sqlExecutor == null ? new NoopSqlExecutor() : sqlExecutor;
+        this.queryStrategy = queryStrategy;
+        this.sqlExecutor = sqlExecutor;
     }
 
     public DdlExecutionResult execute(DdlBootstrapRequest request) {

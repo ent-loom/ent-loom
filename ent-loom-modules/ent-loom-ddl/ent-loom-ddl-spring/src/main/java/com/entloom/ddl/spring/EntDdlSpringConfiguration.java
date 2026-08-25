@@ -5,8 +5,7 @@ import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.SqlExecutor;
 import com.entloom.ddl.core.DefaultDdlEngine;
-import com.entloom.ddl.core.NoopQueryStrategy;
-import com.entloom.ddl.core.NoopSqlExecutor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,16 +25,6 @@ public class EntDdlSpringConfiguration {
     }
 
     @Bean
-    public QueryStrategy entDdlQueryStrategy() {
-        return new NoopQueryStrategy();
-    }
-
-    @Bean
-    public SqlExecutor entDdlSqlExecutor() {
-        return new NoopSqlExecutor();
-    }
-
-    @Bean
     public MetadataLoader entDdlMetadataLoader() {
         return new SpringAnnotationMetadataLoader(new SpringPackageEntityClassResolver(null));
     }
@@ -43,9 +32,10 @@ public class EntDdlSpringConfiguration {
     @Bean
     public EntDdlSpringExecutor entDdlSpringExecutor(DdlEngine ddlEngine,
                                                      MetadataLoader metadataLoader,
-                                                     QueryStrategy queryStrategy,
-                                                     SqlExecutor sqlExecutor,
+                                                     ObjectProvider<QueryStrategy> queryStrategyProvider,
+                                                     ObjectProvider<SqlExecutor> sqlExecutorProvider,
                                                      EntDdlSpringOptions options) {
-        return new EntDdlSpringExecutor(ddlEngine, metadataLoader, queryStrategy, sqlExecutor, options);
+        return new EntDdlSpringExecutor(ddlEngine, metadataLoader,
+                queryStrategyProvider.getIfAvailable(), sqlExecutorProvider.getIfAvailable(), options);
     }
 }

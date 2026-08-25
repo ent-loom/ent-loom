@@ -86,6 +86,9 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             boolean nullable = ann == null
                     ? !field.getType().isPrimitive()
                     : (ann.nullable() == OptionalBoolean.UNSET ? !field.getType().isPrimitive() : ann.nullable() == OptionalBoolean.TRUE);
+            if (primaryKey && (ann == null || ann.nullable() != OptionalBoolean.TRUE)) {
+                nullable = false;
+            }
             boolean unique = ann != null && ann.unique() == OptionalBoolean.TRUE;
             fields.add(new DdlFieldMetadata(
                     field.getName(),

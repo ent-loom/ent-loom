@@ -26,9 +26,10 @@ public final class MysqlCreateTableSqlBuilder {
         }
         List<String> parts = new ArrayList<String>();
         List<String> primaryKeys = new ArrayList<String>();
+        List<String> uniqueKeys = new ArrayList<String>();
 
         for (DdlFieldMetadata field : entity.fields()) {
-            if (field == null || !field.persisted()) {
+            if (!field.persisted()) {
                 continue;
             }
             parts.add(buildColumnSql(field));
@@ -36,17 +37,15 @@ public final class MysqlCreateTableSqlBuilder {
                 primaryKeys.add(quote(field.columnName()));
             }
             if (field.unique()) {
-                parts.add(buildFieldUniqueSql(entity.tableName(), field.columnName()));
+                uniqueKeys.add(buildFieldUniqueSql(entity.tableName(), field.columnName()));
             }
         }
 
         if (!primaryKeys.isEmpty()) {
             parts.add("PRIMARY KEY (" + join(primaryKeys, ", ") + ")");
         }
+        parts.addAll(uniqueKeys);
         for (DdlIndexMetadata index : entity.indexes()) {
-            if (index == null) {
-                continue;
-            }
             String indexSql = buildIndexSql(index);
             if (!indexSql.isEmpty()) {
                 parts.add(indexSql);
@@ -71,13 +70,13 @@ public final class MysqlCreateTableSqlBuilder {
             sb.append(field.columnDefinition());
         } else {
             sb.append(typeMapper.toSqlType(field));
-            sb.append(field.nullable() ? " NULL" : " NOT NULL");
-            if (!trim(field.defaultValue()).isEmpty()) {
-                sb.append(" DEFAULT ").append(defaultLiteral(field.defaultValue()));
-            }
-            if (!trim(field.comment()).isEmpty()) {
-                sb.append(" COMMENT '").append(escapeQuote(field.comment())).append("'");
-            }
+        }
+        sb.append(field.nullable() ? " NULL" : " NOT NULL");
+        if (!trim(field.defaultValue()).isEmpty()) {
+            sb.append(" DEFAULT ").append(defaultLiteral(field.defaultValue(), field.javaType()));
+        }
+        if (!trim(field.comment()).isEmpty()) {
+            sb.append(" COMMENT '").append(escapeQuote(field.comment())).append("'");
         }
         return sb.toString();
     }
@@ -117,7 +116,7 @@ public final class MysqlCreateTableSqlBuilder {
                 + ")";
     }
 
-    private static String defaultLiteral(String value) {
+    private static String defaultLiteral(String value, Class<?> javaType) {
         String text = trim(value);
         if (text.isEmpty()) {
             return "NULL";
@@ -130,6 +129,14 @@ public final class MysqlCreateTableSqlBuilder {
         }
         if ("CURRENT_TIMESTAMP".equalsIgnoreCase(text) || text.toUpperCase().startsWith("CURRENT_TIMESTAMP(")) {
             return text;
+        }
+        if (javaType == Boolean.class || javaType == Boolean.TYPE) {
+            if ("TRUE".equalsIgnoreCase(text)) {
+                return "TRUE";
+            }
+            if ("FALSE".equalsIgnoreCase(text)) {
+                return "FALSE";
+            }
         }
         return "'" + escapeQuote(text) + "'";
     }
