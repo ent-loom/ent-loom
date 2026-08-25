@@ -2,7 +2,7 @@
 
 > 状态：E1 已完成
 > 当前大项：E2（待开始）
-> 当前小项：等待 E2 任务启动
+> 当前小项：E2.1，发现合同与测试边界（待启动）
 > 阻塞项：无
 > 最近核验：2026-08-25，E1 Core 测试通过
 
@@ -134,14 +134,13 @@ E1 只解决“给定 DDL Runtime Model，能稳定生成建表 SQL”的核心�
 
 ### E2：实体发现与实际执行
 
-- [ ] `DdlBootstrap` 支持显式类列表和包扫描的统一入口。
-- [ ] `SpringAnnotationMetadataLoader` 的实体、字段、索引解析建立测试。
-- [ ] `SpringPackageEntityClassResolver` 建立扫描成功、空包和重复类测试。
-- [ ] 增加基于 Spring JDBC 的 `QueryStrategy` 和 `SqlExecutor` 实现，放在 `ent-loom-ddl-spring`。
-- [ ] Starter 将配置绑定、实体发现、SQL 执行和失败日志接通。
-- [ ] 使用 MySQL 8 完成一次真实建库 / 建表验证。
+- [ ] **E2.1 发现合同**：`DdlBootstrap` 统一显式类列表和包扫描入口；覆盖空输入、重复类、不可加载类和稳定顺序。
+- [ ] **E2.2 Spring 装配合同**：为 `SpringAnnotationMetadataLoader`、实体 / 字段 / 索引解析和 `SpringPackageEntityClassResolver` 补齐测试；验证配置开关和缺少真实 SPI 时的诊断。
+- [ ] **E2.3 执行器合同**：增加基于 Spring JDBC 的 `QueryStrategy` 和 `SqlExecutor` 实现，放在 `ent-loom-ddl-spring`；覆盖执行异常、资源释放和结果保留。
+- [ ] **E2.4 消费者冒烟**：使用公开注解和 API 完成最小实体接入测试，不引用 Core 包内实现。
+- [ ] **E2.5 MySQL 8 证据**：使用专用 profile 或 Testcontainers 完成一次真实建库 / 建表验证，检查关键字段、主键和索引。
 
-阶段门禁：Spring Boot 配置一个实体包即可在 MySQL 8 中完成建表；关闭 `enabled` 时不执行任何 DDL。
+阶段门禁：Spring Boot 配置一个实体包即可在 MySQL 8 中完成建表；关闭 `enabled` 时不执行任何 DDL。E3 差异计划、E4 Meta Adapter 和 E5 跨 DDL / CRUD / DOC / UI 全链路不纳入 E2。
 
 ### E3：字段与索引差异
 

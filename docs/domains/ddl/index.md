@@ -22,10 +22,10 @@ flowchart LR
 
 ## 当前阶段
 
-- E1：DDL Core 建表闭环，进行中。
-- E2：实体发现与 Spring Boot 实际执行，后续阶段。
+- E1：DDL Core 建表闭环，已完成。
+- E2：实体发现与 Spring Boot 实际执行，当前待启动。
 - E3：字段和索引差异更新，后续阶段。
-- E4：Meta -> DDL Adapter，等待 DDL Runtime Model 稳定。
+- E4：Meta -> DDL Adapter，等待 E2 消费者边界稳定。
 - E5：与 CRUD、DOC、UI 的实体全链路验收。
 
-当前 DDL 尚未形成稳定的组件 Architecture 文档；在 E1/E2 的 Runtime Model 和消费者闭环稳定后再补充，避免把目标能力写成当前能力。
+当前 DDL 尚未形成稳定的组件 Architecture 文档；在 E2 的 Runtime Model 消费者闭环稳定后再补充，避免把目标能力写成当前能力。

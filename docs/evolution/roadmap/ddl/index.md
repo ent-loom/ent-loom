@@ -1,7 +1,7 @@
 # DDL 路线图
 
 > 状态：In Progress
-> 当前阶段：E1，DDL Core 建表闭环
+> 当前阶段：E2，实体发现与实际执行（待启动）
 > 最近核验：2026-08-25
 
 DDL 路线围绕一个目标推进：让实体声明可以稳定生成并执行 MySQL 8 数据库结构，同时为后续 Meta、CRUD、DOC、UI 共享同一个实体能力闭环提供基础。
@@ -10,7 +10,7 @@ DDL 路线围绕一个目标推进：让实体声明可以稳定生成并执行 
 
 1. 先看[DDL 实施清单](DDL实施清单.md)，确认总目标、阶段顺序和当前小项。
 2. 需要了解模块边界、注解和构件职责时，查看模块文件 `ent-loom-modules/ent-loom-ddl/README.md`。
-3. E1/E2 完成后，再建立 DDL 当前架构文档；当前不提前创建未稳定的 Architecture 占位页。
+3. E2 完成并形成稳定消费者闭环后，再建立 DDL 当前架构文档；当前不提前创建未稳定的 Architecture 占位页。
 
 ## 总体关系
 
@@ -36,8 +36,9 @@ flowchart LR
 |---|---|
 | 本页 | DDL 路线入口和阅读顺序 |
 | [DDL 实施清单](DDL实施清单.md) | 当前阶段、子任务、验收和证据 |
+| [测试策略与验收分层](../../../architecture/core/测试策略与验收分层.md) | L1-L5 测试层级、阶段映射和证据格式 |
 | `ent-loom-modules/ent-loom-ddl/README.md` | 模块定位、依赖边界和能力范围 |
-| `docs/architecture/components/ddl/` | E1/E2 稳定后维护当前架构，暂不创建 |
+| `docs/architecture/components/ddl/` | E2 稳定并形成消费者闭环后维护当前架构，暂不创建 |
 
 ## 不在当前主线
 
