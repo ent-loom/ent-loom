@@ -52,6 +52,7 @@ class DdlMysqlIntegrationTest {
         context.registerBean(DataSource.class, () -> dataSource);
         context.registerBean(EntDdlSpringOptions.class, () -> options(schema));
         context.register(EntDdlAutoConfiguration.class);
+        Throwable primaryFailure = null;
         try {
             context.refresh();
 
@@ -77,9 +78,11 @@ class DdlMysqlIntegrationTest {
             assertTrue(snapshot.indexes().stream()
                     .anyMatch(index -> "idx_mysql_account_lower_name".equals(index.name())
                             && index.expression().contains("display_name")));
+        } catch (RuntimeException | Error exception) {
+            primaryFailure = exception;
+            throw exception;
         } finally {
-            context.close();
-            jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+            cleanUp(context, jdbcTemplate, schema, primaryFailure);
         }
     }
 
@@ -116,6 +119,35 @@ class DdlMysqlIntegrationTest {
                 "SELECT extra FROM information_schema.columns"
                         + " WHERE table_schema = ? AND table_name = ? AND column_name = ?",
                 String.class, schema, table, column);
+    }
+
+    private static void cleanUp(AnnotationConfigApplicationContext context,
+                                JdbcTemplate jdbcTemplate,
+                                String schema,
+                                Throwable primaryFailure) {
+        RuntimeException cleanupFailure = null;
+        try {
+            context.close();
+        } catch (RuntimeException exception) {
+            cleanupFailure = exception;
+        }
+        try {
+            jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+        } catch (RuntimeException exception) {
+            if (cleanupFailure == null) {
+                cleanupFailure = exception;
+            } else {
+                cleanupFailure.addSuppressed(exception);
+            }
+        }
+        if (cleanupFailure == null) {
+            return;
+        }
+        if (primaryFailure != null) {
+            primaryFailure.addSuppressed(cleanupFailure);
+            return;
+        }
+        throw cleanupFailure;
     }
 
     private static String requiredProperty(String name) {

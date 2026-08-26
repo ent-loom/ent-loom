@@ -14,6 +14,7 @@ import com.entloom.crud.starter.web.controller.EntCrudCommandController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
 import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
+import com.entloom.e5.statictest.fixture.CustomerProfile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import javax.sql.DataSource;
@@ -29,6 +30,7 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,51 +52,52 @@ class E5CrudMvcAcceptanceTest {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);
 
-            mockMvc.perform(post("/api/ent-crud/customer_profile/create")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"e5-create-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三\",\"creditLimit\":1000.00,\"registeredAt\":\"2026-08-25T10:30:00\",\"avatarUrl\":\"https://example.test/avatar.png\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("e5-create-1"))
-                .andExpect(jsonPath("$.operation").value("CREATE"))
-                .andExpect(jsonPath("$.data.id").value(501));
-
-            mockMvc.perform(post("/api/ent-crud/customer_profile/detail")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":501}},\"requestId\":\"e5-detail-1\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("e5-detail-1"))
-                .andExpect(jsonPath("$.operation").value("DETAIL"))
-                .andExpect(jsonPath("$.data.item.display_name").value("张三"));
-
-            mockMvc.perform(post("/api/ent-crud/customer_profile/update")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"e5-update-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三（更新）\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("e5-update-1"))
-                .andExpect(jsonPath("$.operation").value("UPDATE"))
-                .andExpect(jsonPath("$.data.rows").value(1));
-
-            mockMvc.perform(post("/api/ent-crud/customer_profile/detail")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":501}},\"requestId\":\"e5-detail-2\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("e5-detail-2"))
-                .andExpect(jsonPath("$.operation").value("DETAIL"))
-                .andExpect(jsonPath("$.data.item.display_name").value("张三（更新）"));
-
-            mockMvc.perform(post("/api/ent-crud/customer_profile/delete")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"e5-delete-1\"},\"payload\":{\"id\":501}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("e5-delete-1"))
-                .andExpect(jsonPath("$.operation").value("DELETE"))
-                .andExpect(jsonPath("$.data.rows").value(1));
+            assertSuccessfulOperation(mockMvc, "create", createRequest(), "e5-create-1", "CREATE",
+                jsonPath("$.data.id").value(501));
+            assertSuccessfulOperation(mockMvc, "detail", detailRequest("e5-detail-1"), "e5-detail-1", "DETAIL",
+                jsonPath("$.data.item.display_name").value("张三"));
+            assertSuccessfulOperation(mockMvc, "update", updateRequest(), "e5-update-1", "UPDATE",
+                jsonPath("$.data.rows").value(1));
+            assertSuccessfulOperation(mockMvc, "detail", detailRequest("e5-detail-2"), "e5-detail-2", "DETAIL",
+                jsonPath("$.data.item.display_name").value("张三（更新）"));
+            assertSuccessfulOperation(mockMvc, "delete", deleteRequest(), "e5-delete-1", "DELETE",
+                jsonPath("$.data.rows").value(1));
         });
+    }
+
+    private static void assertSuccessfulOperation(MockMvc mockMvc,
+                                                  String resourceOperation,
+                                                  String requestBody,
+                                                  String requestId,
+                                                  String operation,
+                                                  ResultMatcher resultMatcher) throws Exception {
+        mockMvc.perform(post("/api/ent-crud/customer_profile/" + resourceOperation)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.requestId").value(requestId))
+            .andExpect(jsonPath("$.operation").value(operation))
+            .andExpect(resultMatcher);
+    }
+
+    private static String createRequest() {
+        return "{\"options\":{\"requestId\":\"e5-create-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三\","
+            + "\"creditLimit\":1000.00,\"registeredAt\":\"2026-08-25T10:30:00\","
+            + "\"avatarUrl\":\"https://example.test/avatar.png\"}}";
+    }
+
+    private static String detailRequest(String requestId) {
+        return "{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":501}},\"requestId\":\""
+            + requestId + "\"}}";
+    }
+
+    private static String updateRequest() {
+        return "{\"options\":{\"requestId\":\"e5-update-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三（更新）\"}}";
+    }
+
+    private static String deleteRequest() {
+        return "{\"options\":{\"requestId\":\"e5-delete-1\"},\"payload\":{\"id\":501}}";
     }
 
     private MockMvc buildMockMvc(AssertableApplicationContext context) {
@@ -141,7 +144,7 @@ class E5CrudMvcAcceptanceTest {
         EntityMetaRegistry metaRegistry() {
             EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
                 new CrudNativeRuntimeModelParser().parse(Collections.<Class<?>>singletonList(
-                    E5EntityRuntimeStaticAcceptanceTest.CustomerProfile.class))
+                    CustomerProfile.class))
             );
             registry.validateOrThrow();
             return registry;
@@ -170,7 +173,7 @@ class E5CrudMvcAcceptanceTest {
         @Bean
         ExposedEntityRegistry exposedEntityRegistry(EntityMetaRegistry metaRegistry) {
             ExposedEntityRegistry registry = new ExposedEntityRegistry(metaRegistry);
-            registry.expose(E5EntityRuntimeStaticAcceptanceTest.CustomerProfile.class);
+            registry.expose(CustomerProfile.class);
             return registry;
         }
     }

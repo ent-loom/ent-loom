@@ -5,6 +5,7 @@ import com.entloom.ddl.api.DdlTableSnapshot;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
+import com.entloom.e5.statictest.fixture.CustomerProfile;
 import java.util.Collections;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -93,7 +94,7 @@ class E5MysqlDdlAcceptanceTest {
         options.setCreateDatabaseIfMissing(true);
         options.setMode(DdlExecutionMode.CREATE_TABLE);
         options.setEntityClasses(Collections.<Class<?>>singletonList(
-            E5EntityRuntimeStaticAcceptanceTest.CustomerProfile.class));
+            CustomerProfile.class));
         return options;
     }
 
