@@ -15,8 +15,19 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>ent-loom-test-support</module>
         <module>ent-loom-e5-static-test</module>
         <module>ent-loom-ddl-consumer-test</module>
         <module>ent-loom-ddl-mysql-integration-test</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>ent-loom-test-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

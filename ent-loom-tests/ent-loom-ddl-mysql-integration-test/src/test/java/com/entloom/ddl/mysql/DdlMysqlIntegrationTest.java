@@ -7,12 +7,13 @@ import com.entloom.ddl.api.DdlExecutionMode;
 import com.entloom.ddl.mysql.fixture.MysqlAccount;
 import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
+import com.entloom.testsupport.mysql.MysqlIntegrationSettings;
 import java.util.Collections;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -26,18 +27,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>默认不参与普通测试；通过 {@code mysql-integration} profile 指向隔离的
  * MySQL 8 实例后，验证 Starter、Spring JDBC 和实际建库建表结果。</p>
  */
+@EnabledIfSystemProperty(named = MysqlIntegrationSettings.INTEGRATION_ENABLED_PROPERTY, matches = "true")
 class DdlMysqlIntegrationTest {
 
     @Test
     @DisplayName("MySQL 8 中完成建库、建表并保留字段主键索引")
     void shouldCreateMysqlSchemaTableAndIndexes() {
-        Assumptions.assumeTrue(Boolean.parseBoolean(
-                System.getProperty("entloom.ddl.mysql.integration", "false")),
-                "未启用 mysql-integration profile");
-
-        String url = requiredProperty("entloom.ddl.mysql.url");
-        String username = requiredProperty("entloom.ddl.mysql.username");
-        String password = System.getProperty("entloom.ddl.mysql.password", "");
+        MysqlIntegrationSettings settings = MysqlIntegrationSettings.load();
+        String url = settings.url();
+        String username = settings.username();
+        String password = settings.password();
         String schema = "entloom_ddl_e25_" + UUID.randomUUID().toString().replace("-", "");
         String table = "mysql_account";
 
@@ -82,7 +81,7 @@ class DdlMysqlIntegrationTest {
             primaryFailure = exception;
             throw exception;
         } finally {
-            cleanUp(context, jdbcTemplate, schema, primaryFailure);
+            cleanUp(context, jdbcTemplate, schema, primaryFailure, settings.keepSchema());
         }
     }
 
@@ -124,20 +123,25 @@ class DdlMysqlIntegrationTest {
     private static void cleanUp(AnnotationConfigApplicationContext context,
                                 JdbcTemplate jdbcTemplate,
                                 String schema,
-                                Throwable primaryFailure) {
+                                Throwable primaryFailure,
+                                boolean keepSchema) {
         RuntimeException cleanupFailure = null;
         try {
             context.close();
         } catch (RuntimeException exception) {
             cleanupFailure = exception;
         }
-        try {
-            jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-        } catch (RuntimeException exception) {
-            if (cleanupFailure == null) {
-                cleanupFailure = exception;
-            } else {
-                cleanupFailure.addSuppressed(exception);
+        if (keepSchema) {
+            System.out.println("保留 MySQL 集成测试 schema 供检查: " + schema);
+        } else {
+            try {
+                jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+            } catch (RuntimeException exception) {
+                if (cleanupFailure == null) {
+                    cleanupFailure = exception;
+                } else {
+                    cleanupFailure.addSuppressed(exception);
+                }
             }
         }
         if (cleanupFailure == null) {
@@ -148,12 +152,6 @@ class DdlMysqlIntegrationTest {
             return;
         }
         throw cleanupFailure;
-    }
-
-    private static String requiredProperty(String name) {
-        String value = System.getProperty(name, "").trim();
-        Assumptions.assumeTrue(!value.isEmpty(), "缺少 MySQL 集成参数: " + name);
-        return value;
     }
 
 }

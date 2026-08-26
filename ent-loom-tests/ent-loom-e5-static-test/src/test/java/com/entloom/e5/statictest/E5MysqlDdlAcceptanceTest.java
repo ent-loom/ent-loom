@@ -6,12 +6,13 @@ import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
 import com.entloom.e5.statictest.fixture.CustomerProfile;
+import com.entloom.testsupport.mysql.MysqlIntegrationSettings;
 import java.util.Collections;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -24,18 +25,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>仅在 mysql-integration profile 下连接本机隔离 MySQL 实例；每次使用随机 schema 并在结束后删除。</p>
  */
+@EnabledIfSystemProperty(named = MysqlIntegrationSettings.INTEGRATION_ENABLED_PROPERTY, matches = "true")
 class E5MysqlDdlAcceptanceTest {
 
     @Test
     @DisplayName("CustomerProfile 应在 MySQL 8 创建字段、主键和唯一索引")
     void shouldCreateCustomerProfileInMysql8() {
-        Assumptions.assumeTrue(Boolean.parseBoolean(
-                System.getProperty("entloom.e5.mysql.integration", "false")),
-            "未启用 mysql-integration profile");
-
-        String url = requiredProperty("entloom.e5.mysql.url");
-        String username = requiredProperty("entloom.e5.mysql.username");
-        String password = mysqlPassword();
+        MysqlIntegrationSettings settings = MysqlIntegrationSettings.load();
+        String url = settings.url();
+        String username = settings.username();
+        String password = settings.password();
         String schema = "entloom_e5_e52_" + UUID.randomUUID().toString().replace("-", "");
         String table = "customer_profile";
 
@@ -83,7 +82,7 @@ class E5MysqlDdlAcceptanceTest {
             primaryFailure = exception;
             throw exception;
         } finally {
-            cleanUp(context, jdbcTemplate, schema, primaryFailure);
+            cleanUp(context, jdbcTemplate, schema, primaryFailure, settings.keepSchema());
         }
     }
 
@@ -117,38 +116,28 @@ class E5MysqlDdlAcceptanceTest {
             String.class, schema, table, column);
     }
 
-    private static String requiredProperty(String name) {
-        String value = System.getProperty(name, "").trim();
-        Assumptions.assumeTrue(!value.isEmpty(), "缺少 MySQL 集成参数: " + name);
-        return value;
-    }
-
-    private static String mysqlPassword() {
-        String password = System.getProperty("entloom.e5.mysql.password", "");
-        if (!password.isEmpty()) {
-            return password;
-        }
-        String environmentPassword = System.getenv("ENTLOOM_E5_MYSQL_PASSWORD");
-        return environmentPassword == null ? "" : environmentPassword;
-    }
-
     private static void cleanUp(AnnotationConfigApplicationContext context,
                                 JdbcTemplate jdbcTemplate,
                                 String schema,
-                                Throwable primaryFailure) {
+                                Throwable primaryFailure,
+                                boolean keepSchema) {
         RuntimeException cleanupFailure = null;
         try {
             context.close();
         } catch (RuntimeException exception) {
             cleanupFailure = exception;
         }
-        try {
-            jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-        } catch (RuntimeException exception) {
-            if (cleanupFailure == null) {
-                cleanupFailure = exception;
-            } else {
-                cleanupFailure.addSuppressed(exception);
+        if (keepSchema) {
+            System.out.println("保留 MySQL 集成测试 schema 供检查: " + schema);
+        } else {
+            try {
+                jdbcTemplate.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+            } catch (RuntimeException exception) {
+                if (cleanupFailure == null) {
+                    cleanupFailure = exception;
+                } else {
+                    cleanupFailure.addSuppressed(exception);
+                }
             }
         }
         if (cleanupFailure == null) {

@@ -14,13 +14,18 @@
     <artifactId>ent-loom-ddl-mysql-integration-test</artifactId>
 
     <properties>
-        <entloom.ddl.mysql.integration>false</entloom.ddl.mysql.integration>
-        <entloom.ddl.mysql.url>jdbc:mysql://127.0.0.1:3307/</entloom.ddl.mysql.url>
-        <entloom.ddl.mysql.username>root</entloom.ddl.mysql.username>
-        <entloom.ddl.mysql.password></entloom.ddl.mysql.password>
+        <entloom.mysql.integration.enabled>false</entloom.mysql.integration.enabled>
+        <entloom.mysql.integration.url></entloom.mysql.integration.url>
+        <entloom.mysql.integration.username></entloom.mysql.integration.username>
+        <entloom.mysql.integration.password></entloom.mysql.integration.password>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
@@ -51,7 +56,7 @@
         <profile>
             <id>mysql-integration</id>
             <properties>
-                <entloom.ddl.mysql.integration>true</entloom.ddl.mysql.integration>
+                <entloom.mysql.integration.enabled>true</entloom.mysql.integration.enabled>
             </properties>
             <build>
                 <plugins>
@@ -60,10 +65,10 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <systemPropertyVariables>
-                                <entloom.ddl.mysql.integration>${entloom.ddl.mysql.integration}</entloom.ddl.mysql.integration>
-                                <entloom.ddl.mysql.url>${entloom.ddl.mysql.url}</entloom.ddl.mysql.url>
-                                <entloom.ddl.mysql.username>${entloom.ddl.mysql.username}</entloom.ddl.mysql.username>
-                                <entloom.ddl.mysql.password>${entloom.ddl.mysql.password}</entloom.ddl.mysql.password>
+                                <entloom.mysql.integration.enabled>${entloom.mysql.integration.enabled}</entloom.mysql.integration.enabled>
+                                <entloom.mysql.integration.url>${entloom.mysql.integration.url}</entloom.mysql.integration.url>
+                                <entloom.mysql.integration.username>${entloom.mysql.integration.username}</entloom.mysql.integration.username>
+                                <entloom.mysql.integration.password>${entloom.mysql.integration.password}</entloom.mysql.integration.password>
                             </systemPropertyVariables>
                         </configuration>
                     </plugin>

@@ -178,7 +178,7 @@ E2.4 验收证据（2026-08-25）：
 E2.5 验收证据（2026-08-25）：
 
 - 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -Pmysql-integration -pl ent-loom-tests/ent-loom-ddl-mysql-integration-test -am test`。
-- 测试环境：本机隔离 MySQL `8.0.45` 临时数据目录，专用 `mysql-integration` Maven profile，MySQL Connector/J 仅作为集成测试依赖；测试结束后临时 schema 已确认无残留。
+- 测试配置：`ent-loom-test-support` 统一加载 MySQL 连接参数；优先使用 Maven `-Dentloom.mysql.integration.*`，其次使用 `ENTLOOM_TEST_MYSQL_*` 与根 `.env.local`。MySQL Connector/J 仅作为集成测试依赖；测试结束后临时 schema 已确认无残留。
 - 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-spring` 共 12 项、`ent-loom-ddl-spring-boot-starter` 共 5 项、`ent-loom-ddl-mysql-integration-test` 共 1 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
 - 合同覆盖：通过 Starter 自动配置按实体包扫描发现测试实体，并由 Spring JDBC 实际创建 schema 与表；验证 `id BIGINT`、`display_name VARCHAR(80)`、主键 `PRIMARY` 和 `idx_mysql_account_display_name` 普通索引。
 - 边界验证：本次只验证 E2 建库建表执行，不实现 ALTER 差异、Meta Adapter 或 CRUD/DOC/UI 全链路；未引入 Testcontainers，E3、E4、E5 保持未开始。
@@ -264,8 +264,8 @@ E5.2 阶段门禁（已完成）：同一简单实体可由 DDL Starter 在 MySQ
 E5.2 验收证据（2026-08-26）：
 
 - 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -Pmysql-integration -pl ent-loom-tests/ent-loom-e5-static-test -am test`。
-- 前置条件：MySQL 8 实例需在 `entloom.e5.mysql.url`（默认 `127.0.0.1:3307`）可达，测试账号需具备建库、建表和删库权限；密码可通过 `entloom.e5.mysql.password` 或环境变量 `ENTLOOM_E5_MYSQL_PASSWORD` 提供。
-- 测试环境：本机隔离 MySQL `8.0.45` 临时数据目录，端口 `3307`；测试为每次执行生成随机 schema，并在 `finally` 中删除，无 Testcontainers。
+- 前置条件：MySQL 8 实例由根 `.env.local` 的 `ENTLOOM_TEST_MYSQL_*` 配置提供，测试账号需具备建库、建表和删库权限；Maven `-Dentloom.mysql.integration.*` 参数可临时覆盖。
+- 测试环境：目标 MySQL 8 由测试专用配置提供；测试为每次执行生成随机 schema，并在 `finally` 中删除，无 Testcontainers。
 - 测试结果：`ent-loom-e5-static-test` 共 3 项测试通过，0 失败、0 错误、0 跳过；上游 Reactor 构件测试通过；JDK 21 Enforcer 通过。
 - DDL 合同：`E5MysqlDdlAcceptanceTest` 通过 `EntDdlAutoConfiguration` 的显式实体入口创建 `customer_profile`，验证 `BIGINT` 主键自增、`VARCHAR(64)`、`DECIMAL(10,2)`、`DATETIME`、`VARCHAR(255)` 与唯一索引 `uk_customer_profile_display_name`，并以公开 `QueryStrategy` 读取表快照。
 - CRUD HTTP 合同：`E5CrudMvcAcceptanceTest` 使用 H2 与 MockMvc，不启动真实 HTTP 服务；依次验证 `create`、`detail`、`update`、`delete` 的成功响应、请求标识和实际 JDBC 影响行数。
