@@ -18,6 +18,7 @@ import com.entloom.crud.core.runtime.spec.FilterableSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -225,7 +226,11 @@ public class SqlIdentifierAllowlistValidator {
             throw new ValidationException("EXISTS 关联过滤条件不能为空");
         }
         RelationGraph relationGraph = metaRegistry.getRelationGraph(spec.getRootType());
-        RelationEdge edge = resolveRelationEdge(relationGraph, existsRelationFilter.getRelation().trim());
+        RelationEdge edge = resolveExistsRelationEdge(
+            spec.getRootType(),
+            relationGraph,
+            existsRelationFilter.getRelation().trim()
+        );
         EntityMeta targetMeta = metaRegistry.getEntityMeta(edge.getToEntity());
         for (QueryFilter filter : existsRelationFilter.getFilters()) {
             if (filter == null || filter.getField() == null || filter.getField().trim().isEmpty()) {
@@ -245,8 +250,19 @@ public class SqlIdentifierAllowlistValidator {
     }
 
     private RelationEdge resolveRelationEdge(RelationGraph relationGraph, String relationName) {
+        return resolveRelationEdge(relationGraph.getEdges(), relationName);
+    }
+
+    /**
+     * 解析 EXISTS 关联边，仅允许根实体的一跳出边。
+     */
+    private RelationEdge resolveExistsRelationEdge(Class<?> rootType, RelationGraph relationGraph, String relationName) {
+        return resolveRelationEdge(relationGraph.outgoingOf(rootType), relationName);
+    }
+
+    private RelationEdge resolveRelationEdge(List<RelationEdge> candidates, String relationName) {
         RelationEdge matched = null;
-        for (RelationEdge edge : relationGraph.getEdges()) {
+        for (RelationEdge edge : candidates) {
             boolean matches = relationName.equalsIgnoreCase(edge.getRelationField())
                 || edge.getToEntity().getSimpleName().equalsIgnoreCase(relationName)
                 || edge.getToEntity().getName().equalsIgnoreCase(relationName)
