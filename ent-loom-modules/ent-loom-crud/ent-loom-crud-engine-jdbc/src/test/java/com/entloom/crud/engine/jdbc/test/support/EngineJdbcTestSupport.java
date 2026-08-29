@@ -9,6 +9,10 @@ import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
 import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
+import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
+import com.entloom.crud.core.governance.policy.DefaultScenePolicyService;
+import com.entloom.crud.core.governance.policy.ScenePolicyRegistry;
+import com.entloom.crud.core.runtime.spec.DefaultCrudSpecAttributeResolver;
 import com.entloom.crud.core.governance.permission.AllowAllCrudPermissionService;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
 import com.entloom.crud.core.idempotency.IdempotencyManager;
@@ -87,7 +91,7 @@ public abstract class EngineJdbcTestSupport {
 
         JdbcQueryEngine defaultQueryEngine = new JdbcQueryEngine(
             metaRegistry,
-            new RootFirstQueryPlanner(),
+            new RootFirstQueryPlanner(metaRegistry),
             new JdbcQueryCompiler(),
             new JdbcQueryExecutor(guardedSqlExecutor, metaRegistry),
             sqlSecurityGuard
@@ -116,7 +120,9 @@ public abstract class EngineJdbcTestSupport {
             new AllowAllCrudPermissionService(),
             new AllowAllCrudDataScopeResolver(),
             Collections.emptyList(),
-            new LoggingCrudGovernanceAuditRecorder()
+            new LoggingCrudGovernanceAuditRecorder(),
+            new DefaultCrudSpecAttributeResolver(),
+            new DefaultScenePolicyService(new ScenePolicyRegistry(null), new AttributeAccessEntryResolver())
         );
         ExecutionPipeline executionPipeline = new ExecutionPipeline(governanceService);
         this.queryGateway = new QueryGatewayImpl(queryRouter, executionPipeline);

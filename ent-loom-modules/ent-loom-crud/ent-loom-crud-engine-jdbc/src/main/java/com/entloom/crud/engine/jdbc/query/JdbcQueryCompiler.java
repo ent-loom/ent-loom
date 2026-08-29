@@ -9,9 +9,11 @@ import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryCompiler;
 import com.entloom.crud.core.capability.query.QueryPlan;
+import com.entloom.crud.core.foundation.read.relation.ResolvedExistsRelationFilter;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
@@ -90,9 +92,13 @@ public class JdbcQueryCompiler implements QueryCompiler {
     private WhereClause buildWhereClause(QueryPlan plan, EntityMeta rootMeta) {
         List<Object> args = new ArrayList<Object>();
         List<String> predicates = new ArrayList<>();
-        predicates.addAll(buildBasePredicates(rootMeta));
-        predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), rootMeta, args));
+        predicates.addAll(buildBasePredicates(rootMeta, "t"));
+        predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), rootMeta, args, "t"));
         predicates.addAll(buildCallerFilterPredicates(plan.getFilters(), rootMeta, args));
+        String existsPredicate = buildExistsRelationPredicate(plan, rootMeta, args);
+        if (existsPredicate != null) {
+            predicates.add(existsPredicate);
+        }
         return new WhereClause(String.join(" and ", predicates), args);
     }
 
@@ -119,11 +125,11 @@ public class JdbcQueryCompiler implements QueryCompiler {
         return String.join(",", columns);
     }
 
-    private List<String> buildBasePredicates(EntityMeta rootMeta) {
+    private List<String> buildBasePredicates(EntityMeta entityMeta, String alias) {
         List<String> predicates = new ArrayList<String>();
-        if (rootMeta.getLogicDeleteField() != null && !rootMeta.getLogicDeleteField().trim().isEmpty()) {
-            String logicDeleteCol = rootMeta.resolveColumn(rootMeta.getLogicDeleteField());
-            predicates.add("t." + logicDeleteCol + " = 0");
+        if (entityMeta.getLogicDeleteField() != null && !entityMeta.getLogicDeleteField().trim().isEmpty()) {
+            String logicDeleteCol = entityMeta.resolveColumn(entityMeta.getLogicDeleteField());
+            predicates.add(alias + "." + logicDeleteCol + " = 0");
         }
         return predicates;
     }
@@ -131,17 +137,22 @@ public class JdbcQueryCompiler implements QueryCompiler {
     /**
      * 构建治理范围过滤谓词。
      */
-    private List<String> buildGovernancePredicates(CrudDataScope scope, EntityMeta rootMeta, List<Object> args) {
+    private List<String> buildGovernancePredicates(
+        CrudDataScope scope,
+        EntityMeta entityMeta,
+        List<Object> args,
+        String alias
+    ) {
         List<String> predicates = new ArrayList<String>();
         if (scope == null || scope.isExplicitAll()) {
             return predicates;
         }
         for (java.util.Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
-            String column = rootMeta.resolveColumn(entry.getKey());
+            String column = entityMeta.resolveColumn(entry.getKey());
             if (column == null) {
-                throw new DataScopeDeniedException("不支持的治理范围维度: " + entry.getKey());
+                throw new DataScopeDeniedException("不支持的治理范围维度: " + entityMeta.getEntityName() + "." + entry.getKey());
             }
-            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, "t." + column, entry.getValue(), "governance scope");
+            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, alias + "." + column, entry.getValue(), "governance scope");
         }
         return predicates;
     }
@@ -150,22 +161,40 @@ public class JdbcQueryCompiler implements QueryCompiler {
      * 构建调用方过滤条件谓词。
      */
     private List<String> buildCallerFilterPredicates(List<QueryFilter> filters, EntityMeta rootMeta, List<Object> args) {
+        return buildFilterPredicates(filters, rootMeta, args, "t", false);
+    }
+
+    /**
+     * 构建实体字段过滤谓词。
+     */
+    private List<String> buildFilterPredicates(
+        List<QueryFilter> filters,
+        EntityMeta entityMeta,
+        List<Object> args,
+        String alias,
+        boolean existsRelation
+    ) {
         List<String> predicates = new ArrayList<String>();
         for (QueryFilter filter : filters) {
+            if (filter == null) {
+                throw new ValidationException("过滤条件不能为空");
+            }
             if (filter.getField().contains(".")) {
-                throw new ValidationException("MVP-1 默认编译器不支持关联过滤");
+                throw new ValidationException(existsRelation
+                    ? "EXISTS 仅支持目标实体直接字段过滤"
+                    : "MVP-1 默认编译器不支持关联过滤");
             }
 
-            String column = rootMeta.resolveColumn(filter.getField());
+            String column = entityMeta.resolveColumn(filter.getField());
             if (column == null) {
                 throw new ValidationException("未知过滤字段: " + filter.getField());
             }
-            if (rootMeta.resolveFieldMeta(filter.getField()) == null
-                || !rootMeta.resolveFieldMeta(filter.getField()).isFilterable()) {
+            if (entityMeta.resolveFieldMeta(filter.getField()) == null
+                || !entityMeta.resolveFieldMeta(filter.getField()).isFilterable()) {
                 throw new ValidationException("字段不允许过滤: " + filter.getField());
             }
 
-            String qualified = "t." + column;
+            String qualified = alias + "." + column;
             FilterOperator op = filter.getOperator();
             Object value = filter.getValue();
 
@@ -233,6 +262,26 @@ public class JdbcQueryCompiler implements QueryCompiler {
             }
         }
         return predicates;
+    }
+
+    /**
+     * 构建单个本地一跳 EXISTS 子查询谓词。
+     */
+    private String buildExistsRelationPredicate(QueryPlan plan, EntityMeta rootMeta, List<Object> args) {
+        ResolvedExistsRelationFilter existsRelationFilter = plan.getExistsRelationFilter();
+        if (existsRelationFilter == null) {
+            return null;
+        }
+        RelationEdge edge = existsRelationFilter.getRelationEdge();
+        EntityMeta targetMeta = existsRelationFilter.getTargetMeta();
+        String rootColumn = rootMeta.resolveColumn(edge.getFromField());
+        String targetColumn = targetMeta.resolveColumn(edge.getToField());
+        List<String> predicates = new ArrayList<String>();
+        predicates.add("r." + targetColumn + " = t." + rootColumn);
+        predicates.addAll(buildBasePredicates(targetMeta, "r"));
+        predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), targetMeta, args, "r"));
+        predicates.addAll(buildFilterPredicates(existsRelationFilter.getFilters(), targetMeta, args, "r", true));
+        return "exists (select 1 from " + targetMeta.getTable() + " r where " + String.join(" and ", predicates) + ")";
     }
 
     /**

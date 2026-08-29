@@ -175,7 +175,7 @@ public class StarterJdbcTestSupportConfiguration {
         );
         return new JdbcQueryEngine(
             metaRegistry,
-            new RootFirstQueryPlanner(),
+            new RootFirstQueryPlanner(metaRegistry),
             new JdbcQueryCompiler(),
             new JdbcQueryExecutor(guardedSqlExecutor, metaRegistry),
             sqlSecurityGuard

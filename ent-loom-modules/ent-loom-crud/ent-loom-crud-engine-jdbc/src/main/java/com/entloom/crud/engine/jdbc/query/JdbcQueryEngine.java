@@ -30,7 +30,7 @@ import java.util.List;
  */
 public class JdbcQueryEngine implements QueryEngine {
     /** JDBC 默认查询引擎能力声明。 */
-    private static final EngineCapability CAPABILITY = EngineCapability.builder("jdbc-query-engine")
+    private static final EngineCapability ROOT_FIRST_CAPABILITY = EngineCapability.builder("jdbc-query-engine")
         .operations(
             QueryOperation.PAGE,
             QueryOperation.LIST,
@@ -40,6 +40,26 @@ public class JdbcQueryEngine implements QueryEngine {
         .queryStrategies(QueryStrategy.ROOT_FIRST)
         .features(
             EngineFeature.ROOT_FILTER,
+            EngineFeature.ROOT_SORT,
+            EngineFeature.SELECT_FIELDS,
+            EngineFeature.RELATION_EXPAND,
+            EngineFeature.GOVERNANCE_SCOPE,
+            EngineFeature.LOGIC_DELETE,
+            EngineFeature.DEFAULT_SORT
+        )
+        .build();
+    /** 配置实体元数据注册表后的 JDBC 查询引擎能力声明。 */
+    private static final EngineCapability EXISTS_CAPABILITY = EngineCapability.builder("jdbc-query-engine")
+        .operations(
+            QueryOperation.PAGE,
+            QueryOperation.LIST,
+            QueryOperation.FIND_ONE,
+            QueryOperation.DETAIL
+        )
+        .queryStrategies(QueryStrategy.ROOT_FIRST, QueryStrategy.EXISTS)
+        .features(
+            EngineFeature.ROOT_FILTER,
+            EngineFeature.RELATION_FILTER,
             EngineFeature.ROOT_SORT,
             EngineFeature.SELECT_FIELDS,
             EngineFeature.RELATION_EXPAND,
@@ -61,6 +81,8 @@ public class JdbcQueryEngine implements QueryEngine {
     private final SqlSecurityGuard sqlSecurityGuard;
     /** 默认排序解析器。 */
     private final QueryDefaultSortResolver defaultSortResolver;
+    /** 当前 Planner 实际支持的查询能力。 */
+    private final EngineCapability capability;
 
     public JdbcQueryEngine(
         EntityMetaRegistry metaRegistry,
@@ -93,11 +115,12 @@ public class JdbcQueryEngine implements QueryEngine {
         this.queryExecutor = queryExecutor;
         this.sqlSecurityGuard = sqlSecurityGuard;
         this.defaultSortResolver = defaultSortResolver == null ? NoOpQueryDefaultSortResolver.INSTANCE : defaultSortResolver;
+        this.capability = resolveCapability(queryPlanner);
     }
 
     @Override
     public EngineCapability capability() {
-        return CAPABILITY;
+        return capability;
     }
 
     @Override
@@ -144,6 +167,14 @@ public class JdbcQueryEngine implements QueryEngine {
             QueryStrategy.ROOT_FIRST
         );
         capability.requireQueryStrategy(effective);
+        if (spec.getExistsRelationFilter() != null) {
+            capability.requireFeature(EngineFeature.RELATION_FILTER, "EXISTS 关联过滤");
+            if (effective != QueryStrategy.EXISTS) {
+                throw new com.entloom.crud.core.exception.ValidationException(
+                    "EXISTS 关联过滤必须显式使用 QueryStrategy.EXISTS"
+                );
+            }
+        }
         if (!spec.getSelectFields().isEmpty()) {
             capability.requireFeature(EngineFeature.SELECT_FIELDS, "显式字段投影(selectFields)");
         }
@@ -169,6 +200,13 @@ public class JdbcQueryEngine implements QueryEngine {
         QueryPlan queryPlan = queryPlanner.plan(effectiveSpec, entityMeta, relationGraph);
         sqlSecurityGuard.beforeCompile(effectiveSpec);
         return queryCompiler.compile(queryPlan);
+    }
+
+    private EngineCapability resolveCapability(QueryPlanner planner) {
+        if (planner instanceof RootFirstQueryPlanner && !((RootFirstQueryPlanner) planner).supportsExists()) {
+            return ROOT_FIRST_CAPABILITY;
+        }
+        return EXISTS_CAPABILITY;
     }
 
     private <R> QueryExecutionSpec<R> applyDefaultSort(QueryExecutionSpec<R> spec, EntityMeta entityMeta) {

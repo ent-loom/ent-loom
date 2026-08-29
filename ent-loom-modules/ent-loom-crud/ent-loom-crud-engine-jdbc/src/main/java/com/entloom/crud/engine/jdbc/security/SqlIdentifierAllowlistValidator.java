@@ -7,6 +7,7 @@ import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
@@ -15,6 +16,7 @@ import com.entloom.crud.core.runtime.spec.BaseSpec;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.spec.FilterableSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,6 +40,7 @@ public class SqlIdentifierAllowlistValidator {
      */
     public void validateQuerySpec(QuerySpec<?> spec) {
         validateFilterableSpec(spec, spec, false);
+        validateExistsRelationFilter(spec);
     }
 
     /**
@@ -203,21 +206,62 @@ public class SqlIdentifierAllowlistValidator {
         String relationName = tokens[0];
         String childField = tokens[1];
 
-        RelationEdge matched = null;
-        for (RelationEdge edge : relationGraph.getEdges()) {
-            if (edge.getToEntity().getSimpleName().equalsIgnoreCase(relationName)
-                || edge.getToEntity().getName().equalsIgnoreCase(relationName)
-                || edge.getToEntity().getSimpleName().replace("Entity", "").equalsIgnoreCase(relationName)) {
-                matched = edge;
-                break;
-            }
-        }
-        if (matched == null) {
-            throw new ValidationException("未找到关联关系: " + relationName);
-        }
+        RelationEdge matched = resolveRelationEdge(relationGraph, relationName);
         EntityMeta childMeta = metaRegistry.getEntityMeta(matched.getToEntity());
         if (!childMeta.getAllowedFields().contains(childField)) {
             throw new ValidationException("未知关联字段: " + path);
         }
+    }
+
+    private void validateExistsRelationFilter(QuerySpec<?> spec) {
+        ExistsRelationFilter existsRelationFilter = spec.getExistsRelationFilter();
+        if (existsRelationFilter == null) {
+            return;
+        }
+        if (existsRelationFilter.getRelation() == null || existsRelationFilter.getRelation().trim().isEmpty()) {
+            throw new ValidationException("EXISTS 关联关系不能为空");
+        }
+        if (existsRelationFilter.getFilters().isEmpty()) {
+            throw new ValidationException("EXISTS 关联过滤条件不能为空");
+        }
+        RelationGraph relationGraph = metaRegistry.getRelationGraph(spec.getRootType());
+        RelationEdge edge = resolveRelationEdge(relationGraph, existsRelationFilter.getRelation().trim());
+        EntityMeta targetMeta = metaRegistry.getEntityMeta(edge.getToEntity());
+        for (QueryFilter filter : existsRelationFilter.getFilters()) {
+            if (filter == null || filter.getField() == null || filter.getField().trim().isEmpty()) {
+                throw new ValidationException("EXISTS 关联过滤字段不能为空");
+            }
+            if (filter.getField().contains(".")) {
+                throw new ValidationException("EXISTS 仅支持目标实体直接字段过滤: " + filter.getField());
+            }
+            if (filter.getOperator() == null) {
+                throw new ValidationException("EXISTS 过滤操作符不能为空: " + filter.getField());
+            }
+            EntityFieldMeta fieldMeta = targetMeta.resolveFieldMeta(filter.getField());
+            if (fieldMeta == null || !fieldMeta.isFilterable()) {
+                throw new ValidationException("EXISTS 关联字段不允许过滤: " + filter.getField());
+            }
+        }
+    }
+
+    private RelationEdge resolveRelationEdge(RelationGraph relationGraph, String relationName) {
+        RelationEdge matched = null;
+        for (RelationEdge edge : relationGraph.getEdges()) {
+            boolean matches = relationName.equalsIgnoreCase(edge.getRelationField())
+                || edge.getToEntity().getSimpleName().equalsIgnoreCase(relationName)
+                || edge.getToEntity().getName().equalsIgnoreCase(relationName)
+                || edge.getToEntity().getSimpleName().replace("Entity", "").equalsIgnoreCase(relationName);
+            if (!matches) {
+                continue;
+            }
+            if (matched != null) {
+                throw new ValidationException("关联关系不明确: " + relationName);
+            }
+            matched = edge;
+        }
+        if (matched == null) {
+            throw new ValidationException("未找到关联关系: " + relationName);
+        }
+        return matched;
     }
 }

@@ -1,6 +1,7 @@
 # 关系查询架构
 
-当前关系查询是 `ROOT_FIRST` 的 MVP-1：先查根实体，再按关系边批量补数。它不是默认 JOIN 查询，也不支持关联字段过滤/排序。
+当前关系查询以 `ROOT_FIRST` 为默认策略：先查根实体，再按关系边批量补数。另已提供仅供 Java 内部
+`QuerySceneHandler` 使用的 `EXISTS` 关联过滤；它只筛选根实体，不展开关联行。两者都不是默认 JOIN 查询。
 
 一跳 JOIN 投影、关联排序、null 排序和稳定分页的待扩展方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/关系查询后续路线.md)。
 
@@ -102,15 +103,17 @@ flowchart LR
 |---|---|
 | 本地库一跳 `ROOT_FIRST` 展开 | 已实现 |
 | 基于实体序列的有限路径展开 | 已实现，但仍以批量补数为主 |
+| 本地库一跳 `EXISTS` 关联过滤 | 已实现；仅 Java 内部模型，显式 `QueryStrategy.EXISTS`，不开放 HTTP 合同 |
 | `RelationScope.REMOTE_SERVICE` | 默认关系查询拒绝 |
-| 关联过滤 | 默认编译器拒绝 |
+| 关联字段点路径过滤 | 默认编译器拒绝 |
 | 关联排序 | 默认编译器拒绝 |
-| `EXISTS` / `JOIN` | 仅保留在下一阶段方案文档，不在当前公开 `QueryStrategy` 中暴露 |
+| `JOIN` / `JOIN_LIST` | 仅保留在下一阶段方案文档 |
 | 默认跨表写 | 未实现，走定制 Command SceneHandler |
 
 ## 使用建议
 
 - 普通列表详情需要子集合时，用 `entityCodes` 或 `expandRelations` 触发 ROOT_FIRST 展开。
-- 需要关联过滤、关联排序、跨服务补数或复杂聚合时，优先写 `Query*SceneHandler` 或 `StatsSceneHandler`。
+- 需要按一跳本地关系筛选根实体时，在 `QuerySceneHandler` 内构造 `ExistsRelationFilter`，并显式指定 `QueryStrategy.EXISTS`。
+- 需要关联排序、跨服务补数或复杂聚合时，优先写 `Query*SceneHandler` 或 `StatsSceneHandler`。
 - 需要“主表列表 + 一跳维表投影 + 跨表稳定排序”时，当前仍走定制 `Query*SceneHandler`；通用化方案见 [Relation Query 后续路线](../../../../docs/evolution/roadmap/crud/关系查询后续路线.md)。
 - 需要“一次写主子表”时，用 `CommandCreate/Update/DeleteSceneHandler` 包住默认 delegate，再做子表同步。

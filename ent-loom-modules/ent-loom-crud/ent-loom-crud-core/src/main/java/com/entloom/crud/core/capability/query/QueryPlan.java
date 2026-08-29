@@ -7,6 +7,7 @@ import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.foundation.read.relation.ResolvedExistsRelationFilter;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -32,6 +33,8 @@ public class QueryPlan {
     private final List<QueryFilter> filters;
     /** 解析后的关联展开边。 */
     private final List<com.entloom.crud.core.runtime.meta.RelationEdge> expandEdges;
+    /** 已解析的 EXISTS 关联过滤条件。 */
+    private final ResolvedExistsRelationFilter existsRelationFilter;
 
     public QueryPlan(
         QuerySpec<?> spec,
@@ -48,7 +51,8 @@ public class QueryPlan {
             op,
             spec.getGovernanceScope(),
             spec.getFilters(),
-            new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>()
+            new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>(),
+            null
         );
     }
 
@@ -69,7 +73,8 @@ public class QueryPlan {
             op,
             governanceScope,
             filters,
-            new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>()
+            new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>(),
+            null
         );
     }
 
@@ -83,6 +88,30 @@ public class QueryPlan {
         List<QueryFilter> filters,
         List<com.entloom.crud.core.runtime.meta.RelationEdge> expandEdges
     ) {
+        this(
+            spec,
+            rootMeta,
+            relationGraph,
+            effectiveStrategy,
+            op,
+            governanceScope,
+            filters,
+            expandEdges,
+            null
+        );
+    }
+
+    public QueryPlan(
+        QuerySpec<?> spec,
+        EntityMeta rootMeta,
+        RelationGraph relationGraph,
+        QueryStrategy effectiveStrategy,
+        QueryOperation op,
+        CrudDataScope governanceScope,
+        List<QueryFilter> filters,
+        List<com.entloom.crud.core.runtime.meta.RelationEdge> expandEdges,
+        ResolvedExistsRelationFilter existsRelationFilter
+    ) {
         this.spec = spec;
         this.rootMeta = rootMeta;
         this.relationGraph = relationGraph;
@@ -93,6 +122,7 @@ public class QueryPlan {
         this.expandEdges = expandEdges == null
             ? new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>()
             : new ArrayList<com.entloom.crud.core.runtime.meta.RelationEdge>(expandEdges);
+        this.existsRelationFilter = existsRelationFilter;
     }
 
     public List<QueryFilter> getFilters() {

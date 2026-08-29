@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.PageRequest;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import java.util.Objects;
 
 /**
@@ -32,6 +33,7 @@ public class QuerySpecValidator {
         if (base.getResultType() == null) {
             throw new ValidationException("查询结果类型(resultType)不能为空");
         }
+        validateExistsRelationFilter(base.getExistsRelationFilter());
         QuerySpec.Builder<R> builder = base.toBuilder();
         switch (op) {
             case PAGE:
@@ -71,5 +73,17 @@ public class QuerySpecValidator {
                 break;
         }
         return builder.build();
+    }
+
+    private void validateExistsRelationFilter(ExistsRelationFilter existsRelationFilter) {
+        if (existsRelationFilter == null) {
+            return;
+        }
+        if (existsRelationFilter.getRelation() == null || existsRelationFilter.getRelation().trim().isEmpty()) {
+            throw new ValidationException("EXISTS 关联关系不能为空");
+        }
+        if (existsRelationFilter.getFilters().isEmpty()) {
+            throw new ValidationException("EXISTS 关联过滤条件不能为空");
+        }
     }
 }

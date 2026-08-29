@@ -6,6 +6,7 @@ import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.exception.UnsupportedQueryStrategyException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
@@ -16,7 +17,9 @@ import com.entloom.crud.core.runtime.model.parser.CrudNativeRuntimeModelParser;
 import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
+import com.entloom.crud.engine.jdbc.test.entity.OrderItemTestEntity;
 import com.entloom.crud.enums.QueryStrategy;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +37,7 @@ class JdbcQueryCompilerContractTest {
     @BeforeEach
     void setUp() {
         metaRegistry = new CrudRuntimeModelBackedEntityMetaRegistry(
-            new CrudNativeRuntimeModelParser().parse(Collections.<Class<?>>singletonList(OrderTestEntity.class))
+            new CrudNativeRuntimeModelParser().parse(Arrays.<Class<?>>asList(OrderTestEntity.class, OrderItemTestEntity.class))
         );
         metaRegistry.validateOrThrow();
         orderMeta = metaRegistry.getEntityMeta(OrderTestEntity.class);
@@ -65,6 +68,71 @@ class JdbcQueryCompilerContractTest {
             compiled.getCountSql()
         );
         Assertions.assertEquals(Collections.<Object>singletonList(10L), compiled.getCountArgs());
+    }
+
+    @Test
+    void should_compile_exists_filter_for_root_query_and_count_query() {
+        QuerySpec<OrderTestEntity> spec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(20)
+            .strategy(QueryStrategy.EXISTS)
+            .existsRelationFilter(new ExistsRelationFilter(
+                "items",
+                Collections.singletonList(new QueryFilter("skuCode", FilterOperator.EQ, "SKU-1"))
+            ))
+            .build();
+
+        QueryPlan plan = new RootFirstQueryPlanner(metaRegistry).plan(
+            spec,
+            orderMeta,
+            metaRegistry.getRelationGraph(OrderTestEntity.class)
+        );
+        CompiledQuery compiled = compiler.compile(plan);
+
+        Assertions.assertEquals(
+            "select * from t_order t where t.is_deleted = 0 and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = 0 and r.sku_code = ?) order by t.id asc limit ?",
+            compiled.getDataSql()
+        );
+        Assertions.assertEquals(Arrays.<Object>asList("SKU-1", 20), compiled.getDataArgs());
+        Assertions.assertEquals(
+            "select count(1) from t_order t where t.is_deleted = 0 and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = 0 and r.sku_code = ?)",
+            compiled.getCountSql()
+        );
+        Assertions.assertEquals(Collections.<Object>singletonList("SKU-1"), compiled.getCountArgs());
+    }
+
+    @Test
+    void should_not_advertise_or_execute_exists_without_meta_registry_planner() {
+        JdbcQueryEngine engine = new JdbcQueryEngine(
+            metaRegistry,
+            new RootFirstQueryPlanner(),
+            compiler,
+            null,
+            null
+        );
+        QuerySpec<OrderTestEntity> spec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(20)
+            .strategy(QueryStrategy.EXISTS)
+            .existsRelationFilter(new ExistsRelationFilter(
+                "items",
+                Collections.singletonList(new QueryFilter("skuCode", FilterOperator.EQ, "SKU-1"))
+            ))
+            .build();
+
+        Assertions.assertFalse(engine.capability().supportsQueryStrategy(QueryStrategy.EXISTS));
+        Assertions.assertThrows(UnsupportedQueryStrategyException.class, () -> engine.list(spec));
+        Assertions.assertTrue(new JdbcQueryEngine(
+            metaRegistry,
+            new RootFirstQueryPlanner(metaRegistry),
+            compiler,
+            null,
+            null
+        ).capability().supportsQueryStrategy(QueryStrategy.EXISTS));
     }
 
     @Test

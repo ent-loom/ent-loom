@@ -43,6 +43,8 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
     private final List<String> selectFields;
     /** 展开关联列表。 */
     private final List<String> expandRelations;
+    /** EXISTS 关联过滤条件。 */
+    private final ExistsRelationFilter existsRelationFilter;
     /** 结果类型。 */
     private final Class<R> resultType;
 
@@ -61,6 +63,7 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
         this.limit = builder.limit;
         this.selectFields = Collections.unmodifiableList(copyStrings(builder.selectFields));
         this.expandRelations = Collections.unmodifiableList(copyStrings(builder.expandRelations));
+        this.existsRelationFilter = copyExistsRelationFilter(builder.existsRelationFilter);
         this.resultType = builder.resultType;
     }
 
@@ -85,6 +88,7 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
             .limit(limit)
             .selectFields(getSelectFields())
             .expandRelations(getExpandRelations())
+            .existsRelationFilter(getExistsRelationFilter())
             .resultType(resultType);
     }
 
@@ -136,6 +140,10 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
         return copyStrings(expandRelations);
     }
 
+    public ExistsRelationFilter getExistsRelationFilter() {
+        return copyExistsRelationFilter(existsRelationFilter);
+    }
+
     public final Class<R> getResultType() {
         return resultType;
     }
@@ -178,6 +186,13 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
             return null;
         }
         return new QuerySort(source.getField(), source.getDirection(), source.getTarget());
+    }
+
+    private static ExistsRelationFilter copyExistsRelationFilter(ExistsRelationFilter source) {
+        if (source == null) {
+            return null;
+        }
+        return new ExistsRelationFilter(source.getRelation(), source.getFilters());
     }
 
     private static QueryTimeRange copyTime(QueryTimeRange source) {
@@ -223,6 +238,7 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
         private Integer limit;
         private List<String> selectFields = new ArrayList<String>();
         private List<String> expandRelations = new ArrayList<String>();
+        private ExistsRelationFilter existsRelationFilter;
         private Class<R> resultType;
 
         public B op(QueryOperation op) {
@@ -279,6 +295,14 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
 
         public B expandRelations(List<String> expandRelations) {
             this.expandRelations = copyStrings(expandRelations);
+            return self();
+        }
+
+        /**
+         * 设置仅供 Java 内部查询使用的 EXISTS 关联过滤条件。
+         */
+        public B existsRelationFilter(ExistsRelationFilter existsRelationFilter) {
+            this.existsRelationFilter = copyExistsRelationFilter(existsRelationFilter);
             return self();
         }
 

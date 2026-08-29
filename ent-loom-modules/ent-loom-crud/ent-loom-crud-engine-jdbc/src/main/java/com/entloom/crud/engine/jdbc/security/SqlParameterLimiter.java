@@ -6,6 +6,7 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.spec.FilterableSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import java.util.Collection;
 
 /**
@@ -42,13 +43,21 @@ public class SqlParameterLimiter {
      */
     public void validateQuerySpec(QuerySpec<?> spec) {
         validateFilterableSpec(spec);
+        ExistsRelationFilter existsRelationFilter = spec.getExistsRelationFilter();
+        if (existsRelationFilter != null) {
+            validateFilters(existsRelationFilter.getFilters());
+        }
     }
 
     /**
      * 校验带过滤视图的参数规模。
      */
     public void validateFilterableSpec(FilterableSpec spec) {
-        for (QueryFilter filter : spec.getFilters()) {
+        validateFilters(spec.getFilters());
+    }
+
+    private void validateFilters(Iterable<QueryFilter> filters) {
+        for (QueryFilter filter : filters) {
             Object value = filter.getValue();
             if (value instanceof String) {
                 String str = (String) value;

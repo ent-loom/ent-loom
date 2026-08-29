@@ -8,8 +8,6 @@ public enum QueryStrategy {
     DEFAULT,
     /** 主表优先分页，再批量补数。 */
     ROOT_FIRST,
-//    /** EXISTS 子查询策略。 */
-//    EXISTS,
-//    /** JOIN 直连策略。 */
-//    JOIN
+    /** EXISTS 关联过滤策略。 */
+    EXISTS
 }
