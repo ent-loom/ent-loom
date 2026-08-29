@@ -3,6 +3,9 @@ package com.entloom.crud.starter.config.module;
 import com.entloom.crud.core.adapter.AccessEntryResolver;
 import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
 import com.entloom.crud.core.adapter.ContextAccessEntryAttributeContributor;
+import com.entloom.crud.core.adapter.AttributePortalResolver;
+import com.entloom.crud.core.adapter.ContextPortalAttributeContributor;
+import com.entloom.crud.core.adapter.PortalResolver;
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
@@ -17,6 +20,10 @@ import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
+import com.entloom.crud.core.governance.policy.DefaultScenePolicyService;
+import com.entloom.crud.core.governance.policy.ScenePolicy;
+import com.entloom.crud.core.governance.policy.ScenePolicyRegistry;
+import com.entloom.crud.core.governance.policy.ScenePolicyService;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.scope.DefaultCrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
@@ -81,9 +88,39 @@ public class CrudCommonConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public PortalResolver portalResolver() {
+        return new AttributePortalResolver();
+    }
+
+    /** 启动期收集并冻结业务 Scene Policy。 */
+    @Bean
+    @ConditionalOnMissingBean
+    public ScenePolicyRegistry scenePolicyRegistry(ObjectProvider<ScenePolicy[]> policiesProvider) {
+        ScenePolicy[] policies = policiesProvider.getIfAvailable();
+        return new ScenePolicyRegistry(policies == null ? java.util.Collections.<ScenePolicy>emptyList() : java.util.Arrays.asList(policies));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ScenePolicyService scenePolicyService(
+        ScenePolicyRegistry registry,
+        AccessEntryResolver accessEntryResolver,
+        PortalResolver portalResolver
+    ) {
+        return new DefaultScenePolicyService(registry, accessEntryResolver, portalResolver);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(name = "crudAccessEntryAttributeContributor")
     public ContextAccessEntryAttributeContributor crudAccessEntryAttributeContributor() {
         return new ContextAccessEntryAttributeContributor();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "crudPortalAttributeContributor")
+    public ContextPortalAttributeContributor crudPortalAttributeContributor() {
+        return new ContextPortalAttributeContributor();
     }
 
     /**

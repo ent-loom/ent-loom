@@ -12,7 +12,7 @@ import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
-import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
+import com.entloom.crud.core.governance.service.TestCrudGovernanceServices;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -44,7 +44,7 @@ class StatsGatewayGovernanceTest {
         RecordingAuditRecorder auditRecorder = new RecordingAuditRecorder();
         StatsGateway gateway = statsGateway(
             statsQueryEngine(),
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(resolved),
@@ -87,7 +87,7 @@ class StatsGatewayGovernanceTest {
                     throw expected;
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -124,7 +124,7 @@ class StatsGatewayGovernanceTest {
                     return null;
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),

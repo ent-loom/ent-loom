@@ -17,7 +17,7 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
             return;
         }
         log.info(
-            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} capability={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={}",
+            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} accessEntry={} portal={} capability={} policyMatched={} policyRejectionReason={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={}",
             event.getOutcome(),
             event.isAllowed(),
             event.isSuccess(),
@@ -32,7 +32,11 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
             event.getAction() == null ? null : event.getAction().getOperation(),
             event.getAction() == null ? null : event.getAction().getAction(),
             event.getAction() == null ? null : event.getAction().getScene(),
+            event.getAction() == null ? null : event.getAction().getAccessEntry(),
+            event.getAction() == null ? null : event.getAction().getPortal(),
             event.getAction() == null ? null : event.getAction().getCapability(),
+            event.getAction() != null && event.getAction().isPolicyMatched(),
+            event.getAction() == null ? null : event.getAction().getPolicyRejectionReason(),
             event.getSubject() == null ? null : event.getSubject().getSubjectId(),
             event.getSubject() == null ? null : event.getSubject().getTenantId(),
             event.getSubject() == null ? null : event.getSubject().getOrgId(),

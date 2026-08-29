@@ -6,20 +6,13 @@ import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.sql.SQLException;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * JDBC 审计落库实现。
  */
 public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecorder {
-    /** 审计结果列名。 */
-    private static final String OUTCOME_COLUMN = "outcome";
-    /** 审计结果列定义。 */
-    private static final String OUTCOME_COLUMN_DEFINITION = "varchar(32)";
     /** JDBC 模板。 */
     private final JdbcTemplate jdbcTemplate;
     /** 表名。 */
@@ -40,13 +33,18 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
     @Override
     public void record(CrudGovernanceAuditEvent event) {
         jdbcTemplate.update(
-            "insert into " + tableName + " (subject_id, tenant_id, org_id, resource, action, scene, access_decision, allowed, outcome, reason_code, granted_scope_json, governance_scope_json, cost_ms) values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "insert into " + tableName + " (subject_id, tenant_id, org_id, resource, action, scene, access_entry, portal, capability, policy_matched, policy_rejection_reason, access_decision, allowed, outcome, reason_code, granted_scope_json, governance_scope_json, cost_ms) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             event.getSubject() == null ? null : event.getSubject().getSubjectId(),
             event.getSubject() == null ? null : event.getSubject().getTenantId(),
             event.getSubject() == null ? null : event.getSubject().getOrgId(),
             event.getAction() == null ? null : event.getAction().getResource(),
             event.getAction() == null ? null : event.getAction().getAction(),
             event.getAction() == null ? null : event.getAction().getScene(),
+            event.getAction() == null ? null : event.getAction().getAccessEntry(),
+            event.getAction() == null ? null : event.getAction().getPortal(),
+            event.getAction() == null ? null : event.getAction().getCapability(),
+            event.getAction() != null && event.getAction().isPolicyMatched() ? 1 : 0,
+            event.getAction() == null ? null : event.getAction().getPolicyRejectionReason(),
             event.getAccessDecision().name(),
             event.isAllowed() ? 1 : 0,
             event.getOutcome() == null ? null : event.getOutcome().name(),
@@ -70,6 +68,11 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
                 + "resource varchar(128), "
                 + "action varchar(128), "
                 + "scene varchar(255), "
+                + "access_entry varchar(64), "
+                + "portal varchar(64), "
+                + "capability varchar(128), "
+                + "policy_matched int, "
+                + "policy_rejection_reason varchar(1024), "
                 + "access_decision varchar(32), "
                 + "allowed int, "
                 + "outcome varchar(32), "
@@ -79,39 +82,6 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
                 + "cost_ms bigint, "
                 + "created_at timestamp default current_timestamp)"
         );
-        ensureColumnExists(OUTCOME_COLUMN, OUTCOME_COLUMN_DEFINITION);
-    }
-
-    /**
-     * 补齐历史版本缺失列，便于在线迁移。
-     */
-    private void ensureColumnExists(String columnName, String definition) {
-        try {
-            jdbcTemplate.execute("alter table " + tableName + " add column " + columnName + " " + definition);
-        } catch (DataAccessException ex) {
-            if (!isColumnAlreadyExists(ex)) {
-                throw ex;
-            }
-        }
-    }
-
-    private boolean isColumnAlreadyExists(DataAccessException ex) {
-        Throwable cause = ex.getCause();
-        if (cause instanceof SQLException) {
-            String sqlState = ((SQLException) cause).getSQLState();
-            if ("42S21".equals(sqlState)) {
-                return true;
-            }
-        }
-        String message = ex.getMessage();
-        if (message == null || message.trim().isEmpty()) {
-            return false;
-        }
-        String normalized = message.toLowerCase(Locale.ROOT);
-        return normalized.contains("duplicate column")
-            || normalized.contains("column already exists")
-            || normalized.contains("already exists")
-            || normalized.contains("column exists");
     }
 
     /**

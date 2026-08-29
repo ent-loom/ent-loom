@@ -1,7 +1,7 @@
 package com.entloom.crud.starter.web.controller;
 
 import com.entloom.crud.api.model.CrudResponse;
-import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.starter.web.support.CrudWebInvocationContext;
 import com.entloom.crud.starter.web.dto.CrudCommandHttpRequest;
 import com.entloom.crud.starter.web.facade.EntCrudCommandFacade;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.create(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.create(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/update", "/{entity}/update/{scene:.+}"})
@@ -29,7 +29,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.update(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.update(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/delete", "/{entity}/delete/{scene:.+}"})
@@ -38,7 +38,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.delete(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.delete(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/saveOrUpdate", "/{entity}/saveOrUpdate/{scene:.+}"})
@@ -47,7 +47,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.saveOrUpdate(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.saveOrUpdate(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/createBatch", "/{entity}/createBatch/{scene:.+}"})
@@ -56,7 +56,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.createBatch(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.createBatch(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/updateBatch", "/{entity}/updateBatch/{scene:.+}"})
@@ -65,7 +65,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.updateBatch(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.updateBatch(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/deleteBatch", "/{entity}/deleteBatch/{scene:.+}"})
@@ -74,7 +74,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.deleteBatch(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.deleteBatch(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/saveOrUpdateBatch", "/{entity}/saveOrUpdateBatch/{scene:.+}"})
@@ -83,7 +83,7 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.saveOrUpdateBatch(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.saveOrUpdateBatch(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/action", "/{entity}/action/{scene:.+}"})
@@ -92,6 +92,6 @@ public class EntCrudCommandController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudCommandHttpRequest request
     ) {
-        return entCrudCommandFacade.action(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudCommandFacade.action(entity, scene, request, CrudWebInvocationContext.http());
     }
 }

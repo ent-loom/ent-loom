@@ -18,6 +18,8 @@ import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder
 import com.entloom.crud.core.governance.model.CrudResourceAction;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
+import com.entloom.crud.core.governance.policy.ScenePolicyMatch;
+import com.entloom.crud.core.governance.policy.ScenePolicyService;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.governance.scope.CrudDataScopeContributor;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
@@ -75,27 +77,8 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
     private final CrudScopeIntersectionService scopeIntersectionService;
     /** Spec 属性解析器。 */
     private final CrudSpecAttributeResolver specAttributeResolver;
-
-    public DefaultCrudGovernanceService(
-        EntityMetaRegistry entityMetaRegistry,
-        SpecValidator specValidator,
-        CrudSubjectResolver subjectResolver,
-        CrudPermissionService permissionService,
-        CrudDataScopeResolver dataScopeResolver,
-        Collection<CrudDataScopeContributor> dataScopeContributors,
-        CrudGovernanceAuditRecorder auditRecorder
-    ) {
-        this(
-            entityMetaRegistry,
-            specValidator,
-            subjectResolver,
-            permissionService,
-            dataScopeResolver,
-            dataScopeContributors,
-            auditRecorder,
-            new DefaultCrudSpecAttributeResolver()
-        );
-    }
+    /** 高风险场景静态准入服务。 */
+    private final ScenePolicyService scenePolicyService;
 
     public DefaultCrudGovernanceService(
         EntityMetaRegistry entityMetaRegistry,
@@ -105,7 +88,8 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
         CrudDataScopeResolver dataScopeResolver,
         Collection<CrudDataScopeContributor> dataScopeContributors,
         CrudGovernanceAuditRecorder auditRecorder,
-        CrudSpecAttributeResolver specAttributeResolver
+        CrudSpecAttributeResolver specAttributeResolver,
+        ScenePolicyService scenePolicyService
     ) {
         if (entityMetaRegistry == null) {
             throw new ValidationException("entityMetaRegistry 不能为空");
@@ -124,6 +108,10 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
         this.specAttributeResolver = specAttributeResolver == null
             ? new DefaultCrudSpecAttributeResolver()
             : specAttributeResolver;
+        if (scenePolicyService == null) {
+            throw new ValidationException("scenePolicyService 不能为空");
+        }
+        this.scenePolicyService = scenePolicyService;
     }
 
     @Override
@@ -144,6 +132,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
             run.enter(GovernanceStage.RESOURCE);
             run.subject = validated.getSubject();
             run.action = resourceAction(validated.getRootType(), validated.getOperationKey(), validated.getScene(), capability(validated));
+            run.action = applyScenePolicy(run, validated, validated.getOperationKey());
             run.enter(GovernanceStage.PERMISSION);
             run.accessDecision = requireGrantedDecision(permissionService.decide(run.action, run.subject, validated));
             run.enter(GovernanceStage.SCOPE);
@@ -189,6 +178,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
             run.enter(GovernanceStage.RESOURCE);
             run.subject = validated.getSubject();
             run.action = resourceAction(validated.getRootType(), validated.getOperationKey(), validated.getScene(), capability(validated));
+            run.action = applyScenePolicy(run, validated, validated.getOperationKey());
             run.enter(GovernanceStage.PERMISSION);
             run.accessDecision = requireGrantedDecision(permissionService.decide(run.action, run.subject, validated));
             run.enter(GovernanceStage.SCOPE);
@@ -232,6 +222,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
             run.enter(GovernanceStage.RESOURCE);
             run.subject = validated.getSubject();
             run.action = resourceAction(validated.getRootType(), statsOperationKey(validated), validated.getScene(), capability(validated));
+            run.action = applyScenePolicy(run, validated, statsOperationKey(validated));
             run.enter(GovernanceStage.PERMISSION);
             run.accessDecision = requireGrantedDecision(permissionService.decide(run.action, run.subject, validated));
             run.enter(GovernanceStage.SCOPE);
@@ -269,6 +260,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
             run.enter(GovernanceStage.RESOURCE);
             run.subject = validated.getSubject();
             run.action = resourceAction(validated.getRootType(), validated.getOperationKey(), validated.getScene(), capability(validated));
+            run.action = applyScenePolicy(run, validated, validated.getOperationKey());
             run.enter(GovernanceStage.PERMISSION);
             run.accessDecision = requireGrantedDecision(permissionService.decide(run.action, run.subject, validated));
             run.enter(GovernanceStage.SCOPE);
@@ -306,6 +298,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
             run.enter(GovernanceStage.RESOURCE);
             run.subject = validated.getSubject();
             run.action = resourceAction(validated.getRootType(), validated.getOperationKey(), validated.getScene(), capability(validated));
+            run.action = applyScenePolicy(run, validated, validated.getOperationKey());
             run.enter(GovernanceStage.PERMISSION);
             run.accessDecision = requireGrantedDecision(permissionService.decide(run.action, run.subject, validated));
             run.enter(GovernanceStage.SCOPE);
@@ -428,6 +421,27 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
         }
         ResourceDescriptor resourceDescriptor = entityMetaRegistry.getResourceDescriptor(rootType);
         return new CrudResourceAction(resourceDescriptor, operationKey, scene, capability);
+    }
+
+    private CrudResourceAction applyScenePolicy(GovernanceRun run, BaseSpec spec, CrudOperationKey operationKey) {
+        run.enter(GovernanceStage.SCENE_POLICY);
+        ScenePolicyMatch match = scenePolicyService.match(run.action, spec);
+        if (match == null) {
+            throw new PermissionDeniedException("Scene Policy 未返回准入结果");
+        }
+        CrudResourceAction policyAction = new CrudResourceAction(
+            run.action.getResourceDescriptor(), operationKey, run.action.getScene(),
+            match.isMatched() ? match.getCapability() : run.action.getCapability(),
+            match.getAccessEntry(), match.getPortal(), match.isMatched(), match.getRejectionReason()
+        );
+        run.action = policyAction;
+        if (!match.isRequired()) {
+            return policyAction;
+        }
+        if (!match.isMatched()) {
+            throw new PermissionDeniedException(match.getRejectionReason());
+        }
+        return policyAction;
     }
 
     private CrudOperationKey statsOperationKey(BaseSpec spec) {
@@ -630,6 +644,7 @@ public class DefaultCrudGovernanceService implements CrudGovernanceService {
         ATTRIBUTES,
         VALIDATE,
         RESOURCE,
+        SCENE_POLICY,
         PERMISSION,
         SCOPE,
         ENRICH

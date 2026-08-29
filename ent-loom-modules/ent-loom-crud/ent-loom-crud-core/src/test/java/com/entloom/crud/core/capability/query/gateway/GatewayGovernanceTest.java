@@ -10,6 +10,7 @@ import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.DataScopeDeniedException;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.execution.ExecutionPipeline;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
@@ -21,7 +22,6 @@ import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
-import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.gateway.CommandGatewayImpl;
@@ -55,8 +55,35 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import com.entloom.crud.core.governance.service.TestCrudGovernanceServices;
 
 class GatewayGovernanceTest {
+    @Test
+    void null_scene_policy_result_should_fail_closed() {
+        RecordingAuditRecorder auditRecorder = new RecordingAuditRecorder();
+        CrudGovernanceService governanceService = TestCrudGovernanceServices.create(
+            testMetaRegistry(),
+            new SpecValidator(),
+            new FixedSubjectResolver(subject("tester")),
+            allowPermission(),
+            allowScope(),
+            Collections.emptyList(),
+            auditRecorder,
+            (action, spec) -> null
+        );
+        CommandSpec<Object> spec = CommandSpec.<Object>builder()
+            .rootType(Object.class)
+            .op(CommandOperation.ACTION)
+            .scene("order.place")
+            .resultType(Void.class)
+            .build();
+
+        Assertions.assertThrows(PermissionDeniedException.class, () -> governanceService.governCommand(spec));
+        Assertions.assertNotNull(auditRecorder.lastEvent);
+        Assertions.assertFalse(auditRecorder.lastEvent.isAllowed());
+    }
+
+
     @Test
     void specs_should_not_expose_mutable_compat_api() {
         assertNoPublicSetter(BaseSpec.class);
@@ -153,7 +180,7 @@ class GatewayGovernanceTest {
         RecordingAuditRecorder auditRecorder = new RecordingAuditRecorder();
         QueryGateway gateway = queryGateway(
             queryRouter(),
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(resolved),
@@ -194,7 +221,7 @@ class GatewayGovernanceTest {
         AtomicReference<CrudResourceAction> actionRef = new AtomicReference<CrudResourceAction>();
         QueryGateway gateway = queryGateway(
             queryRouter(),
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 metaRegistry,
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -236,7 +263,7 @@ class GatewayGovernanceTest {
         RecordingAuditRecorder auditRecorder = new RecordingAuditRecorder();
         QueryGateway gateway = queryGateway(
             queryRouter(),
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(resolved),
@@ -296,7 +323,7 @@ class GatewayGovernanceTest {
                     };
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -368,7 +395,7 @@ class GatewayGovernanceTest {
                     };
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -438,7 +465,7 @@ class GatewayGovernanceTest {
                     };
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -506,7 +533,7 @@ class GatewayGovernanceTest {
         RecordingAuditRecorder auditRecorder = new RecordingAuditRecorder();
         QueryGateway gateway = queryGateway(
             queryRouter(),
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -568,7 +595,7 @@ class GatewayGovernanceTest {
             commandRouter(),
             null,
             null,
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -651,7 +678,7 @@ class GatewayGovernanceTest {
                     };
                 }
             },
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -716,7 +743,7 @@ class GatewayGovernanceTest {
             },
             null,
             null,
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),
@@ -773,7 +800,7 @@ class GatewayGovernanceTest {
             },
             null,
             null,
-            new DefaultCrudGovernanceService(
+            TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject("tester")),

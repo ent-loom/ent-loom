@@ -5,7 +5,7 @@ import com.entloom.crud.api.model.CrudExportHttpRequest;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.CrudTaskData;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
-import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.starter.web.support.CrudWebInvocationContext;
 import com.entloom.crud.starter.web.facade.EntCrudExportFacade;
 import com.entloom.crud.starter.web.facade.FileDownload;
 import java.io.InputStream;
@@ -38,7 +38,7 @@ public class EntCrudExportController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudExportHttpRequest request
     ) {
-        return exportFacade.preview(entity, scene, request, CrudInvocationContext.empty());
+        return exportFacade.preview(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/export/submit", "/{entity}/export/{scene:.+}/submit"})
@@ -47,7 +47,7 @@ public class EntCrudExportController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudExportHttpRequest request
     ) {
-        return exportFacade.submit(entity, scene, request, CrudInvocationContext.empty());
+        return exportFacade.submit(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/export/status", "/{entity}/export/tasks/{taskId}/status"})
@@ -56,7 +56,7 @@ public class EntCrudExportController {
         @PathVariable(value = "taskId", required = false) String taskId,
         @RequestBody(required = false) CrudExportHttpRequest request
     ) {
-        return exportFacade.status(entity, null, taskId, request, CrudInvocationContext.empty());
+        return exportFacade.status(entity, null, taskId, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/export/download", "/{entity}/export/tasks/{taskId}/download"})
@@ -65,7 +65,7 @@ public class EntCrudExportController {
         @PathVariable(value = "taskId", required = false) String taskId,
         @RequestBody(required = false) CrudExportHttpRequest request
     ) {
-        return toDownloadResponse(exportFacade.download(entity, null, taskId, request, CrudInvocationContext.empty()));
+        return toDownloadResponse(exportFacade.download(entity, null, taskId, request, CrudWebInvocationContext.http()));
     }
 
     private ResponseEntity<StreamingResponseBody> toDownloadResponse(FileDownload download) {

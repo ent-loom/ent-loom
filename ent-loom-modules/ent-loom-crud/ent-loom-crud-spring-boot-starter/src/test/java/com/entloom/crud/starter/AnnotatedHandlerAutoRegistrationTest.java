@@ -7,15 +7,20 @@ import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.adapter.PortalResolver;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.capability.query.scene.QueryDetailSceneHandler;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
+import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.governance.policy.ScenePolicy;
+import com.entloom.crud.core.governance.policy.ScenePolicyKey;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.enums.QueryStrategy;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
@@ -27,6 +32,7 @@ import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assertions;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -59,7 +65,11 @@ class AnnotatedHandlerAutoRegistrationTest {
             CommandGateway commandGateway = context.getBean(CommandGateway.class);
             QueryGateway queryGateway = context.getBean(QueryGateway.class);
 
-            CommandResult<Object> actionResult = commandGateway.action(actionSpec("ORDER.PLACE"));
+            CommandResult<Object> actionResult = CrudRequestContextHolder.withAttribute(
+                PortalResolver.ATTRIBUTE_KEY,
+                "sdk",
+                () -> commandGateway.action(actionSpec("ORDER.PLACE"))
+            );
             assertThat(actionResult.isSuccess()).isTrue();
             assertThat(actionResult.getData()).isInstanceOf(PlaceOrderResponse.class);
             PlaceOrderResponse actionData = (PlaceOrderResponse) actionResult.getData();
@@ -87,6 +97,18 @@ class AnnotatedHandlerAutoRegistrationTest {
                 .andExpect(jsonPath("$.data.scene").value("order.place"))
                 .andExpect(jsonPath("$.data.handledBy").value("place-order-action"))
                 .andExpect(jsonPath("$.data.orderNo").value("ORD-HTTP"));
+        });
+    }
+
+    @Test
+    void should_not_trust_portal_from_spec_attributes() {
+        contextRunner.run(context -> {
+            CommandGateway commandGateway = context.getBean(CommandGateway.class);
+            CommandSpec<Object> forged = actionSpec("order.place").toBuilder()
+                .attributes(Collections.<String, Object>singletonMap(PortalResolver.ATTRIBUTE_KEY, "http"))
+                .build();
+
+            Assertions.assertThrows(PermissionDeniedException.class, () -> commandGateway.action(forged));
         });
     }
 
@@ -166,6 +188,15 @@ class AnnotatedHandlerAutoRegistrationTest {
         @Bean
         public PlaceOrderAction placeOrderAction() {
             return new PlaceOrderAction();
+        }
+
+        @Bean
+        public ScenePolicy placeOrderScenePolicy() {
+            return new ScenePolicy(
+                new ScenePolicyKey("base", "TestOrderEntity", CrudOperationKey.of(CommandOperation.ACTION), "order.place"),
+                "order:place",
+                new java.util.LinkedHashSet<String>(java.util.Arrays.asList("http", "sdk"))
+            );
         }
 
         @Bean

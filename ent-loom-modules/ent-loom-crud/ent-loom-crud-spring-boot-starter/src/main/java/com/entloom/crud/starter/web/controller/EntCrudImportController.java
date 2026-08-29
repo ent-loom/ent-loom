@@ -5,7 +5,7 @@ import com.entloom.crud.api.model.CrudImportHttpRequest;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.CrudTaskData;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
-import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.starter.web.support.CrudWebInvocationContext;
 import com.entloom.crud.starter.web.facade.EntCrudImportFacade;
 import com.entloom.crud.starter.web.facade.FileDownload;
 import java.io.InputStream;
@@ -38,7 +38,7 @@ public class EntCrudImportController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudImportHttpRequest request
     ) {
-        return importFacade.validate(entity, scene, request, CrudInvocationContext.empty());
+        return importFacade.validate(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/import/submit", "/{entity}/import/{scene:.+}/submit"})
@@ -47,7 +47,7 @@ public class EntCrudImportController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudImportHttpRequest request
     ) {
-        return importFacade.submit(entity, scene, request, CrudInvocationContext.empty());
+        return importFacade.submit(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/import/status", "/{entity}/import/tasks/{taskId}/status"})
@@ -56,7 +56,7 @@ public class EntCrudImportController {
         @PathVariable(value = "taskId", required = false) String taskId,
         @RequestBody(required = false) CrudImportHttpRequest request
     ) {
-        return importFacade.status(entity, null, taskId, request, CrudInvocationContext.empty());
+        return importFacade.status(entity, null, taskId, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/import/error", "/{entity}/import/tasks/{taskId}/errors/download"})
@@ -65,7 +65,7 @@ public class EntCrudImportController {
         @PathVariable(value = "taskId", required = false) String taskId,
         @RequestBody(required = false) CrudImportHttpRequest request
     ) {
-        return toDownloadResponse(importFacade.downloadError(entity, null, taskId, request, CrudInvocationContext.empty()));
+        return toDownloadResponse(importFacade.downloadError(entity, null, taskId, request, CrudWebInvocationContext.http()));
     }
 
     private ResponseEntity<StreamingResponseBody> toDownloadResponse(FileDownload download) {

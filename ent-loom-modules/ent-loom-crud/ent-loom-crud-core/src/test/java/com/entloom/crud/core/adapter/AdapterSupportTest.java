@@ -34,6 +34,24 @@ class AdapterSupportTest {
         Assertions.assertFalse(contributor.contribute(null).containsKey(AccessEntryResolver.ATTRIBUTE_KEY));
     }
 
+    @Test
+    void context_portal_contributor_should_copy_and_normalize_server_context_only() {
+        ContextPortalAttributeContributor contributor = new ContextPortalAttributeContributor();
+
+        Map<String, Object> attributes = CrudRequestContextHolder.withAttribute(
+            PortalResolver.ATTRIBUTE_KEY,
+            " HTTP ",
+            () -> contributor.contribute(null)
+        );
+        com.entloom.crud.core.capability.query.spec.QuerySpec<Object> spec =
+            com.entloom.crud.core.capability.query.spec.QuerySpec.<Object>builder()
+                .attributes(attributes)
+                .build();
+
+        Assertions.assertEquals("http", new AttributePortalResolver().resolvePortal(spec));
+        Assertions.assertFalse(contributor.contribute(null).containsKey(PortalResolver.ATTRIBUTE_KEY));
+    }
+
     private static final class TestOrder {
     }
 }

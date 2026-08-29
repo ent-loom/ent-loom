@@ -1,7 +1,7 @@
 package com.entloom.crud.starter.web.controller;
 
 import com.entloom.crud.api.model.CrudResponse;
-import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.starter.web.support.CrudWebInvocationContext;
 import com.entloom.crud.starter.web.dto.CrudStatsHttpRequest;
 import com.entloom.crud.starter.web.facade.EntCrudStatsFacade;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +26,6 @@ public class EntCrudStatsController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudStatsHttpRequest request
     ) {
-        return entCrudStatsFacade.stats(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudStatsFacade.stats(entity, scene, request, CrudWebInvocationContext.http());
     }
 }

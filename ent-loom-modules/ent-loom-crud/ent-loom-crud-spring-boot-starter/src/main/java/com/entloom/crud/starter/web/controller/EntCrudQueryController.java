@@ -1,7 +1,7 @@
 package com.entloom.crud.starter.web.controller;
 
 import com.entloom.crud.api.model.CrudResponse;
-import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.starter.web.support.CrudWebInvocationContext;
 import com.entloom.crud.starter.web.dto.CrudReadHttpRequest;
 import com.entloom.crud.starter.web.facade.EntCrudQueryFacade;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class EntCrudQueryController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudReadHttpRequest request
     ) {
-        return entCrudQueryFacade.page(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudQueryFacade.page(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/list", "/{entity}/list/{scene:.+}"})
@@ -29,7 +29,7 @@ public class EntCrudQueryController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudReadHttpRequest request
     ) {
-        return entCrudQueryFacade.list(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudQueryFacade.list(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     @PostMapping({"/{entity}/findOne", "/{entity}/findOne/{scene:.+}"})
@@ -38,7 +38,7 @@ public class EntCrudQueryController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudReadHttpRequest request
     ) {
-        return entCrudQueryFacade.findOne(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudQueryFacade.findOne(entity, scene, request, CrudWebInvocationContext.http());
     }
 
     /*
@@ -51,6 +51,6 @@ public class EntCrudQueryController {
         @PathVariable(value = "scene", required = false) String scene,
         @RequestBody(required = false) CrudReadHttpRequest request
     ) {
-        return entCrudQueryFacade.detail(entity, scene, request, CrudInvocationContext.empty());
+        return entCrudQueryFacade.detail(entity, scene, request, CrudWebInvocationContext.http());
     }
 }

@@ -11,7 +11,7 @@ import com.entloom.crud.core.governance.model.CrudResourceAction;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
-import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
+import com.entloom.crud.core.governance.service.TestCrudGovernanceServices;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.capability.command.handler.CommandHandler;
 import com.entloom.crud.core.idempotency.IdempotencyManager;
@@ -89,7 +89,7 @@ class CommandGatewayIdempotencyTest {
             new CountingCommandRouter(handlerCalls),
             new IdempotencyManager(new InMemoryIdempotencyStore()),
             new IdempotencyPolicy(),
-            new ExecutionPipeline(new DefaultCrudGovernanceService(
+            new ExecutionPipeline(TestCrudGovernanceServices.create(
                 testMetaRegistry(),
                 new SpecValidator(),
                 new FixedSubjectResolver(subject()),

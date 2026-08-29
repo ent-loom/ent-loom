@@ -45,6 +45,7 @@ import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.CrudDataScopeContributor;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
+import com.entloom.crud.core.governance.policy.ScenePolicyService;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
 import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
@@ -153,7 +154,8 @@ public class CrudGatewayConfiguration {
         CrudDataScopeResolver crudDataScopeResolver,
         ObjectProvider<CrudDataScopeContributor[]> crudDataScopeContributors,
         CrudGovernanceAuditRecorder crudGovernanceAuditRecorder,
-        CrudSpecAttributeResolver crudSpecAttributeResolver
+        CrudSpecAttributeResolver crudSpecAttributeResolver,
+        ScenePolicyService scenePolicyService
     ) {
         return new DefaultCrudGovernanceService(
             entityMetaRegistry,
@@ -163,7 +165,8 @@ public class CrudGatewayConfiguration {
             crudDataScopeResolver,
             collectContributors(crudDataScopeContributors),
             crudGovernanceAuditRecorder,
-            crudSpecAttributeResolver
+            crudSpecAttributeResolver,
+            scenePolicyService
         );
     }
 

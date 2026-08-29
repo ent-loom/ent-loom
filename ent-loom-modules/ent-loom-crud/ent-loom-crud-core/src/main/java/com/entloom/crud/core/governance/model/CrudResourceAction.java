@@ -25,6 +25,14 @@ public class CrudResourceAction {
     private final String scene;
     /** 业务权限码。 */
     private final String capability;
+    /** 可信访问入口。 */
+    private final String accessEntry;
+    /** 可信入口形态。 */
+    private final String portal;
+    /** 是否命中 Scene Policy。 */
+    private final boolean policyMatched;
+    /** Scene Policy 拒绝详情。 */
+    private final String policyRejectionReason;
 
     public CrudResourceAction(ResourceDescriptor resourceDescriptor, String action, String scene) {
         this(resourceDescriptor, null, action, scene, null);
@@ -51,6 +59,46 @@ public class CrudResourceAction {
         this.operation = operationKey == null ? action : operationKey.getOperation();
         this.scene = scene;
         this.capability = capability;
+        this.accessEntry = null;
+        this.portal = null;
+        this.policyMatched = false;
+        this.policyRejectionReason = null;
+    }
+
+    public CrudResourceAction(
+        ResourceDescriptor resourceDescriptor,
+        CrudOperationKey operationKey,
+        String scene,
+        String capability,
+        String accessEntry,
+        String portal,
+        boolean policyMatched
+    ) {
+        this(resourceDescriptor, operationKey, scene, capability, accessEntry, portal, policyMatched, null);
+    }
+
+    public CrudResourceAction(
+        ResourceDescriptor resourceDescriptor,
+        CrudOperationKey operationKey,
+        String scene,
+        String capability,
+        String accessEntry,
+        String portal,
+        boolean policyMatched,
+        String policyRejectionReason
+    ) {
+        if (resourceDescriptor == null) throw new IllegalArgumentException("resourceDescriptor 不能为空");
+        this.resourceDescriptor = resourceDescriptor;
+        this.resource = resourceDescriptor.getResourceCode();
+        this.action = operationKey == null ? null : operationKey.getAction();
+        this.operationDomain = operationKey == null ? null : operationKey.getDomain();
+        this.operation = operationKey == null ? null : operationKey.getOperation();
+        this.scene = scene;
+        this.capability = capability;
+        this.accessEntry = accessEntry;
+        this.portal = portal;
+        this.policyMatched = policyMatched;
+        this.policyRejectionReason = policyRejectionReason;
     }
 
     public CrudResourceAction(String resource, String action, String scene) {

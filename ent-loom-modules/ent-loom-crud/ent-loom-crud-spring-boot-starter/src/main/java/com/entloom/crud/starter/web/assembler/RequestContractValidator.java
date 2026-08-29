@@ -3,6 +3,7 @@ package com.entloom.crud.starter.web.assembler;
 import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.core.adapter.AccessEntryResolver;
+import com.entloom.crud.core.adapter.PortalResolver;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.starter.web.dto.CrudCommandHttpRequest;
 import com.entloom.crud.starter.web.dto.CrudReadHttpRequest;
@@ -95,6 +96,7 @@ final class RequestContractValidator {
         addForbiddenOptionKey(keys, "attributes");
         addForbiddenOptionKey(keys, "attribute");
         addForbiddenOptionKey(keys, AccessEntryResolver.ATTRIBUTE_KEY);
+        addForbiddenOptionKey(keys, PortalResolver.ATTRIBUTE_KEY);
         addForbiddenOptionKey(keys, "crudDataScope");
         addForbiddenOptionKey(keys, "crudDataScopeDimensions");
         addForbiddenOptionKey(keys, "crudExplicitAll");
