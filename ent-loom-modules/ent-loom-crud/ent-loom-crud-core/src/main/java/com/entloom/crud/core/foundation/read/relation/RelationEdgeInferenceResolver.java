@@ -24,10 +24,10 @@ import java.util.stream.Collectors;
 /**
  * 关系边推断与匹配解析器。
  */
-final class RelationEdgeInferenceResolver {
+public final class RelationEdgeInferenceResolver {
     private final EntityMetaRegistry metaRegistry;
 
-    RelationEdgeInferenceResolver(EntityMetaRegistry metaRegistry) {
+    public RelationEdgeInferenceResolver(EntityMetaRegistry metaRegistry) {
         this.metaRegistry = metaRegistry;
     }
 
@@ -48,7 +48,7 @@ final class RelationEdgeInferenceResolver {
     /**
      * 从根实体的 outgoing edges 中解析具体 requested relation。
      */
-    RelationEdge resolveEdge(List<RelationEdge> outgoingEdges, String requestedRelation) {
+    public RelationEdge resolveEdge(List<RelationEdge> outgoingEdges, String requestedRelation) {
         List<RelationEdge> matchedEdges = outgoingEdges.stream()
             .filter(edge -> matches(edge, requestedRelation))
             .collect(Collectors.toList());

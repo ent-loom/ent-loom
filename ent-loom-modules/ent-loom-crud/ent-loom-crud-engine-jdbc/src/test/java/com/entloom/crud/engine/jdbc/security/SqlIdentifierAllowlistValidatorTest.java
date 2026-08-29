@@ -1,12 +1,14 @@
 package com.entloom.crud.engine.jdbc.security;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -59,20 +61,31 @@ class SqlIdentifierAllowlistValidatorTest {
     }
 
     @Test
-    void validate_query_spec_should_resolve_exists_relation_from_root_outgoing_edges() {
+    void validate_query_spec_should_accept_exists_relation_field_name() {
         SqlIdentifierAllowlistValidator validator = new SqlIdentifierAllowlistValidator(existsRelationMetaRegistry());
-        QuerySpec<RootEntity> spec = QuerySpec.<RootEntity>builder()
-            .rootType(RootEntity.class)
-            .resultType(RootEntity.class)
-            .op(QueryOperation.LIST)
-            .strategy(QueryStrategy.EXISTS)
-            .existsRelationFilter(new ExistsRelationFilter(
-                "Target",
-                Collections.singletonList(new QueryFilter("code", FilterOperator.EQ, "TARGET-A"))
-            ))
-            .build();
+        QuerySpec<RootEntity> spec = existsQuerySpec("target");
 
         Assertions.assertDoesNotThrow(() -> validator.validateQuerySpec(spec));
+    }
+
+    @Test
+    void validate_query_spec_should_accept_exists_target_entity_simple_name() {
+        SqlIdentifierAllowlistValidator validator = new SqlIdentifierAllowlistValidator(existsRelationMetaRegistry());
+
+        Assertions.assertDoesNotThrow(() -> validator.validateQuerySpec(existsQuerySpec("Target")));
+    }
+
+    @Test
+    void validate_query_spec_should_reject_ambiguous_exists_root_outgoing_relation() {
+        SqlIdentifierAllowlistValidator validator = new SqlIdentifierAllowlistValidator(existsRelationMetaRegistry(true));
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> validator.validateQuerySpec(existsQuerySpec("target"))
+        );
+
+        Assertions.assertEquals(CrudErrorCode.ENTITY_SCOPE_ILLEGAL, ex.getErrorCode());
+        Assertions.assertTrue(ex.getMessage().contains("关联关系不明确"));
     }
 
     private EntityMetaRegistry testMetaRegistry() {
@@ -107,16 +120,39 @@ class SqlIdentifierAllowlistValidatorTest {
         };
     }
 
+    private QuerySpec<RootEntity> existsQuerySpec(String relation) {
+        return QuerySpec.<RootEntity>builder()
+            .rootType(RootEntity.class)
+            .resultType(RootEntity.class)
+            .op(QueryOperation.LIST)
+            .strategy(QueryStrategy.EXISTS)
+            .existsRelationFilter(new ExistsRelationFilter(
+                relation,
+                Collections.singletonList(new QueryFilter("code", FilterOperator.EQ, "TARGET-A"))
+            ))
+            .build();
+    }
+
     private EntityMetaRegistry existsRelationMetaRegistry() {
+        return existsRelationMetaRegistry(false);
+    }
+
+    private EntityMetaRegistry existsRelationMetaRegistry(boolean includeAmbiguousRootRelation) {
         Map<Class<?>, EntityMeta> metas = new LinkedHashMap<Class<?>, EntityMeta>();
         metas.put(RootEntity.class, entityMeta(RootEntity.class, "root"));
         metas.put(IntermediateEntity.class, entityMeta(IntermediateEntity.class, "intermediate"));
         metas.put(TargetEntity.class, entityMeta(TargetEntity.class, "target"));
-        RelationGraph graph = RelationGraph.of(Arrays.asList(
+        metas.put(AlternateTargetEntity.class, entityMeta(AlternateTargetEntity.class, "alternate_target"));
+        java.util.List<RelationEdge> edges = Arrays.asList(
             edge(RootEntity.class, TargetEntity.class, "target"),
             edge(RootEntity.class, IntermediateEntity.class, "intermediate"),
             edge(IntermediateEntity.class, TargetEntity.class, "target")
-        ));
+        );
+        if (includeAmbiguousRootRelation) {
+            edges = new java.util.ArrayList<RelationEdge>(edges);
+            edges.add(edge(RootEntity.class, AlternateTargetEntity.class, "target"));
+        }
+        RelationGraph graph = RelationGraph.of(edges);
         return new EntityMetaRegistry() {
             @Override
             public EntityMeta getEntityMeta(Class<?> entityType) {
@@ -183,5 +219,8 @@ class SqlIdentifierAllowlistValidatorTest {
     }
 
     private static final class TargetEntity {
+    }
+
+    private static final class AlternateTargetEntity {
     }
 }

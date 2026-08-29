@@ -11,6 +11,7 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
+import com.entloom.crud.core.foundation.read.relation.RelationEdgeInferenceResolver;
 import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
@@ -18,18 +19,22 @@ import com.entloom.crud.core.runtime.spec.FilterableSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 
 /**
  * SQL 标识符白名单校验器。
  */
-@RequiredArgsConstructor
 public class SqlIdentifierAllowlistValidator {
     /** 实体元数据注册表。 */
     private final EntityMetaRegistry metaRegistry;
+    /** 关系边匹配解析器。 */
+    private final RelationEdgeInferenceResolver relationEdgeResolver;
+
+    public SqlIdentifierAllowlistValidator(EntityMetaRegistry metaRegistry) {
+        this.metaRegistry = metaRegistry;
+        this.relationEdgeResolver = new RelationEdgeInferenceResolver(metaRegistry);
+    }
 
     /**
      * 校验查询字段与排序字段。
@@ -250,34 +255,13 @@ public class SqlIdentifierAllowlistValidator {
     }
 
     private RelationEdge resolveRelationEdge(RelationGraph relationGraph, String relationName) {
-        return resolveRelationEdge(relationGraph.getEdges(), relationName);
+        return relationEdgeResolver.resolveEdge(relationGraph.getEdges(), relationName);
     }
 
     /**
      * 解析 EXISTS 关联边，仅允许根实体的一跳出边。
      */
     private RelationEdge resolveExistsRelationEdge(Class<?> rootType, RelationGraph relationGraph, String relationName) {
-        return resolveRelationEdge(relationGraph.outgoingOf(rootType), relationName);
-    }
-
-    private RelationEdge resolveRelationEdge(List<RelationEdge> candidates, String relationName) {
-        RelationEdge matched = null;
-        for (RelationEdge edge : candidates) {
-            boolean matches = relationName.equalsIgnoreCase(edge.getRelationField())
-                || edge.getToEntity().getSimpleName().equalsIgnoreCase(relationName)
-                || edge.getToEntity().getName().equalsIgnoreCase(relationName)
-                || edge.getToEntity().getSimpleName().replace("Entity", "").equalsIgnoreCase(relationName);
-            if (!matches) {
-                continue;
-            }
-            if (matched != null) {
-                throw new ValidationException("关联关系不明确: " + relationName);
-            }
-            matched = edge;
-        }
-        if (matched == null) {
-            throw new ValidationException("未找到关联关系: " + relationName);
-        }
-        return matched;
+        return relationEdgeResolver.resolveEdge(relationGraph.outgoingOf(rootType), relationName);
     }
 }
