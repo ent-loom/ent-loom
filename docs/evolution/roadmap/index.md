@@ -19,6 +19,7 @@
 - [DDL](ddl/index.md)
 - [Meta](meta/index.md)
 - [Core 兼容性](core/index.md)
+- [开发者文档体验](core/开发者文档体验实施计划.md)：先完成 Docusaurus 最小文档闭环，再按真实新项目需求启动机器契约与开发者工作台。
 
 ## 维护规则
 
