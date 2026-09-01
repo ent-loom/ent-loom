@@ -5,7 +5,7 @@
 
 Meta 的完整文档导航见 [Meta 领域总览](../../../domains/meta/index.md)。
 
-Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚未完成的跨模块裁决能力，不重复当前架构和历史实施过程。
+Meta -> CRUD / DOC / DDL 的静态 Adapter 已形成当前闭环。这里仅跟踪尚未完成的跨模块裁决能力，不重复当前架构和历史实施过程。
 
 ## 当前主线
 
@@ -15,7 +15,6 @@ Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚�
 
 | 优先级 | 目标 | 启动条件 |
 |---|---|---|
-| P1 | DDL Adapter | DDL Runtime Model 边界稳定 |
 | P1 | DOC Resolver 收敛 | 公共 Resolver 已有两个真实消费者 |
 | P2 | UI Adapter | UI Runtime Model 和 API 稳定 |
 | 后续 | 包扫描式实体发现 | 显式 class list 成为明确瓶颈 |
@@ -24,7 +23,7 @@ Meta -> CRUD / DOC 的静态 Adapter 已形成当前闭环。这里仅跟踪尚�
 ## 已完成且不再跟踪
 
 - Meta Annotation -> Descriptor。
-- Meta -> CRUD / DOC 静态 Adapter。
+- Meta -> CRUD / DOC / DDL 静态 Adapter。
 - Native-only、Meta-only、Meta + Module 基础路径。
 - CRUD 唯一 Runtime Model 与冻结 Registry。
 

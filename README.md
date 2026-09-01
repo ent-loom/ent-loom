@@ -29,15 +29,15 @@ Meta 不是所有组件必须依赖的统一运行时模型，而是一套可选
 
 | 归属组件         | 能力域                              | 状态         | 边界                               |
 |--------------|----------------------------------|------------|----------------------------------|
-| Meta         | Parser / Descriptor / Diagnostic | 已实现        | Project Convention 尚未完整闭环        |
-| Integrations | Meta -> CRUD / DOC Adapter       | 已实现        | DDL Adapter 为空实现，UI Adapter 尚未建立 |
+| Meta         | Parser / Descriptor / Diagnostic | 已实现        | Project Convention 已接入属性级裁决；动态刷新不在当前闭环 |
+| Integrations | Meta -> CRUD / DOC / DDL 静态 Adapter | 已实现        | UI Adapter 尚未建立 |
 | CRUD         | Query / Command / Stats          | 已实现        | 默认关系读为 `ROOT_FIRST`              |
 | CRUD         | Import / Export                  | 小文件同步闭环已实现 | 异步 Worker、Streaming 和大文件能力待补     |
 | CRUD         | Task / File                      | 基础能力已实现    | 对象存储、清理 Worker 待补                |
 | CRUD         | Governance                       | 默认主链已实现    | 业务必须提供真实主体、权限和范围实现               |
 | CRUD         | Default JDBC Engine              | 已实现        | 不作为通用 ORM 或任意 SQL 平台             |
-| CRUD         | 强类型业务 Handler                    | 部分实现       | 稳定 `UpdatePatch<T>` API 待闭环      |
-| DDL          | Core / Spring                    | 基础骨架已具备 | E1 建表闭环、实际 MySQL 执行和 Meta 投影待实现 |
+| CRUD         | 强类型业务 Handler                    | 基础能力已实现 | 稳定 `UpdatePatch<T>` 已具备；业务 Handler 按实体接入 |
+| DDL          | Core / Spring                    | 已实现        | MySQL 8 建表、受控差异与 Meta 投影已验证；不作为通用迁移平台 |
 | DOC          | Core / Meta Adapter              | 已实现        | OpenAPI 投影不在当前闭环                 |
 | UI           | 基础 Contract                      | 已实现        | Meta Adapter 和默认渲染未实现            |
 
@@ -84,5 +84,6 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 - [CRUD 业务集成模板](./docs/guides/crud/业务集成模板.md)：业务项目接入方式。
 - [Meta-first 最佳实践](./docs/guides/meta/Meta优先指南.md)：通用语义声明与 Adapter 使用。
 - [DDL 实施清单](./docs/evolution/roadmap/ddl/DDL实施清单.md)：实体到 MySQL 8 的阶段路线与验收门禁。
+- [版本事实收敛与全链路验收实施计划](./docs/evolution/roadmap/版本事实收敛与全链路验收实施计划.md)：跨模块当前事实与复用验收证据。
 - [设计决策](./docs/evolution/decisions/index.md)：关键取舍及其状态。
 - [路线图](./docs/evolution/roadmap/index.md)：当前和后续工作。

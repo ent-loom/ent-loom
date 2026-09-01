@@ -82,7 +82,7 @@ DOC 的展示名称、示例和关系备注也只在与 Meta 通用定义不同�
 4. 同级冲突必须产生诊断，不能依赖 Bean 或扫描顺序。
 5. Meta-first 与 Module-only 最终汇聚到同一个组件 Runtime Model 和 Registry。
 
-统一 Contribution 与属性级 Resolver 仍在实施中，当前落地范围以
+统一 Contribution 与属性级 Resolver 已完成当前闭环；各组件的装配和已验证路径以
 [Meta Runtime Adapters](../../architecture/core/meta/运行时适配器.md) 为准。
 
 ## 使用边界
@@ -91,7 +91,7 @@ DOC 的展示名称、示例和关系备注也只在与 Meta 通用定义不同�
 - 权限、主体和数据范围属于治理层，不进入 Meta 注解。
 - DDL 方言、DOC 示例、UI 控件等组件专属信息不进入通用 Meta。
 - 当前 Starter 主要通过显式实体类名列表装配，不提供运行期动态实体发现。
-- DDL/UI Adapter 尚未形成当前闭环，不应按已实现能力使用。
+- DDL 静态 Adapter 已形成当前闭环；UI 尚无正式 Meta Adapter，不应按已实现能力使用。
 
 迁移现有实体时按业务域逐步进行：先提取稳定业务事实到 Meta，再只保留必要的组件覆盖，并通过启动期诊断及
 对应 Adapter 集成测试验证结果。
