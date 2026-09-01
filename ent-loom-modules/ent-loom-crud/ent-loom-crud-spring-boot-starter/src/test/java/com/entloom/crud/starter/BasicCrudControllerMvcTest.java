@@ -172,6 +172,23 @@ class BasicCrudControllerMvcTest {
     }
 
     @Test
+    void controller_should_reject_exists_relation_filter_on_http_read_route() throws Exception {
+        contextRunner.run(context -> {
+            MockMvc mockMvc = buildMockMvc(context);
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"options\":{\"requestId\":\"req-page-exists-filter\"},\"existsRelationFilter\":{\"relation\":\"items\",\"filters\":[]}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.requestId").value("req-page-exists-filter"))
+                .andExpect(jsonPath("$.operation").value("PAGE"))
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.stage").value("HTTP_CONTRACT"))
+                .andExpect(jsonPath("$.error.reason").value("UNSUPPORTED_TOP_LEVEL_FIELDS"));
+        });
+    }
+
+    @Test
     void controller_should_execute_single_table_crud_flow() throws Exception {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);

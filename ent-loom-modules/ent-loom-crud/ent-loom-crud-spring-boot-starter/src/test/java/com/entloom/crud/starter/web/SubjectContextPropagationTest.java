@@ -174,6 +174,27 @@ class SubjectContextPropagationTest {
     }
 
     @Test
+    void read_spec_should_reject_exists_relation_filter_from_http_contract() throws Exception {
+        CrudQuerySpecAssembler assembler = new CrudQuerySpecAssembler(
+            requestSupport(),
+            new CrudTimeFilterResolver("UTC"),
+            new ObjectMapper()
+        );
+        CrudReadHttpRequest request = new ObjectMapper().readValue(
+            "{\"existsRelationFilter\":{\"relation\":\"items\",\"filters\":[]}}",
+            CrudReadHttpRequest.class
+        );
+
+        assertThatThrownBy(() -> assembler.assembleRead(
+            QueryOperation.LIST,
+            "TestOrderEntity",
+            null,
+            request,
+            subject("test-user", "test-tenant", "test-org")
+        )).hasMessageContaining("不支持顶层字段: [existsRelationFilter]");
+    }
+
+    @Test
     void command_spec_should_reject_scene_in_command_options() throws Exception {
         CrudCommandSpecAssembler assembler = new CrudCommandSpecAssembler(
             requestSupport(),

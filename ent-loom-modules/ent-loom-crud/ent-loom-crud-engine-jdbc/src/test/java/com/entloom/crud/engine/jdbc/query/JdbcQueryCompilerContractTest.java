@@ -104,6 +104,41 @@ class JdbcQueryCompilerContractTest {
     }
 
     @Test
+    void should_reject_exists_filter_without_explicit_exists_strategy() {
+        QuerySpec<OrderTestEntity> spec = existsQuerySpec(QueryStrategy.DEFAULT);
+
+        ValidationException ex = Assertions.assertThrows(
+            ValidationException.class,
+            () -> new RootFirstQueryPlanner(metaRegistry).plan(
+                spec,
+                orderMeta,
+                metaRegistry.getRelationGraph(OrderTestEntity.class)
+            )
+        );
+
+        Assertions.assertTrue(ex.getMessage().contains("必须显式使用 QueryStrategy.EXISTS"));
+    }
+
+    @Test
+    void should_reject_exists_filter_with_relation_expand() {
+        QuerySpec<OrderTestEntity> spec = existsQuerySpec(QueryStrategy.EXISTS)
+            .toBuilder()
+            .expandRelations(Collections.singletonList("items"))
+            .build();
+
+        ValidationException ex = Assertions.assertThrows(
+            ValidationException.class,
+            () -> new RootFirstQueryPlanner(metaRegistry).plan(
+                spec,
+                orderMeta,
+                metaRegistry.getRelationGraph(OrderTestEntity.class)
+            )
+        );
+
+        Assertions.assertTrue(ex.getMessage().contains("EXISTS 查询不支持关联展开"));
+    }
+
+    @Test
     void should_not_advertise_or_execute_exists_without_meta_registry_planner() {
         JdbcQueryEngine engine = new JdbcQueryEngine(
             metaRegistry,
@@ -198,6 +233,20 @@ class JdbcQueryCompilerContractTest {
     private void assertValidation(String expectedMessagePart, QuerySpec<OrderTestEntity> spec) {
         ValidationException ex = Assertions.assertThrows(ValidationException.class, () -> compiler.compile(plan(spec)));
         Assertions.assertTrue(ex.getMessage().contains(expectedMessagePart));
+    }
+
+    private QuerySpec<OrderTestEntity> existsQuerySpec(QueryStrategy strategy) {
+        return QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(20)
+            .strategy(strategy)
+            .existsRelationFilter(new ExistsRelationFilter(
+                "items",
+                Collections.singletonList(new QueryFilter("skuCode", FilterOperator.EQ, "SKU-1"))
+            ))
+            .build();
     }
 
     private QueryPlan plan(QuerySpec<OrderTestEntity> spec) {
