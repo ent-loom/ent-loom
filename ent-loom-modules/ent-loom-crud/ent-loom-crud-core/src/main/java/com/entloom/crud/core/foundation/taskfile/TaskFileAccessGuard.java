@@ -76,7 +76,7 @@ public class TaskFileAccessGuard {
 
     private void assertSubjectAccessible(SubjectContext owner, SubjectContext current, String taskId) {
         if (owner == null || current == null) {
-            return;
+            deny("任务主体上下文不能为空: " + taskId);
         }
         if (!sameText(owner.getSubjectId(), current.getSubjectId())
             || !sameText(owner.getTenantId(), current.getTenantId())

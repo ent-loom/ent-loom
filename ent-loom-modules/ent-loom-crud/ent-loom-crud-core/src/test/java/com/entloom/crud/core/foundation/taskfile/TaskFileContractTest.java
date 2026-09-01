@@ -214,6 +214,50 @@ class TaskFileContractTest {
     }
 
     @Test
+    void access_guard_should_reject_missing_task_subject() {
+        ImportSpec ownerSpec = ImportSpec.builder()
+            .scene("student.import")
+            .rootType(Object.class)
+            .operation(ImportOperation.SUBMIT)
+            .build();
+        ImportSpec currentSpec = ownerSpec.toBuilder().subject(subjectWith("u1", "tenant-a", "org-a")).build();
+        CrudTask task = CrudTask.builder()
+            .taskId("T1")
+            .contextSnapshot(CrudTaskContextSnapshot.fromSpec(ownerSpec, ownerSpec.getOperationKey()))
+            .build();
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new TaskFileAccessGuard().assertTaskAccessible(task, currentSpec)
+        );
+
+        Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.PERMISSION_DENIED, ex.getErrorCode());
+    }
+
+    @Test
+    void access_guard_should_reject_missing_current_subject() {
+        SubjectContext owner = subjectWith("u1", "tenant-a", "org-a");
+        ImportSpec ownerSpec = ImportSpec.builder()
+            .scene("student.import")
+            .rootType(Object.class)
+            .operation(ImportOperation.SUBMIT)
+            .subject(owner)
+            .build();
+        ImportSpec currentSpec = ownerSpec.toBuilder().subject(null).build();
+        CrudTask task = CrudTask.builder()
+            .taskId("T1")
+            .contextSnapshot(CrudTaskContextSnapshot.fromSpec(ownerSpec, ownerSpec.getOperationKey()))
+            .build();
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new TaskFileAccessGuard().assertTaskAccessible(task, currentSpec)
+        );
+
+        Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.PERMISSION_DENIED, ex.getErrorCode());
+    }
+
+    @Test
     void access_guard_should_reject_download_file_with_missing_metadata() {
         FileRef file = FileRef.builder()
             .fileId("F1")
