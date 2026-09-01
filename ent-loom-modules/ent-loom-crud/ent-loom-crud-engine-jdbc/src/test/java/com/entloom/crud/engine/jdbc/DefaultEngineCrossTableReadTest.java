@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc;
 
 import com.entloom.crud.api.enums.FilterOperator;
+import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.PageRequest;
@@ -8,7 +9,11 @@ import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
+import com.entloom.crud.core.capability.query.scene.QueryListSceneHandler;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.crud.core.runtime.router.CrudRouteKey;
+import com.entloom.crud.core.runtime.router.DefaultQueryRouter;
+import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.engine.jdbc.test.entity.OrderItemTestEntity;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
@@ -30,6 +35,59 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class DefaultEngineCrossTableReadTest extends EngineJdbcTestSupport {
+    @Test
+    void query_scene_handler_should_apply_controlled_exists_relation_filter() {
+        jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 3301L, "ORD-SCENE-A", 0);
+        jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 3302L, "ORD-SCENE-B", 0);
+        jdbcTemplate.update(
+            "insert into t_order_item(id, order_id, sku_code, quantity, is_deleted) values (?,?,?,?,?)",
+            41L,
+            3301L,
+            "SKU-SCENE",
+            1,
+            0
+        );
+        ((DefaultQueryRouter) queryRouter).registerListSceneHandler(new QueryListSceneHandler<OrderTestEntity>() {
+            @Override
+            public java.util.Set<CrudRouteKey> routeKeys() {
+                return Collections.singleton(new CrudRouteKey(
+                    Collections.singletonList(OrderTestEntity.class.getName()),
+                    CrudOperationKey.of(QueryOperation.LIST),
+                    "order.sku-scene"
+                ));
+            }
+
+            @Override
+            public List<OrderTestEntity> handle(
+                QuerySpec<OrderTestEntity> spec,
+                SceneDelegate<QuerySpec<OrderTestEntity>, List<OrderTestEntity>> delegate
+            ) {
+                return delegate.invoke(spec.toBuilder()
+                    .strategy(QueryStrategy.EXISTS)
+                    .existsRelationFilter(new ExistsRelationFilter(
+                        "items",
+                        Collections.singletonList(new QueryFilter("skuCode", FilterOperator.EQ, "SKU-SCENE"))
+                    ))
+                    .build());
+            }
+        });
+
+        QuerySpec<OrderTestEntity> spec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .entityClasses(Collections.<Class<?>>singletonList(OrderTestEntity.class))
+            .scene("order.sku-scene")
+            .subject(testSubject())
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(10)
+            .build();
+
+        List<OrderTestEntity> orders = queryGateway.list(spec);
+
+        Assertions.assertEquals(1, orders.size());
+        Assertions.assertEquals("ORD-SCENE-A", orders.get(0).getOrderNo());
+    }
+
     @Test
     void exists_relation_filter_should_filter_root_rows_and_keep_page_count() {
         jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 3101L, "ORD-EXISTS-A", 0);
