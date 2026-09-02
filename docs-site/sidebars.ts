@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'guides/index',
         'guides/开发环境与JDK管理',
+        'guides/Maven Central发布',
         {
           type: 'category',
           label: 'CRUD',

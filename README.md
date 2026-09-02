@@ -79,6 +79,7 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 - [Docusaurus 文档站](./docs-site/README.md)：独立展示工程、本地启动和静态构建方式。
 - [文档中心](./docs/index.md)：文档结构和推荐阅读路径。
 - [开发环境与 JDK 管理](./docs/guides/开发环境与JDK管理.md)：多 JDK、jenv、Maven Wrapper 和 IDEA 配置。
+- [Maven Central 发布](./docs/guides/Maven%20Central发布.md)：IDEA 开发后的版本升级、签名上传和 Central 确认流程。
 - [系统架构总览](./docs/architecture/架构总览.md)：模块、建模与执行关系。
 - [Core Contract](./docs/architecture/core/index.md)：跨模块稳定契约。
 - [CRUD 业务集成模板](./docs/guides/crud/业务集成模板.md)：业务项目接入方式。
