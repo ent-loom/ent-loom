@@ -3,10 +3,38 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.entloom</groupId>
+    <groupId>io.github.ent-loom</groupId>
     <artifactId>ent-loom</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>pom</packaging>
+
+    <name>ent-loom</name>
+    <description>面向实体建模与业务能力扩展的模块化 Java 后端框架</description>
+    <url>https://github.com/ent-loom/ent-loom</url>
+
+    <scm>
+        <connection>scm:git:https://github.com/ent-loom/ent-loom.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/ent-loom/ent-loom.git</developerConnection>
+        <url>https://github.com/ent-loom/ent-loom</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Ent-loom Contributors</name>
+            <email>a404286846@gmail.com</email>
+            <organization>Ent-loom</organization>
+            <organizationUrl>https://github.com/ent-loom</organizationUrl>
+        </developer>
+    </developers>
 
     <properties>
         <!-- 完整 Reactor 当前默认编译目标；兼容线落地后由模块单独覆盖。 -->
@@ -234,6 +262,35 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.2</version>
+                <configuration>
+                    <doclint>none</doclint>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
@@ -264,4 +321,45 @@
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.11.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>false</autoPublish>
+                            <!-- 测试工程不属于对外发布的运行时构件。 -->
+                            <excludeArtifacts>
+                                <excludeArtifact>ent-loom-test-support</excludeArtifact>
+                                <excludeArtifact>ent-loom-e5-static-test</excludeArtifact>
+                                <excludeArtifact>ent-loom-ddl-consumer-test</excludeArtifact>
+                                <excludeArtifact>ent-loom-ddl-mysql-integration-test</excludeArtifact>
+                            </excludeArtifacts>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

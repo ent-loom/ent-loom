@@ -58,6 +58,7 @@ const sidebars: SidebarsConfig = {
             'architecture/core/governance/治理流水线',
             'architecture/core/governance/治理核心架构',
             'architecture/core/subject/执行上下文与主体',
+            'architecture/core/baoyi-cloud与ent-loom能力边界',
             'architecture/core/meta/分层与运行模型',
             'architecture/core/meta/元数据解析引擎',
             'architecture/core/meta/运行时适配器',
