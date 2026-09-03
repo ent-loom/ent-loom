@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 /**
  * 默认本地磁盘任务服务。
@@ -59,19 +60,16 @@ public class LocalTaskService implements TaskService {
         if (task == null) {
             throw new ValidationException("任务不能为空");
         }
+        CrudTaskStateMachine.assertCreatable(task);
         Instant now = Instant.now();
         String taskId = isBlank(task.getTaskId()) ? newId() : task.getTaskId().trim();
-        Path path = taskPath(taskId);
-        if (Files.exists(path)) {
-            throw new ValidationException("任务已存在: " + taskId);
-        }
         CrudTask created = copy(task)
             .taskId(taskId)
             .createdAt(task.getCreatedAt() == null ? now : task.getCreatedAt())
             .updatedAt(now)
             .finishedAt(isTerminal(task.getStatus()) && task.getFinishedAt() == null ? now : task.getFinishedAt())
             .build();
-        store(created);
+        storeNew(created);
         return created;
     }
 
@@ -88,12 +86,20 @@ public class LocalTaskService implements TaskService {
     @Override
     public CrudTask updateStatus(String taskId, CrudTaskStatus status, String message) {
         CrudTask current = getRequired(taskId);
+        CrudTaskStatus actualStatus = status == null ? current.getStatus() : status;
+        CrudTaskStateMachine.assertTransition(current.getTaskId(), current.getStatus(), actualStatus);
+        if (current.getStatus() == actualStatus) {
+            if (actualStatus != CrudTaskStatus.RUNNING || message == null) {
+                return current;
+            }
+            return storeMessage(current, message);
+        }
         Instant now = Instant.now();
         CrudTask updated = copy(current)
-            .status(status == null ? current.getStatus() : status)
+            .status(actualStatus)
             .message(message)
             .updatedAt(now)
-            .finishedAt(isTerminal(status) ? now : current.getFinishedAt())
+            .finishedAt(isTerminal(actualStatus) ? now : current.getFinishedAt())
             .build();
         store(updated);
         return updated;
@@ -104,7 +110,24 @@ public class LocalTaskService implements TaskService {
         return updateStatus(taskId, CrudTaskStatus.CANCELED, reason == null ? "已取消" : reason);
     }
 
+    private CrudTask storeMessage(CrudTask current, String message) {
+        CrudTask updated = copy(current)
+            .message(message)
+            .updatedAt(Instant.now())
+            .build();
+        store(updated);
+        return updated;
+    }
+
+    private void storeNew(CrudTask task) {
+        store(task, true);
+    }
+
     private void store(CrudTask task) {
+        store(task, false);
+    }
+
+    private void store(CrudTask task, boolean createOnly) {
         Properties properties = new Properties();
         set(properties, "taskId", task.getTaskId());
         set(properties, "status", task.getStatus() == null ? null : task.getStatus().name());
@@ -117,8 +140,12 @@ public class LocalTaskService implements TaskService {
         writeFile(properties, SOURCE_PREFIX, task.getSourceFile());
         writeFile(properties, RESULT_PREFIX, task.getResultFile());
         writeFile(properties, ERROR_PREFIX, task.getErrorFile());
-        try (OutputStream output = Files.newOutputStream(taskPath(task.getTaskId()))) {
+        try (OutputStream output = createOnly
+            ? Files.newOutputStream(taskPath(task.getTaskId()), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+            : Files.newOutputStream(taskPath(task.getTaskId()))) {
             properties.store(output, "ent-loom-crud task metadata");
+        } catch (java.nio.file.FileAlreadyExistsException ex) {
+            throw new ValidationException("任务已存在: " + task.getTaskId());
         } catch (IOException ex) {
             throw new CrudException(CrudErrorCode.INTERNAL_ERROR, "写入任务元数据失败: " + task.getTaskId(), ex);
         }
@@ -528,9 +555,7 @@ public class LocalTaskService implements TaskService {
     }
 
     private static boolean isTerminal(CrudTaskStatus status) {
-        return status == CrudTaskStatus.SUCCEEDED
-            || status == CrudTaskStatus.FAILED
-            || status == CrudTaskStatus.CANCELED;
+        return CrudTaskStateMachine.isTerminal(status);
     }
 
     private static String requiredTaskId(String taskId) {

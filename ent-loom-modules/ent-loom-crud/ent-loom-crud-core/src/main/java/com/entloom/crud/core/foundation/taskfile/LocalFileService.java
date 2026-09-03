@@ -232,7 +232,15 @@ public class LocalFileService implements FileService {
     }
 
     private Path metadataPath(String fileId) {
-        return metadataDirectory.resolve(fileId + ".properties").toAbsolutePath().normalize();
+        String normalizedFileId = requiredText(fileId, "文件 ID 不能为空");
+        if (normalizedFileId.indexOf('/') >= 0 || normalizedFileId.indexOf('\\') >= 0) {
+            throw new ValidationException("文件 ID 不允许包含路径分隔符: " + fileId);
+        }
+        Path path = metadataDirectory.resolve(normalizedFileId + ".properties").toAbsolutePath().normalize();
+        if (!path.startsWith(metadataDirectory) || !metadataDirectory.equals(path.getParent())) {
+            throw new ValidationException("文件 ID 不允许访问元数据目录之外的路径: " + fileId);
+        }
+        return path;
     }
 
     private Path contentPath(String fileId) {

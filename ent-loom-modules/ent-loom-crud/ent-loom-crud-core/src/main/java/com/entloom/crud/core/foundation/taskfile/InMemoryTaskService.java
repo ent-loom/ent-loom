@@ -19,6 +19,7 @@ public class InMemoryTaskService implements TaskService {
         if (task == null) {
             throw new ValidationException("任务不能为空");
         }
+        CrudTaskStateMachine.assertCreatable(task);
         Instant now = Instant.now();
         String taskId = isBlank(task.getTaskId()) ? newTaskId() : task.getTaskId().trim();
         CrudTask created = copy(task)
@@ -50,12 +51,23 @@ public class InMemoryTaskService implements TaskService {
             if (current == null) {
                 throw new CrudException(CrudErrorCode.TASK_NOT_FOUND, "任务不存在: " + key);
             }
+            CrudTaskStatus actualStatus = status == null ? current.getStatus() : status;
+            CrudTaskStateMachine.assertTransition(current.getTaskId(), current.getStatus(), actualStatus);
+            if (current.getStatus() == actualStatus) {
+                if (actualStatus != CrudTaskStatus.RUNNING || message == null) {
+                    return current;
+                }
+                return copy(current)
+                    .message(message)
+                    .updatedAt(Instant.now())
+                    .build();
+            }
             Instant now = Instant.now();
             return copy(current)
-                .status(status == null ? current.getStatus() : status)
+                .status(actualStatus)
                 .message(message)
                 .updatedAt(now)
-                .finishedAt(isTerminal(status) ? now : current.getFinishedAt())
+                .finishedAt(CrudTaskStateMachine.isTerminal(actualStatus) ? now : current.getFinishedAt())
                 .build();
         });
     }
@@ -81,9 +93,7 @@ public class InMemoryTaskService implements TaskService {
     }
 
     private static boolean isTerminal(CrudTaskStatus status) {
-        return status == CrudTaskStatus.SUCCEEDED
-            || status == CrudTaskStatus.FAILED
-            || status == CrudTaskStatus.CANCELED;
+        return CrudTaskStateMachine.isTerminal(status);
     }
 
     private static String requiredTaskId(String taskId) {

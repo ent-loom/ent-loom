@@ -95,7 +95,7 @@ class TaskFileContractTest {
         contextAttributes.put("type.original", "TYPE");
         LocalTaskService taskService = new LocalTaskService(tempDir.resolve("tasks").toString());
         CrudTask created = taskService.create(CrudTask.builder()
-            .status(CrudTaskStatus.SUCCEEDED)
+            .status(CrudTaskStatus.PENDING)
             .contextSnapshot(CrudTaskContextSnapshot.builder()
                 .subject(subjectWith("tester", "tenant-a", "org-a"))
                 .grantedScope(CrudDataScope.scoped(singletonAttribute("tenantId", "tenant-a")))
@@ -106,6 +106,8 @@ class TaskFileContractTest {
             .resultFile(taskFile)
             .progress(Integer.valueOf(100))
             .build());
+        taskService.updateStatus(created.getTaskId(), CrudTaskStatus.RUNNING, "正在处理");
+        taskService.updateStatus(created.getTaskId(), CrudTaskStatus.SUCCEEDED, "处理完成");
 
         LocalFileService reloadedFileService = new LocalFileService(tempDir.resolve("files").toString());
         LocalTaskService reloadedTaskService = new LocalTaskService(tempDir.resolve("tasks").toString());
@@ -178,6 +180,14 @@ class TaskFileContractTest {
     }
 
     @Test
+    void task_services_should_share_lifecycle_contract() throws IOException {
+        assertLifecycleContract(new InMemoryTaskService());
+        assertLifecycleContract(new LocalTaskService(
+            Files.createTempDirectory("entloom-crud-lifecycle-test").toString()
+        ));
+    }
+
+    @Test
     void local_file_service_should_save_and_open_stream() throws IOException {
         Path tempDir = Files.createTempDirectory("entloom-crud-streamfile-test");
         LocalFileService fileService = new LocalFileService(tempDir.resolve("files").toString());
@@ -191,6 +201,17 @@ class TaskFileContractTest {
 
         byte[] content = copyToByteArray(fileService.openStream(file));
         Assertions.assertEquals("stream-ok", new String(content, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void local_file_service_should_reject_metadata_path_traversal() throws IOException {
+        Path tempDir = Files.createTempDirectory("entloom-crud-file-id-test");
+        LocalFileService fileService = new LocalFileService(tempDir.resolve("files").toString());
+
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> fileService.getRequired("../outside")
+        );
     }
 
     @Test
@@ -326,6 +347,25 @@ class TaskFileContractTest {
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put(key, value);
         return attributes;
+    }
+
+    private static void assertLifecycleContract(TaskService service) {
+        CrudTask task = service.create(CrudTask.builder().taskId("lifecycle").build());
+        CrudTask running = service.updateStatus(task.getTaskId(), CrudTaskStatus.RUNNING, "运行中");
+        CrudTask succeeded = service.updateStatus(running.getTaskId(), CrudTaskStatus.SUCCEEDED, "完成");
+
+        Assertions.assertEquals(CrudTaskStatus.SUCCEEDED, succeeded.getStatus());
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> service.cancel(succeeded.getTaskId(), "不能覆盖终态")
+        );
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> service.create(CrudTask.builder()
+                .taskId("terminal-create")
+                .status(CrudTaskStatus.SUCCEEDED)
+                .build())
+        );
     }
 
     private static SubjectContext subjectWith(String subjectId, String tenantId, String orgId) {
