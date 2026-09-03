@@ -24,7 +24,6 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -163,13 +162,14 @@ public class DefaultExportEngine implements ExportEngine {
         );
         FileRef file = fileService.save(request);
         CrudTask task = taskService.create(CrudTask.builder()
-            .status(CrudTaskStatus.SUCCEEDED)
+            .status(CrudTaskStatus.PENDING)
             .contextSnapshot(CrudTaskContextSnapshot.fromSpec(spec, spec.getOperationKey()))
             .resultFile(file)
-            .progress(Integer.valueOf(100))
-            .message("导出完成")
-            .finishedAt(Instant.now())
+            .progress(Integer.valueOf(0))
+            .message("等待导出")
             .build());
+        taskService.updateStatus(task.getTaskId(), CrudTaskStatus.RUNNING, "正在导出");
+        task = taskService.updateStatus(task.getTaskId(), CrudTaskStatus.SUCCEEDED, "导出完成");
         return ExportResult.builder()
             .accepted(true)
             .async(false)

@@ -28,7 +28,6 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -150,7 +149,6 @@ public class DefaultImportEngine implements ImportEngine {
         FileRef errorFile = null;
         int inserted = 0;
         int updated = 0;
-        CrudTaskStatus status = CrudTaskStatus.SUCCEEDED;
         String message = errors.isEmpty() ? "导入校验通过" : "导入存在行错误";
         if (!errors.isEmpty()) {
             ImportResult invalidResult = buildResult(null, null, totalRows, validRows, failedRows, 0, 0, errors, spec.isAsync());
@@ -167,14 +165,15 @@ public class DefaultImportEngine implements ImportEngine {
             message = "导入完成";
         }
         CrudTask task = taskService.create(CrudTask.builder()
-            .status(status)
+            .status(CrudTaskStatus.PENDING)
             .contextSnapshot(CrudTaskContextSnapshot.fromSpec(spec, spec.getOperationKey()))
             .sourceFile(sourceRef)
             .errorFile(errorFile)
-            .progress(Integer.valueOf(100))
+            .progress(Integer.valueOf(0))
             .message(message)
-            .finishedAt(Instant.now())
             .build());
+        taskService.updateStatus(task.getTaskId(), CrudTaskStatus.RUNNING, "正在导入");
+        task = taskService.updateStatus(task.getTaskId(), CrudTaskStatus.SUCCEEDED, message);
         return buildResult(task, errorFile, totalRows, validRows, failedRows, inserted, updated, errors, spec.isAsync());
     }
 
