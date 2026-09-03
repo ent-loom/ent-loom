@@ -4,13 +4,22 @@ import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
-import java.time.Instant;
 import java.util.Objects;
 
 /**
  * Import / Export 任务与文件访问守卫。
  */
 public class TaskFileAccessGuard {
+    private final java.time.Clock clock;
+
+    public TaskFileAccessGuard() {
+        this(java.time.Clock.systemUTC());
+    }
+
+    public TaskFileAccessGuard(java.time.Clock clock) {
+        this.clock = Objects.requireNonNull(clock, "clock 不能为空");
+    }
+
     public void assertTaskAccessible(CrudTask task, BaseSpec spec) {
         if (task == null || spec == null) {
             deny("任务访问上下文不能为空");
@@ -52,13 +61,12 @@ public class TaskFileAccessGuard {
         assertOwnedAttribute(file, "subjectId", current.getSubjectId());
         assertOwnedAttribute(file, "tenantId", current.getTenantId());
         assertOwnedAttribute(file, "orgId", current.getOrgId());
+        assertNotExpired(file);
     }
 
     public void assertDownloadableFile(FileRef file, String expectedPurpose) {
         assertFilePurpose(file, expectedPurpose);
-        if (file.getExpiresAt() != null && file.getExpiresAt().isBefore(Instant.now())) {
-            throw new CrudException(CrudErrorCode.FILE_EXPIRED, "文件已过期: " + file.getFileId());
-        }
+        assertNotExpired(file);
         if (isBlank(file.getFileName())) {
             invalid("文件名缺失: " + file.getFileId());
         }
@@ -71,6 +79,44 @@ public class TaskFileAccessGuard {
         Object format = file.getAttributes().get("format");
         if (format == null || isBlank(String.valueOf(format))) {
             invalid("文件格式元数据缺失: " + file.getFileId());
+        }
+    }
+
+    /**
+     * 校验任务下载文件，确保文件既属于当前任务，也属于任务快照中的主体。
+     *
+     * <p>仅校验请求主体不足以保护结果文件，因为调用方仍可能替换任务之外的文件引用。</p>
+     */
+    public void assertDownloadableFile(CrudTask task, BaseSpec spec, FileRef file, String expectedPurpose) {
+        assertTaskAccessible(task, spec);
+        if (file == null || !references(task, file)) {
+            deny("文件不是任务关联文件: " + (task == null ? null : task.getTaskId()));
+        }
+        SubjectContext taskSubject = task.getContextSnapshot().getSubject();
+        assertOwnedAttribute(file, "subjectId", taskSubject == null ? null : taskSubject.getSubjectId());
+        assertOwnedAttribute(file, "tenantId", taskSubject == null ? null : taskSubject.getTenantId());
+        assertOwnedAttribute(file, "orgId", taskSubject == null ? null : taskSubject.getOrgId());
+        assertDownloadableFile(file, expectedPurpose);
+    }
+
+    private static boolean references(CrudTask task, FileRef file) {
+        if (task == null || file == null || isBlank(file.getFileId())) {
+            return false;
+        }
+        return sameFile(task.getSourceFile(), file)
+            || sameFile(task.getResultFile(), file)
+            || sameFile(task.getErrorFile(), file);
+    }
+
+    private static boolean sameFile(FileRef left, FileRef right) {
+        return left != null && right != null
+            && !isBlank(left.getFileId())
+            && left.getFileId().equals(right.getFileId());
+    }
+
+    private void assertNotExpired(FileRef file) {
+        if (file.getExpiresAt() != null && !file.getExpiresAt().isAfter(clock.instant())) {
+            throw new CrudException(CrudErrorCode.FILE_EXPIRED, "文件已过期: " + file.getFileId());
         }
     }
 

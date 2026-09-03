@@ -108,17 +108,16 @@ public class ImportGatewayImpl implements ImportGateway {
             current -> executionPipeline.governImport(current),
             (requestSpec, governedSpec, governance) -> {
                 CrudTask task = taskService.getRequired(requireTaskId(governedSpec));
-                accessGuard.assertTaskAccessible(task, governedSpec);
-                return resolveErrorFile(task);
+                return resolveErrorFile(task, governedSpec);
             }
         );
     }
 
-    private FileRef resolveErrorFile(CrudTask task) {
+    private FileRef resolveErrorFile(CrudTask task, ImportSpec spec) {
         if (task.getErrorFile() == null) {
             throw new CrudException(CrudErrorCode.DOWNLOAD_NOT_READY, "导入错误文件尚未就绪: " + task.getTaskId());
         }
-        accessGuard.assertDownloadableFile(task.getErrorFile(), "IMPORT_ERROR");
+        accessGuard.assertDownloadableFile(task, spec, task.getErrorFile(), "IMPORT_ERROR");
         return task.getErrorFile();
     }
 

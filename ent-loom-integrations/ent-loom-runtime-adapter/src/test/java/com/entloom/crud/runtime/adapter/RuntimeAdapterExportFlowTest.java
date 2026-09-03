@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class RuntimeAdapterExportFlowTest {
     @Test
-    void runtimeStoresCanBackCrudTaskFileAndDownloadGuard() throws Exception {
+    void runtimeStoresSatisfyCrudTaskFileAdapterContract() throws Exception {
         InMemoryFileStore runtimeFiles = new InMemoryFileStore();
         RuntimeFileServiceAdapter files = new RuntimeFileServiceAdapter(runtimeFiles);
         RuntimeTaskServiceAdapter tasks = new RuntimeTaskServiceAdapter(
@@ -64,6 +64,7 @@ class RuntimeAdapterExportFlowTest {
 
         assertEquals(task.getTaskId(), loaded.getTaskId());
         assertEquals("id,name", new String(files.read(loaded.getResultFile()), StandardCharsets.UTF_8));
+        assertThrows(RuntimeException.class, () -> tasks.cancel(loaded.getTaskId(), "不应覆盖成功任务"));
         assertThrows(RuntimeException.class, () -> new TaskFileAccessGuard().assertTaskAccessible(
             loaded,
             spec.toBuilder().subject(subject("other-user")).build()

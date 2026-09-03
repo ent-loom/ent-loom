@@ -2,6 +2,7 @@ package com.entloom.crud.core.foundation.taskfile;
 
 import com.entloom.crud.api.enums.ImportOperation;
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.capability.exporting.ExportSpec;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
@@ -276,6 +277,32 @@ class TaskFileContractTest {
     }
 
     @Test
+    void access_guard_should_bind_download_file_to_task_subject_and_reference() {
+        SubjectContext owner = subjectWith("u1", "tenant-a", "org-a");
+        ExportSpec spec = ExportSpec.builder()
+            .scene("student.export")
+            .rootType(Object.class)
+            .subject(owner)
+            .build();
+        FileRef taskFile = downloadableFile("u1", "tenant-a", "org-a");
+        CrudTask task = CrudTask.builder()
+            .taskId("T1")
+            .status(CrudTaskStatus.SUCCEEDED)
+            .contextSnapshot(CrudTaskContextSnapshot.fromSpec(spec, spec.getOperationKey()))
+            .resultFile(taskFile)
+            .build();
+        FileRef differentOwner = downloadableFile("u2", "tenant-a", "org-a");
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new TaskFileAccessGuard().assertDownloadableFile(
+                task, spec, differentOwner, "EXPORT_RESULT")
+        );
+
+        Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.PERMISSION_DENIED, ex.getErrorCode());
+    }
+
+    @Test
     void access_guard_should_reject_import_source_from_another_tenant() {
         SubjectContext subject = new SubjectContext();
         subject.setSubjectId("u1");
@@ -307,6 +334,22 @@ class TaskFileContractTest {
         subject.setTenantId(tenantId);
         subject.setOrgId(orgId);
         return subject;
+    }
+
+    private static FileRef downloadableFile(String subjectId, String tenantId, String orgId) {
+        Map<String, Object> attributes = new HashMap<String, Object>();
+        attributes.put("purpose", "EXPORT_RESULT");
+        attributes.put("format", "csv");
+        attributes.put("subjectId", subjectId);
+        attributes.put("tenantId", tenantId);
+        attributes.put("orgId", orgId);
+        return FileRef.builder()
+            .fileId("F1")
+            .fileName("result.csv")
+            .contentType("text/csv")
+            .size(Long.valueOf(1L))
+            .attributes(attributes)
+            .build();
     }
 
     private static byte[] copyToByteArray(InputStream inputStream) throws IOException {

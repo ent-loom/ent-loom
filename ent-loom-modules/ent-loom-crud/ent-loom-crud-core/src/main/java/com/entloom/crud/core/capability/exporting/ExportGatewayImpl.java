@@ -104,17 +104,16 @@ public class ExportGatewayImpl implements ExportGateway {
             current -> executionPipeline.governExport(current),
             (requestSpec, governedSpec, governance) -> {
                 CrudTask task = taskService.getRequired(requireTaskId(governedSpec));
-                accessGuard.assertTaskAccessible(task, governedSpec);
-                return resolveDownloadFile(task);
+                return resolveDownloadFile(task, governedSpec);
             }
         );
     }
 
-    private FileRef resolveDownloadFile(CrudTask task) {
+    private FileRef resolveDownloadFile(CrudTask task, ExportSpec spec) {
         if (task.getStatus() != CrudTaskStatus.SUCCEEDED || task.getResultFile() == null) {
             throw new CrudException(CrudErrorCode.DOWNLOAD_NOT_READY, "导出文件尚未就绪: " + task.getTaskId());
         }
-        accessGuard.assertDownloadableFile(task.getResultFile(), "EXPORT_RESULT");
+        accessGuard.assertDownloadableFile(task, spec, task.getResultFile(), "EXPORT_RESULT");
         return task.getResultFile();
     }
 
