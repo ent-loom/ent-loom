@@ -4,8 +4,13 @@ import com.entloom.crud.core.foundation.taskfile.CrudFileStorageType;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.runtime.inmemory.file.InMemoryFileStore;
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -68,6 +73,29 @@ class CrudRuntimeFileMapperTest {
         assertEquals("u-1", crud.getAttributes().get("subjectId"));
         assertEquals("csv", crud.getAttributes().get("format"));
         assertEquals(Instant.parse("2030-01-01T00:00:00Z"), crud.getExpiresAt());
+    }
+
+    @Test
+    void fileAdapterContractUsesRuntimeMetadataForReadAndStream() throws Exception {
+        Instant now = Instant.parse("2026-09-01T00:00:00Z");
+        InMemoryFileStore runtimeStore = new InMemoryFileStore(Clock.fixed(now, ZoneOffset.UTC));
+        RuntimeFileServiceAdapter adapter = new RuntimeFileServiceAdapter(runtimeStore);
+        Map<String, Object> attributes = attributes("EXPORT_RESULT", "u-1", "tenant-1", "org-1");
+        attributes.put("format", "csv");
+
+        FileRef file = adapter.save(FileStreamWriteRequest.builder()
+            .fileName("result.csv")
+            .contentType("text/csv")
+            .inputStream(new ByteArrayInputStream("ok".getBytes(StandardCharsets.UTF_8)))
+            .size(Long.valueOf(2L))
+            .attributes(attributes)
+            .build());
+
+        assertArrayEquals("ok".getBytes(StandardCharsets.UTF_8), adapter.read(file));
+        try (InputStream inputStream = adapter.openStream(file)) {
+            assertArrayEquals("ok".getBytes(StandardCharsets.UTF_8), inputStream.readAllBytes());
+        }
+        assertEquals(file.getFileId(), adapter.getRequired(file.getFileId()).getFileId());
     }
 
     private static Map<String, Object> attributes(String purpose, String subjectId, String tenantId, String orgId) {

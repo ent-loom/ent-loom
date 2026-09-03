@@ -19,7 +19,7 @@ ent-loom-integrations
 2. `ent-loom-meta-adapter-ddl`: Meta Descriptor 到 DDL 执行层的适配；E4 已提供 `MetaDdlAdapter`，覆盖 Meta-only、DDL-only 和 Meta + DDL override，DDL 专属属性不进入通用 Meta Contract。
 3. `ent-loom-meta-adapter-doc`: Meta Descriptor 到 DOC 输出模型的适配；P0 已覆盖 Meta-only、DOC-only、Meta + DOC override、稳定 DOC Runtime Model、关系/索引文档和诊断。
 4. `ent-loom-meta-spring-boot-starter`: P1 装配层，只负责条件注册 `MetaCrudAdapter` / `MetaDocAdapter`，不承载合并规则。
-5. `ent-loom-runtime-adapter`: 可选集成层，以 `ent-runtime` Store 实现 CRUD Task/File SPI；当前只验证主体、任务、流式文件和下载守卫的最小闭环，不进入默认 Reactor。
+5. `ent-loom-runtime-adapter`: 可选集成层，以 `ent-runtime` 的 `TaskLifecycleService` 和 `FileStore` 实现 CRUD Task/File SPI；当前只验证主体、任务、流式文件和下载守卫的最小闭环，不进入默认 Reactor。
 
 依赖约定:
 
@@ -27,7 +27,25 @@ ent-loom-integrations
 2. adapter 只依赖目标能力模块的 core，不反向污染目标模块。
 3. `ent-loom-modules` 中的 CRUD/DOC/DDL 保持独立，不直接依赖 `ent-loom-meta-annotations`。
 4. starter 可依赖 adapter、目标 core 和 Spring Boot auto-config；core 模块不能反向依赖 starter。
-5. `ent-loom-runtime-adapter` 可以依赖 `ent-loom-crud-core` 和独立发布的 `ent-runtime/runtime-contract`；`ent-loom` Core 与 `ent-runtime` 均不得反向依赖它们。
+5. `ent-loom-runtime-adapter` 可以依赖 `ent-loom-crud-core` 和独立发布的 `ent-runtime/runtime-contract`、`runtime-core`；`ent-loom` Core 与 `ent-runtime` 均不得反向依赖它们。
+
+Task/File Adapter 最小公开契约:
+
+```mermaid
+flowchart LR
+    crudTask["CRUD TaskService"] --> taskAdapter["RuntimeTaskServiceAdapter"]
+    taskAdapter --> lifecycle["runtime TaskLifecycleService"]
+    lifecycle --> taskStore["runtime TaskStore"]
+    crudFile["CRUD FileService"] --> fileAdapter["RuntimeFileServiceAdapter"]
+    fileAdapter --> fileStore["runtime FileStore"]
+    taskAdapter -. "只保存 CRUD 命名空间属性" .-> taskStore
+    fileAdapter -. "映射主体、用途、过期时间" .-> fileStore
+```
+
+- Task Adapter 只允许从 `PENDING/CREATED` 开始，状态通过 runtime 生命周期服务流转；不直接调用 `TaskStore.save`。
+- File Adapter 对外保留 `save`、`getRequired`、`read`、`openStream`；文件主体、用途和过期时间由 runtime 文件契约承接。
+- 适配器可以注入自定义 `TaskLifecycleService`；未注入时保留基于 `DefaultTaskLifecycleService` 的兼容构造器。
+- 该契约不承诺分布式 Worker、任务持久化、事务一致性或跨服务幂等。
 
 P0 验收入口:
 

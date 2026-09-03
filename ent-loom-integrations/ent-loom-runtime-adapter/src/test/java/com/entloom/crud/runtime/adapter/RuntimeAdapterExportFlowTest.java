@@ -65,6 +65,10 @@ class RuntimeAdapterExportFlowTest {
         assertEquals(task.getTaskId(), loaded.getTaskId());
         assertEquals("id,name", new String(files.read(loaded.getResultFile()), StandardCharsets.UTF_8));
         assertThrows(RuntimeException.class, () -> tasks.cancel(loaded.getTaskId(), "不应覆盖成功任务"));
+        assertThrows(RuntimeException.class, () -> tasks.create(CrudTask.builder()
+            .status(CrudTaskStatus.SUCCEEDED)
+            .contextSnapshot(CrudTaskContextSnapshot.fromSpec(spec, spec.getOperationKey()))
+            .build()));
         assertThrows(RuntimeException.class, () -> new TaskFileAccessGuard().assertTaskAccessible(
             loaded,
             spec.toBuilder().subject(subject("other-user")).build()
