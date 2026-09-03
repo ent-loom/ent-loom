@@ -9,7 +9,8 @@ ent-loom-integrations
 ├── ent-loom-meta-adapter-crud
 ├── ent-loom-meta-adapter-ddl
 ├── ent-loom-meta-adapter-doc
-└── ent-loom-meta-spring-boot-starter
+├── ent-loom-meta-spring-boot-starter
+└── ent-loom-runtime-adapter
 ```
 
 定位:
@@ -18,6 +19,7 @@ ent-loom-integrations
 2. `ent-loom-meta-adapter-ddl`: Meta Descriptor 到 DDL 执行层的适配；E4 已提供 `MetaDdlAdapter`，覆盖 Meta-only、DDL-only 和 Meta + DDL override，DDL 专属属性不进入通用 Meta Contract。
 3. `ent-loom-meta-adapter-doc`: Meta Descriptor 到 DOC 输出模型的适配；P0 已覆盖 Meta-only、DOC-only、Meta + DOC override、稳定 DOC Runtime Model、关系/索引文档和诊断。
 4. `ent-loom-meta-spring-boot-starter`: P1 装配层，只负责条件注册 `MetaCrudAdapter` / `MetaDocAdapter`，不承载合并规则。
+5. `ent-loom-runtime-adapter`: 可选集成层，以 `ent-runtime` Store 实现 CRUD Task/File SPI；当前只验证主体、任务、流式文件和下载守卫的最小闭环，不进入默认 Reactor。
 
 依赖约定:
 
@@ -25,6 +27,7 @@ ent-loom-integrations
 2. adapter 只依赖目标能力模块的 core，不反向污染目标模块。
 3. `ent-loom-modules` 中的 CRUD/DOC/DDL 保持独立，不直接依赖 `ent-loom-meta-annotations`。
 4. starter 可依赖 adapter、目标 core 和 Spring Boot auto-config；core 模块不能反向依赖 starter。
+5. `ent-loom-runtime-adapter` 可以依赖 `ent-loom-crud-core` 和独立发布的 `ent-runtime/runtime-contract`；`ent-loom` Core 与 `ent-runtime` 均不得反向依赖它们。
 
 P0 验收入口:
 

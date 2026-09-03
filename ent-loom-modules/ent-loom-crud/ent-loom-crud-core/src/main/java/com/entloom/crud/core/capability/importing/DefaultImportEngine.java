@@ -11,6 +11,7 @@ import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.foundation.taskfile.CrudTask;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskContextSnapshot;
+import com.entloom.crud.core.foundation.taskfile.CrudFilePurpose;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileService;
@@ -155,8 +156,9 @@ public class DefaultImportEngine implements ImportEngine {
             ImportResult invalidResult = buildResult(null, null, totalRows, validRows, failedRows, 0, 0, errors, spec.isAsync());
             errorFile = fileService.save(withFileAttributes(
                 descriptor.getErrorFileWriter().writeErrorFile(spec, invalidResult),
-                "IMPORT_ERROR",
-                descriptor.getFormat()
+                CrudFilePurpose.IMPORT_ERROR,
+                descriptor.getFormat(),
+                spec.getSubject()
             ));
         } else if (write) {
             WriteCounts counts = writeRows(spec, meta, rows);
@@ -419,13 +421,23 @@ public class DefaultImportEngine implements ImportEngine {
         return value;
     }
 
-    private static FileStreamWriteRequest withFileAttributes(FileStreamWriteRequest request, String purpose, String format) {
+    private static FileStreamWriteRequest withFileAttributes(
+        FileStreamWriteRequest request,
+        CrudFilePurpose purpose,
+        String format,
+        com.entloom.crud.api.model.SubjectContext subject
+    ) {
         if (request == null) {
             throw new ValidationException("导入错误文件写入请求不能为空");
         }
         Map<String, Object> attributes = request.getAttributes();
-        attributes.put("purpose", purpose);
+        attributes.put("purpose", purpose.name());
         attributes.put("format", format);
+        if (subject != null) {
+            attributes.put("subjectId", subject.getSubjectId());
+            attributes.put("tenantId", subject.getTenantId());
+            attributes.put("orgId", subject.getOrgId());
+        }
         return FileStreamWriteRequest.builder()
             .fileName(request.getFileName())
             .contentType(request.getContentType())

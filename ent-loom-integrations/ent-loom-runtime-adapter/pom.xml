@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.ent-loom</groupId>
+        <artifactId>ent-loom-integrations</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ent-loom-runtime-adapter</artifactId>
+    <name>ent-loom-runtime-adapter</name>
+    <description>ent-loom CRUD 与 ent-runtime 的可选运行时适配层</description>
+
+    <properties>
+        <!-- runtime 是独立仓库，适配层通过已发布或本地安装的 Contract 接入。 -->
+        <ent-runtime.version>0.1.0</ent-runtime.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.ent-loom</groupId>
+            <artifactId>ent-loom-crud-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.ent-loom.runtime</groupId>
+            <artifactId>runtime-contract</artifactId>
+            <version>${ent-runtime.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.ent-loom.runtime</groupId>
+            <artifactId>runtime-inmemory</artifactId>
+            <version>${ent-runtime.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
