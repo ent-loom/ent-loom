@@ -27,6 +27,8 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
     private final String format;
     private final String fileName;
     private final String taskId;
+    /** 显式幂等键，仅对 SUBMIT 生效。 */
+    private final String idempotencyKey;
     private final boolean async;
     private final List<String> fields;
     private final List<QueryFilter> filters;
@@ -44,6 +46,7 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
         this.format = builder.format;
         this.fileName = builder.fileName;
         this.taskId = builder.taskId;
+        this.idempotencyKey = builder.idempotencyKey;
         this.async = builder.async;
         this.fields = Collections.unmodifiableList(copyStrings(builder.fields));
         this.filters = Collections.unmodifiableList(copyFilters(builder.filters));
@@ -83,6 +86,10 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
 
     public String getTaskId() {
         return taskId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public boolean isAsync() {
@@ -158,6 +165,7 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
             .format(format)
             .fileName(fileName)
             .taskId(taskId)
+            .idempotencyKey(idempotencyKey)
             .async(async)
             .fields(fields)
             .filters(filters)
@@ -225,6 +233,7 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
         private String format;
         private String fileName;
         private String taskId;
+        private String idempotencyKey;
         private boolean async;
         private List<String> fields = new ArrayList<String>();
         private List<QueryFilter> filters = new ArrayList<QueryFilter>();
@@ -258,6 +267,11 @@ public final class ExportSpec extends BaseSpec implements FilterableSpec, Govern
 
         public Builder taskId(String taskId) {
             this.taskId = taskId;
+            return this;
+        }
+
+        public Builder idempotencyKey(String idempotencyKey) {
+            this.idempotencyKey = idempotencyKey;
             return this;
         }
 

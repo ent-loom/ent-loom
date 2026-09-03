@@ -10,6 +10,8 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.core.idempotency.CrudIdempotencyFingerprint;
+import com.entloom.crud.core.idempotency.IdempotencyManager;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.scene.SceneHandler;
 import com.entloom.crud.core.runtime.scene.SceneHandlerRegistry;
@@ -28,6 +30,7 @@ public class ExportGatewayImpl implements ExportGateway {
     private final ExecutionPipeline executionPipeline;
     private final TaskService taskService;
     private final TaskFileAccessGuard accessGuard;
+    private final IdempotencyManager idempotencyManager;
 
     public ExportGatewayImpl(
         ExportFormatRegistry formatRegistry,
@@ -38,6 +41,28 @@ public class ExportGatewayImpl implements ExportGateway {
         TaskService taskService,
         TaskFileAccessGuard accessGuard
     ) {
+        this(
+            formatRegistry,
+            payloadCustomizerRegistry,
+            exportEngine,
+            sceneHandlerRegistry,
+            executionPipeline,
+            taskService,
+            accessGuard,
+            null
+        );
+    }
+
+    public ExportGatewayImpl(
+        ExportFormatRegistry formatRegistry,
+        ExportPayloadCustomizerRegistry payloadCustomizerRegistry,
+        ExportEngine exportEngine,
+        SceneHandlerRegistry<ExportSpec, ExportResult> sceneHandlerRegistry,
+        ExecutionPipeline executionPipeline,
+        TaskService taskService,
+        TaskFileAccessGuard accessGuard,
+        IdempotencyManager idempotencyManager
+    ) {
         this.formatRegistry = Objects.requireNonNull(formatRegistry, "formatRegistry 不能为空");
         this.payloadCustomizerRegistry = Objects.requireNonNull(payloadCustomizerRegistry, "payloadCustomizerRegistry 不能为空");
         this.exportEngine = exportEngine == null ? new UnsupportedExportEngine() : exportEngine;
@@ -45,6 +70,7 @@ public class ExportGatewayImpl implements ExportGateway {
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
         this.taskService = Objects.requireNonNull(taskService, "taskService 不能为空");
         this.accessGuard = Objects.requireNonNull(accessGuard, "accessGuard 不能为空");
+        this.idempotencyManager = idempotencyManager;
     }
 
     @Override
@@ -76,7 +102,24 @@ public class ExportGatewayImpl implements ExportGateway {
         return executionPipeline.execute(
             () -> prepare(spec, operation),
             current -> executionPipeline.governExport(current),
-            (requestSpec, governedSpec, governance) -> dispatch(prepareGoverned(governedSpec, requireFormat))
+            (requestSpec, governedSpec, governance) -> {
+                ExportSpec prepared = prepareGoverned(governedSpec, requireFormat);
+                if (operation != ExportOperation.SUBMIT || idempotencyManager == null
+                    || isBlank(prepared.getIdempotencyKey())) {
+                    return dispatch(prepared);
+                }
+                String storageKey = idempotencyManager.buildStorageKey(
+                    governance.getSubject().getTenantId(),
+                    RouteKeyFactory.buildExportRouteKey(prepared),
+                    prepared.getScene(),
+                    prepared.getIdempotencyKey().trim()
+                );
+                return idempotencyManager.executeWithIdempotency(
+                    storageKey,
+                    CrudIdempotencyFingerprint.forExport(prepared),
+                    () -> dispatch(prepared)
+                );
+            }
         );
     }
 
@@ -141,6 +184,10 @@ public class ExportGatewayImpl implements ExportGateway {
 
     private ExportSpec applyPayloadCustomizers(ExportSpec spec) {
         return PayloadOnlySpecMutationGuard.mergeExportPayload(spec, payloadCustomizerRegistry.customize(spec));
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private ExportResult dispatch(ExportSpec spec) {

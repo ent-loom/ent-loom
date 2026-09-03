@@ -9,6 +9,8 @@ import com.entloom.crud.core.foundation.taskfile.CrudTask;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.core.idempotency.CrudIdempotencyFingerprint;
+import com.entloom.crud.core.idempotency.IdempotencyManager;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.scene.SceneHandler;
 import com.entloom.crud.core.runtime.scene.SceneHandlerRegistry;
@@ -27,6 +29,7 @@ public class ImportGatewayImpl implements ImportGateway {
     private final ExecutionPipeline executionPipeline;
     private final TaskService taskService;
     private final TaskFileAccessGuard accessGuard;
+    private final IdempotencyManager idempotencyManager;
 
     public ImportGatewayImpl(
         ImportFormatRegistry formatRegistry,
@@ -37,6 +40,28 @@ public class ImportGatewayImpl implements ImportGateway {
         TaskService taskService,
         TaskFileAccessGuard accessGuard
     ) {
+        this(
+            formatRegistry,
+            payloadCustomizerRegistry,
+            importEngine,
+            sceneHandlerRegistry,
+            executionPipeline,
+            taskService,
+            accessGuard,
+            null
+        );
+    }
+
+    public ImportGatewayImpl(
+        ImportFormatRegistry formatRegistry,
+        ImportPayloadCustomizerRegistry payloadCustomizerRegistry,
+        ImportEngine importEngine,
+        SceneHandlerRegistry<ImportSpec, ImportResult> sceneHandlerRegistry,
+        ExecutionPipeline executionPipeline,
+        TaskService taskService,
+        TaskFileAccessGuard accessGuard,
+        IdempotencyManager idempotencyManager
+    ) {
         this.formatRegistry = Objects.requireNonNull(formatRegistry, "formatRegistry 不能为空");
         this.payloadCustomizerRegistry = Objects.requireNonNull(payloadCustomizerRegistry, "payloadCustomizerRegistry 不能为空");
         this.importEngine = importEngine == null ? new UnsupportedImportEngine() : importEngine;
@@ -44,6 +69,7 @@ public class ImportGatewayImpl implements ImportGateway {
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
         this.taskService = Objects.requireNonNull(taskService, "taskService 不能为空");
         this.accessGuard = Objects.requireNonNull(accessGuard, "accessGuard 不能为空");
+        this.idempotencyManager = idempotencyManager;
     }
 
     @Override
@@ -80,7 +106,24 @@ public class ImportGatewayImpl implements ImportGateway {
         return executionPipeline.execute(
             () -> prepare(spec, operation),
             current -> executionPipeline.governImport(current),
-            (requestSpec, governedSpec, governance) -> dispatch(prepareGoverned(governedSpec, requireFormat))
+            (requestSpec, governedSpec, governance) -> {
+                ImportSpec prepared = prepareGoverned(governedSpec, requireFormat);
+                if (operation != ImportOperation.SUBMIT || idempotencyManager == null
+                    || isBlank(prepared.getIdempotencyKey())) {
+                    return dispatch(prepared);
+                }
+                String storageKey = idempotencyManager.buildStorageKey(
+                    governance.getSubject().getTenantId(),
+                    RouteKeyFactory.buildImportRouteKey(prepared),
+                    prepared.getScene(),
+                    prepared.getIdempotencyKey().trim()
+                );
+                return idempotencyManager.executeWithIdempotency(
+                    storageKey,
+                    CrudIdempotencyFingerprint.forImport(prepared),
+                    () -> dispatch(prepared)
+                );
+            }
         );
     }
 
@@ -145,6 +188,10 @@ public class ImportGatewayImpl implements ImportGateway {
 
     private ImportSpec applyPayloadCustomizers(ImportSpec spec) {
         return PayloadOnlySpecMutationGuard.mergeImportPayload(spec, payloadCustomizerRegistry.customize(spec));
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private ImportResult dispatch(ImportSpec spec) {

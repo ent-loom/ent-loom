@@ -213,10 +213,10 @@ public final class CrudRuntimeTaskMapper {
         if (scope == null) {
             return;
         }
-        put(target, prefix + "explicitAll", Boolean.valueOf(scope.isExplicitAll()));
+        target.put(prefix + "explicitAll", RuntimeAttributeCodec.encode(Boolean.valueOf(scope.isExplicitAll())));
         for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
             if (entry.getKey() != null && entry.getValue() != null) {
-                put(target, prefix + "dimension." + entry.getKey(), entry.getValue());
+                target.put(prefix + "dimension." + entry.getKey(), RuntimeAttributeCodec.encode(entry.getValue()));
             }
         }
     }
@@ -238,20 +238,22 @@ public final class CrudRuntimeTaskMapper {
             String key = entry.getKey();
             String dimensionPrefix = prefix + "dimension.";
             if (key.startsWith(dimensionPrefix)) {
-                dimensions.put(key.substring(dimensionPrefix.length()), entry.getValue());
+                dimensions.put(key.substring(dimensionPrefix.length()), RuntimeAttributeCodec.decode(entry.getValue()));
             }
         }
         if (explicitAll == null && dimensions.isEmpty()) {
             return null;
         }
-        return new CrudDataScope(Boolean.parseBoolean(explicitAll), dimensions);
+        Object decoded = RuntimeAttributeCodec.decode(explicitAll);
+        boolean all = decoded instanceof Boolean ? ((Boolean) decoded).booleanValue() : Boolean.parseBoolean(explicitAll);
+        return new CrudDataScope(all, dimensions);
     }
 
     private static Map<String, Object> readPrefixedAttributes(Map<String, String> source, String prefix) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, String> entry : source.entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
-                result.put(entry.getKey().substring(prefix.length()), entry.getValue());
+                result.put(entry.getKey().substring(prefix.length()), RuntimeAttributeCodec.decode(entry.getValue()));
             }
         }
         return result;

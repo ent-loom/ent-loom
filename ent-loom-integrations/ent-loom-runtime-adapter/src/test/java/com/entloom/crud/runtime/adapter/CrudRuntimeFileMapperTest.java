@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,25 @@ class CrudRuntimeFileMapperTest {
             assertArrayEquals("ok".getBytes(StandardCharsets.UTF_8), inputStream.readAllBytes());
         }
         assertEquals(file.getFileId(), adapter.getRequired(file.getFileId()).getFileId());
+    }
+
+    @Test
+    void encodedNullStorageTypeShouldUseExternalCompatibilityDefault() {
+        com.entloom.runtime.contract.file.FileRef runtimeRef = com.entloom.runtime.contract.file.FileRef.builder()
+            .fileId("file-null-storage")
+            .fileName("result.csv")
+            .contentType("text/csv")
+            .size(0L)
+            .storageKey("files/file-null-storage")
+            .purpose("EXPORT_RESULT")
+            .owner(com.entloom.runtime.contract.context.SubjectContext.builder()
+                .subjectId("u-1")
+                .subjectType("user")
+                .build())
+            .attributes(Collections.singletonMap("storageType", "v1:null:"))
+            .build();
+
+        assertEquals(CrudFileStorageType.EXTERNAL, new CrudRuntimeFileMapper().toCrud(runtimeRef).getStorageType());
     }
 
     private static Map<String, Object> attributes(String purpose, String subjectId, String tenantId, String orgId) {

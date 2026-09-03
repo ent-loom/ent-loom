@@ -23,6 +23,8 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
     private final ImportMode mode;
     private final FileRef sourceFile;
     private final String taskId;
+    /** 显式幂等键，仅对 SUBMIT 生效。 */
+    private final String idempotencyKey;
     private final Integer batchSize;
     private final boolean async;
     private final CrudWriteTransactionPolicy transactionPolicy;
@@ -36,6 +38,7 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
         this.mode = builder.mode == null ? ImportMode.UPSERT : builder.mode;
         this.sourceFile = builder.sourceFile;
         this.taskId = builder.taskId;
+        this.idempotencyKey = builder.idempotencyKey;
         this.batchSize = builder.batchSize;
         this.async = builder.async;
         this.transactionPolicy = builder.transactionPolicy == null
@@ -76,6 +79,10 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
 
     public String getTaskId() {
         return taskId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public Integer getBatchSize() {
@@ -129,6 +136,7 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
             .mode(mode)
             .sourceFile(sourceFile)
             .taskId(taskId)
+            .idempotencyKey(idempotencyKey)
             .batchSize(batchSize)
             .async(async)
             .transactionPolicy(transactionPolicy)
@@ -146,6 +154,7 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
         private ImportMode mode = ImportMode.UPSERT;
         private FileRef sourceFile;
         private String taskId;
+        private String idempotencyKey;
         private Integer batchSize;
         private boolean async;
         private CrudWriteTransactionPolicy transactionPolicy = CrudWriteTransactionPolicy.PER_BATCH;
@@ -179,6 +188,11 @@ public final class ImportSpec extends BaseSpec implements GovernableSpec<ImportS
 
         public Builder taskId(String taskId) {
             this.taskId = taskId;
+            return this;
+        }
+
+        public Builder idempotencyKey(String idempotencyKey) {
+            this.idempotencyKey = idempotencyKey;
             return this;
         }
 

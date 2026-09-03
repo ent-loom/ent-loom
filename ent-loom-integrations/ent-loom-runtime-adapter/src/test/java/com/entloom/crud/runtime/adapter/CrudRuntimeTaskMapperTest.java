@@ -9,6 +9,8 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
@@ -71,6 +73,43 @@ class CrudRuntimeTaskMapperTest {
             .build();
 
         assertThrows(IllegalArgumentException.class, () -> new CrudRuntimeTaskMapper().toRuntime(source));
+    }
+
+    @Test
+    void preservesTypedScopeAndContextAttributesAcrossRuntimeBoundary() {
+        CrudTask source = CrudTask.builder()
+            .taskId("task-typed")
+            .status(CrudTaskStatus.PENDING)
+            .contextSnapshot(CrudTaskContextSnapshot.builder()
+                .rootType(SampleEntity.class)
+                .operationKey(CrudOperationKey.of(CrudOperationDomain.EXPORT, "SUBMIT"))
+                .subject(subject())
+                .grantedScope(CrudDataScope.scoped(new java.util.LinkedHashMap<String, Object>() {{
+                    put("tenantId", "tenant-1");
+                    put("departmentIds", Arrays.asList("d-1", "d-2"));
+                }}))
+                .attributes(new java.util.LinkedHashMap<String, Object>() {{
+                    put("attempt", Integer.valueOf(3));
+                    put("enabled", Boolean.TRUE);
+                    put("optional", null);
+                    put("startedAt", Instant.parse("2026-09-01T00:00:00Z"));
+                    put("day", LocalDate.parse("2026-09-01"));
+                }})
+                .build())
+            .build();
+
+        CrudTask restored = new CrudRuntimeTaskMapper().toCrud(
+            new CrudRuntimeTaskMapper().toRuntime(source), null);
+
+        assertEquals(Integer.valueOf(3), restored.getContextSnapshot().getAttributes().get("attempt"));
+        assertEquals(Boolean.TRUE, restored.getContextSnapshot().getAttributes().get("enabled"));
+        assertEquals(null, restored.getContextSnapshot().getAttributes().get("optional"));
+        assertEquals(true, restored.getContextSnapshot().getAttributes().containsKey("optional"));
+        assertEquals(Instant.parse("2026-09-01T00:00:00Z"),
+            restored.getContextSnapshot().getAttributes().get("startedAt"));
+        assertEquals(LocalDate.parse("2026-09-01"), restored.getContextSnapshot().getAttributes().get("day"));
+        assertEquals(Arrays.asList("d-1", "d-2"),
+            restored.getContextSnapshot().getGrantedScope().getDimensions().get("departmentIds"));
     }
 
     private static SubjectContext subject() {

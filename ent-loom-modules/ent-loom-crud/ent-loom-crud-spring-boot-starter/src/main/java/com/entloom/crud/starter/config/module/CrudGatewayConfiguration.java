@@ -341,7 +341,8 @@ public class CrudGatewayConfiguration {
         @Qualifier("importSceneHandlerRegistry") SceneHandlerRegistry<ImportSpec, ImportResult> importSceneHandlerRegistry,
         ExecutionPipeline executionPipeline,
         TaskService taskService,
-        TaskFileAccessGuard taskFileAccessGuard
+        TaskFileAccessGuard taskFileAccessGuard,
+        ObjectProvider<IdempotencyManager> idempotencyManagerProvider
     ) {
         return new ImportGatewayImpl(
             importFormatRegistry,
@@ -350,7 +351,8 @@ public class CrudGatewayConfiguration {
             importSceneHandlerRegistry,
             executionPipeline,
             taskService,
-            taskFileAccessGuard
+            taskFileAccessGuard,
+            idempotencyManagerProvider.getIfAvailable()
         );
     }
 
@@ -364,7 +366,8 @@ public class CrudGatewayConfiguration {
         @Qualifier("exportSceneHandlerRegistry") SceneHandlerRegistry<ExportSpec, ExportResult> exportSceneHandlerRegistry,
         ExecutionPipeline executionPipeline,
         TaskService taskService,
-        TaskFileAccessGuard taskFileAccessGuard
+        TaskFileAccessGuard taskFileAccessGuard,
+        ObjectProvider<IdempotencyManager> idempotencyManagerProvider
     ) {
         return new ExportGatewayImpl(
             exportFormatRegistry,
@@ -373,7 +376,8 @@ public class CrudGatewayConfiguration {
             exportSceneHandlerRegistry,
             executionPipeline,
             taskService,
-            taskFileAccessGuard
+            taskFileAccessGuard,
+            idempotencyManagerProvider.getIfAvailable()
         );
     }
 

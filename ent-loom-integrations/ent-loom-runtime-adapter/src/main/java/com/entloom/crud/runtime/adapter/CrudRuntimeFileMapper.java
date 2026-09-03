@@ -46,7 +46,7 @@ public final class CrudRuntimeFileMapper {
             .purpose(requiredPurpose(attributes))
             .owner(owner(attributes))
             .expiresAt(readInstant(attributes.get("expiresAt")))
-            .attributes(RuntimeAttributeCodec.toRuntimeAttributes(attributes))
+            .attributes(runtimeFileAttributes(attributes))
             .build();
     }
 
@@ -63,7 +63,7 @@ public final class CrudRuntimeFileMapper {
             .purpose(requiredPurpose(attributes))
             .owner(owner(attributes))
             .expiresAt(readInstant(attributes.get("expiresAt")))
-            .attributes(RuntimeAttributeCodec.toRuntimeAttributes(attributes))
+            .attributes(runtimeFileAttributes(attributes))
             .build();
     }
 
@@ -142,10 +142,20 @@ public final class CrudRuntimeFileMapper {
 
     private static Map<String, String> runtimeFileAttributes(FileRef source) {
         Map<String, Object> attributes = source.getAttributes();
-        Map<String, String> result = new LinkedHashMap<String, String>(RuntimeAttributeCodec.toRuntimeAttributes(attributes));
+        Map<String, String> result = runtimeFileAttributes(attributes);
         result.put(STORAGE_TYPE, source.getStorageType() == null
             ? CrudFileStorageType.EXTERNAL.name()
             : source.getStorageType().name());
+        return result;
+    }
+
+    private static Map<String, String> runtimeFileAttributes(Map<String, Object> source) {
+        Map<String, String> result = new LinkedHashMap<String, String>(
+            RuntimeAttributeCodec.toRuntimeAttributes(source));
+        Object storageType = source == null ? null : source.get(STORAGE_TYPE);
+        if (storageType != null) {
+            result.put(STORAGE_TYPE, textAttribute(storageType));
+        }
         return result;
     }
 
@@ -187,8 +197,13 @@ public final class CrudRuntimeFileMapper {
         if (value == null || value.trim().isEmpty()) {
             return CrudFileStorageType.EXTERNAL;
         }
+        Object decoded = RuntimeAttributeCodec.decode(value);
+        String normalized = textAttribute(decoded);
+        if (normalized == null) {
+            return CrudFileStorageType.EXTERNAL;
+        }
         try {
-            return CrudFileStorageType.valueOf(value.trim().toUpperCase(java.util.Locale.ROOT));
+            return CrudFileStorageType.valueOf(normalized.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("不支持的 CRUD 文件存储类型: " + value, ex);
         }

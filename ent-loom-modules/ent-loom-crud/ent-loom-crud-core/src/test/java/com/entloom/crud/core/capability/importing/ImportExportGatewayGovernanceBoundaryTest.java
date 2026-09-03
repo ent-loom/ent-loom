@@ -28,6 +28,9 @@ import com.entloom.crud.core.governance.model.CrudResourceAction;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.governance.service.CrudGovernanceResult;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
+import com.entloom.crud.core.idempotency.IdempotencyManager;
+import com.entloom.crud.core.exception.IdempotencyPayloadConflictException;
+import com.entloom.crud.core.idempotency.InMemoryIdempotencyStore;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
 import com.entloom.crud.core.runtime.spec.GovernableSpec;
 import java.util.Collection;
@@ -169,6 +172,57 @@ class ImportExportGatewayGovernanceBoundaryTest {
         ValidationException ex = Assertions.assertThrows(ValidationException.class, () -> gateway.submit(exportSpec()));
 
         Assertions.assertTrue(ex.getMessage().contains("只能修改 payload"));
+    }
+
+    @Test
+    void export_submit_should_replay_when_explicit_idempotency_key_repeats() {
+        AtomicInteger calls = new AtomicInteger();
+        ExportGatewayImpl gateway = new ExportGatewayImpl(
+            new RecordingExportFormatRegistry(false),
+            new ExportPayloadCustomizerRegistry(Collections.<ExportPayloadCustomizer>emptyList()),
+            spec -> {
+                calls.incrementAndGet();
+                return ExportResult.builder().accepted(true).build();
+            },
+            null,
+            new ExecutionPipeline(new RecordingGovernanceService()),
+            new NoopTaskService(),
+            new TaskFileAccessGuard(),
+            new IdempotencyManager(new InMemoryIdempotencyStore())
+        );
+        ExportSpec spec = exportSpec().toBuilder()
+            .idempotencyKey("export-submit-1")
+            .payload(Collections.<String, Object>singletonMap("filter", "active"))
+            .build();
+
+        gateway.submit(spec);
+        gateway.submit(spec);
+
+        Assertions.assertEquals(1, calls.get());
+    }
+
+    @Test
+    void import_submit_should_reject_same_key_with_different_payload() {
+        ImportGatewayImpl gateway = new ImportGatewayImpl(
+            new RecordingImportFormatRegistry(false),
+            new ImportPayloadCustomizerRegistry(Collections.<ImportPayloadCustomizer>emptyList()),
+            spec -> ImportResult.builder().accepted(true).build(),
+            null,
+            new ExecutionPipeline(new RecordingGovernanceService()),
+            new NoopTaskService(),
+            new TaskFileAccessGuard(),
+            new IdempotencyManager(new InMemoryIdempotencyStore())
+        );
+        ImportSpec first = importSpec().toBuilder()
+            .idempotencyKey("import-submit-1")
+            .payload(Collections.<String, Object>singletonMap("mode", "insert"))
+            .build();
+        ImportSpec second = first.toBuilder()
+            .payload(Collections.<String, Object>singletonMap("mode", "update"))
+            .build();
+
+        gateway.submit(first);
+        Assertions.assertThrows(IdempotencyPayloadConflictException.class, () -> gateway.submit(second));
     }
 
     private static ImportSpec importSpec() {

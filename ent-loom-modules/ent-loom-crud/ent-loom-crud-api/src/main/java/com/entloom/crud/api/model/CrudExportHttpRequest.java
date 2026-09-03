@@ -21,6 +21,8 @@ public class CrudExportHttpRequest {
     private String format = "excel-xlsx";
     private String fileName;
     private String taskId;
+    /** SUBMIT 请求的显式幂等键。 */
+    private String idempotencyKey;
     private boolean async;
     private List<String> fields = new ArrayList<String>();
     private List<QueryFilter> filters = new ArrayList<QueryFilter>();

@@ -22,6 +22,8 @@ public class CrudImportHttpRequest {
     private String mode = "UPSERT";
     private String sourceFileId;
     private String taskId;
+    /** SUBMIT 请求的显式幂等键。 */
+    private String idempotencyKey;
     private Integer batchSize;
     private String transactionPolicy;
     private boolean async;
