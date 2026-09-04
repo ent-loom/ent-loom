@@ -16,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -201,6 +203,62 @@ class TaskFileContractTest {
 
         byte[] content = copyToByteArray(fileService.openStream(file));
         Assertions.assertEquals("stream-ok", new String(content, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void file_stream_size_mismatch_should_fail_and_close_input() {
+        TrackingInputStream input = new TrackingInputStream("stream-ok".getBytes(StandardCharsets.UTF_8));
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> new InMemoryFileService().save(FileStreamWriteRequest.builder()
+                .fileName("stream.txt")
+                .contentType("text/plain")
+                .inputStream(input)
+                .size(Long.valueOf(99L))
+                .build())
+        );
+        Assertions.assertTrue(input.closed);
+    }
+
+    @Test
+    void local_file_stream_size_mismatch_should_fail_and_close_input() throws IOException {
+        TrackingInputStream input = new TrackingInputStream("stream-ok".getBytes(StandardCharsets.UTF_8));
+        LocalFileService fileService = new LocalFileService(
+            Files.createTempDirectory("entloom-crud-local-stream-size-test").toString()
+        );
+
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> fileService.save(FileStreamWriteRequest.builder()
+                .fileName("stream.txt")
+                .contentType("text/plain")
+                .inputStream(input)
+                .size(Long.valueOf(99L))
+                .build())
+        );
+        Assertions.assertTrue(input.closed);
+    }
+
+    @Test
+    void expiration_at_current_time_should_be_rejected() {
+        Instant now = Instant.parse("2026-09-01T00:00:00Z");
+        FileRef original = downloadableFile("u1", "tenant-a", "org-a");
+        FileRef file = FileRef.builder()
+            .fileId(original.getFileId())
+            .fileName(original.getFileName())
+            .contentType(original.getContentType())
+            .size(original.getSize())
+            .expiresAt(now)
+            .attributes(original.getAttributes())
+            .build();
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new TaskFileAccessGuard(Clock.fixed(now, ZoneOffset.UTC))
+                .assertDownloadableFile(file, "EXPORT_RESULT")
+        );
+
+        Assertions.assertEquals(com.entloom.crud.api.enums.CrudErrorCode.FILE_EXPIRED, ex.getErrorCode());
     }
 
     @Test
@@ -402,5 +460,19 @@ class TaskFileContractTest {
             }
         }
         return outputStream.toByteArray();
+    }
+
+    private static final class TrackingInputStream extends ByteArrayInputStream {
+        private boolean closed;
+
+        private TrackingInputStream(byte[] content) {
+            super(content);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
     }
 }

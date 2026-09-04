@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,12 +35,18 @@ public class LocalFileService implements FileService {
     private final Path metadataDirectory;
     private final long maxBytes;
     private final Duration retention;
+    private final Clock clock;
 
     public LocalFileService(String rootDirectory) {
         this(rootDirectory, DEFAULT_MAX_BYTES, DEFAULT_RETENTION);
     }
 
     public LocalFileService(String rootDirectory, long maxBytes, Duration retention) {
+        this(rootDirectory, maxBytes, retention, Clock.systemUTC());
+    }
+
+    /** 提供时钟注入以固定过期边界测试。 */
+    public LocalFileService(String rootDirectory, long maxBytes, Duration retention, Clock clock) {
         String root = rootDirectory == null || rootDirectory.trim().isEmpty()
             ? Paths.get(System.getProperty("java.io.tmpdir"), "entloom-crud", "files").toString()
             : rootDirectory.trim();
@@ -48,6 +55,10 @@ public class LocalFileService implements FileService {
         this.metadataDirectory = this.rootDirectory.resolve("metadata");
         this.maxBytes = maxBytes <= 0 ? DEFAULT_MAX_BYTES : maxBytes;
         this.retention = retention == null || retention.isZero() || retention.isNegative() ? DEFAULT_RETENTION : retention;
+        if (clock == null) {
+            throw new IllegalArgumentException("clock 不能为空");
+        }
+        this.clock = clock;
         ensureDirectories();
     }
 
@@ -85,12 +96,15 @@ public class LocalFileService implements FileService {
         String fileName = requiredText(request.getFileName(), "文件名不能为空");
         String contentType = requiredText(request.getContentType(), "文件 Content-Type 不能为空");
         String fileId = newId();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant expiresAt = now.plus(retention);
         Map<String, Object> attributes = request.getAttributes();
         Path contentPath = contentPath(fileId);
         try {
             StreamCopyResult result = copyToFile(inputStream, contentPath);
+            if (declaredSize != null && declaredSize.longValue() != result.size) {
+                throw new ValidationException("声明的文件大小与实际大小不一致");
+            }
             attributes.put("checksumSha256", result.checksumSha256);
             attributes.put("createdAt", now.toString());
             FileRef ref = FileRef.builder()
@@ -256,8 +270,8 @@ public class LocalFileService implements FileService {
         }
     }
 
-    private static void assertNotExpired(FileRef ref) {
-        if (ref.getExpiresAt() != null && ref.getExpiresAt().isBefore(Instant.now())) {
+    private void assertNotExpired(FileRef ref) {
+        if (ref.isExpired(clock.instant())) {
             throw new CrudException(CrudErrorCode.FILE_EXPIRED, "文件已过期: " + ref.getFileId());
         }
     }

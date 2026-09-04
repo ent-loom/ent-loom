@@ -61,6 +61,14 @@ public final class FileRef {
         return expiresAt;
     }
 
+    /** 判断文件是否已到过期时点；过期时点本身不可访问。 */
+    public boolean isExpired(Instant now) {
+        if (now == null) {
+            throw new IllegalArgumentException("now 不能为空");
+        }
+        return expiresAt != null && !expiresAt.isAfter(now);
+    }
+
     public Map<String, Object> getAttributes() {
         return copyAttributes(attributes);
     }

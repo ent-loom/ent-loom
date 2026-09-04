@@ -4,6 +4,9 @@ import com.entloom.crud.core.foundation.taskfile.CrudFileStorageType;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.foundation.taskfile.FileStreamWriteRequest;
 import com.entloom.crud.core.foundation.taskfile.FileWriteRequest;
+import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.runtime.inmemory.file.InMemoryFileStore;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -116,6 +119,54 @@ class CrudRuntimeFileMapperTest {
             .build();
 
         assertEquals(CrudFileStorageType.EXTERNAL, new CrudRuntimeFileMapper().toCrud(runtimeRef).getStorageType());
+    }
+
+    @Test
+    void adapterShouldNormalizeRuntimeFileExceptions() {
+        Instant now = Instant.parse("2026-09-01T00:00:00Z");
+        InMemoryFileStore runtimeStore = new InMemoryFileStore(Clock.fixed(now, ZoneOffset.UTC));
+        RuntimeFileServiceAdapter adapter = new RuntimeFileServiceAdapter(runtimeStore);
+        Map<String, Object> attributes = attributes("EXPORT_RESULT", "u-1", "tenant-1", "org-1");
+        attributes.put("format", "csv");
+        attributes.put("expiresAt", now.toString());
+
+        FileRef expired = adapter.save(FileWriteRequest.builder()
+            .fileName("expired.csv")
+            .contentType("text/csv")
+            .content(new byte[] {1})
+            .attributes(attributes)
+            .build());
+
+        CrudException expiredException = org.junit.jupiter.api.Assertions.assertThrows(
+            CrudException.class, () -> adapter.getRequired(expired.getFileId()));
+        assertEquals(CrudErrorCode.FILE_EXPIRED, expiredException.getErrorCode());
+
+        CrudException missingException = org.junit.jupiter.api.Assertions.assertThrows(
+            CrudException.class, () -> adapter.getRequired("missing-file"));
+        assertEquals(CrudErrorCode.FILE_NOT_FOUND, missingException.getErrorCode());
+
+        ValidationException invalidException = org.junit.jupiter.api.Assertions.assertThrows(
+            ValidationException.class, () -> adapter.getRequired(" "));
+        assertEquals(CrudErrorCode.VALIDATION_ERROR, invalidException.getErrorCode());
+    }
+
+    @Test
+    void adapterShouldMapStreamSizeMismatchToValidationError() {
+        Map<String, Object> attributes = attributes("EXPORT_RESULT", "u-1", "tenant-1", "org-1");
+        attributes.put("format", "csv");
+        RuntimeFileServiceAdapter adapter = new RuntimeFileServiceAdapter(new InMemoryFileStore());
+
+        ValidationException exception = org.junit.jupiter.api.Assertions.assertThrows(
+            ValidationException.class,
+            () -> adapter.save(FileStreamWriteRequest.builder()
+                .fileName("result.csv")
+                .contentType("text/csv")
+                .inputStream(new ByteArrayInputStream(new byte[] {1, 2}))
+                .size(Long.valueOf(3L))
+                .attributes(attributes)
+                .build())
+        );
+        assertEquals(CrudErrorCode.VALIDATION_ERROR, exception.getErrorCode());
     }
 
     private static Map<String, Object> attributes(String purpose, String subjectId, String tenantId, String orgId) {

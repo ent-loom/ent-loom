@@ -19,6 +19,9 @@ public final class FileStreamWriteRequest {
         this.fileName = builder.fileName;
         this.contentType = builder.contentType;
         this.inputStream = builder.inputStream;
+        if (builder.size != null && builder.size.longValue() < 0L) {
+            throw new IllegalArgumentException("size 不能小于 0");
+        }
         this.size = builder.size;
         this.attributes = Collections.unmodifiableMap(copyAttributes(builder.attributes));
     }

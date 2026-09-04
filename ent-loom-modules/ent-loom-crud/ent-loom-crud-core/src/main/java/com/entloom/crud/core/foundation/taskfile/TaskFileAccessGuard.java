@@ -115,7 +115,7 @@ public class TaskFileAccessGuard {
     }
 
     private void assertNotExpired(FileRef file) {
-        if (file.getExpiresAt() != null && !file.getExpiresAt().isAfter(clock.instant())) {
+        if (file.isExpired(clock.instant())) {
             throw new CrudException(CrudErrorCode.FILE_EXPIRED, "文件已过期: " + file.getFileId());
         }
     }

@@ -3,6 +3,8 @@ package com.entloom.crud.runtime.adapter;
 import com.entloom.crud.core.foundation.taskfile.CrudTask;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
+import com.entloom.crud.api.enums.CrudOperationDomain;
+import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.runtime.core.task.DefaultTaskLifecycleService;
 import com.entloom.runtime.core.task.TaskLifecycleService;
 import java.time.Clock;
@@ -132,50 +134,67 @@ public final class RuntimeTaskServiceAdapter implements TaskService {
     @Override
     public CrudTask create(CrudTask task) {
         if (task == null) {
-            throw new IllegalArgumentException("CRUD 任务不能为空");
+            throw new ValidationException("CRUD 任务不能为空");
         }
-        Instant now = clock.instant();
-        CrudTask normalized = copy(task)
-            .taskId(isBlank(task.getTaskId()) ? newTaskId() : task.getTaskId().trim())
-            .createdAt(task.getCreatedAt() == null ? now : task.getCreatedAt())
-            .updatedAt(now)
-            .finishedAt(isTerminal(task.getStatus()) && task.getFinishedAt() == null ? now : task.getFinishedAt())
-            .build();
-        return fromRuntime(lifecycleService.create(taskMapper.toRuntime(normalized)));
+        String taskId = task.getTaskId();
+        try {
+            Instant now = clock.instant();
+            CrudTask normalized = copy(task)
+                .taskId(isBlank(task.getTaskId()) ? newTaskId() : task.getTaskId().trim())
+                .createdAt(task.getCreatedAt() == null ? now : task.getCreatedAt())
+                .updatedAt(now)
+                .finishedAt(isTerminal(task.getStatus()) && task.getFinishedAt() == null ? now : task.getFinishedAt())
+                .build();
+            return fromRuntime(lifecycleService.create(taskMapper.toRuntime(normalized)));
+        } catch (RuntimeException ex) {
+            throw RuntimeAdapterExceptionTranslator.task(ex, "创建", taskId);
+        }
     }
 
     @Override
     public CrudTask getRequired(String taskId) {
-        return fromRuntime(lifecycleService.getRequired(requiredTaskId(taskId)));
+        String requiredId = requiredTaskId(taskId);
+        try {
+            return fromRuntime(lifecycleService.getRequired(requiredId));
+        } catch (RuntimeException ex) {
+            throw RuntimeAdapterExceptionTranslator.task(ex, "获取", requiredId);
+        }
     }
 
     @Override
     public CrudTask updateStatus(String taskId, CrudTaskStatus status, String message) {
         String requiredId = requiredTaskId(taskId);
-        com.entloom.runtime.contract.task.Task runtimeCurrent = lifecycleService.getRequired(requiredId);
-        CrudTask current = fromRuntime(runtimeCurrent);
-        CrudTaskStatus actualStatus = status == null ? current.getStatus() : status;
-        if (current.getStatus() == actualStatus) {
-            if (actualStatus == CrudTaskStatus.RUNNING && message != null) {
-                return fromRuntime(lifecycleService.updateMessage(requiredId, message));
+        try {
+            com.entloom.runtime.contract.task.Task runtimeCurrent = lifecycleService.getRequired(requiredId);
+            CrudTask current = fromRuntime(runtimeCurrent);
+            CrudTaskStatus actualStatus = status == null ? current.getStatus() : status;
+            if (current.getStatus() == actualStatus) {
+                if (actualStatus == CrudTaskStatus.RUNNING && message != null) {
+                    return fromRuntime(lifecycleService.updateMessage(requiredId, message));
+                }
+                return current;
             }
-            return current;
-        }
-        switch (actualStatus) {
-            case PENDING:
-                throw new IllegalStateException("不能将任务回退为 PENDING: " + requiredId);
-            case RUNNING:
-                return fromRuntime(lifecycleService.start(requiredId,
-                    message == null ? "开始执行" : message));
-            case SUCCEEDED:
-                return fromRuntime(lifecycleService.succeed(requiredId,
-                    runtimeCurrent.getResultFile(), message));
-            case FAILED:
-                return fromRuntime(lifecycleService.fail(requiredId, message));
-            case CANCELED:
-                return fromRuntime(lifecycleService.cancel(requiredId, message));
-            default:
-                throw new IllegalArgumentException("未知 CRUD 任务状态: " + actualStatus);
+            switch (actualStatus) {
+                case PENDING:
+                    throw new IllegalStateException("不能将任务回退为 PENDING: " + requiredId);
+                case RUNNING:
+                    return fromRuntime(lifecycleService.start(requiredId,
+                        message == null ? "开始执行" : message));
+                case SUCCEEDED:
+                    if (isExportTask(current) && runtimeCurrent.getResultFile() == null) {
+                        throw new ValidationException("导出任务成功时结果文件不能为空");
+                    }
+                    return fromRuntime(lifecycleService.succeed(requiredId,
+                        runtimeCurrent.getResultFile(), message));
+                case FAILED:
+                    return fromRuntime(lifecycleService.fail(requiredId, message));
+                case CANCELED:
+                    return fromRuntime(lifecycleService.cancel(requiredId, message));
+                default:
+                    throw new IllegalArgumentException("未知 CRUD 任务状态: " + actualStatus);
+            }
+        } catch (RuntimeException ex) {
+            throw RuntimeAdapterExceptionTranslator.task(ex, "更新状态", requiredId);
         }
     }
 
@@ -209,9 +228,15 @@ public final class RuntimeTaskServiceAdapter implements TaskService {
             || status == CrudTaskStatus.CANCELED;
     }
 
+    private static boolean isExportTask(CrudTask task) {
+        return task.getContextSnapshot() != null
+            && task.getContextSnapshot().getOperationKey() != null
+            && task.getContextSnapshot().getOperationKey().getDomain() == CrudOperationDomain.EXPORT;
+    }
+
     private static String requiredTaskId(String taskId) {
         if (isBlank(taskId)) {
-            throw new IllegalArgumentException("任务 ID 不能为空");
+            throw new ValidationException("任务 ID 不能为空");
         }
         return taskId.trim();
     }

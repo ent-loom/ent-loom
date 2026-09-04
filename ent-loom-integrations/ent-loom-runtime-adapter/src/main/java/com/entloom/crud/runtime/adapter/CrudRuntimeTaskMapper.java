@@ -9,6 +9,7 @@ import com.entloom.crud.core.foundation.taskfile.CrudTaskStatus;
 import com.entloom.crud.core.foundation.taskfile.CrudTaskType;
 import com.entloom.crud.core.foundation.taskfile.FileRef;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.runtime.core.task.RuntimeAccessDeniedException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -78,21 +79,30 @@ public final class CrudRuntimeTaskMapper {
         if (snapshot.getOperationKey() == null) {
             throw new IllegalArgumentException("CRUD 任务 operationKey 不能为空: " + source.getTaskId());
         }
+        com.entloom.runtime.contract.context.SubjectContext runtimeSubject =
+            subjectMapper.toRuntime(snapshot.getSubject());
         Map<String, String> attributes = taskAttributes(snapshot);
         if (source.getErrorFile() != null) {
+            assertFileOwner(fileMapper.toRuntime(source.getErrorFile()), runtimeSubject, "errorFile");
             attributes.put(ERROR_FILE_ID_ATTRIBUTE, required(source.getErrorFile().getFileId(), "errorFileId"));
         }
+        com.entloom.runtime.contract.file.FileRef sourceFile = source.getSourceFile() == null
+            ? null : fileMapper.toRuntime(source.getSourceFile());
+        assertFileOwner(sourceFile, runtimeSubject, "sourceFile");
+        com.entloom.runtime.contract.file.FileRef resultFile = source.getResultFile() == null
+            ? null : fileMapper.toRuntime(source.getResultFile());
+        assertFileOwner(resultFile, runtimeSubject, "resultFile");
         return com.entloom.runtime.contract.task.Task.builder()
             .taskId(required(source.getTaskId(), "taskId"))
             .taskType(taskType(snapshot.getOperationKey().getDomain()).name())
-            .subject(subjectMapper.toRuntime(snapshot.getSubject()))
+            .subject(runtimeSubject)
             .status(toRuntimeStatus(source.getStatus()))
             .progress(source.getProgress() == null ? 0 : source.getProgress().intValue())
             .message(source.getMessage())
-            .sourceFile(source.getSourceFile() == null ? null : fileMapper.toRuntime(source.getSourceFile()))
-            .resultFile(source.getResultFile() == null ? null : fileMapper.toRuntime(source.getResultFile()))
-            .createdAt(source.getCreatedAt() == null ? Instant.now() : source.getCreatedAt())
-            .updatedAt(source.getUpdatedAt() == null ? Instant.now() : source.getUpdatedAt())
+            .sourceFile(sourceFile)
+            .resultFile(resultFile)
+            .createdAt(requiredInstant(source.getCreatedAt(), "createdAt"))
+            .updatedAt(requiredInstant(source.getUpdatedAt(), "updatedAt"))
             .finishedAt(source.getFinishedAt())
             .attributes(attributes)
             .build();
@@ -282,6 +292,23 @@ public final class CrudRuntimeTaskMapper {
         if (value != null) {
             target.put(key, String.valueOf(value));
         }
+    }
+
+    private static void assertFileOwner(
+        com.entloom.runtime.contract.file.FileRef file,
+        com.entloom.runtime.contract.context.SubjectContext subject,
+        String name
+    ) {
+        if (file != null && !file.getOwner().sameSubject(subject)) {
+            throw new RuntimeAccessDeniedException("任务" + name + "主体与任务主体不一致");
+        }
+    }
+
+    private static Instant requiredInstant(Instant value, String name) {
+        if (value == null) {
+            throw new IllegalArgumentException("任务" + name + "不能为空");
+        }
+        return value;
     }
 
     private static String required(String value, String name) {

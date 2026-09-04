@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +29,7 @@ public class InMemoryFileService implements FileService {
     private final Map<String, StoredFile> files = new ConcurrentHashMap<String, StoredFile>();
     private final long maxBytes;
     private final Duration retention;
+    private final Clock clock;
 
     public InMemoryFileService() {
         this(DEFAULT_MAX_BYTES, DEFAULT_RETENTION);
@@ -36,6 +38,17 @@ public class InMemoryFileService implements FileService {
     public InMemoryFileService(long maxBytes, Duration retention) {
         this.maxBytes = maxBytes <= 0 ? DEFAULT_MAX_BYTES : maxBytes;
         this.retention = retention == null || retention.isNegative() || retention.isZero() ? DEFAULT_RETENTION : retention;
+        this.clock = Clock.systemUTC();
+    }
+
+    /** 提供时钟注入以固定过期边界测试。 */
+    public InMemoryFileService(long maxBytes, Duration retention, Clock clock) {
+        this.maxBytes = maxBytes <= 0 ? DEFAULT_MAX_BYTES : maxBytes;
+        this.retention = retention == null || retention.isNegative() || retention.isZero() ? DEFAULT_RETENTION : retention;
+        if (clock == null) {
+            throw new IllegalArgumentException("clock 不能为空");
+        }
+        this.clock = clock;
     }
 
     @Override
@@ -53,7 +66,7 @@ public class InMemoryFileService implements FileService {
         String fileName = requiredText(request.getFileName(), "文件名不能为空");
         String contentType = requiredText(request.getContentType(), "文件 Content-Type 不能为空");
         String fileId = newFileId();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant expiresAt = now.plus(retention);
         Map<String, Object> attributes = request.getAttributes();
         attributes.put("checksumSha256", sha256Hex(content));
@@ -82,6 +95,9 @@ public class InMemoryFileService implements FileService {
             throw new ValidationException("文件输入流不能为空");
         }
         byte[] content = readLimited(inputStream);
+        if (request.getSize() != null && request.getSize().longValue() != content.length) {
+            throw new ValidationException("声明的文件大小与实际大小不一致");
+        }
         return save(FileWriteRequest.builder()
             .fileName(request.getFileName())
             .contentType(request.getContentType())
@@ -119,7 +135,7 @@ public class InMemoryFileService implements FileService {
     }
 
     private void assertNotExpired(FileRef ref) {
-        if (ref.getExpiresAt() != null && ref.getExpiresAt().isBefore(Instant.now())) {
+        if (ref.isExpired(clock.instant())) {
             throw new CrudException(CrudErrorCode.FILE_EXPIRED, "文件已过期: " + ref.getFileId());
         }
     }

@@ -96,6 +96,8 @@ class CrudRuntimeTaskMapperTest {
                     put("day", LocalDate.parse("2026-09-01"));
                 }})
                 .build())
+            .createdAt(Instant.parse("2026-09-01T00:00:00Z"))
+            .updatedAt(Instant.parse("2026-09-01T00:00:00Z"))
             .build();
 
         CrudTask restored = new CrudRuntimeTaskMapper().toCrud(
