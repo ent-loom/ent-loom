@@ -62,4 +62,5 @@ P1-1 验收入口:
 Task/File Adapter 合同测试：
 
 - `ent-loom-runtime-adapter/src/test/java/com/entloom/crud/runtime/adapter/RuntimeAdapterExportFlowTest.java`
+- `ent-loom-runtime-adapter/src/test/java/com/entloom/crud/runtime/adapter/RuntimeAdapterEngineContractTest.java`
 - `ent-loom-runtime-adapter/src/test/java/com/entloom/crud/runtime/adapter/CrudRuntimeFileMapperTest.java`
