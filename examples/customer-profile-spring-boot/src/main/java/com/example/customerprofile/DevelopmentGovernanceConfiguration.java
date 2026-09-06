@@ -4,6 +4,8 @@ import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -24,5 +26,12 @@ public class DevelopmentGovernanceConfiguration {
     @Bean
     CrudDataScopeResolver developmentDataScopeResolver() {
         return new AllowAllCrudDataScopeResolver();
+    }
+
+    @Bean
+    ExposedEntityRegistry developmentExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
+        ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
+        registry.expose(CustomerProfile.class);
+        return registry;
     }
 }
