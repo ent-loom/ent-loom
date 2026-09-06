@@ -1,0 +1,37 @@
+ent:
+  loom:
+    meta:
+      entity-class-names:
+        - com.example.customerprofile.CustomerProfile
+      crud:
+        enabled: true
+      doc:
+        enabled: false
+
+entloom:
+  crud:
+    controller:
+      enabled: true
+      base-path: /api/ent-crud
+      include-entities:
+        - customer_profile
+    query:
+      enabled: true
+    command:
+      enabled: true
+    import:
+      enabled: false
+    export:
+      enabled: false
+    sql-log:
+      mode: safe
+    governance:
+      permission-rules:
+        - resource: customer_profile
+          action: '*'
+          scene: '*'
+          decision: ALLOW
+          subject-ids:
+            - local-developer
+      audit:
+        persist-to-jdbc: false

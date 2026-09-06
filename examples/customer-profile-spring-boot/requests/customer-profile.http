@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:8080
+@customerId = 1000000000001
+
+### Create a customer profile
+POST {{baseUrl}}/api/ent-crud/customer_profile/create
+Content-Type: application/json
+
+{
+  "options": {
+    "requestId": "customer-profile-create-1"
+  },
+  "payload": {
+    "id": {{customerId}},
+    "displayName": "Ada Lovelace",
+    "email": "ada@example.com"
+  }
+}
+
+### Read the profile created above
+POST {{baseUrl}}/api/ent-crud/customer_profile/detail
+Content-Type: application/json
+
+{
+  "options": {
+    "requestId": "customer-profile-detail-1",
+    "filterMap": {
+      "id": {
+        "op": "EQ",
+        "value": {{customerId}}
+      }
+    }
+  }
+}
