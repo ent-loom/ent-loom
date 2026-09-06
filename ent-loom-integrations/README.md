@@ -19,7 +19,7 @@ ent-loom-integrations
 2. `ent-loom-meta-adapter-ddl`: Meta Descriptor 到 DDL 执行层的适配；E4 已提供 `MetaDdlAdapter`，覆盖 Meta-only、DDL-only 和 Meta + DDL override，DDL 专属属性不进入通用 Meta Contract。
 3. `ent-loom-meta-adapter-doc`: Meta Descriptor 到 DOC 输出模型的适配；P0 已覆盖 Meta-only、DOC-only、Meta + DOC override、稳定 DOC Runtime Model、关系/索引文档和诊断。
 4. `ent-loom-meta-spring-boot-starter`: P1 装配层，只负责条件注册 `MetaCrudAdapter` / `MetaDocAdapter`，不承载合并规则。
-5. `ent-loom-runtime-adapter`: 可选集成层，以 `ent-runtime` 的 `TaskLifecycleService` 和 `FileStore` 实现 CRUD Task/File SPI；当前验证主体、任务生命周期、流式文件、过期和下载守卫的最小闭环，不进入默认 Reactor。
+5. `ent-loom-runtime-adapter`: 可选集成层，以 `ent-runtime` 的 `TaskLifecycleService` 和 `FileStore` 实现 CRUD Task/File SPI；当前验证主体、任务生命周期、流式文件、过期和下载守卫的最小闭环。它仅在 `runtime-adapter` profile 中进入 Reactor。
 
 依赖约定:
 
@@ -28,6 +28,16 @@ ent-loom-integrations
 3. `ent-loom-modules` 中的 CRUD/DOC/DDL 保持独立，不直接依赖 `ent-loom-meta-annotations`。
 4. starter 可依赖 adapter、目标 core 和 Spring Boot auto-config；core 模块不能反向依赖 starter。
 5. `ent-loom-runtime-adapter` 可以依赖 `ent-loom-crud-core` 和独立发布的 `ent-runtime/runtime-contract`、`runtime-core`；`ent-loom` Core 与 `ent-runtime` 均不得反向依赖它们。
+
+## 可选 Runtime Adapter 构建
+
+默认 `./mvnw test` 不构建 `ent-loom-runtime-adapter`，因此不要求 `ent-runtime` 依赖。需要验证或发布该适配器时，使用 JDK 21 并启用 `runtime-adapter` profile：
+
+```bash
+./mvnw -Pruntime-adapter -pl ent-loom-integrations/ent-loom-runtime-adapter -am test
+```
+
+该命令会从 Maven Central 解析 `io.github.ent-loom.runtime:runtime-contract`、`runtime-core` 和测试用的 `runtime-inmemory`，当前版本由适配器 POM 的 `ent-runtime.version` 管理。离线开发时，先在本机安装同一版本的 `ent-runtime` 构件。
 
 Task/File Adapter 最小公开契约:
 

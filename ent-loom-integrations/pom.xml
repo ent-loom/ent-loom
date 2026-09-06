@@ -19,4 +19,14 @@
         <module>ent-loom-meta-adapter-ddl</module>
         <module>ent-loom-meta-adapter-doc</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>runtime-adapter</id>
+            <modules>
+                <!-- ent-runtime is an independently published optional dependency. -->
+                <module>ent-loom-runtime-adapter</module>
+            </modules>
+        </profile>
+    </profiles>
 </project>

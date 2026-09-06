@@ -46,6 +46,12 @@
 ./mvnw clean verify
 ```
 
+`ent-loom-runtime-adapter` 是默认关闭的可选模块。需要验证它时，必须使用 JDK 21 并显式启用 profile；其 `ent-runtime` 依赖版本须已发布到 Maven Central，或已安装到本机 Maven 仓库：
+
+```bash
+./mvnw -Pruntime-adapter -pl ent-loom-integrations/ent-loom-runtime-adapter -am clean verify
+```
+
 确认测试通过，再检查 `git diff` 和 `git status`，确保没有 Token、密码、私钥、`settings.xml` 或 `target/` 被纳入提交。
 
 ### 3. 提交代码
@@ -71,6 +77,12 @@ Tag 不得覆盖已有版本。
 
 ```bash
 ./mvnw clean deploy -Prelease
+```
+
+发布 `ent-loom-runtime-adapter` 时，在同一命令中启用两个 profile：
+
+```bash
+./mvnw clean deploy -Prelease,runtime-adapter
 ```
 
 命令会生成源码包、Javadoc、GPG 签名并上传到 Central。GPG 需要口令时，只在 IDEA Terminal 本地输入，不发送给任何人。
