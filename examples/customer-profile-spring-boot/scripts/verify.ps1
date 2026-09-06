@@ -86,9 +86,11 @@ try {
     }
 
     $composeFile = Join-Path (Get-Location) "compose.yaml"
+    $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+    Assert-True ($null -ne $dockerCommand) "Docker CLI was not found. Install Docker Desktop with Docker Compose v2."
+    $composeStarted = $true
     $composeArguments = @("--project-name", $composeProject, "--env-file", $(if (Test-Path -LiteralPath $envPath) { $envPath } else { $envExamplePath }), "-f", $composeFile, "up", "-d", "mysql")
     Invoke-Checked "docker" (@("compose") + $composeArguments)
-    $composeStarted = $true
 
     $containerId = (& docker compose --project-name $composeProject --env-file $(if (Test-Path -LiteralPath $envPath) { $envPath } else { $envExamplePath }) -f $composeFile ps -q mysql).Trim()
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
@@ -108,7 +110,7 @@ try {
     $databaseUrl = "jdbc:mysql://localhost:$mysqlPort/$mysqlDatabase?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"
     $appProcess = Start-Process -FilePath "java" -ArgumentList @(
         "-jar", $jar,
-        "--spring.profiles.active=dev",
+        "--spring.profiles.active=verify",
         "--server.port=$appPort",
         "--spring.datasource.url=$databaseUrl",
         "--spring.datasource.username=$mysqlUser",

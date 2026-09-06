@@ -4,16 +4,22 @@ spring:
   application:
     name: customer-profile-spring-boot
   datasource:
-    url: jdbc:mysql://localhost:${MYSQL_PORT}/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-    username: ${MYSQL_USER}
-    password: ${MYSQL_PASSWORD}
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:customer_profile}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:customer_profile}
+    password: ${MYSQL_PASSWORD:customer_profile_dev}
     driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
-      mode: always
+      mode: never
+  profiles:
+    group:
+      dev:
+        - example
+      verify:
+        - example
 
 server:
-  port: ${APP_PORT}
+  port: ${APP_PORT:8080}
 
 management:
   endpoints:

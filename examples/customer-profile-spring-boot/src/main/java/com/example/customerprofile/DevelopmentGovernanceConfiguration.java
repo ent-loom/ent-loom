@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Profile;
  * Local-only governance wiring. Replace this with the application's identity and scope adapters in production.
  */
 @Configuration
-@Profile("dev")
+@Profile("example")
 public class DevelopmentGovernanceConfiguration {
     @Bean
     CrudSubjectResolver developmentSubjectResolver() {
