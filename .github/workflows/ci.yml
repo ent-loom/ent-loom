@@ -39,6 +39,32 @@ jobs:
       - name: 执行 Runtime Adapter 合同测试
         run: ./mvnw -B -Pruntime-adapter -pl ent-loom-integrations/ent-loom-runtime-adapter -am test
 
+  customer-profile:
+    name: 单表示例 MySQL 验收
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: 安装工作区构件到隔离仓库
+        run: ./mvnw -B -Dmaven.repo.local="$RUNNER_TEMP/customer-profile-m2" -DskipTests -Dmaven.javadoc.skip=true install
+      - name: 检查验收脚本资源清理
+        run: python3 -B -m unittest discover -s examples/customer-profile-spring-boot/scripts -p 'test_*.py'
+      - name: 验收独立消费者
+        working-directory: examples/customer-profile-spring-boot
+        run: python3 scripts/verify.py --maven-repository "$RUNNER_TEMP/customer-profile-m2"
+      - name: 保留验收日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-profile-verification-logs
+          path: examples/customer-profile-spring-boot/target/verification-logs/
+          if-no-files-found: ignore
+
   docs:
     name: Docusaurus 构建
     runs-on: ubuntu-latest

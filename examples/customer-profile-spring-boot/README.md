@@ -8,6 +8,7 @@
 - Maven 3.9+
 - 本机 MySQL 8.0+（日常开发）
 - Docker Desktop，包含 Docker Compose v2.20+（干净验收）
+- Python 3.9+（非交互验收，仅使用标准库；Windows 可通过 PowerShell 入口执行）
 - Spring Boot 3.5.16
 - ent-loom 1.0.0，来自 Maven Central
 
@@ -95,11 +96,23 @@ docker compose ps
 
 默认映射到本机 `3307` 端口，数据库和账号只用于验收。Compose 会创建一个独立的 `customer-profile-mysql` 数据卷。
 
-也可以直接执行非交互验收脚本。脚本会构建应用、启动 Compose MySQL、等待健康状态、以 `verify` profile 启动应用，执行 `CREATE` 和 `DETAIL`，再用 SQL 校验关键字段：
+也可以直接执行非交互验收脚本。脚本优先使用仓库 Maven Wrapper 构建应用，启动 Compose MySQL，等待健康状态，以 `verify` profile 启动应用，执行 `CREATE` 和 `DETAIL`，再用 SQL 校验关键字段。运行前确保 `JAVA_HOME` 指向 JDK 21。
+
+macOS/Linux：
+
+```bash
+python3 scripts/verify.py
+```
+
+Windows PowerShell：
 
 ```powershell
 ./scripts/verify.ps1
 ```
+
+两个入口共用 `verify.py`。每次验收使用唯一 Compose 项目、新数据卷和随机端口，不读取本机 `.env`，不占用日常开发的 3306/8080。脚本成功或失败均停止本次应用，并执行 `down --volumes --remove-orphans` 清理本次资源；不会清理其他 Compose 项目。日志和请求响应保留在 `target/verification-logs/<项目名>/`，包括构建、应用、容器、SQL 核对和清理记录。
+
+验收使用固定的临时数据库账号，仅用于自动创建的 MySQL 容器。手动 `docker compose up` 仍使用 `.env` 中的 `MYSQL_*` 配置，与脚本验收相互独立。
 
 示例显式配置了：
 
@@ -128,13 +141,26 @@ Invoke-RestMethod -Method Post `
   -Body (ConvertTo-Json @{ options = @{ requestId = "customer-profile-detail-1"; filterMap = @{ id = @{ op = "EQ"; value = $id } } } } -Depth 8)
 ```
 
-框架源码构建验证时，在仓库根目录先安装到隔离仓库，再传给脚本：
+框架源码构建验证时，先在 **ent-loom 仓库根目录**安装到隔离仓库，再进入示例目录执行脚本。macOS/Linux：
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21) # macOS；Linux 设置本机 JDK 21 路径
+example_repo=$(mktemp -d)
+./mvnw -B "-Dmaven.repo.local=$example_repo" -DskipTests -Dmaven.javadoc.skip=true install
+cd examples/customer-profile-spring-boot
+python3 scripts/verify.py --maven-repository "$example_repo"
+```
+
+Windows PowerShell（同样从 ent-loom 仓库根目录开始）：
 
 ```powershell
-$repo = Join-Path $env:TEMP "ent-loom-example-m2"
-../../mvnw.cmd -Dmaven.repo.local=$repo -DskipTests install
+$repo = Join-Path $env:TEMP ("ent-loom-example-m2-" + [guid]::NewGuid().ToString("N"))
+./mvnw.cmd "-Dmaven.repo.local=$repo" -DskipTests -Dmaven.javadoc.skip=true install
+Set-Location examples/customer-profile-spring-boot
 ./scripts/verify.ps1 -MavenRepository $repo
 ```
+
+隔离 Maven 仓库保留供排查或复用，用完后可删除该临时目录。CI 的“单表示例 MySQL 验收”作业执行同一路径，并上传验收日志；它验证当前工作区构件，不替代公开发布版本的消费验收，也不替代框架测试。
 
 ## 停止和清理
 
