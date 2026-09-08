@@ -12,6 +12,7 @@
 - Central 命名空间已验证：`io.github.ent-loom`。
 - `/Users/<用户名>/.m2/settings.xml` 已配置 Central User Token，服务器 ID 为 `central`，文件权限为 `600`。
 - 本机已有 GPG 签名密钥，公钥已发布到公共密钥服务器。
+- `release` profile 固定使用公钥指纹 `C73D6B8B4361B8F0593B0B9CF9814D6512123D10`；该公钥必须能从 Central 支持的 PGP 服务器查询到。
 - Token、GPG 私钥和 GPG 口令只保存在本机，不提交到 Git。
 
 ## IDEA 设置
@@ -85,7 +86,7 @@ Tag 不得覆盖已有版本。
 ./mvnw clean deploy -Prelease,runtime-adapter
 ```
 
-命令会生成源码包、Javadoc、GPG 签名并上传到 Central。GPG 需要口令时，只在 IDEA Terminal 本地输入，不发送给任何人。
+命令会生成源码包、Javadoc、GPG 签名并上传到 Central。`release` profile 不依赖本机默认密钥，而是使用已登记的 `gpg.keyname`；其他发布者可通过 `-Dgpg.keyname=<已登记的公钥指纹>` 覆盖。GPG 需要口令时，只在 IDEA Terminal 本地输入，不发送给任何人。
 
 ### 5. Central 页面确认发布
 

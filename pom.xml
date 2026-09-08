@@ -325,12 +325,20 @@
     <profiles>
         <profile>
             <id>release</id>
+            <properties>
+                <!-- Central 签名公钥指纹，不是私钥或口令。 -->
+                <gpg.keyname>C73D6B8B4361B8F0593B0B9CF9814D6512123D10</gpg.keyname>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
                         <version>3.2.7</version>
+                        <configuration>
+                            <!-- 使用已上传到公共 PGP 服务器的发布密钥；可通过 -Dgpg.keyname 覆盖。 -->
+                            <keyname>${gpg.keyname}</keyname>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
