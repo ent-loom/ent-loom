@@ -6,4 +6,4 @@
 
 后续业务协作示例是 [mini-commerce-spring-boot](mini-commerce-spring-boot/README.md)：商品和客户使用通用 CRUD，下单通过事务 `PlaceOrderHandler` 完成价格快照、订单明细和业务失败验收。
 
-示例默认依赖 Maven Central 上已发布的 `ent-loom` `1.0.0`。框架源码构建验证需要先将当前工作区安装到隔离的本地 Maven 仓库，再执行示例目录中的验证脚本。
+示例默认依赖 Maven Central 上已发布的 `ent-loom` `1.0.1`。框架源码构建验证需要先将当前工作区安装到隔离的本地 Maven 仓库，再执行示例目录中的验证脚本。

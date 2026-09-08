@@ -10,9 +10,9 @@
 - Docker Desktop，包含 Docker Compose v2.20+（干净验收）
 - Python 3.9+（非交互验收，仅使用标准库；Windows 可通过 PowerShell 入口执行）
 - Spring Boot 3.5.16
-- ent-loom 1.0.0，来自 Maven Central
+- ent-loom 1.0.1，来自 Maven Central
 
-本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 只声明公开 Starter/API/Annotations 和 Spring Boot 基础依赖。POM 默认从 Maven Central 获取 `ent-loom 1.0.0`；该版本已确认可在全新隔离 Maven 仓库中独立构建，真实 MySQL 验收使用当前工作区隔离构件路径，原因见单表示例 README。
+本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 只声明公开 Starter/API/Annotations 和 Spring Boot 基础依赖。POM 默认从 Maven Central 获取 `ent-loom 1.0.1`；该版本修复了 CRUD Starter 的自动配置顺序问题，可在独立环境完成构建和真实 MySQL 验收。
 
 ## 业务边界
 
@@ -82,7 +82,7 @@ curl http://localhost:8082/orders/1
 
 ## 使用当前工作区构件验证
 
-默认 POM 消费 Maven Central 的 `ent-loom` `1.0.0`。验证框架源码改动时，从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
+默认 POM 消费 Maven Central 的 `ent-loom` `1.0.1`。验证框架源码改动时，从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
 
 ```bash
 repo=$(mktemp -d)

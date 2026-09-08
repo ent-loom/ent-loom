@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <ent-loom.version>1.0.0</ent-loom.version>
+        <ent-loom.version>1.0.1</ent-loom.version>
     </properties>
 
     <repositories>

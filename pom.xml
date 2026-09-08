@@ -5,7 +5,7 @@
 
     <groupId>io.github.ent-loom</groupId>
     <artifactId>ent-loom</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>pom</packaging>
 
     <name>ent-loom</name>

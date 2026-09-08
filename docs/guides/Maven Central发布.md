@@ -120,9 +120,9 @@ git push origin ent-loom-v1.0.1
 
 ## 两个仓库
 
-| 仓库 | 根目录 | 当前已发布版本 |
+| 仓库 | 根目录 | 本次目标发布版本 |
 |---|---|---|
-| `ent-loom` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-loom` | `1.0.0` |
-| `ent-runtime` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-runtime` | `0.1.0` |
+| `ent-loom` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-loom` | `1.0.1` |
+| `ent-runtime` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-runtime` | `0.1.1` |
 
 每次只在发生变更的仓库中执行版本升级、验证、上传和 Central 发布。两个仓库同时变更时，分别完成各自的流程。

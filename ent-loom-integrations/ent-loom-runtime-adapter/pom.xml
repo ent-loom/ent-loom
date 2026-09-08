@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.ent-loom</groupId>
         <artifactId>ent-loom-integrations</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -17,7 +17,7 @@
 
     <properties>
         <!-- runtime 是独立仓库，适配层通过已发布或本地安装的 Contract 接入。 -->
-        <ent-runtime.version>0.1.0</ent-runtime.version>
+        <ent-runtime.version>0.1.1</ent-runtime.version>
     </properties>
 
     <dependencies>

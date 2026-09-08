@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.github.ent-loom</groupId>
         <artifactId>ent-loom-crud</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
     </parent>
     <artifactId>ent-loom-crud-annotations</artifactId>
     <name>ent-loom-crud-annotations</name>

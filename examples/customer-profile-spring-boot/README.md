@@ -10,11 +10,11 @@
 - Docker Desktop，包含 Docker Compose v2.20+（干净验收）
 - Python 3.9+（非交互验收，仅使用标准库；Windows 可通过 PowerShell 入口执行）
 - Spring Boot 3.5.16
-- ent-loom 1.0.0，来自 Maven Central
+- ent-loom 1.0.1，来自 Maven Central
 
 示例的 POM 是独立消费者，不继承 ent-loom 内部父 POM，也不依赖 `ent-loom-tests` 或内部实现类。实体只使用公开的 Meta 和 CRUD 注解；没有 Lombok。
 
-POM 默认从 Maven Central 获取 `ent-loom 1.0.0`。该版本已确认可以在全新隔离 Maven 仓库中独立构建；由于已发布 CRUD Starter 的自动配置顺序问题，真实 HTTP/MySQL 验收暂使用当前工作区安装到隔离仓库的构件，命令见文末。
+POM 默认从 Maven Central 获取 `ent-loom 1.0.1`。该版本修复了 CRUD Starter 的自动配置顺序问题，可在独立 Maven 仓库中完成真实 HTTP/MySQL 验收；修改框架源码时，仍可使用文末的当前工作区构件路径。
 
 ## 日常开发
 

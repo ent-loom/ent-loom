@@ -6,13 +6,13 @@
     <parent>
         <groupId>io.github.ent-loom</groupId>
         <artifactId>ent-loom-modules</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.1</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>io.github.ent-loom</groupId>
     <artifactId>ent-loom-doc</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>pom</packaging>
 
     <name>ent-loom-doc</name>
