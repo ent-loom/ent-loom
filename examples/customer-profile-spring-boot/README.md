@@ -43,6 +43,14 @@ mysql -u root -p -e "create database if not exists customer_profile; create user
 
 Services 使用同一份运行配置。若未显示该配置，在 Services 的添加服务入口中选择 **Run Configuration Type → Spring Boot**。停止时点击该应用的 Stop，本机 MySQL 无需停止。
 
+### IDEA 一键验收（macOS / ent-workspace）
+
+打开整个 `ent-workspace` 时，选择共享运行配置 **Customer Profile (Verify)** 并点击 Run。它使用 Shell Script 配置加载本机 zsh 登录环境、选择 JDK 21，再调用同一份 `scripts/verify.py`，无需 Python 插件。首次未显示时从磁盘重新加载项目，并确认 IDEA 的 Shell Script 插件已启用；需要在 Services 中展示时，添加 Shell Script 运行配置类型。
+
+运行前启动 Colima，确保终端能找到 Python 3.9+ 和 Docker Compose，且 `mysql:8.4` 镜像可用。看到“验收通过并完成清理”且退出码为 0 即为成功；失败时查看控制台给出的日志目录。脚本自动完成构建、数据库启动、HTTP 和 SQL 核对、资源清理，无需启动 Manual Verify 应用或修改 `.env`。Colima 保持运行。
+
+日常开发使用 **Customer Profile (Local Dev)**；完整验收使用 **Customer Profile (Verify)**。此入口消费本机 Maven 仓库中的框架构件；修改框架源码后应先安装新构件，隔离仓库验证方式见下文。
+
 ### 本机配置与 Git 忽略
 
 `application.yml` 已通过 Spring Boot 原生机制加载工作目录中的 `.env`，无需安装 EnvFile 插件，也无需在 IDEA 中重复填写数据库环境变量：
