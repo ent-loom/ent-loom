@@ -1,0 +1,28 @@
+spring:
+  config:
+    import: optional:file:./.env[.properties]
+  application:
+    name: mini-commerce-spring-boot
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3308}/${MYSQL_DATABASE:mini_commerce}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:mini_commerce}
+    password: ${MYSQL_PASSWORD:mini_commerce_dev}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  profiles:
+    group:
+      dev:
+        - example
+      verify:
+        - example
+
+server:
+  port: ${APP_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

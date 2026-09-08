@@ -5,5 +5,6 @@
 - [CRUD 指南](crud/index.md)
 - [Meta 指南](meta/index.md)
 - [实体全链路验收](ddl/实体全链路验收.md)
+- [快速开始](快速开始.md)
 - [开发环境与 JDK 管理](开发环境与JDK管理.md)
 - [Maven Central 发布](Maven Central发布.md)

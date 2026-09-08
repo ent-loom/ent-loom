@@ -1,0 +1,44 @@
+@baseUrl = http://localhost:8082
+@productId = 1001
+@customerId = 2001
+
+### 创建商品：通用 CRUD
+POST {{baseUrl}}/api/ent-crud/product/create
+Content-Type: application/json
+
+{
+  "options": {"requestId": "commerce-product-create-1"},
+  "payload": {
+    "id": {{productId}},
+    "name": "实体编程入门书",
+    "price": 19.90,
+    "active": true
+  }
+}
+
+### 创建客户：通用 CRUD
+POST {{baseUrl}}/api/ent-crud/customer/create
+Content-Type: application/json
+
+{
+  "options": {"requestId": "commerce-customer-create-1"},
+  "payload": {
+    "id": {{customerId}},
+    "displayName": "Ada Lovelace",
+    "email": "ada@example.com"
+  }
+}
+
+### 下单：业务 Handler
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "customerId": {{customerId}},
+  "items": [
+    {"productId": {{productId}}, "quantity": 2}
+  ]
+}
+
+### 查询订单及明细
+GET {{baseUrl}}/orders/1

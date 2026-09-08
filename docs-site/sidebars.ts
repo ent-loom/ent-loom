@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'guides/index',
+        'guides/快速开始',
         'guides/开发环境与JDK管理',
         'guides/Maven Central发布',
         {

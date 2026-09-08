@@ -4,4 +4,6 @@
 
 首个闭环是 [customer-profile-spring-boot](customer-profile-spring-boot/README.md)：显式声明一个 `CustomerProfile` 实体，通过公开 CRUD Starter 完成 MySQL 8 上的 `CREATE -> DETAIL`。日常开发连接本机 MySQL，干净验收使用独立 Compose 环境。
 
+后续业务协作示例是 [mini-commerce-spring-boot](mini-commerce-spring-boot/README.md)：商品和客户使用通用 CRUD，下单通过事务 `PlaceOrderHandler` 完成价格快照、订单明细和业务失败验收。
+
 示例默认依赖 Maven Central 上已发布的 `ent-loom` `1.0.0`。框架源码构建验证需要先将当前工作区安装到隔离的本地 Maven 仓库，再执行示例目录中的验证脚本。

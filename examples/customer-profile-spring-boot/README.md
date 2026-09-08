@@ -14,6 +14,8 @@
 
 示例的 POM 是独立消费者，不继承 ent-loom 内部父 POM，也不依赖 `ent-loom-tests` 或内部实现类。实体只使用公开的 Meta 和 CRUD 注解；没有 Lombok。
 
+POM 默认从 Maven Central 获取 `ent-loom 1.0.0`。该版本已确认可以在全新隔离 Maven 仓库中独立构建；由于已发布 CRUD Starter 的自动配置顺序问题，真实 HTTP/MySQL 验收暂使用当前工作区安装到隔离仓库的构件，命令见文末。
+
 ## 日常开发
 
 日常开发时，Spring Boot 在本机或 IDE 中运行，连接本机 MySQL，便于断点调试。先准备一个本地数据库和开发账号；如果已有账号，修改 `.env` 中的 `DEV_MYSQL_*` 配置即可。

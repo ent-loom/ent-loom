@@ -1,0 +1,45 @@
+ent:
+  loom:
+    meta:
+      entity-class-names:
+        - com.example.minicommerce.catalog.Product
+        - com.example.minicommerce.catalog.Customer
+      crud:
+        enabled: true
+      doc:
+        enabled: false
+
+entloom:
+  crud:
+    controller:
+      enabled: true
+      base-path: /api/ent-crud
+      include-entities:
+        - product
+        - customer
+    query:
+      enabled: true
+    command:
+      enabled: true
+    import:
+      enabled: false
+    export:
+      enabled: false
+    sql-log:
+      mode: safe
+    governance:
+      permission-rules:
+        - resource: product
+          action: '*'
+          scene: '*'
+          decision: ALLOW
+          subject-ids:
+            - local-developer
+        - resource: customer
+          action: '*'
+          scene: '*'
+          decision: ALLOW
+          subject-ids:
+            - local-developer
+      audit:
+        persist-to-jdbc: false
