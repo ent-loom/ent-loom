@@ -10,13 +10,14 @@ import verify
 
 
 class VerificationLifecycleTest(unittest.TestCase):
-    def execute(self, fail_detail=False, fail_logs=False, fail_start=False):
+    def execute(self, fail_detail=False, fail_logs=False, fail_start=False, fail_rollback=False):
         with tempfile.TemporaryDirectory() as directory:
             example = Path(directory)
             target = example / "target"
             target.mkdir()
             (target / "mini-commerce-spring-boot-0.1.0-SNAPSHOT.jar").touch()
             commands = []
+            count_queries = 0
             process = Mock()
             process.poll.return_value = None
 
@@ -27,6 +28,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                 return process
 
             def run(command, env, **kwargs):
+                nonlocal count_queries
                 commands.append(command)
                 if fail_start and "up" in command:
                     raise subprocess.CalledProcessError(1, command)
@@ -34,6 +36,11 @@ class VerificationLifecycleTest(unittest.TestCase):
                     raise subprocess.CalledProcessError(1, command)
                 if "port" in command:
                     output = "127.0.0.1:49153\n"
+                elif any("select price from product" in part for part in command):
+                    output = "21.00\n"
+                elif any("select count(*)" in part for part in command):
+                    count_queries += 1
+                    output = "2\t1\n" if fail_rollback and count_queries > 1 else "1\t1\n"
                 elif any("commerce_order_item" in part for part in command):
                     output = "123\t1001\tEntity Book\t19.90\t2\t39.80\n"
                 else:
@@ -49,6 +56,8 @@ class VerificationLifecycleTest(unittest.TestCase):
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
                 if url.endswith("/orders"):
+                    if body["items"][0]["quantity"] == 3:
+                        return 500, {"error": "Internal Server Error"}
                     if body["customerId"] == 9999:
                         return 400, {"code": "CUSTOMER_NOT_FOUND"}
                     if body["items"][0]["productId"] == 1002:
@@ -69,7 +78,10 @@ class VerificationLifecycleTest(unittest.TestCase):
                     patch.object(verify.subprocess, "Popen", side_effect=launch):
                 result = verify.verify(skip_build=True)
 
-            self.assertEqual(result, int(fail_detail or fail_logs or fail_start))
+            self.assertEqual(result, int(fail_detail or fail_logs or fail_start or fail_rollback))
+            if fail_rollback:
+                self.assertTrue(any("drop check verify_quantity_failure" in part
+                                    for command in commands for part in command))
             cleanup = [command for command in commands if "down" in command]
             self.assertEqual(len(cleanup), 1)
             self.assertIn("--volumes", cleanup[0])
@@ -94,6 +106,9 @@ class VerificationLifecycleTest(unittest.TestCase):
 
     def test_compose_start_failure_still_cleans_partial_resources(self):
         self.execute(fail_start=True)
+
+    def test_rollback_leak_fails_and_removes_temporary_constraint(self):
+        self.execute(fail_rollback=True)
 
 
 if __name__ == "__main__":

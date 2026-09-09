@@ -1,5 +1,8 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.persistence;
 
+import com.example.minicommerce.order.model.OrderDetail;
+import com.example.minicommerce.order.model.OrderItemSnapshot;
+import com.example.minicommerce.order.model.OrderStatus;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -58,7 +61,7 @@ public class OrderRepository {
         );
     }
 
-    public Optional<OrderDetailResponse> findDetail(Long orderId) {
+    public Optional<OrderDetail> findDetail(Long orderId) {
         List<OrderHeader> headers = jdbcTemplate.query(
             "select o.id, o.customer_id, c.display_name, o.status, o.total_amount, o.created_at "
                 + "from commerce_order o join customer c on c.id = o.customer_id where o.id = ?",
@@ -76,10 +79,10 @@ public class OrderRepository {
             return Optional.empty();
         }
         OrderHeader header = headers.get(0);
-        List<OrderDetailResponse.Item> items = jdbcTemplate.query(
+        List<OrderDetail.Item> items = jdbcTemplate.query(
             "select product_id, product_name, unit_price, quantity, line_amount "
                 + "from commerce_order_item where order_id = ? order by id",
-            (resultSet, rowNum) -> new OrderDetailResponse.Item(
+            (resultSet, rowNum) -> new OrderDetail.Item(
                 resultSet.getLong("product_id"),
                 resultSet.getString("product_name"),
                 resultSet.getBigDecimal("unit_price"),
@@ -88,7 +91,7 @@ public class OrderRepository {
             ),
             orderId
         );
-        return Optional.of(new OrderDetailResponse(
+        return Optional.of(new OrderDetail(
             header.id(),
             header.customerId(),
             header.customerName(),
@@ -97,16 +100,6 @@ public class OrderRepository {
             header.createdAt(),
             items
         ));
-    }
-
-    /** 订单明细写入时使用的价格快照。 */
-    public record OrderItemSnapshot(
-        Long productId,
-        String productName,
-        BigDecimal unitPrice,
-        Integer quantity,
-        BigDecimal lineAmount
-    ) {
     }
 
     private record OrderHeader(

@@ -12,14 +12,35 @@
 - Spring Boot 3.5.16
 - ent-loom 1.0.1，来自 Maven Central
 
-本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 只声明公开 Starter/API/Annotations 和 Spring Boot 基础依赖。POM 默认从 Maven Central 获取 `ent-loom 1.0.1`；该版本修复了 CRUD Starter 的自动配置顺序问题，可在独立环境完成构建和真实 MySQL 验收。
+本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 只声明公开 Starter/API/Annotations 和 Spring Boot 基础依赖。2026-09-08 已使用仅下载公开构件的隔离 Maven 仓库，通过 `ent-loom 1.0.1` 的构建、真实启动、HTTP/MySQL、价格快照和事务回滚验收。修改框架源码时可使用下方当前工作区构件路径。
 
 ## 业务边界
 
 - `Product`、`Customer`：通用 CRUD，分别对应 `/api/ent-crud/product/*` 和 `/api/ent-crud/customer/*`。
 - `POST /orders`：接收 `PlaceOrderCommand`，由 `PlaceOrderHandler` 在一个事务中读取客户和商品、校验商品有效性、复制价格快照并写入 `commerce_order` 与 `commerce_order_item`。
-- `GET /orders/{id}`：业务订单详情，返回订单头和明细；`Order`、`OrderItem` 不进入通用 CRUD 白名单。
+- `GET /orders/{id}`：经 `OrderQueryService` 查询订单头和明细；订单不进入通用 CRUD 白名单。
+- 下单和详情共用 `OrderAccessPolicy`，使用当前主体与 `order` 资源的 `PLACE`、`DETAIL` 权限规则；未匹配或明确拒绝时返回 `403 ORDER_ACCESS_DENIED`。订单权限独立于商品、客户 CRUD 权限，授予 `PLACE` 即允许业务流程读取下单所需主数据。
+- 示例只演示动作授权；开发者可查看全部示例订单，不演示订单归属、租户隔离或行级数据权限。生产项目使用自有 JDBC 查询时须显式落实这些限制，不能认为 CRUD 数据范围会自动应用。
 - 明确排除登录、支付、库存扣减、优惠券、搜索、消息队列和前端管理台。
+
+## 代码组织
+
+按业务分包，订单业务内部再按职责组织：
+
+```text
+com.example.minicommerce/
+├── MiniCommerceApplication.java
+├── configuration/          # 示例开发态治理装配
+├── catalog/                # 商品、客户通用 CRUD 实体
+└── order/
+    ├── web/                # HTTP 入口和异常响应
+    ├── application/        # 下单、查询入口及命令、结果、业务异常
+    ├── model/              # 订单详情、状态和价格快照
+    ├── persistence/        # 具体 JDBC Repository
+    └── security/           # 订单动作及主体权限检查
+```
+
+调用方向为 `web -> application -> persistence/model`，业务入口先经 `security` 授权。Repository 不依赖 Web 响应类型；订单详情模型直接序列化为响应。请求与命令暂时共用，不增加重复 DTO、转换层或 Repository 接口。商品、客户 Repository 放在订单业务中，因为它们只服务于下单读取，主数据维护仍由通用 CRUD 承担。
 
 ## 日常开发
 
@@ -62,7 +83,10 @@ Windows PowerShell：
 3. 通过 `POST /orders` 完成下单，再通过 `GET /orders/{id}` 查询详情。
 4. 修改商品价格，确认订单仍返回下单时的价格快照。
 5. 验证失效商品、不存在商品和不存在客户均返回明确失败码。
-6. 使用 MySQL SQL 查询核对订单头、订单明细和金额。
+6. 在独立验收库增加临时明细约束，使订单头写入后明细写入失败，确认事务回滚、订单和明细均无残留，并移除约束。
+7. 使用 MySQL SQL 查询核对订单头、订单明细和金额。
+
+业务权限测试在本示例目录执行 `mvn test`，覆盖无规则、明确拒绝、非授权主体、缺少主体、默认主体解析失败和动作权限隔离。该测试已接入商城 CI 作业。
 
 无论成功或失败，脚本都会停止应用并执行 `docker compose down --volumes --remove-orphans`；失败时日志保留在 `target/verification-logs/<项目名>/`。
 
@@ -82,7 +106,7 @@ curl http://localhost:8082/orders/1
 
 ## 使用当前工作区构件验证
 
-默认 POM 消费 Maven Central 的 `ent-loom` `1.0.1`。验证框架源码改动时，从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
+默认 POM 消费 Maven Central 的 `ent-loom 1.0.1`。验证框架源码改动时，从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
 
 ```bash
 repo=$(mktemp -d)

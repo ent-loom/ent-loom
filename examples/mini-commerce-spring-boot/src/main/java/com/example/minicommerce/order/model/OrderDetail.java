@@ -1,11 +1,11 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 /** 订单详情及其明细。 */
-public record OrderDetailResponse(
+public record OrderDetail(
     Long id,
     Long customerId,
     String customerName,

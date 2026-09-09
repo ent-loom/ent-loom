@@ -1,5 +1,10 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.web;
 
+import com.example.minicommerce.order.application.PlaceOrderCommand;
+import com.example.minicommerce.order.application.PlaceOrderHandler;
+import com.example.minicommerce.order.application.PlaceOrderResult;
+import com.example.minicommerce.order.application.OrderQueryService;
+import com.example.minicommerce.order.model.OrderDetail;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,13 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 /** 商城业务动作入口；订单不暴露给通用 CRUD。 */
 @RestController
 @RequestMapping("/orders")
-public class CommerceController {
+public class OrderController {
     private final PlaceOrderHandler placeOrderHandler;
-    private final OrderRepository orderRepository;
+    private final OrderQueryService orderQueryService;
 
-    public CommerceController(PlaceOrderHandler placeOrderHandler, OrderRepository orderRepository) {
+    public OrderController(PlaceOrderHandler placeOrderHandler, OrderQueryService orderQueryService) {
         this.placeOrderHandler = placeOrderHandler;
-        this.orderRepository = orderRepository;
+        this.orderQueryService = orderQueryService;
     }
 
     /** 提交订单。 */
@@ -30,8 +35,7 @@ public class CommerceController {
 
     /** 查询订单及明细。 */
     @GetMapping("/{id}")
-    public OrderDetailResponse detail(@PathVariable Long id) {
-        return orderRepository.findDetail(id)
-            .orElseThrow(() -> new CommerceValidationException("ORDER_NOT_FOUND", "订单不存在"));
+    public OrderDetail detail(@PathVariable Long id) {
+        return orderQueryService.findDetail(id);
     }
 }

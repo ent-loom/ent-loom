@@ -29,6 +29,18 @@ entloom:
       mode: safe
     governance:
       permission-rules:
+        - resource: order
+          action: PLACE
+          scene: default
+          decision: ALLOW
+          subject-ids:
+            - local-developer
+        - resource: order
+          action: DETAIL
+          scene: default
+          decision: ALLOW
+          subject-ids:
+            - local-developer
         - resource: product
           action: '*'
           scene: '*'

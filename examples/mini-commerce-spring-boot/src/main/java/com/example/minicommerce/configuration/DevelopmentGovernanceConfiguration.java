@@ -1,4 +1,4 @@
-package com.example.minicommerce.governance;
+package com.example.minicommerce.configuration;
 
 import com.example.minicommerce.catalog.Customer;
 import com.example.minicommerce.catalog.Product;

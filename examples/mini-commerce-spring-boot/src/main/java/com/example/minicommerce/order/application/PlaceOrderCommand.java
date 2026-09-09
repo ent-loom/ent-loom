@@ -1,4 +1,4 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.application;
 
 import java.util.List;
 

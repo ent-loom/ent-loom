@@ -1,10 +1,10 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.application;
 
 /** 下单业务校验失败。 */
-public class CommerceValidationException extends RuntimeException {
+public class OrderValidationException extends RuntimeException {
     private final String code;
 
-    public CommerceValidationException(String code, String message) {
+    public OrderValidationException(String code, String message) {
         super(message);
         this.code = code;
     }

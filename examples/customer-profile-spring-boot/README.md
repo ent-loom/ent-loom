@@ -14,7 +14,7 @@
 
 示例的 POM 是独立消费者，不继承 ent-loom 内部父 POM，也不依赖 `ent-loom-tests` 或内部实现类。实体只使用公开的 Meta 和 CRUD 注解；没有 Lombok。
 
-POM 默认从 Maven Central 获取 `ent-loom 1.0.1`。该版本修复了 CRUD Starter 的自动配置顺序问题，可在独立 Maven 仓库中完成真实 HTTP/MySQL 验收；修改框架源码时，仍可使用文末的当前工作区构件路径。
+POM 默认从 Maven Central 获取 `ent-loom 1.0.1`。2026-09-08 已在全新 Maven 本地仓库中完成公开构件下载、真实启动、HTTP 和 MySQL SQL 验收，未安装工作区构件或复用本机框架缓存。修改框架源码时，可使用文末的当前工作区构件路径。
 
 ## 日常开发
 

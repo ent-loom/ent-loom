@@ -54,6 +54,12 @@ def crud_update(base_url, entity, payload, request_id):
     check(status == 200 and response.get("success") is True, f"{entity} UPDATE 失败：{response}")
 
 
+def sql_query(compose, env, sql):
+    return run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
+                          "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e", sql],
+               env, capture_output=True, text=True).stdout.strip()
+
+
 def verify(repository=None, skip_build=False):
     project = "ent-loom-commerce-verify-" + uuid.uuid4().hex[:12]
     logs = EXAMPLE / "target" / "verification-logs" / project
@@ -153,8 +159,12 @@ def verify(repository=None, skip_build=False):
 
         crud_update(base_url, "product", {"id": product_id, "price": 21.00}, project + "-price-update")
         status, after_price_change = request(base_url + f"/orders/{order_id}")
-        check(status == 200 and Decimal(str(after_price_change["items"][0]["unitPrice"])) == Decimal("19.90"),
+        check(status == 200 and Decimal(str(after_price_change["items"][0]["unitPrice"])) == Decimal("19.90")
+              and Decimal(str(after_price_change["totalAmount"])) == Decimal("39.80")
+              and Decimal(str(after_price_change["items"][0]["lineAmount"])) == Decimal("39.80"),
               "订单没有保留价格快照")
+        check(Decimal(sql_query(compose, env, f"select price from product where id = {product_id}"))
+              == Decimal("21.00"), "商品价格未实际更新")
 
         for label, customer, product, expected_code in [
             ("inactive-product", customer_id, inactive_product_id, "PRODUCT_INACTIVE"),
@@ -167,6 +177,23 @@ def verify(repository=None, skip_build=False):
             (logs / f"failure-{label}.json").write_text(json.dumps(error, ensure_ascii=False, indent=2))
             check(status == 400 and error.get("code") == expected_code,
                   f"{label} 失败响应不匹配：{status} {error}")
+
+        # 仅在独立验收库中增加约束，使订单头写入后，明细写入失败。
+        counts_sql = ("select (select count(*) from commerce_order), "
+                      "(select count(*) from commerce_order_item)")
+        before_failure = sql_query(compose, env, counts_sql)
+        sql_query(compose, env, "alter table commerce_order_item add constraint verify_quantity_failure "
+                               "check (quantity <> 3)")
+        try:
+            status, error = request(base_url + "/orders", {
+                "customerId": customer_id, "items": [{"productId": product_id, "quantity": 3}],
+            })
+            check(status == 500, f"明细写入故障未按预期发生：{status} {error}")
+            after_failure = sql_query(compose, env, counts_sql)
+            check(after_failure == before_failure, "明细写入失败后存在订单或明细残留")
+            (logs / "rollback.sql.tsv").write_text(before_failure + "\n" + after_failure + "\n")
+        finally:
+            sql_query(compose, env, "alter table commerce_order_item drop check verify_quantity_failure")
 
         order_sql = run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
                                    "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e",

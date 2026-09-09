@@ -1,5 +1,6 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.persistence;
 
+import com.example.minicommerce.order.model.CustomerSnapshot;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;

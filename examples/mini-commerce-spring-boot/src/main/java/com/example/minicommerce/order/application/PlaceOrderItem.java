@@ -1,4 +1,4 @@
-package com.example.minicommerce.commerce;
+package com.example.minicommerce.order.application;
 
 /** 下单请求中的商品行。 */
 public class PlaceOrderItem {
