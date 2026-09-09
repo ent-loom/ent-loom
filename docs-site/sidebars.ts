@@ -18,6 +18,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'guides/crud/index',
             'guides/crud/开发指南',
+            'guides/crud/常用CRUD调用指南',
             'guides/crud/业务集成模板',
             'guides/crud/导出展示值配置',
           ],
