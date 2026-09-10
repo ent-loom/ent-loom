@@ -58,6 +58,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'architecture/core/组件边界与依赖规则',
             'architecture/core/元数据约定与裁决契约',
+            'architecture/core/实体文档契约',
             'architecture/core/governance/治理架构',
             'architecture/core/governance/治理流水线',
             'architecture/core/governance/治理核心架构',

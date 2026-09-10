@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.ent-loom.com/contracts/entity-documentation-v1.schema.json",
+  "title": "ent-loom Entity Documentation Contract",
+  "description": "ent-loom 实体文档契约 v1 的安全公共投影结构。",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "entities"
+  ],
+  "properties": {
+    "contractVersion": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$",
+      "description": "实体文档契约版本；1.x 允许向后兼容的可选扩展。"
+    },
+    "entities": {
+      "type": "array",
+      "description": "已通过实体暴露、认证和授权检查的实体。",
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
+    }
+  },
+  "patternProperties": {
+    "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "required": [
+        "resourceCode",
+        "fields",
+        "relations",
+        "indexes"
+      ],
+      "properties": {
+        "resourceCode": {
+          "type": "string",
+          "minLength": 1,
+          "description": "稳定资源身份，不是 Java 类名、数据库表名或一次性别名。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "remark": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relation"
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/index"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    },
+    "field": {
+      "type": "object",
+      "required": [
+        "property",
+        "type"
+      ],
+      "properties": {
+        "property": {
+          "type": "string",
+          "minLength": 1,
+          "description": "实体属性名，不是数据库列名。"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "稳定逻辑类型；无法确认时使用 unknown。"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "已知值包括 ID、REF_ID、TEXT、RICH_CONTENT、NUMBER、ENUM、FLAG、DATETIME、MEDIA、JSON_DOC；消费者必须容忍新增值。"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "relation": {
+          "type": "boolean"
+        },
+        "filterable": {
+          "type": "boolean"
+        },
+        "sortable": {
+          "type": "boolean"
+        },
+        "writable": {
+          "type": "boolean"
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraint"
+          }
+        },
+        "enumValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/enumValue"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    },
+    "constraint": {
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    },
+    "enumValue": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "relationField",
+        "targetResourceCode",
+        "sourceField",
+        "targetField",
+        "cardinality",
+        "ownerSide",
+        "resolutionStatus",
+        "sourceFieldInferred"
+      ],
+      "properties": {
+        "relationField": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetResourceCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetService": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceField": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetField": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cardinality": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "已知值包括 ONE_TO_ONE、ONE_TO_MANY、MANY_TO_ONE、MANY_TO_MANY；消费者必须容忍新增值。"
+        },
+        "ownerSide": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "已知值包括 DECLARING_ENTITY、TARGET_ENTITY、JOIN_TABLE、UNKNOWN；消费者必须容忍新增值。"
+        },
+        "resolutionStatus": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "已知值包括 RESOLVED、PARTIALLY_RESOLVED、INVALID；消费者必须容忍新增值。"
+        },
+        "sourceFieldInferred": {
+          "type": "boolean"
+        },
+        "remark": {
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    },
+    "index": {
+      "type": "object",
+      "required": [
+        "fields",
+        "unique"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unique": {
+          "type": "boolean"
+        }
+      },
+      "patternProperties": {
+        "^x-[A-Za-z0-9][A-Za-z0-9._-]*$": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}
