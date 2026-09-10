@@ -12,6 +12,7 @@ import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.RelationCardinality;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -120,6 +121,45 @@ class EntityDocumentationProjectorTest {
         Assertions.assertEquals(Collections.emptyList(), empty.get("entities"));
     }
 
+    @Test
+    void project_should_keep_v1_shape_and_preserve_future_field_and_enum_values() {
+        DocEntityModel future = entity(
+            FutureEntity.class,
+            "future",
+            Arrays.asList(
+                field("futureStatus", FutureStatus.class, EntFieldKind.ENUM, false),
+                field("futureValue", null, "FUTURE_KIND", false)
+            ),
+            Collections.<DocRelationModel>emptyList(),
+            Collections.<DocIndexModel>emptyList(),
+            false
+        );
+
+        Map<String, Object> document = new EntityDocumentationProjector().project(Collections.singletonList(future));
+        Assertions.assertEquals(
+            new LinkedHashSet<String>(Arrays.asList("contractVersion", "entities")),
+            document.keySet()
+        );
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entity = ((List<Map<String, Object>>) document.get("entities")).get(0);
+        Assertions.assertEquals(
+            new LinkedHashSet<String>(Arrays.asList("resourceCode", "name", "description", "fields", "relations", "indexes")),
+            entity.keySet()
+        );
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> fields = (List<Map<String, Object>>) entity.get("fields");
+        Map<String, Object> futureValue = findBy(fields, "property", "futureValue");
+        Assertions.assertEquals("unknown", futureValue.get("type"));
+        Assertions.assertEquals("FUTURE_KIND", futureValue.get("kind"));
+
+        Map<String, Object> futureStatus = findBy(fields, "property", "futureStatus");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> enumValues = (List<Map<String, Object>>) futureStatus.get("enumValues");
+        Assertions.assertEquals(Arrays.asList("ACTIVE", "FUTURE"), values(enumValues, "name"));
+    }
+
     private static DocEntityModel entity(
         Class<?> type,
         String resourceCode,
@@ -145,6 +185,10 @@ class EntityDocumentationProjectorTest {
     }
 
     private static DocFieldModel field(String property, Class<?> type, EntFieldKind kind, boolean hidden) {
+        return field(property, type, kind == null ? null : kind.name(), hidden);
+    }
+
+    private static DocFieldModel field(String property, Class<?> type, String kind, boolean hidden) {
         return new DocFieldModel(
             property,
             type,
@@ -157,7 +201,7 @@ class EntityDocumentationProjectorTest {
             SourcedValue.explicit(Boolean.FALSE, MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.explicit(Integer.valueOf(80), MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.unknown(null),
-            SourcedValue.explicit(kind.name(), MetaValueSource.NATIVE_EXPLICIT),
+            SourcedValue.explicit(kind, MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.unknown(null),
             SourcedValue.explicit("secret default", MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.unknown(null),
@@ -224,6 +268,11 @@ class EntityDocumentationProjectorTest {
         ACTIVE
     }
 
+    private enum FutureStatus {
+        ACTIVE,
+        FUTURE
+    }
+
     private static final class Order {
     }
 
@@ -231,5 +280,8 @@ class EntityDocumentationProjectorTest {
     }
 
     private static final class HiddenEntity {
+    }
+
+    private static final class FutureEntity {
     }
 }
