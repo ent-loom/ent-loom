@@ -1,1 +1,2 @@
 com.entloom.meta.starter.EntLoomMetaAutoConfiguration
+com.entloom.meta.starter.doc.EntityDocumentationContractAutoConfiguration
