@@ -3,6 +3,9 @@ package com.entloom.meta.adapter.doc;
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
+import com.entloom.doc.core.contract.EntityDocumentationExposurePolicy;
+import com.entloom.doc.core.model.DocEntityModel;
+import com.entloom.doc.core.model.DocFieldModel;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
@@ -73,9 +76,58 @@ class MetaDocAdapterP0AcceptanceTest {
         Assertions.assertSame(OptionalBoolean.class, method(EntDocField.class, "required").getReturnType());
     }
 
+    @Test
+    void documentation_contract_should_require_explicit_exposure_policy() {
+        MetaDocAdapter adapter = new MetaDocAdapter(
+            new SimpleDocMetaResolver(),
+            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class)
+        );
+
+        Assertions.assertThrows(
+            IllegalArgumentException.class,
+            () -> adapter.buildDocumentationContract(null, null)
+        );
+
+        Map<String, Object> denied = adapter.buildDocumentationContract(
+            null,
+            EntityDocumentationExposurePolicy.denyAll()
+        );
+        Assertions.assertTrue(entityDocs(denied).isEmpty());
+
+        Map<String, Object> contract = adapter.buildDocumentationContract(
+            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class),
+            new EntityDocumentationExposurePolicy() {
+                @Override
+                public boolean isEntityExposed(DocEntityModel entity) {
+                    return "meta_only_order".equals(entity.resourceCode().value());
+                }
+
+                @Override
+                public boolean isFieldExposed(DocEntityModel entity, DocFieldModel field) {
+                    return !"customerId".equals(field.property());
+                }
+            }
+        );
+
+        Assertions.assertEquals("1.0.0", contract.get("contractVersion"));
+        Assertions.assertEquals(1, entityDocs(contract).size());
+        Map<String, Object> order = entityDocs(contract).get(0);
+        Assertions.assertEquals("meta_only_order", order.get("resourceCode"));
+        Assertions.assertTrue(relationDocs(order).isEmpty());
+        Assertions.assertFalse(order.containsKey("tableName"));
+        Assertions.assertFalse(order.containsKey("visibleFor"));
+        Assertions.assertFalse(containsBy(fieldDocs(order), "property", "customerId"));
+        Assertions.assertFalse(fieldDocs(order).get(0).containsKey("column"));
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> fieldDocs(Map<String, Object> doc) {
         return (List<Map<String, Object>>) doc.get("fields");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> entityDocs(Map<String, Object> doc) {
+        return (List<Map<String, Object>>) doc.get("entities");
     }
 
     @SuppressWarnings("unchecked")
@@ -96,6 +148,15 @@ class MetaDocAdapterP0AcceptanceTest {
         }
         Assertions.fail("Missing item " + key + "=" + value);
         return null;
+    }
+
+    private boolean containsBy(List<Map<String, Object>> items, String key, String value) {
+        for (Map<String, Object> item : items) {
+            if (value.equals(item.get(key))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasDiagnostic(Iterable<MetaDiagnostic> diagnostics, MetaDiagnosticCode code, String property) {

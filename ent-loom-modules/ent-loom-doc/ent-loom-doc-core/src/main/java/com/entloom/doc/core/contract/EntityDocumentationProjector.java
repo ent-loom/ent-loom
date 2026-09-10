@@ -44,9 +44,26 @@ public final class EntityDocumentationProjector {
      * @return 符合 Entity Documentation Contract v1 结构的 Map
      */
     public Map<String, Object> project(Collection<DocEntityModel> models) {
-        List<DocEntityModel> visibleModels = visibleModels(models);
+        return project(models, EntityDocumentationExposurePolicy.allowAll());
+    }
+
+    /**
+     * 使用显式暴露策略投影 DOC 模型。
+     *
+     * @param models DOC Runtime Model 集合
+     * @param exposurePolicy 实体和字段暴露策略，不能为空
+     * @return 符合 Entity Documentation Contract v1 结构的 Map
+     */
+    public Map<String, Object> project(
+        Collection<DocEntityModel> models,
+        EntityDocumentationExposurePolicy exposurePolicy
+    ) {
+        if (exposurePolicy == null) {
+            throw new IllegalArgumentException("实体文档暴露策略不能为空");
+        }
+        List<DocEntityModel> visibleModels = visibleModels(models, exposurePolicy);
         Map<String, DocEntityModel> modelByResource = indexModels(visibleModels);
-        Map<String, Set<String>> visibleFields = indexVisibleFields(visibleModels);
+        Map<String, Set<String>> visibleFields = indexVisibleFields(visibleModels, exposurePolicy);
 
         List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>();
         for (DocEntityModel model : visibleModels) {
@@ -54,7 +71,7 @@ public final class EntityDocumentationProjector {
             if (resourceCode == null) {
                 continue;
             }
-            entities.add(projectEntity(model, resourceCode, modelByResource, visibleFields));
+            entities.add(projectEntity(model, exposurePolicy, resourceCode, modelByResource, visibleFields));
         }
 
         LinkedHashMap<String, Object> result = new LinkedHashMap<String, Object>();
@@ -63,13 +80,17 @@ public final class EntityDocumentationProjector {
         return result;
     }
 
-    private List<DocEntityModel> visibleModels(Collection<DocEntityModel> models) {
+    private List<DocEntityModel> visibleModels(
+        Collection<DocEntityModel> models,
+        EntityDocumentationExposurePolicy exposurePolicy
+    ) {
         if (models == null || models.isEmpty()) {
             return Collections.emptyList();
         }
         List<DocEntityModel> visible = new ArrayList<DocEntityModel>();
         for (DocEntityModel model : models) {
-            if (model == null || model.entityClass() == null || Boolean.TRUE.equals(model.hidden().value())) {
+            if (model == null || model.entityClass() == null || Boolean.TRUE.equals(model.hidden().value())
+                || !exposurePolicy.isEntityExposed(model)) {
                 continue;
             }
             if (trimToNull(model.resourceCode().value()) != null) {
@@ -98,12 +119,16 @@ public final class EntityDocumentationProjector {
         return result;
     }
 
-    private Map<String, Set<String>> indexVisibleFields(List<DocEntityModel> models) {
+    private Map<String, Set<String>> indexVisibleFields(
+        List<DocEntityModel> models,
+        EntityDocumentationExposurePolicy exposurePolicy
+    ) {
         Map<String, Set<String>> result = new HashMap<String, Set<String>>();
         for (DocEntityModel model : models) {
             Set<String> fields = new HashSet<String>();
             for (DocFieldModel field : model.fields()) {
-                if (field == null || Boolean.TRUE.equals(field.hidden().value())) {
+                if (field == null || Boolean.TRUE.equals(field.hidden().value())
+                    || !exposurePolicy.isFieldExposed(model, field)) {
                     continue;
                 }
                 String property = trimToNull(field.property());
@@ -118,6 +143,7 @@ public final class EntityDocumentationProjector {
 
     private Map<String, Object> projectEntity(
         DocEntityModel model,
+        EntityDocumentationExposurePolicy exposurePolicy,
         String resourceCode,
         Map<String, DocEntityModel> modelByResource,
         Map<String, Set<String>> visibleFields
@@ -128,16 +154,20 @@ public final class EntityDocumentationProjector {
         putText(entity, "description", model.description().value());
         putText(entity, "group", model.group().value());
         putText(entity, "remark", model.remark().value());
-        entity.put("fields", projectFields(model));
+        entity.put("fields", projectFields(model, exposurePolicy));
         entity.put("relations", projectRelations(model, modelByResource, visibleFields));
         entity.put("indexes", projectIndexes(model, visibleFields));
         return entity;
     }
 
-    private List<Map<String, Object>> projectFields(DocEntityModel model) {
+    private List<Map<String, Object>> projectFields(
+        DocEntityModel model,
+        EntityDocumentationExposurePolicy exposurePolicy
+    ) {
         List<DocFieldModel> source = new ArrayList<DocFieldModel>();
         for (DocFieldModel field : model.fields()) {
-            if (field != null && !Boolean.TRUE.equals(field.hidden().value()) && trimToNull(field.property()) != null) {
+            if (field != null && !Boolean.TRUE.equals(field.hidden().value())
+                && exposurePolicy.isFieldExposed(model, field) && trimToNull(field.property()) != null) {
                 source.add(field);
             }
         }

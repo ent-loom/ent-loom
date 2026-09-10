@@ -1,6 +1,8 @@
 package com.entloom.meta.adapter.doc;
 
 import com.entloom.doc.core.EntityDocCoreService;
+import com.entloom.doc.core.contract.EntityDocumentationExposurePolicy;
+import com.entloom.doc.core.contract.EntityDocumentationProjector;
 import com.entloom.doc.core.model.DocEntityModel;
 import com.entloom.doc.core.model.DocFieldModel;
 import com.entloom.doc.core.model.DocRelationModel;
@@ -42,6 +44,7 @@ public class MetaDocAdapter {
     private final DocNativeAnnotationParser nativeParser;
     private final DocRuntimeModelMerger merger;
     private final DocRuntimeModelOverrideApplier overrideApplier;
+    private final EntityDocumentationProjector documentationProjector = new EntityDocumentationProjector();
     private final MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
     private final List<DocEntityModel> models;
     private final Map<String, DocEntityModel> entityModels = new LinkedHashMap<String, DocEntityModel>();
@@ -152,6 +155,22 @@ public class MetaDocAdapter {
         return docCoreService.buildAllModels(selected);
     }
 
+    /**
+     * 按显式暴露策略生成实体文档契约 v1。
+     *
+     * <p>该方法仍是集成层能力，不是 HTTP Endpoint。调用方必须传入策略，
+     * 由策略负责实体白名单和当前主体授权；传入 null 会直接失败。</p>
+     */
+    public Map<String, Object> buildDocumentationContract(
+        Collection<Class<?>> entityClasses,
+        EntityDocumentationExposurePolicy exposurePolicy
+    ) {
+        if (exposurePolicy == null) {
+            throw new IllegalArgumentException("实体文档暴露策略不能为空");
+        }
+        return documentationProjector.project(selectModels(entityClasses), exposurePolicy);
+    }
+
     public List<DocEntityModel> models() {
         return models;
     }
@@ -185,6 +204,23 @@ public class MetaDocAdapter {
             }
         }
         return mergedModels;
+    }
+
+    private List<DocEntityModel> selectModels(Collection<Class<?>> entityClasses) {
+        if (entityClasses == null || entityClasses.isEmpty()) {
+            return models;
+        }
+        List<DocEntityModel> selected = new ArrayList<DocEntityModel>();
+        for (Class<?> entityClass : entityClasses) {
+            if (entityClass == null) {
+                continue;
+            }
+            DocEntityModel model = entityModels.get(entityClass.getName().toLowerCase(Locale.ROOT));
+            if (model != null) {
+                selected.add(model);
+            }
+        }
+        return selected;
     }
 
     private DocEntityModel withResolvedColumns(DocEntityModel model) {
