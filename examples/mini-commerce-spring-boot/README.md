@@ -62,6 +62,12 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
 `dev` profile 默认连接 `localhost:3306`，并执行 `schema.sql`。健康检查地址为 [http://localhost:8082/actuator/health](http://localhost:8082/actuator/health)。开发态示例还会以 `local-developer` 主体访问 [实体文档契约](http://localhost:8082/api/ent-doc/contract)，只公开 `product` 和 `customer` 主数据。也可以在 IDEA 中以 `com.example.minicommerce.MiniCommerceApplication` 启动，激活 `dev` profile，工作目录设为本示例目录。
 
+## 生产认证适配边界
+
+`production` profile 只演示接入边界，不提供认证系统。`ServletPrincipalCrudSubjectResolver` 读取 Servlet 容器已经完成的 `HttpServletRequest#getUserPrincipal()`，不解析请求头、令牌或登录凭据；真实项目应由 Spring Security、网关或容器完成认证，再把主体交给 ent-loom 治理链。
+
+未认证请求会映射为 `anonymous` 主体。生产 profile 默认没有该主体的权限规则，实体文档契约返回空目录，CRUD 和订单业务入口返回拒绝。设置 `ENTLOOM_PRODUCTION_SUBJECT_ID` 只用于本示例演示一个已认证主体的配置入口，生产项目应使用配置中心、权限服务和自身的租户/组织数据范围策略替换它。
+
 ## Compose 验收
 
 手动启动 Compose MySQL 时，端口默认为 `3308`：
@@ -93,6 +99,7 @@ Windows PowerShell：
 5. 验证失效商品、不存在商品和不存在客户均返回明确失败码。
 6. 在独立验收库增加临时明细约束，使订单头写入后明细写入失败，确认事务回滚、订单和明细均无残留，并移除约束。
 7. 使用 MySQL SQL 查询核对订单头、订单明细和金额。
+8. 启动 `production` profile，确认未认证主体只能获得空实体契约，不能调用通用 CRUD 或订单业务入口。
 
 业务权限测试在本示例目录执行 `mvn test`，覆盖无规则、明确拒绝、非授权主体、缺少主体、默认主体解析失败和动作权限隔离。该测试已接入商城 CI 作业。
 

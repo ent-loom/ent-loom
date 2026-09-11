@@ -1,0 +1,65 @@
+ent:
+  loom:
+    meta:
+      entity-class-names:
+        - com.example.minicommerce.product.entity.Product
+        - com.example.minicommerce.customer.entity.Customer
+      crud:
+        enabled: true
+      doc:
+        enabled: true
+
+entloom:
+  production:
+    # 仅作为示例授权配置；真实项目应由配置中心或授权适配器提供。
+    documentation-subject-ids: ${ENTLOOM_PRODUCTION_SUBJECT_ID:__none__}
+  doc:
+    contract:
+      enabled: true
+      http:
+        enabled: true
+  crud:
+    controller:
+      enabled: true
+      base-path: /api/ent-crud
+      include-entities:
+        - product
+        - customer
+    query:
+      enabled: true
+    command:
+      enabled: true
+    import:
+      enabled: false
+    export:
+      enabled: false
+    sql-log:
+      mode: safe
+    governance:
+      permission-rules:
+        - resource: order
+          action: PLACE
+          scene: default
+          decision: ALLOW
+          subject-ids:
+            - ${ENTLOOM_PRODUCTION_SUBJECT_ID:__none__}
+        - resource: order
+          action: DETAIL
+          scene: default
+          decision: ALLOW
+          subject-ids:
+            - ${ENTLOOM_PRODUCTION_SUBJECT_ID:__none__}
+        - resource: product
+          action: '*'
+          scene: '*'
+          decision: ALLOW
+          subject-ids:
+            - ${ENTLOOM_PRODUCTION_SUBJECT_ID:__none__}
+        - resource: customer
+          action: '*'
+          scene: '*'
+          decision: ALLOW
+          subject-ids:
+            - ${ENTLOOM_PRODUCTION_SUBJECT_ID:__none__}
+      audit:
+        persist-to-jdbc: false
