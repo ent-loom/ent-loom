@@ -82,6 +82,28 @@ class EntityDocumentationContractAutoConfigurationTest {
     }
 
     @Test
+    void serviceShouldPassDenyAllPolicyForUnrecognizedSubject() {
+        MetaDocAdapter adapter = Mockito.mock(MetaDocAdapter.class);
+        CrudSubjectResolver subjectResolver = () -> {
+            SubjectContext subject = new SubjectContext();
+            subject.setSubjectId("anonymous");
+            return subject;
+        };
+        EntityDocumentationExposurePolicy denyAll = EntityDocumentationExposurePolicy.denyAll();
+        EntityDocumentationContractService service = new EntityDocumentationContractService(
+            adapter,
+            subjectResolver,
+            subject -> "doc-reader".equals(subject.getSubjectId()) ?
+                SubjectAndPolicyConfiguration.POLICY : denyAll
+        );
+        when(adapter.buildDocumentationContract(isNull(), same(denyAll)))
+            .thenReturn(Map.of("contractVersion", "1.0.0", "entities", java.util.List.of()));
+
+        Assertions.assertEquals(0, ((java.util.List<?>) service.build().get("entities")).size());
+        verify(adapter).buildDocumentationContract(isNull(), same(denyAll));
+    }
+
+    @Test
     void httpControllerShouldStayDisabledByDefault() {
         webContextRunner
             .withUserConfiguration(SubjectAndPolicyConfiguration.class)
