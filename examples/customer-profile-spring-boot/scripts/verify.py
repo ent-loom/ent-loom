@@ -98,6 +98,21 @@ def verify(repository=None, skip_build=False):
         else:
             raise RuntimeError("应用健康检查超时")
 
+        contract = request(base_url + "/api/ent-doc/contract")
+        (logs / "entity-documentation-contract.json").write_text(
+            json.dumps(contract, ensure_ascii=False, indent=2)
+        )
+        check(contract.get("contractVersion") == "1.0.0", f"实体文档契约版本不匹配：{contract}")
+        entities = contract.get("entities")
+        check(isinstance(entities, list) and len(entities) == 1, f"实体文档实体范围不匹配：{contract}")
+        entity = entities[0]
+        check(entity.get("resourceCode") == "customer_profile", f"实体文档资源不匹配：{entity}")
+        fields = {field.get("property") for field in entity.get("fields", [])}
+        check(fields == {"displayName", "email", "id"}, f"实体文档字段范围不匹配：{entity}")
+        contract_text = json.dumps(contract, ensure_ascii=False)
+        for forbidden in ("entityClass", "tableName", "column", "visibleFor"):
+            check(forbidden not in contract_text, f"实体文档泄露敏感字段：{forbidden}")
+
         customer_id = time.time_ns() // 1_000_000
         create = request(base_url + "/api/ent-crud/customer_profile/create", {
             "options": {"requestId": project + "-create"},

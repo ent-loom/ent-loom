@@ -1,6 +1,10 @@
 @baseUrl = http://localhost:8080
 @customerId = 1000000000001
 
+### Read the subject-scoped entity documentation contract
+GET {{baseUrl}}/api/ent-doc/contract
+Accept: application/json
+
 ### Create a customer profile
 POST {{baseUrl}}/api/ent-crud/customer_profile/create
 Content-Type: application/json

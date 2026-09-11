@@ -1,6 +1,6 @@
 # Customer Profile Spring Boot 示例
 
-这个示例只演示一条可复制的最短路径：普通 Spring Boot 项目声明一个 `CustomerProfile`，由公开的 ent-loom Starter 暴露 CRUD HTTP 接口，在 MySQL 8 上完成 `CREATE -> DETAIL`。
+这个示例只演示一条可复制的最短路径：普通 Spring Boot 项目声明一个 `CustomerProfile`，由公开的 ent-loom Starter 暴露实体文档和 CRUD HTTP 接口，在 MySQL 8 上完成 `GET contract -> CREATE -> DETAIL`。
 
 ## 环境
 
@@ -132,11 +132,16 @@ Windows PowerShell：
 - 仅允许该主体访问该实体的开发态权限规则；
 - 开发态全量数据范围和日志审计。
 
-应用健康状态可在 [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) 查看。
+应用健康状态可在 [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) 查看。开发态示例还会以 `local-developer` 主体访问 [实体文档契约](http://localhost:8080/api/ent-doc/contract)，只公开 `CustomerProfile` 的 `id`、`displayName` 和 `email` 字段。
 
 ## 验证请求
 
 请求文件见 [`requests/customer-profile.http`](requests/customer-profile.http)。框架 HTTP Controller 使用 `POST`，详情查询通过 `options.filterMap.id` 定位刚创建的记录：
+
+```powershell
+Invoke-RestMethod -Method Get `
+  -Uri http://localhost:8080/api/ent-doc/contract
+```
 
 ```powershell
 $create = Invoke-RestMethod -Method Post `

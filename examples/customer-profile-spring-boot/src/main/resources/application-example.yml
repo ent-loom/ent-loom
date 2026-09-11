@@ -6,9 +6,14 @@ ent:
       crud:
         enabled: true
       doc:
-        enabled: false
+        enabled: true
 
 entloom:
+  doc:
+    contract:
+      enabled: true
+      http:
+        enabled: true
   crud:
     controller:
       enabled: true

@@ -41,6 +41,18 @@ class VerificationLifecycleTest(unittest.TestCase):
             def request(url, body=None):
                 if url.endswith("/health"):
                     return {"status": "UP"}
+                if url.endswith("/api/ent-doc/contract"):
+                    return {
+                        "contractVersion": "1.0.0",
+                        "entities": [{
+                            "resourceCode": "customer_profile",
+                            "fields": [
+                                {"property": "displayName"},
+                                {"property": "email"},
+                                {"property": "id"},
+                            ],
+                        }],
+                    }
                 if url.endswith("/create"):
                     return {"success": True, "data": {"id": 123}}
                 self.assertEqual(body["options"]["filterMap"]["id"]["value"], 123)
