@@ -1,6 +1,6 @@
 package com.entloom.meta.starter.doc;
 
-import com.entloom.doc.core.contract.EntityDocumentationExposurePolicy;
+import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.meta.adapter.doc.MetaDocAdapter;
 import com.entloom.meta.starter.EntLoomMetaAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -23,12 +23,13 @@ import org.springframework.context.annotation.Configuration;
 public class EntityDocumentationContractAutoConfiguration {
 
     @Bean
-    @ConditionalOnBean({MetaDocAdapter.class, EntityDocumentationExposurePolicy.class})
+    @ConditionalOnBean({MetaDocAdapter.class, CrudSubjectResolver.class, EntityDocumentationExposurePolicyResolver.class})
     @ConditionalOnMissingBean
     public EntityDocumentationContractService entityDocumentationContractService(
         MetaDocAdapter metaDocAdapter,
-        EntityDocumentationExposurePolicy exposurePolicy
+        CrudSubjectResolver subjectResolver,
+        EntityDocumentationExposurePolicyResolver exposurePolicyResolver
     ) {
-        return new EntityDocumentationContractService(metaDocAdapter, exposurePolicy);
+        return new EntityDocumentationContractService(metaDocAdapter, subjectResolver, exposurePolicyResolver);
     }
 }

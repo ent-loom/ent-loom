@@ -1,6 +1,8 @@
 package com.entloom.meta.starter.doc;
 
 import com.entloom.doc.core.contract.EntityDocumentationExposurePolicy;
+import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.meta.adapter.doc.MetaDocAdapter;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,7 +32,7 @@ class EntityDocumentationContractAutoConfigurationTest {
     }
 
     @Test
-    void enabledServiceShouldRequireExplicitExposurePolicy() {
+    void enabledServiceShouldRequireSubjectAndPolicyResolver() {
         contextRunner
             .withPropertyValues("entloom.doc.contract.enabled=true")
             .run(context -> {
@@ -40,25 +42,38 @@ class EntityDocumentationContractAutoConfigurationTest {
     }
 
     @Test
-    void enabledServiceShouldUseApplicationExposurePolicy() {
+    void enabledServiceShouldResolvePolicyFromCurrentSubject() {
         contextRunner
-            .withUserConfiguration(ExposurePolicyConfiguration.class)
+            .withUserConfiguration(SubjectAndPolicyConfiguration.class)
             .withPropertyValues("entloom.doc.contract.enabled=true")
             .run(context -> {
                 Assertions.assertTrue(context.containsBean("entityDocumentationContractService"));
 
                 MetaDocAdapter adapter = context.getBean(MetaDocAdapter.class);
-                EntityDocumentationExposurePolicy policy = context.getBean(EntityDocumentationExposurePolicy.class);
                 Map<String, Object> contract = new LinkedHashMap<String, Object>();
                 contract.put("contractVersion", "1.0.0");
-                when(adapter.buildDocumentationContract(isNull(), same(policy))).thenReturn(contract);
+                when(adapter.buildDocumentationContract(
+                    isNull(),
+                    same(SubjectAndPolicyConfiguration.POLICY)
+                )).thenReturn(contract);
 
                 Assertions.assertSame(
                     contract,
                     context.getBean(EntityDocumentationContractService.class).build()
                 );
-                verify(adapter).buildDocumentationContract(isNull(), same(policy));
+                verify(adapter).buildDocumentationContract(isNull(), same(SubjectAndPolicyConfiguration.POLICY));
             });
+    }
+
+    @Test
+    void serviceShouldRejectNullSubjectBeforePolicyResolution() {
+        EntityDocumentationContractService service = new EntityDocumentationContractService(
+            Mockito.mock(MetaDocAdapter.class),
+            () -> null,
+            subject -> EntityDocumentationExposurePolicy.denyAll()
+        );
+
+        Assertions.assertThrows(IllegalStateException.class, service::build);
     }
 
     @Configuration
@@ -70,10 +85,22 @@ class EntityDocumentationContractAutoConfigurationTest {
     }
 
     @Configuration
-    static class ExposurePolicyConfiguration {
+    static class SubjectAndPolicyConfiguration {
+        private static final EntityDocumentationExposurePolicy POLICY = EntityDocumentationExposurePolicy.denyAll();
+
         @Bean
-        EntityDocumentationExposurePolicy entityDocumentationExposurePolicy() {
-            return EntityDocumentationExposurePolicy.denyAll();
+        CrudSubjectResolver crudSubjectResolver() {
+            SubjectContext subject = new SubjectContext();
+            subject.setSubjectId("doc-reader");
+            return () -> subject;
+        }
+
+        @Bean
+        EntityDocumentationExposurePolicyResolver entityDocumentationExposurePolicyResolver() {
+            return subject -> {
+                Assertions.assertEquals("doc-reader", subject.getSubjectId());
+                return POLICY;
+            };
         }
     }
 }
