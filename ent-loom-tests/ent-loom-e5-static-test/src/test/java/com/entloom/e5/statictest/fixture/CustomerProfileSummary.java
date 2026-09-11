@@ -3,36 +3,35 @@ package com.entloom.e5.statictest.fixture;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** 客户档案新增请求；该 fixture 使用显式主键策略。 */
-public final class CustomerProfileCreateRequest {
-    /** 数据库主键。 */
+/** 客户档案摘要；由定制查询场景聚合档案和备注数据返回。 */
+public final class CustomerProfileSummary {
     private final Long id;
-    /** 客户展示名称。 */
     private final String displayName;
-    /** 客户信用额度。 */
     private final BigDecimal creditLimit;
-    /** 客户注册时间。 */
     private final LocalDateTime registeredAt;
-    /** 客户头像地址，可为空。 */
-    private final String avatarUrl;
+    private final long noteCount;
+    private final LocalDateTime latestNoteAt;
 
-    public CustomerProfileCreateRequest(
+    public CustomerProfileSummary(
         Long id,
         String displayName,
         BigDecimal creditLimit,
         LocalDateTime registeredAt,
-        String avatarUrl
+        long noteCount,
+        LocalDateTime latestNoteAt
     ) {
         this.id = id;
         this.displayName = displayName;
         this.creditLimit = creditLimit;
         this.registeredAt = registeredAt;
-        this.avatarUrl = avatarUrl;
+        this.noteCount = noteCount;
+        this.latestNoteAt = latestNoteAt;
     }
 
     public Long getId() { return id; }
     public String getDisplayName() { return displayName; }
     public BigDecimal getCreditLimit() { return creditLimit; }
     public LocalDateTime getRegisteredAt() { return registeredAt; }
-    public String getAvatarUrl() { return avatarUrl; }
+    public long getNoteCount() { return noteCount; }
+    public LocalDateTime getLatestNoteAt() { return latestNoteAt; }
 }

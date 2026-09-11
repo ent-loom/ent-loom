@@ -33,12 +33,13 @@ class CustomerProfileCrudAdapterTest {
         CustomerProfileCrudAdapter adapter = new CustomerProfileCrudAdapter(queryGateway, commandGateway, metaRegistry());
 
         adapter.page(new CustomerProfileQuery(" 张 ", 1, 20));
-        adapter.create(new CustomerProfileCreateRequest("张三", new BigDecimal("100.00"), LocalDateTime.of(2026, 1, 1, 0, 0), null));
+        adapter.create(new CustomerProfileCreateRequest(7L, "张三", new BigDecimal("100.00"), LocalDateTime.of(2026, 1, 1, 0, 0), null));
 
         Assertions.assertEquals(CustomerProfile.class, queryGateway.spec.getResultType());
         Assertions.assertEquals("张", queryGateway.spec.getFilters().get(0).getValue());
         WriteCommand<?> create = (WriteCommand<?>) commandGateway.spec.getPayload();
         Assertions.assertTrue(create.getValues() instanceof Map<?, ?>);
+        Assertions.assertEquals(7L, create.getId());
         Assertions.assertFalse(((Map<?, ?>) create.getValues()).containsKey("id"));
 
         adapter.update(patch());

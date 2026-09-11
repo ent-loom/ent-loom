@@ -57,7 +57,10 @@ public final class CustomerProfileCrudAdapter {
         values.put("creditLimit", request.getCreditLimit());
         values.put("registeredAt", request.getRegisteredAt());
         values.put("avatarUrl", request.getAvatarUrl());
-        return commandGateway.action(command(CommandOperation.CREATE, new WriteCommand<Map<String, Object>>(CommandOperation.CREATE, values)));
+        return commandGateway.action(command(
+            CommandOperation.CREATE,
+            new WriteCommand<Map<String, Object>>(CommandOperation.CREATE, request.getId(), values)
+        ));
     }
 
     public Object update(UpdatePatch<CustomerProfile> patch) {
@@ -74,6 +77,7 @@ public final class CustomerProfileCrudAdapter {
             .entityClasses(java.util.Collections.<Class<?>>singletonList(CustomerProfile.class))
             .op(operation)
             .payload(payload)
+            .resultType(Map.class)
             .build();
     }
 }

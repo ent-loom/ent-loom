@@ -1,6 +1,6 @@
 # 统一 CRUD 执行模式实施计划
 
-> 状态：In Progress（U0-U3 较小闭环已落地，等价性与真实复杂查询验收待继续）
+> 状态：In Progress（U0-U4 较小闭环已落地；受控 `EXISTS` 首期已实现，公共/HTTP 扩展、`JOIN_LIST` 与公共 Facade 抽象门禁保持未启动）
 > 关联主线：Scene Policy 治理闭环；现有 `QuerySpec` / `CommandSpec` / Gateway 合同稳定
 > 当前事实：[CRUD 运行时架构](../../../architecture/components/crud/运行时架构.md)
 
@@ -226,15 +226,15 @@ accessEntry + resource + operationKey + scene
 
 - [x] 一个真实实体的专用 Adapter 在业务或示例模块落地。
 - [x] 查询、新增和局部更新均经规范化后调用 Gateway。
-- [ ] Adapter 与等价基础 Spec 的权限、范围、SQL 结果和审计一致。
+- [x] Adapter 与等价基础 Spec 的权限、范围、SQL 结果和审计一致。
 - [x] 默认 Engine 未新增实体反射写入入口，Core 未提前新增公共 Facade。
 
 ### U4：定制模式与抽象门禁
 
-- [ ] 一个真实复杂查询通过 Query Handler 完成治理后执行。
-- [ ] Handler 直接返回和受控 delegate 边界明确，未注入原始 SQL。
-- [ ] 非空 scene 未命中 Handler 的拒绝测试通过。
-- [ ] `EXISTS`、`JOIN_LIST` 和公共实体 Facade 均满足两个真实调用者门槛后再启动。
+- [x] 客户档案摘要这一真实聚合查询通过 Query Handler 完成治理后执行。
+- [x] Handler 直接返回专用摘要 DTO；固定参数化查询只存在于 Handler 内，未注入默认 Engine，delegate 未被绕过调用。
+- [x] 非空 scene 未命中 Handler 时由 Gateway 拒绝，且不执行 Handler 或默认 Engine。
+- [x] 当前只有一个真实复杂场景；受控 `EXISTS` 首期已有独立实现，但尚未达到扩展公共查询计划所需的两个真实一跳场景门槛，`JOIN_LIST` 和公共实体 Facade 也保持不启动。
 
 ### 完成证据
 
@@ -243,12 +243,21 @@ accessEntry + resource + operationKey + scene
 - `DefaultScenePolicyServiceTest`：唯一 key、冻结 Registry、高风险 fail-closed、portal/capability 匹配。
 - `AnnotatedHandlerAutoRegistrationTest`：真实 ACTION 经 Policy、Gateway、治理和 Handler 执行。
 - `CustomerProfileCrudAdapterTest`：强类型查询、新增与显式 null 局部更新规范化后进入 Gateway。
+- `CustomerProfileCrudAdapterEquivalenceTest`：H2 真实 Gateway 验证 Adapter 与基础 Spec 的
+  CREATE、PAGE、UPDATE、SQL 行和治理审计字段一致；该 fixture 使用显式主键策略。
+- `CustomerProfileComplexQueryHandlerTest`：H2 真实 Gateway 验证 `profile.summary` 聚合 Handler 的
+  治理主体、资源、操作、scene 和审计结果；Handler 直接返回客户档案与备注聚合 DTO，未知非空 scene
+  在路由阶段拒绝且不执行默认 Engine。
+- `ExistsRelationFilterResolverTest` 与 `DefaultEngineCrossTableReadTest`：验证受控 `EXISTS` 的关系元数据绑定、
+  逻辑删除、关联数据范围、根分页计数和 Scene Handler 委托边界；该能力仍只开放 Java 内部模型。
 - 阶段验证命令：`JAVA_HOME=<JDK21> ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-spring-boot-starter,ent-loom-tests/ent-loom-e5-static-test -am test`。
+- U3 定向命令：`JAVA_HOME=<JDK21> ./mvnw -pl ent-loom-tests/ent-loom-e5-static-test -am -Dtest=CustomerProfileCrudAdapterEquivalenceTest -Dsurefire.failIfNoSpecifiedTests=false test`。
+- U4 定向命令：`JAVA_HOME=<JDK21> ./mvnw -pl ent-loom-tests/ent-loom-e5-static-test -am -Dtest=CustomerProfileComplexQueryHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test`。
 
 - [x] 各阶段关键测试类和 Maven 验证命令已记录。
 - [x] 完整 Maven Reactor 在 JDK 21 下验证通过。
-- [ ] Current Architecture 已更新，实施计划中的已完成正文已清理或归档。
-- [ ] 未完成事项已转入对应后续路线，未长期保留新旧双入口。
+- [x] Current Architecture 已更新，实施计划中的已完成正文已清理或归档。
+- [x] 未完成事项已转入对应后续路线，未长期保留新旧双入口。
 
 ## 非目标
 
