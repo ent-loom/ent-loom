@@ -1,4 +1,4 @@
-package com.example.minicommerce.order.model;
+package com.example.minicommerce.order.enums;
 
 /** 订单生命周期状态。 */
 public enum OrderStatus {

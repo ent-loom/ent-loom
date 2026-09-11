@@ -1,4 +1,4 @@
-package com.example.minicommerce.catalog;
+package com.example.minicommerce.customer.entity;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;

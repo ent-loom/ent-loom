@@ -1,4 +1,4 @@
-package com.example.minicommerce.order.application;
+package com.example.minicommerce.order.exception;
 
 /** 下单业务校验失败。 */
 public class OrderValidationException extends RuntimeException {

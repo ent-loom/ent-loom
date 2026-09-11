@@ -1,6 +1,6 @@
 # Mini Commerce Spring Boot 示例
 
-这个示例演示一条最小业务协作路径：`Product` 和 `Customer` 使用 ent-loom 通用 CRUD 维护，并通过只读实体文档契约查看公开主数据；有事务和业务不变量的下单动作进入 `PlaceOrderHandler`，订单及明细通过业务 Controller 查询。
+这个示例演示一条最小业务协作路径：`Product` 和 `Customer` 使用 ent-loom 通用 CRUD 维护，并通过只读实体文档契约查看公开主数据；有事务和业务不变量的下单动作进入 `PlaceOrderService`，订单及明细通过业务 Controller 查询。
 
 ## 环境
 
@@ -17,7 +17,7 @@
 ## 业务边界
 
 - `Product`、`Customer`：实体文档契约和通用 CRUD，分别对应 `/api/ent-crud/product/*` 和 `/api/ent-crud/customer/*`。
-- `POST /orders`：接收 `PlaceOrderCommand`，由 `PlaceOrderHandler` 在一个事务中读取客户和商品、校验商品有效性、复制价格快照并写入 `commerce_order` 与 `commerce_order_item`。
+- `POST /orders`：接收 `PlaceOrderCommand`，由 `PlaceOrderService` 在一个事务中读取客户和商品、校验商品有效性、复制价格快照并写入 `commerce_order` 与 `commerce_order_item`。
 - `GET /orders/{id}`：经 `OrderQueryService` 查询订单头和明细；订单不进入通用 CRUD 白名单。
 - 下单和详情共用 `OrderAccessPolicy`，使用当前主体与 `order` 资源的 `PLACE`、`DETAIL` 权限规则；未匹配或明确拒绝时返回 `403 ORDER_ACCESS_DENIED`。订单权限独立于商品、客户 CRUD 权限，授予 `PLACE` 即允许业务流程读取下单所需主数据。
 - 示例只演示动作授权；开发者可查看全部示例订单，不演示订单归属、租户隔离或行级数据权限。生产项目使用自有 JDBC 查询时须显式落实这些限制，不能认为 CRUD 数据范围会自动应用。
@@ -31,16 +31,24 @@
 com.example.minicommerce/
 ├── MiniCommerceApplication.java
 ├── configuration/          # 示例开发态治理装配
-├── catalog/                # 商品、客户通用 CRUD 实体
+├── customer/entity/        # 客户实体，由框架提供通用 CRUD
+├── product/entity/         # 商品实体，由框架提供通用 CRUD
 └── order/
-    ├── web/                # HTTP 入口和异常响应
-    ├── application/        # 下单、查询入口及命令、结果、业务异常
-    ├── model/              # 订单详情、状态和价格快照
-    ├── persistence/        # 具体 JDBC Repository
+    ├── controller/         # HTTP 入口和异常响应
+    ├── service/            # 下单、查询服务，负责业务校验与事务编排
+    ├── dto/                # 命令、结果、详情及下单所需的当前客户/商品信息
+    ├── model/              # 下单时固化的订单明细快照
+    ├── repository/         # Order、Customer、Product 三个 JDBC Repository
+    ├── enums/              # 订单生命周期状态
+    ├── exception/          # 订单业务异常
     └── security/           # 订单动作及主体权限检查
 ```
 
-调用方向为 `web -> application -> persistence/model`，业务入口先经 `security` 授权。Repository 不依赖 Web 响应类型；订单详情模型直接序列化为响应。请求与命令暂时共用，不增加重复 DTO、转换层或 Repository 接口。商品、客户 Repository 放在订单业务中，因为它们只服务于下单读取，主数据维护仍由通用 CRUD 承担。
+调用方向为 `controller -> service -> repository`，服务先经 `security` 授权，再执行业务校验和数据访问。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
+
+`Customer`、`Product` 是框架管理的实体，无需为通用 CRUD 配齐 Controller、Service 和 Repository。订单中的三个 Repository 按数据职责划分：`OrderRepository` 负责订单主表与明细的保存和查询，`CustomerRepository`、`ProductRepository` 只服务于下单读取，主数据维护仍由通用 CRUD 承担。Repository 不要求与表一一对应，也不因只有查询方法而改名。
+
+`OrderCustomerInfo`、`OrderProductInfo` 是当前信息 DTO；`OrderItemSnapshot` 是下单时固定并持久化的业务快照。`record` 仅用于表达不可变数据载体，不代表独立架构层；按实际职责归包，不额外引入 BO/PO/VO 或持久化 projection 层。
 
 ## 日常开发
 

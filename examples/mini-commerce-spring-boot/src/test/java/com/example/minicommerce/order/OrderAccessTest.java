@@ -1,14 +1,14 @@
 package com.example.minicommerce.order;
 
-import com.example.minicommerce.order.application.OrderQueryService;
-import com.example.minicommerce.order.application.PlaceOrderHandler;
-import com.example.minicommerce.order.persistence.CustomerRepository;
-import com.example.minicommerce.order.persistence.OrderRepository;
-import com.example.minicommerce.order.persistence.ProductRepository;
+import com.example.minicommerce.order.service.OrderQueryService;
+import com.example.minicommerce.order.service.PlaceOrderService;
+import com.example.minicommerce.order.repository.CustomerRepository;
+import com.example.minicommerce.order.repository.OrderRepository;
+import com.example.minicommerce.order.repository.ProductRepository;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
-import com.example.minicommerce.order.web.OrderController;
-import com.example.minicommerce.order.web.OrderExceptionHandler;
+import com.example.minicommerce.order.controller.OrderController;
+import com.example.minicommerce.order.controller.OrderExceptionHandler;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.PermissionDeniedException;
@@ -73,7 +73,7 @@ class OrderAccessTest {
 
     private void assertDenied(OrderAccessPolicy policy) throws Exception {
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderHandler(products, customers, orders, policy),
+                new PlaceOrderService(products, customers, orders, policy),
                 new OrderQueryService(orders, policy)))
             .setControllerAdvice(new OrderExceptionHandler()).build();
         mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON)

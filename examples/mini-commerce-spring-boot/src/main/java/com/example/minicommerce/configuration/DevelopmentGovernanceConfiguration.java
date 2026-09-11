@@ -1,7 +1,7 @@
 package com.example.minicommerce.configuration;
 
-import com.example.minicommerce.catalog.Customer;
-import com.example.minicommerce.catalog.Product;
+import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.product.entity.Product;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;

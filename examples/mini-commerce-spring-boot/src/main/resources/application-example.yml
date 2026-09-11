@@ -2,8 +2,8 @@ ent:
   loom:
     meta:
       entity-class-names:
-        - com.example.minicommerce.catalog.Product
-        - com.example.minicommerce.catalog.Customer
+        - com.example.minicommerce.product.entity.Product
+        - com.example.minicommerce.customer.entity.Customer
       crud:
         enabled: true
       doc:

@@ -1,7 +1,8 @@
-package com.example.minicommerce.order.application;
+package com.example.minicommerce.order.service;
 
-import com.example.minicommerce.order.model.OrderDetail;
-import com.example.minicommerce.order.persistence.OrderRepository;
+import com.example.minicommerce.order.exception.OrderValidationException;
+import com.example.minicommerce.order.dto.OrderDetail;
+import com.example.minicommerce.order.repository.OrderRepository;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import org.springframework.stereotype.Service;

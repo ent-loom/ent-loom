@@ -1,12 +1,16 @@
-package com.example.minicommerce.order.application;
+package com.example.minicommerce.order.service;
 
-import com.example.minicommerce.order.model.CustomerSnapshot;
-import com.example.minicommerce.order.model.ProductSnapshot;
+import com.example.minicommerce.order.dto.PlaceOrderCommand;
+import com.example.minicommerce.order.dto.PlaceOrderItem;
+import com.example.minicommerce.order.dto.PlaceOrderResult;
+import com.example.minicommerce.order.exception.OrderValidationException;
+import com.example.minicommerce.order.dto.OrderCustomerInfo;
+import com.example.minicommerce.order.dto.OrderProductInfo;
 import com.example.minicommerce.order.model.OrderItemSnapshot;
-import com.example.minicommerce.order.model.OrderStatus;
-import com.example.minicommerce.order.persistence.CustomerRepository;
-import com.example.minicommerce.order.persistence.ProductRepository;
-import com.example.minicommerce.order.persistence.OrderRepository;
+import com.example.minicommerce.order.enums.OrderStatus;
+import com.example.minicommerce.order.repository.CustomerRepository;
+import com.example.minicommerce.order.repository.ProductRepository;
+import com.example.minicommerce.order.repository.OrderRepository;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import java.math.BigDecimal;
@@ -18,15 +22,15 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 承载下单事务和业务不变量的显式 Handler。 */
+/** 承载下单事务和业务不变量的应用服务。 */
 @Service
-public class PlaceOrderHandler {
+public class PlaceOrderService {
     private final ProductRepository productRepository;
     private final CustomerRepository customerRepository;
     private final OrderRepository orderRepository;
     private final OrderAccessPolicy accessPolicy;
 
-    public PlaceOrderHandler(ProductRepository productRepository,
+    public PlaceOrderService(ProductRepository productRepository,
                              CustomerRepository customerRepository,
                              OrderRepository orderRepository,
                              OrderAccessPolicy accessPolicy) {
@@ -47,7 +51,7 @@ public class PlaceOrderHandler {
             throw new OrderValidationException("ITEMS_REQUIRED", "订单至少需要一件商品");
         }
 
-        CustomerSnapshot customer = customerRepository.findById(command.getCustomerId())
+        OrderCustomerInfo customer = customerRepository.findById(command.getCustomerId())
             .orElseThrow(() -> new OrderValidationException("CUSTOMER_NOT_FOUND", "客户不存在"));
         Set<Long> productIds = new HashSet<>();
         List<OrderItemSnapshot> snapshots = new ArrayList<>();
@@ -60,7 +64,7 @@ public class PlaceOrderHandler {
             if (!productIds.add(requestItem.getProductId())) {
                 throw new OrderValidationException("DUPLICATE_PRODUCT", "同一订单不能重复提交商品");
             }
-            ProductSnapshot product = productRepository.findById(requestItem.getProductId())
+            OrderProductInfo product = productRepository.findById(requestItem.getProductId())
                 .orElseThrow(() -> new OrderValidationException("PRODUCT_NOT_FOUND", "商品不存在"));
             if (!product.active()) {
                 throw new OrderValidationException("PRODUCT_INACTIVE", "商品当前不可下单");

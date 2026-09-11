@@ -1,4 +1,4 @@
-package com.example.minicommerce.order.application;
+package com.example.minicommerce.order.dto;
 
 import java.math.BigDecimal;
 

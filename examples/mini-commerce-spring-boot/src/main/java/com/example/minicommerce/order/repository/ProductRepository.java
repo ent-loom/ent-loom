@@ -1,6 +1,6 @@
-package com.example.minicommerce.order.persistence;
+package com.example.minicommerce.order.repository;
 
-import com.example.minicommerce.order.model.ProductSnapshot;
+import com.example.minicommerce.order.dto.OrderProductInfo;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,10 +15,10 @@ public class ProductRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public Optional<ProductSnapshot> findById(Long id) {
-        List<ProductSnapshot> products = jdbcTemplate.query(
+    public Optional<OrderProductInfo> findById(Long id) {
+        List<OrderProductInfo> products = jdbcTemplate.query(
             "select id, name, price, active from product where id = ?",
-            (resultSet, rowNum) -> new ProductSnapshot(
+            (resultSet, rowNum) -> new OrderProductInfo(
                 resultSet.getLong("id"),
                 resultSet.getString("name"),
                 resultSet.getBigDecimal("price"),

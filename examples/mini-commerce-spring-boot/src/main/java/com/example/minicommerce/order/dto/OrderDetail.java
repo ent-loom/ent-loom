@@ -1,5 +1,6 @@
-package com.example.minicommerce.order.model;
+package com.example.minicommerce.order.dto;
 
+import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;

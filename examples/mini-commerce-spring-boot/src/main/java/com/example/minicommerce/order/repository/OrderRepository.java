@@ -1,8 +1,8 @@
-package com.example.minicommerce.order.persistence;
+package com.example.minicommerce.order.repository;
 
-import com.example.minicommerce.order.model.OrderDetail;
+import com.example.minicommerce.order.dto.OrderDetail;
 import com.example.minicommerce.order.model.OrderItemSnapshot;
-import com.example.minicommerce.order.model.OrderStatus;
+import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;

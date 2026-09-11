@@ -1,6 +1,6 @@
-package com.example.minicommerce.order.web;
+package com.example.minicommerce.order.controller;
 
-import com.example.minicommerce.order.application.OrderValidationException;
+import com.example.minicommerce.order.exception.OrderValidationException;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

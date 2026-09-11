@@ -1,10 +1,10 @@
-package com.example.minicommerce.order.web;
+package com.example.minicommerce.order.controller;
 
-import com.example.minicommerce.order.application.PlaceOrderCommand;
-import com.example.minicommerce.order.application.PlaceOrderHandler;
-import com.example.minicommerce.order.application.PlaceOrderResult;
-import com.example.minicommerce.order.application.OrderQueryService;
-import com.example.minicommerce.order.model.OrderDetail;
+import com.example.minicommerce.order.dto.PlaceOrderCommand;
+import com.example.minicommerce.order.service.PlaceOrderService;
+import com.example.minicommerce.order.dto.PlaceOrderResult;
+import com.example.minicommerce.order.service.OrderQueryService;
+import com.example.minicommerce.order.dto.OrderDetail;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,11 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/orders")
 public class OrderController {
-    private final PlaceOrderHandler placeOrderHandler;
+    private final PlaceOrderService placeOrderService;
     private final OrderQueryService orderQueryService;
 
-    public OrderController(PlaceOrderHandler placeOrderHandler, OrderQueryService orderQueryService) {
-        this.placeOrderHandler = placeOrderHandler;
+    public OrderController(PlaceOrderService placeOrderService, OrderQueryService orderQueryService) {
+        this.placeOrderService = placeOrderService;
         this.orderQueryService = orderQueryService;
     }
 
@@ -30,7 +30,7 @@ public class OrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PlaceOrderResult placeOrder(@RequestBody PlaceOrderCommand command) {
-        return placeOrderHandler.handle(command);
+        return placeOrderService.handle(command);
     }
 
     /** 查询订单及明细。 */
