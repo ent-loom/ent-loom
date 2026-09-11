@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,5 +32,16 @@ public class EntityDocumentationContractAutoConfiguration {
         EntityDocumentationExposurePolicyResolver exposurePolicyResolver
     ) {
         return new EntityDocumentationContractService(metaDocAdapter, subjectResolver, exposurePolicyResolver);
+    }
+
+    @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnProperty(prefix = "entloom.doc.contract.http", name = "enabled", havingValue = "true")
+    @ConditionalOnBean(EntityDocumentationContractService.class)
+    @ConditionalOnMissingBean
+    public EntityDocumentationContractController entityDocumentationContractController(
+        EntityDocumentationContractService contractService
+    ) {
+        return new EntityDocumentationContractController(contractService);
     }
 }

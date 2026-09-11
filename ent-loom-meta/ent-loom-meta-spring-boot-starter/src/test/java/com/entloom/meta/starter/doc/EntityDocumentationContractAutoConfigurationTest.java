@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +22,10 @@ import static org.mockito.Mockito.when;
 
 class EntityDocumentationContractAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+        .withUserConfiguration(MetaDocAdapterConfiguration.class)
+        .withConfiguration(AutoConfigurations.of(EntityDocumentationContractAutoConfiguration.class));
+
+    private final WebApplicationContextRunner webContextRunner = new WebApplicationContextRunner()
         .withUserConfiguration(MetaDocAdapterConfiguration.class)
         .withConfiguration(AutoConfigurations.of(EntityDocumentationContractAutoConfiguration.class));
 
@@ -74,6 +79,44 @@ class EntityDocumentationContractAutoConfigurationTest {
         );
 
         Assertions.assertThrows(IllegalStateException.class, service::build);
+    }
+
+    @Test
+    void httpControllerShouldStayDisabledByDefault() {
+        webContextRunner
+            .withUserConfiguration(SubjectAndPolicyConfiguration.class)
+            .withPropertyValues("entloom.doc.contract.enabled=true")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertFalse(context.containsBean("entityDocumentationContractController"));
+            });
+    }
+
+    @Test
+    void httpControllerShouldRequireContractService() {
+        webContextRunner
+            .withPropertyValues(
+                "entloom.doc.contract.enabled=true",
+                "entloom.doc.contract.http.enabled=true"
+            )
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertFalse(context.containsBean("entityDocumentationContractController"));
+            });
+    }
+
+    @Test
+    void httpControllerShouldRegisterOnlyWhenContractServiceExists() {
+        webContextRunner
+            .withUserConfiguration(SubjectAndPolicyConfiguration.class)
+            .withPropertyValues(
+                "entloom.doc.contract.enabled=true",
+                "entloom.doc.contract.http.enabled=true"
+            )
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertTrue(context.containsBean("entityDocumentationContractController"));
+            });
     }
 
     @Configuration
