@@ -10,6 +10,8 @@ import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.RelationCardinality;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -21,7 +23,7 @@ import org.junit.jupiter.api.Test;
 class EntityDocumentationProjectorTest {
 
     @Test
-    void project_should_sort_and_omit_hidden_and_physical_information() {
+    void project_should_sort_and_omit_hidden_and_physical_information() throws Exception {
         DocEntityModel order = entity(
             Order.class,
             "order",
@@ -97,6 +99,20 @@ class EntityDocumentationProjectorTest {
         Assertions.assertEquals(1, indexes.size());
         Assertions.assertEquals(Arrays.asList("alpha"), indexes.get(0).get("fields"));
         Assertions.assertFalse(indexes.get(0).containsKey("name"));
+
+        assertSnapshot(document, "snapshots/entity-documentation-v1.json");
+    }
+
+    private void assertSnapshot(Map<String, Object> document, String resource) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
+            Assertions.assertNotNull(input, "缺少 JSON snapshot: " + resource);
+            Assertions.assertEquals(
+                objectMapper.readTree(input),
+                objectMapper.readTree(objectMapper.writeValueAsString(document)),
+                "JSON snapshot 不一致: " + resource
+            );
+        }
     }
 
     @Test

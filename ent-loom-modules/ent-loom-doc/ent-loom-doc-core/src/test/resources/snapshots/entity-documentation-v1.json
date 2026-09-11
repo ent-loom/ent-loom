@@ -1,0 +1,104 @@
+{
+  "contractVersion": "1.0.0",
+  "entities": [
+    {
+      "resourceCode": "customer",
+      "name": "customer name",
+      "description": "description",
+      "fields": [
+        {
+          "property": "id",
+          "type": "integer",
+          "kind": "ID",
+          "label": "id label",
+          "description": "field description",
+          "examples": ["example"],
+          "required": true,
+          "readOnly": false,
+          "maxLength": 80,
+          "relation": false
+        }
+      ],
+      "relations": [],
+      "indexes": []
+    },
+    {
+      "resourceCode": "order",
+      "name": "order name",
+      "description": "description",
+      "fields": [
+        {
+          "property": "alpha",
+          "type": "string",
+          "kind": "TEXT",
+          "label": "alpha label",
+          "description": "field description",
+          "examples": ["example"],
+          "required": true,
+          "readOnly": false,
+          "maxLength": 80,
+          "relation": false
+        },
+        {
+          "property": "customerId",
+          "type": "integer",
+          "kind": "REF_ID",
+          "label": "customerId label",
+          "description": "field description",
+          "examples": ["example"],
+          "required": true,
+          "readOnly": false,
+          "maxLength": 80,
+          "relation": true
+        },
+        {
+          "property": "status",
+          "type": "enum",
+          "kind": "ENUM",
+          "label": "status label",
+          "description": "field description",
+          "examples": ["example"],
+          "required": true,
+          "readOnly": false,
+          "maxLength": 80,
+          "relation": false,
+          "enumValues": [
+            {"name": "ACTIVE"},
+            {"name": "DISABLED"}
+          ]
+        },
+        {
+          "property": "zeta",
+          "type": "string",
+          "kind": "TEXT",
+          "label": "zeta label",
+          "description": "field description",
+          "examples": ["example"],
+          "required": true,
+          "readOnly": false,
+          "maxLength": 80,
+          "relation": false
+        }
+      ],
+      "relations": [
+        {
+          "relationField": "customerId",
+          "targetResourceCode": "customer",
+          "sourceField": "customerId",
+          "targetField": "id",
+          "cardinality": "MANY_TO_ONE",
+          "ownerSide": "DECLARING_ENTITY",
+          "resolutionStatus": "RESOLVED",
+          "sourceFieldInferred": false,
+          "remark": "relation remark"
+        }
+      ],
+      "indexes": [
+        {
+          "fields": ["alpha"],
+          "unique": false
+        }
+      ]
+    }
+  ]
+}
