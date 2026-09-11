@@ -124,6 +124,19 @@ def verify(repository=None, skip_build=False):
         else:
             raise RuntimeError("应用健康检查超时")
 
+        contract_status, contract = request(base_url + "/api/ent-doc/contract")
+        (logs / "entity-documentation-contract.json").write_text(
+            json.dumps(contract, ensure_ascii=False, indent=2)
+        )
+        check(contract_status == 200 and contract.get("contractVersion") == "1.0.0",
+              f"实体文档契约响应不匹配：{contract_status} {contract}")
+        entities = contract.get("entities")
+        check(isinstance(entities, list) and {entity.get("resourceCode") for entity in entities}
+              == {"customer", "product"}, f"实体文档实体范围不匹配：{contract}")
+        contract_text = json.dumps(contract, ensure_ascii=False)
+        for forbidden in ("entityClass", "tableName", "column", "visibleFor"):
+            check(forbidden not in contract_text, f"实体文档泄露敏感字段：{forbidden}")
+
         product_id = crud_create(base_url, "product", {
             "id": 1001, "name": "Entity Book", "price": 19.90, "active": True,
         }, project + "-product")

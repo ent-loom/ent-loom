@@ -50,6 +50,14 @@ class VerificationLifecycleTest(unittest.TestCase):
             def request(url, body=None, method=None):
                 if url.endswith("/health"):
                     return 200, {"status": "UP"}
+                if url.endswith("/api/ent-doc/contract"):
+                    return 200, {
+                        "contractVersion": "1.0.0",
+                        "entities": [
+                            {"resourceCode": "customer", "fields": []},
+                            {"resourceCode": "product", "fields": []},
+                        ],
+                    }
                 if url.endswith("/create"):
                     payload = body["payload"]
                     return 200, {"success": True, "data": {"id": payload["id"]}}

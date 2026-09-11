@@ -2,6 +2,10 @@
 @productId = 1001
 @customerId = 2001
 
+### 读取当前主体可见的实体文档契约
+GET {{baseUrl}}/api/ent-doc/contract
+Accept: application/json
+
 ### 创建商品：通用 CRUD
 POST {{baseUrl}}/api/ent-crud/product/create
 Content-Type: application/json

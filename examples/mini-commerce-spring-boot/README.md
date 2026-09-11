@@ -1,6 +1,6 @@
 # Mini Commerce Spring Boot 示例
 
-这个示例演示一条最小业务协作路径：`Product` 和 `Customer` 使用 ent-loom 通用 CRUD 维护；有事务和业务不变量的下单动作进入 `PlaceOrderHandler`，订单及明细通过业务 Controller 查询。
+这个示例演示一条最小业务协作路径：`Product` 和 `Customer` 使用 ent-loom 通用 CRUD 维护，并通过只读实体文档契约查看公开主数据；有事务和业务不变量的下单动作进入 `PlaceOrderHandler`，订单及明细通过业务 Controller 查询。
 
 ## 环境
 
@@ -16,7 +16,7 @@
 
 ## 业务边界
 
-- `Product`、`Customer`：通用 CRUD，分别对应 `/api/ent-crud/product/*` 和 `/api/ent-crud/customer/*`。
+- `Product`、`Customer`：实体文档契约和通用 CRUD，分别对应 `/api/ent-crud/product/*` 和 `/api/ent-crud/customer/*`。
 - `POST /orders`：接收 `PlaceOrderCommand`，由 `PlaceOrderHandler` 在一个事务中读取客户和商品、校验商品有效性、复制价格快照并写入 `commerce_order` 与 `commerce_order_item`。
 - `GET /orders/{id}`：经 `OrderQueryService` 查询订单头和明细；订单不进入通用 CRUD 白名单。
 - 下单和详情共用 `OrderAccessPolicy`，使用当前主体与 `order` 资源的 `PLACE`、`DETAIL` 权限规则；未匹配或明确拒绝时返回 `403 ORDER_ACCESS_DENIED`。订单权限独立于商品、客户 CRUD 权限，授予 `PLACE` 即允许业务流程读取下单所需主数据。
@@ -52,7 +52,7 @@ mysql -u root -p -e "create database if not exists mini_commerce; create user if
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-`dev` profile 默认连接 `localhost:3306`，并执行 `schema.sql`。健康检查地址为 [http://localhost:8082/actuator/health](http://localhost:8082/actuator/health)。也可以在 IDEA 中以 `com.example.minicommerce.MiniCommerceApplication` 启动，激活 `dev` profile，工作目录设为本示例目录。
+`dev` profile 默认连接 `localhost:3306`，并执行 `schema.sql`。健康检查地址为 [http://localhost:8082/actuator/health](http://localhost:8082/actuator/health)。开发态示例还会以 `local-developer` 主体访问 [实体文档契约](http://localhost:8082/api/ent-doc/contract)，只公开 `product` 和 `customer` 主数据。也可以在 IDEA 中以 `com.example.minicommerce.MiniCommerceApplication` 启动，激活 `dev` profile，工作目录设为本示例目录。
 
 ## Compose 验收
 
@@ -93,6 +93,10 @@ Windows PowerShell：
 ## 验证请求
 
 可复制请求见 [`requests/commerce.http`](requests/commerce.http)。最短业务请求如下：
+
+```bash
+curl http://localhost:8082/api/ent-doc/contract
+```
 
 ```bash
 curl -X POST http://localhost:8082/orders \
