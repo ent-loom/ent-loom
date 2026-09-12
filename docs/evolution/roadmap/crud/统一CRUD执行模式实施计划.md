@@ -246,7 +246,7 @@ accessEntry + resource + operationKey + scene
 - `CustomerProfileCrudAdapterEquivalenceTest`：H2 真实 Gateway 验证 Adapter 与基础 Spec 的
   CREATE、PAGE、UPDATE、SQL 行和治理审计字段一致；该 fixture 使用显式主键策略。
 - `CustomerProfileComplexQueryHandlerTest`：H2 真实 Gateway 验证 `profile.summary` 聚合 Handler 的
-  治理主体、资源、操作、scene 和审计结果；Handler 直接返回客户档案与备注聚合 DTO，未知非空 scene
+  治理主体、资源、操作、scene、根实体数据范围和审计结果；Handler 直接返回客户档案与备注聚合 DTO，未知非空 scene
   在路由阶段拒绝且不执行默认 Engine。
 - `ExistsRelationFilterResolverTest` 与 `DefaultEngineCrossTableReadTest`：验证受控 `EXISTS` 的关系元数据绑定、
   逻辑删除、关联数据范围、根分页计数和 Scene Handler 委托边界；该能力仍只开放 Java 内部模型。

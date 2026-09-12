@@ -9,6 +9,10 @@ import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.exception.RouteNotFoundException;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
+import com.entloom.crud.core.governance.model.CrudResourceAction;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.crud.core.governance.scope.CrudDataScopeContributor;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.e5.statictest.fixture.CustomerProfile;
 import com.entloom.e5.statictest.fixture.CustomerProfileSummary;
@@ -17,7 +21,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.InitializingBean;
@@ -28,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** U4：验证真实复杂查询经治理后由 Query Handler 直接返回。 */
@@ -52,7 +59,7 @@ class CustomerProfileComplexQueryHandlerTest {
                 "insert into customer_profile(id, display_name, credit_limit, registered_at, avatar_url) "
                     + "values (?, ?, ?, ?, ?)",
                 7001L,
-                "复杂查询用户",
+                "范围内用户",
                 new BigDecimal("88.00"),
                 LocalDateTime.of(2026, 8, 1, 10, 0),
                 null
@@ -76,7 +83,7 @@ class CustomerProfileComplexQueryHandlerTest {
             CustomerProfileSummary summary = gateway.detail(summarySpec("profile.summary", 7001L));
 
             assertEquals(7001L, summary.getId());
-            assertEquals("复杂查询用户", summary.getDisplayName());
+            assertEquals("范围内用户", summary.getDisplayName());
             assertEquals(2L, summary.getNoteCount());
             assertEquals(LocalDateTime.of(2026, 8, 3, 10, 0), summary.getLatestNoteAt());
             assertEquals(1, context.getBean(CustomerProfileSummaryQueryHandler.class).getHandleCalls());
@@ -86,6 +93,46 @@ class CustomerProfileComplexQueryHandlerTest {
             assertEquals("DETAIL", event.getAction().getOperation());
             assertEquals("profile.summary", event.getAction().getScene());
             assertEquals("e5-test-user", event.getSubject().getSubjectId());
+            assertEquals("范围内用户", event.getGovernanceScope().getDimensions().get("displayName"));
+        });
+    }
+
+    @Test
+    @DisplayName("复杂摘要遵循治理范围，范围外记录不可见")
+    void should_not_read_profile_outside_governance_scope() {
+        contextRunner.run(context -> {
+            JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
+            jdbc.update(
+                "insert into customer_profile(id, display_name, credit_limit, registered_at, avatar_url) "
+                    + "values (?, ?, ?, ?, ?)",
+                7002L,
+                "范围外用户",
+                new BigDecimal("88.00"),
+                LocalDateTime.of(2026, 8, 1, 10, 0),
+                null
+            );
+
+            CustomerProfileSummary summary = context.getBean(QueryGateway.class)
+                .detail(summarySpec("profile.summary", 7002L));
+
+            assertNull(summary);
+            assertEquals(1, context.getBean(CustomerProfileSummaryQueryHandler.class).getHandleCalls());
+        });
+    }
+
+    @Test
+    @DisplayName("复杂摘要拒绝未声明的附加过滤条件")
+    void should_reject_unsupported_filters() {
+        contextRunner.run(context -> {
+            List<QueryFilter> filters = new ArrayList<QueryFilter>();
+            filters.add(new QueryFilter("id", FilterOperator.EQ, 7001L));
+            filters.add(new QueryFilter("displayName", FilterOperator.EQ, "范围内用户"));
+
+            assertThrows(
+                com.entloom.crud.core.exception.ValidationException.class,
+                () -> context.getBean(QueryGateway.class).detail(summarySpec("profile.summary", filters))
+            );
+            assertEquals(1, context.getBean(CustomerProfileSummaryQueryHandler.class).getHandleCalls());
         });
     }
 
@@ -104,6 +151,10 @@ class CustomerProfileComplexQueryHandlerTest {
     }
 
     private QuerySpec<CustomerProfileSummary> summarySpec(String scene, long id) {
+        return summarySpec(scene, Collections.singletonList(new QueryFilter("id", FilterOperator.EQ, id)));
+    }
+
+    private QuerySpec<CustomerProfileSummary> summarySpec(String scene, List<QueryFilter> filters) {
         SubjectContext subject = new SubjectContext();
         subject.setSubjectId("e5-test-user");
         subject.setTenantId("e5-test-tenant");
@@ -112,7 +163,7 @@ class CustomerProfileComplexQueryHandlerTest {
             .entityClasses(Collections.<Class<?>>singletonList(CustomerProfile.class))
             .op(QueryOperation.DETAIL)
             .scene(scene)
-            .filters(Collections.singletonList(new QueryFilter("id", FilterOperator.EQ, id)))
+            .filters(filters)
             .subject(subject)
             .resultType(CustomerProfileSummary.class)
             .build();
@@ -136,8 +187,36 @@ class CustomerProfileComplexQueryHandlerTest {
         }
 
         @Bean
-        CustomerProfileSummaryQueryHandler customerProfileSummaryQueryHandler(JdbcTemplate jdbc) {
-            return new CustomerProfileSummaryQueryHandler(jdbc);
+        CustomerProfileSummaryQueryHandler customerProfileSummaryQueryHandler(
+            JdbcTemplate jdbc,
+            EntityMetaRegistry metaRegistry
+        ) {
+            return new CustomerProfileSummaryQueryHandler(jdbc, metaRegistry);
+        }
+
+        @Bean
+        CrudDataScopeContributor customerProfileSummaryScopeContributor() {
+            return new CrudDataScopeContributor() {
+                @Override
+                public boolean supports(CrudResourceAction action, com.entloom.crud.core.runtime.spec.BaseSpec spec) {
+                    return action != null
+                        && "customer_profile".equals(action.getResource())
+                        && spec instanceof QuerySpec<?>
+                        && "profile.summary".equals(spec.getScene());
+                }
+
+                @Override
+                public CrudDataScope contribute(
+                    CrudResourceAction action,
+                    SubjectContext subject,
+                    com.entloom.crud.core.runtime.spec.BaseSpec spec,
+                    CrudDataScope grantedScope
+                ) {
+                    Map<String, Object> dimensions = new LinkedHashMap<String, Object>();
+                    dimensions.put("displayName", "范围内用户");
+                    return CrudDataScope.scoped(dimensions);
+                }
+            };
         }
 
         @Bean
