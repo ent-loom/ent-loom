@@ -40,11 +40,13 @@ flowchart TB
 ```java
 public interface EntityDaoFactory {
     <T, ID> EntityDao<T, ID> scoped(
-        Class<T> entityType,
+        EntityType<T, ID> entityType,
         EntityAccessScope scope
     );
 }
 ```
+
+`EntityType<T, ID>` 是同时携带实体类型和主键类型的不可变描述符。Factory 使用它校验注册元数据中的主键类型；不能只依赖 `EntityDao<T, ID>` 返回值的泛型推断，因为 `ID` 在运行时会被擦除。
 
 业务调用示例：
 
@@ -53,7 +55,7 @@ RowConstraint constraint = scopeResolver.resolve(subject, Order.class);
 EntityAccessScope scope = EntityAccessScope.of(constraint);
 
 EntityDao<Order, Long> orderDao =
-    entityDaoFactory.scoped(Order.class, scope);
+    entityDaoFactory.scoped(ORDER_ENTITY_TYPE, scope);
 
 orderDao.findById(orderId);
 orderDao.updateById(orderId, patch);
@@ -79,7 +81,7 @@ orderDao.deleteById(orderId);
 
 ## 第一阶段合同
 
-第一阶段只覆盖一个真实样板实体所需的主键读写闭环，不一次纳入列表、分页、多主键查询、实体非 `null` 选择性更新、全量覆盖、批量、upsert、条件写和键集分页：
+第一阶段以 `OrderTestEntity` 的 `t_order` 根表为代表性测试样板，覆盖 `CommandGateway` 的真实执行链测试入口。该入口用于证明主键读写技术闭环，不作为真实业务调用者证据。样板实体使用显式主键、`schoolId` / `tenantId` 范围字段和 `isDeleted` 逻辑删除；实体的 `items` 一对多关系不进入 DAO 元数据、SQL 或本阶段验收。第一阶段暂不启用乐观锁、数据库生成主键或依赖数据库计算的范围字段。不一次纳入列表、分页、多主键查询、实体非 `null` 选择性更新、全量覆盖、批量、upsert、条件写和键集分页：
 
 ```java
 public interface EntityDao<T, ID> {
@@ -89,17 +91,13 @@ public interface EntityDao<T, ID> {
 
     int updateById(ID id, UpdatePatch<T> patch);
 
-    int updateById(ID id, UpdatePatch<T> patch, WriteOptions options);
-
     int deleteById(ID id);
-
-    int deleteById(ID id, WriteOptions options);
 }
 ```
 
 `UpdatePatch<T>` 复用 CRUD 强类型边界中的普通单表 PATCH 模型，能够区分“未提供字段”“显式更新为 `null`”和“更新为具体值”。不再新增同名或近义的 DAO `EntityPatch`，避免与现有聚合 `EntityPatch<T>` 混淆。
 
-`WriteOptions` 只承载单次写入的数据库执行选项。第一阶段至少包含可选的 `expectedVersion`；默认重载等价于未提供期望版本。它不承载主体、权限或数据范围。
+乐观锁和 `WriteOptions.expectedVersion` 不进入第一阶段合同，待真实版本实体出现后独立扩展。DAO 首期不承载主体、权限或数据范围替换参数。
 
 ## 查询语义
 
@@ -136,7 +134,7 @@ DAO 在执行按主键更新、覆盖或删除时，将以下部分组合成不�
 目标主键
 + scoped DAO 绑定的 RowConstraint
 + 实体元数据声明的逻辑未删除谓词
-+ WriteOptions 中可选的 expectedVersion
+（首期不包含版本谓词）
 ```
 
 例如：
@@ -156,19 +154,18 @@ WHERE id = ?
 - 主键来自方法参数。
 - 数据范围来自创建 DAO 时绑定的 `RowConstraint`。
 - 逻辑删除来自实体元数据。
-- 期望版本来自本次调用的 `WriteOptions`。
+- 后续乐观锁扩展时，期望版本来自本次调用的 `WriteOptions`；首期不包含该部分。
 
-实体没有版本元数据时，传入 `expectedVersion` 直接拒绝。更新时，版本匹配与版本递增必须在同一条 SQL 中完成；删除时，版本匹配必须进入同一条物理删除或逻辑删除 SQL。不得先查询版本再执行无版本条件的写入。
+首期不提供版本条件写入。后续增加乐观锁时，版本匹配与版本递增必须在同一条 SQL 中完成，不能通过默认重载或静默忽略参数引入。
 
 ## 写入未命中语义
 
 更新或删除正常返回时影响行数只能是 `1`；影响 `0` 行必须转换为稳定异常，不把驱动影响行数直接暴露给调用方，也不通过写入后的多次查询推断唯一原因。按主键写入若报告大于 `1` 行，视为实体元数据、主键约束或 SQL 编译不变量被破坏，抛出持久化执行异常，不把该行数作为正常结果返回：
 
-- 未提供 `expectedVersion` 时，统一表示“目标不存在或不可写”，不区分不存在、逻辑删除和范围拒绝。
-- 提供 `expectedVersion` 时，统一表示版本条件写入冲突，不额外泄露目标是否存在、是否在绑定范围内或实际版本。
-- 版本条件写入冲突不承诺能够通过自动重试恢复；调用方不得仅凭该异常认定目标仍然存在或重新读取后必然可写。
+- 首期所有 `0` 行写入统一表示“目标不存在或不可写”，不区分不存在、逻辑删除和范围拒绝。
+- 无版本更新固定采用 matched-rows 语义；目标行存在且范围匹配时，即使新旧值相同也返回 `1`。实现必须在启动期校验 MySQL 驱动及 `useAffectedRows` 等相关配置，不满足时 fail-fast，不承诺兼容会改变影响行数语义的连接配置。
 
-现有 `JdbcWriteMissClassifier` 及写入后的分类查询不进入目标架构。默认 Engine 的主键写入切换到 DAO 时必须同时删除该分类器、调用点和只验证精细分类的测试，不保留诊断旁路或开关。DAO 的正确性不能依赖写入后的查询，也不能假设多条语句天然处于同一事务或使用同一连接。
+现有 `JdbcWriteMissClassifier` 及写入后的分类查询不进入目标架构。选定的 `OrderTestEntity` Gateway 主键入口切换到 DAO 时，必须同时删除该入口的分类器调用点和只验证精细分类的测试，不保留诊断旁路或开关；其他尚未迁移的 Engine 入口不在首期切换范围。DAO 的正确性不能依赖写入后的查询，也不能假设多条语句天然处于同一事务或使用同一连接。
 
 ### D0.2 合同测试设计
 
@@ -176,23 +173,22 @@ WHERE id = ?
 
 | 场景 | 写入结果 | 必须观察到的结果 | 禁止行为 |
 |---|---:|---|---|
-| 无期望版本未命中 | `0` | 抛出“目标不存在或不可写”稳定异常 | 区分不存在、逻辑删除或范围拒绝 |
-| 有期望版本未命中 | `0` | 抛出版本条件写入冲突稳定异常 | 暴露目标是否存在、实际版本或范围匹配情况 |
+| 未命中 | `0` | 抛出“目标不存在或不可写”稳定异常 | 区分不存在、逻辑删除或范围拒绝 |
 | 按主键写入成功 | `1` | 正常返回唯一成功结果 | 返回驱动相关的 matched / changed rows 差异 |
+| 无变化更新 | 目标行存在但新旧值相同 | 仍返回 `1` | 依赖 changed-rows 模式返回 `0` |
 | 按主键异常多行 | `>1` | 抛出持久化执行异常 | 将多行影响视为正常成功 |
-| 未命中后的状态变化 | 主写入返回 `0` 后，另一事务插入、删除或修改同一主键 | 对外异常只由主写入是否携带 `expectedVersion` 决定 | 发起存在性查询并据竞态结果改判异常 |
-| 相同期望版本并发写 | 两个事务同时以版本 `v` 更新同一行 | 恰好一个事务影响 `1` 行；另一个得到版本条件写入冲突 | 依赖写后查询判断胜负或泄露赢家写入值 |
+| 未命中后的状态变化 | 主写入返回 `0` 后，另一事务插入、删除或修改同一主键 | 对外异常保持“目标不存在或不可写” | 发起存在性查询并据竞态结果改判异常 |
 
-测试执行器应记录主写入后的 SQL 调用次数，并断言 DAO 在 `0` 行分支不再发起用于业务分类的查询。并发用例通过数据库中的同一条版本谓词写入决定唯一成功者，不用线程调度顺序或写后读取结果代替断言。
+测试执行器应记录主写入后的 SQL 调用次数，并断言 DAO 在 `0` 行分支不再发起用于业务分类的查询。首期并发用例只验证范围谓词与主键写入由同一条 SQL 原子执行；版本并发留到乐观锁扩展。
 
 ## 新增语义
 
-- `insert` 返回最终主键；数据库生成主键必须稳定回收。
+- `insert` 返回显式主键；数据库生成主键不属于第一阶段合同。
 - 显式主键必须符合实体主键策略和类型。
-- 第一阶段只允许用字段等值、字段 `IN` 及其 `AND` 组合校验新增数据；`OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束直接拒绝。
-- 范围字段必须按实体选择一种确定策略：由框架强制填充，或者由调用方提供且在写入前校验；同一实体不能混用两种策略。
+- 第一阶段只允许用字段等值、非空字段 `IN` 及其 `AND` 组合校验新增数据；`OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束直接拒绝。
+- 等值和单元素 `IN` 规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
 - 数据库默认值、生成列、字符集、排序规则或触发器参与范围字段最终值时，不得用 Java 内存判断伪装成数据库等价语义；无法可靠判定时 fail-closed。
-- 逻辑删除初始值和版本初始值由持久化映射策略处理，调用方不能借普通字段覆盖。
+- 逻辑删除元数据必须显式声明未删除值和已删除值，并校验其与字段类型兼容；调用方不能借普通字段覆盖。现有 JDBC 中隐含的 `0/1` 不能作为稳定合同；版本初始值和递增不属于第一阶段合同。
 - DAO 不处理业务必填、状态流转和跨实体规则。
 
 ## 后续扩展
@@ -379,11 +375,11 @@ flowchart TB
 
 ## 落地顺序
 
-1. 选定一个真实、无复杂关系的样板实体及调用入口，完成 D0 决策、第一阶段 API 草案和测试用例设计。
-2. 定义 `RowConstraint`、`EntityAccessScope`、`WriteOptions`、`EntityDaoFactory` 和最小 `EntityDao` 合同，并用样板实体验证表达能力。
-3. 从现有查询编译器和 `JdbcWritePredicateBuilder` 提取行约束、逻辑删除、版本谓词的复用部件。
+1. 选定 `OrderTestEntity` 的 `t_order` 根表作为代表性测试样板，明确排除 `items` 一对多关系，并使用 `CommandGateway` 真实执行链测试入口完成 D0 决策、第一阶段 API 草案和测试用例设计。
+2. 定义 `RowConstraint`、`EntityAccessScope`、携带实体与主键类型的 `EntityType<T, ID>`、`EntityDaoFactory` 和不含版本选项的最小 `EntityDao` 合同，并用样板实体验证表达能力。
+3. 补齐显式逻辑删除值元数据，并从现有查询编译器和 `JdbcWritePredicateBuilder` 提取行约束与逻辑删除谓词的复用部件。
 4. 实现 scoped `JdbcEntityDao` 的主键查询、新增、Patch 更新和删除；写入未命中按稳定粗粒度异常映射，不依赖后置分类查询。
-5. 让样板实体先完成 Factory -> DAO -> H2 闭环，再将默认 Gateway / Engine 的主键路径直接切换到 DAO；在同一闭环删除重复 SQL、`JdbcWriteMissClassifier` 及旧分类测试，并通过目标合同与外部越权测试确认治理范围、逻辑删除和版本条件正确。
+5. 让样板实体先完成 Factory -> DAO -> H2 闭环，再将一个真实 Gateway / Service 入口的主键路径直接切换到 DAO；在该入口闭环删除重复 SQL、`JdbcWriteMissClassifier` 及旧分类测试，并通过目标合同与外部越权测试确认治理范围和逻辑删除正确。
 6. 使用同一样板实体完成 MySQL 8 方言与全链路验收，再提供 Spring Bean 装配。
 7. 按真实调用需求逐项增加列表、分页、多主键查询、实体选择性更新、全量覆盖、非原子批量、条件写、主键 upsert 和键集分页。
 8. 首个真实分片项目出现后，再设计路由合同并验证单分片闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
