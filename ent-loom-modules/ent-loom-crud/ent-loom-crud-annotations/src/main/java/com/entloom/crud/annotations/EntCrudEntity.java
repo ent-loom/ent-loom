@@ -48,6 +48,13 @@ public @interface EntCrudEntity {
     String logicDeleteField() default "";
 
     /**
+     * 治理范围字段；创建时由可信治理范围提供，不能由普通载荷覆盖。
+     *
+     * @return 范围字段名
+     */
+    String[] scopeFields() default {};
+
+    /**
      * 所属服务名。
      *
      * @return 服务名

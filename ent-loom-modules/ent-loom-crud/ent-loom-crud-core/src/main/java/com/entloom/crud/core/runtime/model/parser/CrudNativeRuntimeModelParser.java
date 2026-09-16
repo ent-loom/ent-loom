@@ -89,7 +89,10 @@ public class CrudNativeRuntimeModelParser {
                 relationEdges.add(toRelationEdge(entityClass, field, relation, idField));
             }
             if (isPersistentField(field)) {
-                fieldMetas.put(field.getName(), toFieldMeta(field, findFieldModel(nativeModel, field.getName())));
+                fieldMetas.put(
+                    field.getName(),
+                    toFieldMeta(field, findFieldModel(nativeModel, field.getName()), contains(entity.scopeFields(), field.getName()))
+                );
             }
         }
 
@@ -111,7 +114,7 @@ public class CrudNativeRuntimeModelParser {
         return new ParsedEntity(entityMeta, relationEdges);
     }
 
-    private EntityFieldMeta toFieldMeta(Field field, CrudNativeFieldModel nativeField) {
+    private EntityFieldMeta toFieldMeta(Field field, CrudNativeFieldModel nativeField, boolean scopeField) {
         EntCrudExportField exportField = field.getAnnotation(EntCrudExportField.class);
         return new EntityFieldMeta(
             field.getName(),
@@ -121,9 +124,9 @@ public class CrudNativeRuntimeModelParser {
             false,
             true,
             true,
-            nativeField == null || nativeField.writable() == null || nativeField.writable().value() == null
-                || nativeField.writable().value().booleanValue(),
-            false,
+            !scopeField && (nativeField == null || nativeField.writable() == null || nativeField.writable().value() == null
+                || nativeField.writable().value().booleanValue()),
+            scopeField,
             false,
             exportField == null ? null : Boolean.valueOf(exportField.exportable()),
             exportField == null ? null : Boolean.valueOf(exportField.defaultVisible()),
@@ -132,6 +135,18 @@ public class CrudNativeRuntimeModelParser {
             exportField == null ? null : exportField.dictionaryCode(),
             exportField == null ? null : exportField.displayField()
         );
+    }
+
+    private boolean contains(String[] fields, String fieldName) {
+        if (fields == null || fieldName == null) {
+            return false;
+        }
+        for (String field : fields) {
+            if (fieldName.equals(field == null ? null : field.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private CrudNativeFieldModel findFieldModel(CrudNativeEntityModel model, String fieldName) {

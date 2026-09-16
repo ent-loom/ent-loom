@@ -29,6 +29,43 @@ import org.junit.jupiter.api.Test;
 
 class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
     @Test
+    void order_root_metadata_should_mark_scope_fields_and_exclude_items_relation() {
+        com.entloom.crud.core.runtime.meta.EntityMeta meta = metaRegistry.getEntityMeta(OrderTestEntity.class);
+
+        Assertions.assertTrue(meta.resolveFieldMeta("schoolId").isScopeField());
+        Assertions.assertTrue(meta.resolveFieldMeta("tenantId").isScopeField());
+        Assertions.assertFalse(meta.resolveFieldMeta("schoolId").isWritable());
+        Assertions.assertFalse(meta.resolveFieldMeta("tenantId").isWritable());
+        Assertions.assertNull(meta.resolveFieldMeta("items"));
+        Assertions.assertEquals("isDeleted", meta.getLogicDeleteField());
+    }
+
+    @Test
+    void order_scope_fields_should_not_be_updateable_through_gateway() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            1010L,
+            "ORD-SCOPE",
+            198L,
+            "tenant-a",
+            0
+        );
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1010L);
+        payload.put("schoolId", 199L);
+
+        ValidationException exception = Assertions.assertThrows(
+            ValidationException.class,
+            () -> commandGateway.action(commandSpec(CommandOperation.UPDATE, "u-scope", payload))
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("schoolId"));
+        Assertions.assertEquals(198L, jdbcTemplate.queryForObject(
+            "select school_id from t_order where id=?", Long.class, 1010L
+        ));
+    }
+
+    @Test
     void create_update_and_delete_order_should_work() {
         Map<String, Object> createPayload = new LinkedHashMap<String, Object>();
         createPayload.put("id", 1001L);

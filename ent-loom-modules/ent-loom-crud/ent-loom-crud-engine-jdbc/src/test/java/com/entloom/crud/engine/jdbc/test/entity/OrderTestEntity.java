@@ -11,7 +11,13 @@ import lombok.Setter;
 /**
  * 订单测试实体。
  */
-@EntCrudEntity(table = "t_order", idField = "id", logicDeleteField = "isDeleted", ownerService = "test-service")
+@EntCrudEntity(
+    table = "t_order",
+    idField = "id",
+    logicDeleteField = "isDeleted",
+    scopeFields = {"schoolId", "tenantId"},
+    ownerService = "test-service"
+)
 @Getter
 @Setter
 public class OrderTestEntity {
