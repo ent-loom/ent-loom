@@ -8,6 +8,8 @@
 
 `EntityDao<T, ID>` 是面向单实体、单表操作的基础数据访问合同。它供业务 Service 直接使用，也供通用 CRUD 的 Gateway / Engine 执行链复用。
 
+当前框架尚未上线，实体 DAO 落地不承担历史 API、配置或运行行为兼容责任。实现以本文目标合同为唯一基线：同一闭环内切换仓库中的调用者并删除被替代的类型、配置、SQL 路径和测试，不引入 deprecated 入口、适配层、兼容开关或新旧双轨。现有实现若与目标合同冲突，测试应改为验证目标语义，而不是维持旧行为。
+
 DAO 不解析调用主体，不判断角色和权限，也不计算租户、组织或业务数据范围。上层先将这些规则解析为 `RowConstraint`，再通过 `EntityDaoFactory` 获得绑定访问范围的 DAO。DAO 负责把已经确定的范围与主键、逻辑删除、期望版本一起原子落实到 SQL。
 
 ```mermaid
@@ -166,7 +168,7 @@ WHERE id = ?
 - 提供 `expectedVersion` 时，统一表示版本条件写入冲突，不额外泄露目标是否存在、是否在绑定范围内或实际版本。
 - 版本条件写入冲突不承诺能够通过自动重试恢复；调用方不得仅凭该异常认定目标仍然存在或重新读取后必然可写。
 
-若保留现有 `JdbcWriteMissClassifier`，它只能用于诊断或旧引擎兼容，不进入 DAO 的稳定业务合同。DAO 的正确性不能依赖写入后的分类查询，也不能假设多条语句天然处于同一事务或使用同一连接。
+现有 `JdbcWriteMissClassifier` 及写入后的分类查询不进入目标架构。默认 Engine 的主键写入切换到 DAO 时必须同时删除该分类器、调用点和只验证精细分类的测试，不保留诊断旁路或开关。DAO 的正确性不能依赖写入后的查询，也不能假设多条语句天然处于同一事务或使用同一连接。
 
 ### D0.2 合同测试设计
 
@@ -271,7 +273,7 @@ int deleteByCondition(EntityCondition condition);
 
 ### 键集分页
 
-键集分页稳定后再增加 `keysetPage`。游标由 DAO 生成和解析，至少绑定实体、完整查询指纹、排序字段、排序方向、末行排序值和元数据版本，并进行完整性校验。游标与当前查询不兼容时拒绝执行，不静默回到第一页。
+键集分页稳定后再增加 `keysetPage`。游标由 DAO 生成和解析，至少绑定实体、完整查询指纹、排序字段、排序方向、末行排序值和元数据版本，并进行完整性校验。游标与当前查询不匹配时拒绝执行，不静默回到第一页。
 
 ## 职责边界
 
@@ -373,7 +375,7 @@ flowchart TB
 
 第一阶段放在现有 `crud-core` 与 `crud-engine-jdbc` 的清晰包边界内：前者放置 `dao` 合同，后者放置 `dao` JDBC 实现及谓词、变更 SQL 和异常转换部件。逻辑删除和乐观锁属于 DAO 的持久化一致性，不是额外拆分 `crud-core-governance` 或 `crud-core-dao` 的理由。
 
-第一阶段不新增占位 Maven 模块。只有出现第二种持久化实现、业务项目需要独立依赖 DAO，或 DAO 已形成独立发布和兼容性验证需求后，再提取稳定的 `ent-loom-crud-dao-api` 和 `ent-loom-crud-dao-jdbc`。轻量路由或 ShardingSphere 适配模块同样等真实项目需求出现后再建立，不让普通单库项目承担分片依赖。
+第一阶段不新增占位 Maven 模块。只有出现第二种持久化实现、业务项目需要独立依赖 DAO，或 DAO 已形成独立发布和演进验证需求后，再提取稳定的 `ent-loom-crud-dao-api` 和 `ent-loom-crud-dao-jdbc`。轻量路由或 ShardingSphere 适配模块同样等真实项目需求出现后再建立，不让普通单库项目承担分片依赖。
 
 ## 落地顺序
 
@@ -381,7 +383,7 @@ flowchart TB
 2. 定义 `RowConstraint`、`EntityAccessScope`、`WriteOptions`、`EntityDaoFactory` 和最小 `EntityDao` 合同，并用样板实体验证表达能力。
 3. 从现有查询编译器和 `JdbcWritePredicateBuilder` 提取行约束、逻辑删除、版本谓词的复用部件。
 4. 实现 scoped `JdbcEntityDao` 的主键查询、新增、Patch 更新和删除；写入未命中按稳定粗粒度异常映射，不依赖后置分类查询。
-5. 让样板实体先完成 Factory -> DAO -> H2 闭环，再让默认 Gateway / Engine 复用 DAO，并通过等价与外部越权测试确认治理范围、逻辑删除和版本条件没有退化。
+5. 让样板实体先完成 Factory -> DAO -> H2 闭环，再将默认 Gateway / Engine 的主键路径直接切换到 DAO；在同一闭环删除重复 SQL、`JdbcWriteMissClassifier` 及旧分类测试，并通过目标合同与外部越权测试确认治理范围、逻辑删除和版本条件正确。
 6. 使用同一样板实体完成 MySQL 8 方言与全链路验收，再提供 Spring Bean 装配。
 7. 按真实调用需求逐项增加列表、分页、多主键查询、实体选择性更新、全量覆盖、非原子批量、条件写、主键 upsert 和键集分页。
 8. 首个真实分片项目出现后，再设计路由合同并验证单分片闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
