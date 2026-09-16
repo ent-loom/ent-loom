@@ -1,5 +1,7 @@
 package com.entloom.crud.core.foundation.read.relation;
 
+import com.entloom.crud.api.enums.CrudErrorCode;
+import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
@@ -127,6 +129,72 @@ class RelationQueryContractTest {
         Assertions.assertEquals("items", inferred.getRelationField());
         Assertions.assertEquals("id", inferred.getFromField());
         Assertions.assertEquals("orderId", inferred.getToField());
+    }
+
+    @Test
+    void path_resolver_should_prefer_earlier_source_entity_when_target_has_multiple_sources() {
+        RelationEdge rootToMiddle = edge(OrderEntity.class, OrderItemEntity.class, "items", RelationScope.LOCAL_DB);
+        RelationEdge rootToTarget = edge(OrderEntity.class, RemoteItemEntity.class, "rootTarget", RelationScope.LOCAL_DB);
+        RelationEdge middleToTarget = edge(
+            OrderItemEntity.class, RemoteItemEntity.class, "middleTarget", RelationScope.LOCAL_DB
+        );
+        RelationGraph graph = RelationGraph.of(Arrays.asList(rootToMiddle, rootToTarget, middleToTarget));
+
+        QuerySpec<OrderEntity> spec = QuerySpec.<OrderEntity>builder()
+            .rootType(OrderEntity.class)
+            .entityClasses(Arrays.<Class<?>>asList(
+                OrderEntity.class,
+                OrderItemEntity.class,
+                RemoteItemEntity.class
+            ))
+            .build();
+
+        RelationQueryModel model = new PathResolver().resolve(spec, graph);
+
+        Assertions.assertEquals(2, model.getExpandEdges().size());
+        Assertions.assertEquals("rootTarget", model.getExpandEdges().get(1).getRelationField());
+    }
+
+    @Test
+    void path_resolver_should_keep_first_alias_when_join_semantics_are_identical() {
+        RelationEdge primary = edge(OrderEntity.class, RemoteItemEntity.class, "targetId", RelationScope.LOCAL_DB);
+        RelationEdge alias = edge(OrderEntity.class, RemoteItemEntity.class, "target", RelationScope.LOCAL_DB);
+        RelationGraph graph = RelationGraph.of(Arrays.asList(primary, alias));
+
+        QuerySpec<OrderEntity> spec = QuerySpec.<OrderEntity>builder()
+            .rootType(OrderEntity.class)
+            .entityClasses(Arrays.<Class<?>>asList(OrderEntity.class, RemoteItemEntity.class))
+            .build();
+
+        RelationQueryModel model = new PathResolver().resolve(spec, graph);
+
+        Assertions.assertEquals(1, model.getExpandEdges().size());
+        Assertions.assertEquals("targetId", model.getExpandEdges().get(0).getRelationField());
+    }
+
+    @Test
+    void path_resolver_should_reject_distinct_relations_from_same_source() {
+        RelationEdge currentTarget = edge(
+            OrderEntity.class, RemoteItemEntity.class, "currentTarget", RelationScope.LOCAL_DB
+        );
+        RelationEdge originalTarget = edge(
+            OrderEntity.class, RemoteItemEntity.class, "originalTarget", RelationScope.LOCAL_DB
+        );
+        originalTarget.setFromField("originalTargetId");
+        RelationGraph graph = RelationGraph.of(Arrays.asList(currentTarget, originalTarget));
+
+        QuerySpec<OrderEntity> spec = QuerySpec.<OrderEntity>builder()
+            .rootType(OrderEntity.class)
+            .entityClasses(Arrays.<Class<?>>asList(OrderEntity.class, RemoteItemEntity.class))
+            .build();
+
+        CrudException ex = Assertions.assertThrows(
+            CrudException.class,
+            () -> new PathResolver().resolve(spec, graph)
+        );
+
+        Assertions.assertEquals(CrudErrorCode.ENTITY_SCOPE_ILLEGAL, ex.getErrorCode());
+        Assertions.assertTrue(ex.getMessage().contains("来源实体 OrderEntity 存在多条关联"));
     }
 
     private static RelationEdge edge(Class<?> from, Class<?> to, String relationField, RelationScope scope) {

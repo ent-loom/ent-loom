@@ -88,25 +88,31 @@ public class PathResolver {
             if (entityClass == null) {
                 continue;
             }
-            List<RelationEdge> matchedEdges = new ArrayList<RelationEdge>();
+            RelationEdge resolved = null;
             for (Class<?> sourceType : reachable) {
-                matchedEdges.addAll(edgeResolver.findCandidateEdges(sourceType, entityClass, relationGraph));
+                List<RelationEdge> sourceEdges = edgeResolver.deduplicateEdges(
+                    edgeResolver.findCandidateEdges(sourceType, entityClass, relationGraph)
+                );
+                if (sourceEdges.isEmpty()) {
+                    continue;
+                }
+                if (sourceEdges.size() > 1) {
+                    throw new CrudException(
+                        CrudErrorCode.ENTITY_SCOPE_ILLEGAL,
+                        "entityCodes 中的关联不明确: " + entityClass.getSimpleName()
+                            + "，来源实体 " + sourceType.getSimpleName()
+                            + " 存在多条关联，请通过 expandRelations 显式指定"
+                    );
+                }
+                resolved = sourceEdges.get(0);
+                break;
             }
-            matchedEdges = edgeResolver.deduplicateEdges(matchedEdges);
-            if (matchedEdges.isEmpty()) {
+            if (resolved == null) {
                 throw new CrudException(
                     CrudErrorCode.ENTITY_SCOPE_ILLEGAL,
                     "entityCodes 超出根实体允许关系范围: " + entityClass.getSimpleName()
                 );
             }
-            if (matchedEdges.size() > 1) {
-                throw new CrudException(
-                    CrudErrorCode.ENTITY_SCOPE_ILLEGAL,
-                    "entityCodes 中的关联不明确: " + entityClass.getSimpleName()
-                        + "，请通过 entityCodes 调整顺序或改用定制 QueryHandler"
-                );
-            }
-            RelationEdge resolved = matchedEdges.get(0);
             expandEdges.add(resolved);
             reachable.add(entityClass);
         }

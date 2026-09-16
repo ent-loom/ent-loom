@@ -65,12 +65,15 @@ public final class RelationEdgeInferenceResolver {
     }
 
     /**
-     * 按关系边关键字段去重。
+     * 按实际连接语义去重；relationField 不同但连接配置一致时视为同一条关系路径。
      */
     List<RelationEdge> deduplicateEdges(List<RelationEdge> edges) {
         Map<String, RelationEdge> dedup = new LinkedHashMap<String, RelationEdge>();
         for (RelationEdge edge : edges) {
-            dedup.put(edgeKey(edge), edge);
+            String key = edgeKey(edge);
+            if (!dedup.containsKey(key)) {
+                dedup.put(key, edge);
+            }
         }
         return new ArrayList<RelationEdge>(dedup.values());
     }
@@ -169,11 +172,15 @@ public final class RelationEdgeInferenceResolver {
             + "->"
             + edge.getToEntity().getName()
             + "#"
-            + String.valueOf(edge.getRelationField())
-            + "#"
             + String.valueOf(edge.getFromField())
             + "#"
-            + String.valueOf(edge.getToField());
+            + String.valueOf(edge.getToField())
+            + "#"
+            + String.valueOf(edge.getScope())
+            + "#"
+            + String.valueOf(edge.getJoinKind())
+            + "#"
+            + String.valueOf(edge.getCardinality());
     }
 
     private boolean matches(RelationEdge edge, String requestedRelation) {
