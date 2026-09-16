@@ -1,6 +1,8 @@
 package com.entloom.meta.adapter.crud;
 
 import com.entloom.crud.api.enums.JoinType;
+import com.entloom.crud.api.enums.CrudIdPolicy;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
@@ -190,6 +192,11 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
     }
 
     private EntityIdPolicy resolveIdPolicy(Class<?> entityClass, String idField) {
+        EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);
+        if (crudEntity != null && crudEntity.idPolicy() != null
+            && crudEntity.idPolicy() != CrudIdPolicy.UNSET) {
+            return toEntityIdPolicy(crudEntity.idPolicy());
+        }
         Field field = findField(entityClass, idField);
         if (field == null) {
             return EntityIdPolicy.EXPLICIT;
@@ -200,6 +207,22 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         }
         EntityIdPolicy persistencePolicy = resolvePersistenceIdPolicy(field);
         return persistencePolicy == null ? EntityIdPolicy.EXPLICIT : persistencePolicy;
+    }
+
+    private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {
+        switch (policy) {
+            case EXPLICIT:
+                return EntityIdPolicy.EXPLICIT;
+            case GENERATED:
+                return EntityIdPolicy.GENERATED;
+            case APPLICATION:
+                return EntityIdPolicy.APPLICATION;
+            case COMPOSITE:
+                return EntityIdPolicy.COMPOSITE;
+            case UNSET:
+            default:
+                return EntityIdPolicy.EXPLICIT;
+        }
     }
 
     private EntityIdPolicy resolveEntMetaIdPolicy(Field field) {
@@ -217,7 +240,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
     private EntityIdPolicy resolvePersistenceIdPolicy(Field field) {
         for (Annotation annotation : field.getAnnotations()) {
             String annotationName = annotation.annotationType().getName();
-            if (isGeneratedValueAnnotation(annotationName)) {
+            if (isGeneratedValueAnnotation(annotation)) {
                 return EntityIdPolicy.GENERATED;
             }
             if (isMybatisTableIdAnnotation(annotationName)) {
@@ -229,13 +252,29 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     return EntityIdPolicy.EXPLICIT;
                 }
             }
+            if (isDdlGeneratedIdAnnotation(annotation)) {
+                return EntityIdPolicy.GENERATED;
+            }
         }
         return null;
     }
 
-    private boolean isGeneratedValueAnnotation(String annotationName) {
-        return "javax.persistence.GeneratedValue".equals(annotationName)
-            || "jakarta.persistence.GeneratedValue".equals(annotationName);
+    private boolean isGeneratedValueAnnotation(Annotation annotation) {
+        String annotationName = annotation.annotationType().getName();
+        if (!"javax.persistence.GeneratedValue".equals(annotationName)
+            && !"jakarta.persistence.GeneratedValue".equals(annotationName)) {
+            return false;
+        }
+        String strategy = enumAttributeName(annotation, "strategy");
+        return "IDENTITY".equals(strategy);
+    }
+
+    private boolean isDdlGeneratedIdAnnotation(Annotation annotation) {
+        if (!"com.entloom.ddl.annotations.EntDbField".equals(annotation.annotationType().getName())) {
+            return false;
+        }
+        String strategy = enumAttributeName(annotation, "generationStrategy");
+        return "AUTO_INCREMENT".equals(strategy) || "IDENTITY".equals(strategy);
     }
 
     private boolean isMybatisTableIdAnnotation(String annotationName) {

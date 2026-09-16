@@ -731,6 +731,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             return CommandOperation.DELETE;
         }
         if (parentOp == CommandOperation.SAVE_OR_UPDATE_BATCH) {
+            if (item.getOp() == CommandOperation.CREATE || item.getOp() == CommandOperation.UPDATE) {
+                return item.getOp();
+            }
             return CommandOperation.SAVE_OR_UPDATE;
         }
         return item.getOp();

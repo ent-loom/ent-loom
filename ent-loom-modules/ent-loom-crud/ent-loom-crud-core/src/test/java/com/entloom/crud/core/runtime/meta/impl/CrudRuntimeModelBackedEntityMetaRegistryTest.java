@@ -103,6 +103,59 @@ class CrudRuntimeModelBackedEntityMetaRegistryTest {
         Assertions.assertTrue(ex.getMessage().contains("未提供任何实体元数据"));
     }
 
+    @Test
+    void model_backed_registry_should_fail_fast_when_logical_delete_type_is_invalid() {
+        Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
+        fields.put("deleted", new EntityFieldMeta("deleted", String.class, "deleted", true, false, true, true));
+
+        ValidationException ex = Assertions.assertThrows(
+            ValidationException.class,
+            () -> new CrudRuntimeModelBackedEntityMetaRegistry(
+                CrudRuntimeModel.from(
+                    Collections.singletonList(new EntityMeta(
+                        TestOrder.class,
+                        new ResourceDescriptor(TestOrder.class, "invalid-delete", "test-service", null),
+                        "invalid_delete",
+                        "id",
+                        EntityIdPolicy.EXPLICIT,
+                        "deleted",
+                        fields
+                    )),
+                    Collections.emptyList()
+                )
+            )
+        );
+
+        Assertions.assertTrue(ex.getMessage().contains("逻辑删除字段类型"));
+    }
+
+    @Test
+    void model_backed_registry_should_fail_fast_when_generated_id_type_is_invalid() {
+        Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("id", new EntityFieldMeta("id", Object.class, "id", false, false, true, true));
+
+        ValidationException ex = Assertions.assertThrows(
+            ValidationException.class,
+            () -> new CrudRuntimeModelBackedEntityMetaRegistry(
+                CrudRuntimeModel.from(
+                    Collections.singletonList(new EntityMeta(
+                        TestOrder.class,
+                        new ResourceDescriptor(TestOrder.class, "invalid-id", "test-service", null),
+                        "invalid_id",
+                        "id",
+                        EntityIdPolicy.GENERATED,
+                        null,
+                        fields
+                    )),
+                    Collections.emptyList()
+                )
+            )
+        );
+
+        Assertions.assertTrue(ex.getMessage().contains("数据库生成主键类型"));
+    }
+
     private static CrudRuntimeModelBackedEntityMetaRegistry registry() {
         return new CrudRuntimeModelBackedEntityMetaRegistry(
             CrudRuntimeModel.from(Arrays.asList(orderMeta(), itemMeta()), Collections.singletonList(relationEdge()))

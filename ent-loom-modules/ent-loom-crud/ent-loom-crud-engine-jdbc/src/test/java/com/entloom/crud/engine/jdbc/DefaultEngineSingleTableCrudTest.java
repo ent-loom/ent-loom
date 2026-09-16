@@ -299,6 +299,41 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
         Assertions.assertEquals("ORD-NEW", orderNoById(2502L));
     }
 
+    @Test
+    void save_or_update_batch_should_honor_explicit_create_or_update_child_operation() {
+        jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 2503L, "ORD-BEFORE", 0);
+
+        Map<String, Object> createPayload = new LinkedHashMap<String, Object>();
+        createPayload.put("orderNo", "ORD-CREATE-EXISTING");
+        RuntimeException createError = Assertions.assertThrows(
+            RuntimeException.class,
+            () -> commandGateway.action(commandSpec(
+                CommandOperation.SAVE_OR_UPDATE_BATCH,
+                "save-or-update-batch-explicit-create",
+                BatchCommand.of(Collections.<WriteCommand<Object>>singletonList(
+                    new WriteCommand<Object>(CommandOperation.CREATE, 2503L, createPayload)
+                )
+            )))
+        );
+        Assertions.assertNotNull(createError);
+        Assertions.assertEquals("ORD-BEFORE", orderNoById(2503L));
+
+        Map<String, Object> updatePayload = new LinkedHashMap<String, Object>();
+        updatePayload.put("orderNo", "ORD-UPDATE-MISSING");
+        RouteNotFoundException updateError = Assertions.assertThrows(
+            RouteNotFoundException.class,
+            () -> commandGateway.action(commandSpec(
+                CommandOperation.SAVE_OR_UPDATE_BATCH,
+                "save-or-update-batch-explicit-update",
+                BatchCommand.of(Collections.<WriteCommand<Object>>singletonList(
+                    new WriteCommand<Object>(CommandOperation.UPDATE, 2504L, updatePayload)
+                )
+            )))
+        );
+        Assertions.assertTrue(updateError.getMessage().contains("目标不存在"));
+        Assertions.assertEquals(0, countById(2504L));
+    }
+
     private CommandSpec<Object> commandSpec(CommandOperation operation, String idempotencyKey, Object payload) {
         return CommandSpec.<Object>builder()
             .scene(null)

@@ -3,8 +3,10 @@ package com.entloom.crud.core.runtime.model.parser;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudExportField;
 import com.entloom.crud.annotations.EntCrudField;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
@@ -17,6 +19,8 @@ import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,8 +73,15 @@ public class CrudNativeRuntimeModelParser {
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
         String idField = trimToDefault(entity.idField(), "id");
-        for (Field field : entityClass.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
+        Set<String> declaredFieldNames = new LinkedHashSet<String>();
+        for (Field field : getAllFields(entityClass)) {
+            if (Modifier.isStatic(field.getModifiers())
+                || Modifier.isTransient(field.getModifiers())
+                || field.isSynthetic()) {
+                continue;
+            }
+            // 子类字段优先，避免 Java 字段隐藏时父类同名字段覆盖子类元数据。
+            if (!declaredFieldNames.add(field.getName())) {
                 continue;
             }
             EntCrudField relation = field.getAnnotation(EntCrudField.class);
@@ -93,6 +104,7 @@ public class CrudNativeRuntimeModelParser {
             descriptor,
             trimToDefault(entity.table(), defaultTable(entityClass)),
             idField,
+            resolveIdPolicy(entityClass, entity, idField),
             trimToNull(entity.logicDeleteField()),
             fieldMetas
         );
@@ -178,6 +190,114 @@ public class CrudNativeRuntimeModelParser {
         return !Collection.class.isAssignableFrom(field.getType())
             && !java.util.Map.class.isAssignableFrom(field.getType())
             && field.getType().getAnnotation(EntCrudEntity.class) == null;
+    }
+
+    private List<Field> getAllFields(Class<?> entityClass) {
+        List<Field> fields = new ArrayList<Field>();
+        Class<?> current = entityClass;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                fields.add(field);
+            }
+            current = current.getSuperclass();
+        }
+        return fields;
+    }
+
+    private EntityIdPolicy resolveIdPolicy(Class<?> entityClass, EntCrudEntity entity, String idField) {
+        CrudIdPolicy configured = entity.idPolicy();
+        if (configured != null && configured != CrudIdPolicy.UNSET) {
+            return toEntityIdPolicy(configured);
+        }
+        Field id = findField(entityClass, idField);
+        if (id == null) {
+            return EntityIdPolicy.EXPLICIT;
+        }
+        for (Annotation annotation : id.getAnnotations()) {
+            String annotationName = annotation.annotationType().getName();
+            if (isGeneratedValueAnnotation(annotation)) {
+                return EntityIdPolicy.GENERATED;
+            }
+            if (isMybatisAutoIdAnnotation(annotation)) {
+                return EntityIdPolicy.GENERATED;
+            }
+            if (isDdlGeneratedIdAnnotation(annotation)) {
+                return EntityIdPolicy.GENERATED;
+            }
+            if ("com.entloom.meta.annotations.meta.EntMetaId".equals(annotationName)) {
+                String generator = enumAttributeName(annotation, "generator");
+                if (generator != null && !"UNSET".equals(generator)) {
+                    return EntityIdPolicy.APPLICATION;
+                }
+            }
+        }
+        return EntityIdPolicy.EXPLICIT;
+    }
+
+    private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {
+        switch (policy) {
+            case EXPLICIT:
+                return EntityIdPolicy.EXPLICIT;
+            case GENERATED:
+                return EntityIdPolicy.GENERATED;
+            case APPLICATION:
+                return EntityIdPolicy.APPLICATION;
+            case COMPOSITE:
+                return EntityIdPolicy.COMPOSITE;
+            case UNSET:
+            default:
+                return EntityIdPolicy.EXPLICIT;
+        }
+    }
+
+    private boolean isGeneratedValueAnnotation(Annotation annotation) {
+        String annotationName = annotation.annotationType().getName();
+        if (!"javax.persistence.GeneratedValue".equals(annotationName)
+            && !"jakarta.persistence.GeneratedValue".equals(annotationName)) {
+            return false;
+        }
+        String strategy = enumAttributeName(annotation, "strategy");
+        return "IDENTITY".equals(strategy);
+    }
+
+    private boolean isMybatisAutoIdAnnotation(Annotation annotation) {
+        String annotationName = annotation.annotationType().getName();
+        if (!"com.baomidou.mybatisplus.annotations.TableId".equals(annotationName)
+            && !"com.baomidou.mybatisplus.annotation.TableId".equals(annotationName)) {
+            return false;
+        }
+        String type = enumAttributeName(annotation, "type");
+        return "AUTO".equals(type);
+    }
+
+    private boolean isDdlGeneratedIdAnnotation(Annotation annotation) {
+        if (!"com.entloom.ddl.annotations.EntDbField".equals(annotation.annotationType().getName())) {
+            return false;
+        }
+        String strategy = enumAttributeName(annotation, "generationStrategy");
+        return "AUTO_INCREMENT".equals(strategy) || "IDENTITY".equals(strategy);
+    }
+
+    private String enumAttributeName(Annotation annotation, String attributeName) {
+        try {
+            Method method = annotation.annotationType().getMethod(attributeName);
+            Object value = method.invoke(annotation);
+            return value instanceof Enum<?> ? ((Enum<?>) value).name() : null;
+        } catch (ReflectiveOperationException ex) {
+            return null;
+        }
+    }
+
+    private Field findField(Class<?> type, String fieldName) {
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
     }
 
     private Set<String> resourceAliases(Class<?> entityClass) {

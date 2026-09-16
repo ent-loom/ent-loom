@@ -98,7 +98,8 @@ public class QueryCommandDependencyGuardTest {
             "com.entloom.crud.core.capability.command",
             "com.entloom.crud.core.capability.stats",
             "com.entloom.crud.core.capability.importing",
-            "com.entloom.crud.core.capability.exporting"
+            "com.entloom.crud.core.capability.exporting",
+            "com.entloom.crud.core.repository"
         );
     }
 

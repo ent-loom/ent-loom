@@ -101,6 +101,30 @@ class MetaCrudAdapterP0AcceptanceTest {
     }
 
     @Test
+    void p0_crud_acceptance_should_map_ddl_identity_id_to_generated_policy() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Collections.<Class<?>>singletonList(DdlIdentityOrder.class));
+        CrudRuntimeModelBackedEntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(adapter.runtimeModel());
+
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry.getEntityMeta(DdlIdentityOrder.class).getIdPolicy());
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(DdlAutoIncrementOrder.class));
+    }
+
+    @Test
+    void p0_crud_acceptance_should_infer_only_jpa_identity_generation() {
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaIdentityOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaAutoOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaSequenceOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaTableOrder.class));
+    }
+
+    private EntityIdPolicy idPolicy(Class<?> entityClass) {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Collections.<Class<?>>singletonList(entityClass));
+        return new CrudRuntimeModelBackedEntityMetaRegistry(adapter.runtimeModel())
+            .getEntityMeta(entityClass)
+            .getIdPolicy();
+    }
+
+    @Test
     void p0_crud_acceptance_should_not_expose_legacy_relation_names() {
         Assertions.assertFalse(hasMethod(EntCrudField.class, "refEntity"));
         Assertions.assertFalse(hasMethod(EntCrudField.class, "relationEntity"));
@@ -224,6 +248,46 @@ class MetaCrudAdapterP0AcceptanceTest {
     private static class MybatisAutoIdBase {
         @TableId(type = IdType.AUTO)
         @EntField(EntFieldKind.ID)
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "ddl_identity_order")
+    private static final class DdlIdentityOrder {
+        @com.entloom.ddl.annotations.EntDbField(
+            generationStrategy = com.entloom.ddl.enums.GenerationStrategy.IDENTITY
+        )
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "ddl_auto_increment_order")
+    private static final class DdlAutoIncrementOrder {
+        @com.entloom.ddl.annotations.EntDbField(
+            generationStrategy = com.entloom.ddl.enums.GenerationStrategy.AUTO_INCREMENT
+        )
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "jpa_identity_order")
+    private static final class JpaIdentityOrder {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "jpa_auto_order")
+    private static final class JpaAutoOrder {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.AUTO)
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "jpa_sequence_order")
+    private static final class JpaSequenceOrder {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.SEQUENCE)
+        private Long id;
+    }
+
+    @EntCrudEntity(name = "jpa_table_order")
+    private static final class JpaTableOrder {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.TABLE)
         private Long id;
     }
 }

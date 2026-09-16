@@ -5,6 +5,7 @@
 ## 📚 文档指南
 
 - **[公共契约与概览](../../docs/architecture/components/crud/index.md)**: 了解 CRUD 的能力边界、核心概念和接入方式（面向使用者）。
+- **[实体仓储](../../docs/architecture/components/crud/实体仓储.md)**: 面向单实体常规 CRUD 的强类型 Repository 入口与边界。
 - **能力域**:
     - [查询](../../docs/architecture/components/crud/查询.md)
     - [命令](../../docs/architecture/components/crud/命令.md)

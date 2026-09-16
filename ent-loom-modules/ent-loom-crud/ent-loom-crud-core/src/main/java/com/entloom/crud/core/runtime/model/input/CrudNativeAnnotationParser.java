@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * 解析 CRUD 原生注解为中间模型，不直接注册 runtime。
@@ -59,8 +61,14 @@ public class CrudNativeAnnotationParser {
         List<CrudNativeFieldModel> fields = new ArrayList<CrudNativeFieldModel>();
         List<CrudNativeRelationModel> relations = new ArrayList<CrudNativeRelationModel>();
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
+        Set<String> declaredFieldNames = new LinkedHashSet<String>();
         for (Field field : getAllFields(entityClass)) {
-            if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
+            if (Modifier.isStatic(field.getModifiers())
+                || Modifier.isTransient(field.getModifiers())
+                || field.isSynthetic()) {
+                continue;
+            }
+            if (!declaredFieldNames.add(field.getName())) {
                 continue;
             }
             EntCrudField relation = field.getAnnotation(EntCrudField.class);

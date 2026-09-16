@@ -3,14 +3,18 @@ package com.entloom.crud.core.runtime.model.parser;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudExportField;
 import com.entloom.crud.annotations.EntCrudField;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
+import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
+import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
@@ -23,6 +27,42 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CrudNativeRuntimeModelParserTest {
+
+    @Test
+    void native_parser_should_scan_inherited_fields_and_resolve_generated_id_policy() {
+        EntityMetaRegistry registry = registry(InheritedOrderEntity.class);
+
+        Assertions.assertTrue(registry.getEntityMeta(InheritedOrderEntity.class).getFieldMetas().containsKey("tenantId"));
+        Assertions.assertTrue(registry.getEntityMeta(InheritedOrderEntity.class).getFieldMetas().containsKey("orderNo"));
+        Assertions.assertFalse(registry.getEntityMeta(InheritedOrderEntity.class).getFieldMetas().containsKey("transientAudit"));
+        Assertions.assertEquals(
+            EntityIdPolicy.GENERATED,
+            registry.getEntityMeta(InheritedOrderEntity.class).getIdPolicy()
+        );
+    }
+
+    @Test
+    void native_annotation_parser_should_exclude_transient_inherited_fields() {
+        CrudNativeEntityModel model = new CrudNativeAnnotationParser()
+            .parseWithDiagnostics(InheritedOrderEntity.class)
+            .value();
+
+        Assertions.assertNotNull(model);
+        Assertions.assertTrue(model.fields().stream().anyMatch(field -> "tenantId".equals(field.fieldName())));
+        Assertions.assertFalse(model.fields().stream().anyMatch(field -> "transientAudit".equals(field.fieldName())));
+    }
+
+    @Test
+    void native_parser_should_infer_only_explicit_identity_generation_strategy() {
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaIdentityOrderEntity.class)
+            .getEntityMeta(JpaIdentityOrderEntity.class).getIdPolicy());
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaAutoOrderEntity.class)
+            .getEntityMeta(JpaAutoOrderEntity.class).getIdPolicy());
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaSequenceOrderEntity.class)
+            .getEntityMeta(JpaSequenceOrderEntity.class).getIdPolicy());
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaTableOrderEntity.class)
+            .getEntityMeta(JpaTableOrderEntity.class).getIdPolicy());
+    }
 
     @Test
     void should_apply_convention_to_native_only_runtime_model() {
@@ -228,5 +268,40 @@ class CrudNativeRuntimeModelParserTest {
     private static class NativeDateTimeOrder {
         Long id;
         LocalDateTime createdAt;
+    }
+
+    private static class BaseOrderEntity {
+        Long id;
+        String tenantId;
+        transient String transientAudit;
+    }
+
+    @EntCrudEntity(idPolicy = CrudIdPolicy.GENERATED)
+    private static class InheritedOrderEntity extends BaseOrderEntity {
+        String orderNo;
+    }
+
+    @EntCrudEntity
+    private static class JpaIdentityOrderEntity {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
+        Long id;
+    }
+
+    @EntCrudEntity
+    private static class JpaAutoOrderEntity {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.AUTO)
+        Long id;
+    }
+
+    @EntCrudEntity
+    private static class JpaSequenceOrderEntity {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.SEQUENCE)
+        Long id;
+    }
+
+    @EntCrudEntity
+    private static class JpaTableOrderEntity {
+        @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.TABLE)
+        Long id;
     }
 }

@@ -1,5 +1,6 @@
 package com.entloom.crud.annotations;
 
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -31,6 +32,13 @@ public @interface EntCrudEntity {
      * @return 主键字段
      */
     String idField() default "id";
+
+    /**
+     * 主键写入策略；未配置时由解析器根据主键字段上的持久化注解推断。
+     *
+     * @return 主键写入策略
+     */
+    CrudIdPolicy idPolicy() default CrudIdPolicy.UNSET;
 
     /**
      * 逻辑删除字段名。
