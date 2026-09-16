@@ -1,7 +1,7 @@
 # 实体 DAO
 
 > 状态：Proposed<br>
-> 最近核验：2026-09-16
+> 最近核验：2026-09-17
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 
 ## 定位
@@ -58,7 +58,7 @@ orderDao.updateById(orderId, patch);
 orderDao.deleteById(orderId);
 ```
 
-`EntityAccessScope` 是 scoped DAO 的不可变访问上下文：必须包含 `RowConstraint`，并为未来少量项目的水平分片保留可选 `PersistenceRouteHint`。第一阶段只使用 `EntityAccessScope.of(constraint)`，不实现分片路由。
+`EntityAccessScope` 是 scoped DAO 的不可变访问上下文，第一阶段只包含必需的 `RowConstraint`，不为尚未出现的分片需求预留 `PersistenceRouteHint`。首个真实分片项目出现后，再根据已验证的路由需求扩展创建 DAO 的合同。
 
 `RowConstraint` 只表达当前实体字段上的行约束，不携带主体、角色、Scene Policy 等治理对象，也不允许包含 SQL 片段。字段和操作符必须经过实体元数据白名单校验，值始终使用参数化绑定。外部请求只能提供用于收窄范围的普通业务条件，不能直接提交、反序列化或替换可执行的 `RowConstraint`；可信应用层负责把授权结果和必要的业务条件解析为最终约束。
 
@@ -74,41 +74,23 @@ orderDao.deleteById(orderId);
 
 ## 第一阶段合同
 
-第一阶段只覆盖单实体常用读写闭环，不一次纳入批量、upsert、条件写和键集分页：
+第一阶段只覆盖一个真实样板实体所需的主键读写闭环，不一次纳入列表、分页、多主键查询、实体非 `null` 选择性更新、全量覆盖、批量、upsert、条件写和键集分页：
 
 ```java
 public interface EntityDao<T, ID> {
     Optional<T> findById(ID id);
 
-    List<T> findByIds(Collection<ID> ids);
-
-    Map<ID, T> findByIdsAsMap(Collection<ID> ids);
-
-    List<T> list(EntityQuery query);
-
-    EntityPage<T> page(EntityQuery query, PageRequest pageRequest);
-
     ID insert(T entity);
-
-    int updateById(ID id, T changes);
-
-    int updateById(ID id, T changes, WriteOptions options);
 
     int updateById(ID id, UpdatePatch<T> patch);
 
     int updateById(ID id, UpdatePatch<T> patch, WriteOptions options);
-
-    int replaceById(ID id, T entity);
-
-    int replaceById(ID id, T entity, WriteOptions options);
 
     int deleteById(ID id);
 
     int deleteById(ID id, WriteOptions options);
 }
 ```
-
-`EntityQuery` 只表达当前实体的过滤和排序；`PageRequest` 表达从 1 开始的页码和每页数量。它们是 DAO contract 的独立模型，不直接使用带 Scene、权限或跨表语义的 `QuerySpec`。
 
 `UpdatePatch<T>` 复用 CRUD 强类型边界中的普通单表 PATCH 模型，能够区分“未提供字段”“显式更新为 `null`”和“更新为具体值”。不再新增同名或近义的 DAO `EntityPatch`，避免与现有聚合 `EntityPatch<T>` 混淆。
 
@@ -127,32 +109,18 @@ public interface EntityDao<T, ID> {
 | 方法 | 语义 |
 |---|---|
 | `findById` | 在有效条件内按主键查询；未命中返回 `Optional.empty()` |
-| `findByIds` | 忽略未命中 ID，结果按入参 ID 首次出现顺序排列 |
-| `findByIdsAsMap` | 忽略未命中 ID，返回只读映射，迭代顺序与入参 ID 首次出现顺序一致 |
-| `list` | 按 `EntityQuery` 查询；必须设置上限，不提供无界 `listAll()` |
-| `page` | 返回数据、精确总数、页码和每页数量；数据与计数使用同一有效条件 |
-
-页码查询必须具有确定性排序。调用方未指定排序时按主键升序；指定的排序字段不唯一时，以主键作为最后一个排序字段。
 
 DAO 不通过额外查询向普通读取调用方区分“数据不存在”和“数据存在但不在当前范围”，避免扩大数据可见性。
 
-## 更新与覆盖语义
+## 更新语义
 
-三个入口表达三种不同意图：
-
-| 方法 | 字段选择 | `null` 语义 | 适用场景 |
-|---|---|---|---|
-| `updateById(ID, T)` | `changes` 中非 `null` 的可更新持久化属性 | 忽略 | 简单选择性更新 |
-| `updateById(ID, UpdatePatch<T>)` | Patch 明确出现的可更新字段 | 显式写入 `null` | PATCH、需要字段三态 |
-| `replaceById(ID, T)` | 除主键和框架受控字段外的全部可更新持久化属性 | 写入 `null` | 全量覆盖 |
+第一阶段只提供 `updateById(ID, UpdatePatch<T>)`：只更新 Patch 明确出现的可写字段，并支持显式写入 `null`。实体非 `null` 选择性更新和全量覆盖在出现真实调用需求后分别设计，避免用同一实体参数表达不同意图。
 
 共同规则：
 
 - 主键只使用方法参数 `id`；实体或 Patch 中的主键若存在，必须与参数一致。
 - 主键、逻辑删除、范围约束字段、版本字段等框架受控字段不能作为普通更新字段绕过约束。
-- `updateById(ID, T)` 在过滤 `null` 和不可更新字段后没有可写字段时拒绝执行。
 - `UpdatePatch<T>` 为空时拒绝执行。
-- `replaceById` 的“允许 `null`”表示把 `null` 纳入 SQL 更新，不表示绕过数据库非空约束。
 - 所有字段都经过实体元数据白名单校验，值使用参数化绑定。
 
 ## 统一写入约束
@@ -178,37 +146,72 @@ WHERE id = ?
   AND version = ?;
 ```
 
-`WriteConstraint` 是 DAO 编译与未命中分类使用的内部统一模型，不等同于治理模型：
+`WriteConstraint` 是 DAO 编译写入 SQL 使用的内部统一模型，不等同于治理模型：
 
 - 主键来自方法参数。
 - 数据范围来自创建 DAO 时绑定的 `RowConstraint`。
 - 逻辑删除来自实体元数据。
 - 期望版本来自本次调用的 `WriteOptions`。
 
-实体没有版本元数据时，传入 `expectedVersion` 直接拒绝。更新或覆盖时，版本匹配与版本递增必须在同一条 SQL 中完成；删除时，版本匹配必须进入同一条物理删除或逻辑删除 SQL。不得先查询版本再执行无版本条件的写入。
+实体没有版本元数据时，传入 `expectedVersion` 直接拒绝。更新时，版本匹配与版本递增必须在同一条 SQL 中完成；删除时，版本匹配必须进入同一条物理删除或逻辑删除 SQL。不得先查询版本再执行无版本条件的写入。
 
-## 写入未命中分类
+## 写入未命中语义
 
-更新、覆盖或删除影响 `0` 行时，DAO 复用当前默认引擎的未命中分类能力，根据同一个 `WriteConstraint` 判定：
+更新或删除正常返回时影响行数只能是 `1`；影响 `0` 行必须转换为稳定异常，不把驱动影响行数直接暴露给调用方，也不通过写入后的多次查询推断唯一原因：
 
-1. 目标主键不存在或已经逻辑删除。
-2. 目标存在，但不满足绑定的 `RowConstraint`。
-3. 目标和范围均匹配，但 `expectedVersion` 不匹配。
-4. 目标可见且版本匹配，但数据库报告未发生值变化。
+- 未提供 `expectedVersion` 时，统一表示“目标不存在或不可写”，不区分不存在、逻辑删除和范围拒绝。
+- 提供 `expectedVersion` 时，统一表示版本条件写入冲突，不额外泄露目标是否存在、是否在绑定范围内或实际版本。
+- 版本条件写入冲突不承诺能够通过自动重试恢复；调用方不得仅凭该异常认定目标仍然存在或重新读取后必然可写。
 
-分类结果应转换为稳定的“不存在、范围拒绝、乐观锁冲突”异常或正常的未变化结果，不把 MySQL 驱动的影响行数差异直接泄漏给调用方。分类查询必须使用同一连接和参数化条件；对外异常映射仍可将“不存在”和“范围拒绝”统一处理，避免泄露数据存在性。
+若保留现有 `JdbcWriteMissClassifier`，它只能用于诊断或旧引擎兼容，不进入 DAO 的稳定业务合同。DAO 的正确性不能依赖写入后的分类查询，也不能假设多条语句天然处于同一事务或使用同一连接。
 
 ## 新增语义
 
 - `insert` 返回最终主键；数据库生成主键必须稳定回收。
 - 显式主键必须符合实体主键策略和类型。
-- 新增字段必须满足实体元数据、数据库约束以及 scoped DAO 绑定的 `RowConstraint`。
+- 第一阶段只允许用字段等值、字段 `IN` 及其 `AND` 组合校验新增数据；`OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束直接拒绝。
+- 范围字段必须按实体选择一种确定策略：由框架强制填充，或者由调用方提供且在写入前校验；同一实体不能混用两种策略。
+- 数据库默认值、生成列、字符集、排序规则或触发器参与范围字段最终值时，不得用 Java 内存判断伪装成数据库等价语义；无法可靠判定时 fail-closed。
 - 逻辑删除初始值和版本初始值由持久化映射策略处理，调用方不能借普通字段覆盖。
 - DAO 不处理业务必填、状态流转和跨实体规则。
 
 ## 后续扩展
 
 以下能力不进入第一阶段最小合同，等主键读写闭环稳定后再逐项加入。
+
+### 查询能力
+
+- 出现真实列表调用后，再增加有硬上限的 `list(EntityQuery)`，不提供无界 `listAll()`。`EntityQuery` 只表达当前实体的过滤和排序，不直接复用带 Scene、权限或跨表语义的 `QuerySpec`。
+- 出现真实分页调用后，再定义确定性排序、精确计数及页码合同；调用方未指定排序时按主键升序，非唯一排序字段必须以主键收尾，数据与计数使用同一有效条件。
+- 出现至少两个真实多主键调用后，再增加 `findByIds`；结果按入参 ID 首次出现顺序排列，未命中 ID 被忽略；便利 Map 视图优先由调用方转换，若形成稳定需求再增加只读有序映射视图。
+- 精确分页成本不可接受且有真实大表场景后，再设计键集分页。
+
+候选查询合同如下，仅作为后续阶段设计保留，不属于第一阶段公共接口：
+
+```java
+List<T> findByIds(Collection<ID> ids);
+
+List<T> list(EntityQuery query);
+
+EntityPage<T> page(EntityQuery query, PageRequest pageRequest);
+```
+
+所有后续查询仍必须叠加 scoped DAO 的绑定范围和逻辑未删除谓词，不能因为增加过滤、排序或分页参数而放宽范围。
+
+### 实体更新与覆盖
+
+出现真实调用需求后，再分别增加两种不同意图的入口，不能把它们合并为同一个实体参数：
+
+```java
+int updateById(ID id, T changes, WriteOptions options);
+
+int replaceById(ID id, T entity, WriteOptions options);
+```
+
+- `updateById(ID, T, ...)` 只更新 `changes` 中非 `null` 的可更新持久化属性，`null` 表示忽略。
+- `replaceById(ID, T, ...)` 更新除主键和框架受控字段外的全部可更新属性，`null` 表示写入 `null`，仍须遵守数据库非空约束。
+- 两种入口都必须沿用主键、绑定范围、逻辑删除和可选版本条件；空可写字段、主键不一致和受控字段修改直接拒绝。
+- 是否同时提供不带 `WriteOptions` 的便利重载，待真实调用者和版本实体策略确定后再决定。
 
 ### 非原子批量
 
@@ -279,7 +282,9 @@ DAO 的安全保证从“收到最终 `EntityAccessScope`”开始：它保证�
 
 ## 水平分片演进边界
 
-水平分片不改变 `EntityDao` 的 CRUD 方法，而是在创建 scoped DAO 时确定逻辑路由。`RowConstraint` 表达“允许访问哪些行”，`PersistenceRouteHint` 表达“本次访问归属哪个逻辑路由键”；两者相关但不合并，路由器不从任意条件树中反向猜测分片键。
+第一阶段不定义 `PersistenceRouteHint`、`ShardId` 或其他分片公共类型。首个真实分片项目出现后，先验证单路由键、单分片和同一事务不切换数据源的最小闭环，再决定是否需要扩展创建 scoped DAO 的合同。路由信息与 `RowConstraint` 的关系、命名和类型以该项目的实际需求为依据，不从任意条件树中反向猜测分片键。
+
+后续路由合同可以保留以下候选语义，但在真实项目出现前不将其作为公共类型或实现承诺：路由提示只表达单个实体字段的等值逻辑路由，不向业务层暴露物理库、物理表、`DataSource` 或 `JdbcTemplate`。候选形态可以类似：
 
 ```java
 EntityAccessScope scope = EntityAccessScope.builder()
@@ -288,15 +293,15 @@ EntityAccessScope scope = EntityAccessScope.builder()
     .build();
 ```
 
-`PersistenceRouteHint` 只表达单个实体字段的等值逻辑路由，不向业务层暴露物理库、物理表、`DataSource` 或 `JdbcTemplate`。出现第一个真实分片项目前，不定义 `ShardId`、副本角色、物理表等未经验证的通用模型，也不增加分片 Maven 模块。
+最终合同仍需由真实分片项目验证后定稿。
 
 分片实体默认遵守：
 
 - 缺少路由键直接拒绝，不静默广播。
-- 一次 DAO 调用只允许命中一个分片；`findByIds` 和批量写同样不跨分片。
-- `insert` 的实体分片字段、`RowConstraint` 和 `PersistenceRouteHint` 必须一致。
+- 一次 DAO 调用只允许命中一个分片；未来的多主键查询和批量写同样不跨分片。
+- `insert` 的实体分片字段、`RowConstraint` 和最终路由信息必须一致。
 - 同一事务不允许切换分片；路由必须在首次获取连接前确定。
-- 逻辑删除、乐观锁与写入未命中分类必须在同一分片、同一连接内完成。
+- 逻辑删除和版本条件必须在同一分片的一条写入 SQL 中完成。
 - 跨分片 JOIN、事务、精确分页、全局排序、聚合和导出不进入通用 DAO，改用专用读模型、Search 或 OLAP。
 - 分片后主键需保证全局唯一；跨分片业务唯一性不依赖单库唯一索引。
 
@@ -328,19 +333,19 @@ flowchart TB
     business --> contract
 ```
 
-第一阶段放在现有 `crud-core` 与 `crud-engine-jdbc` 的清晰包边界内：前者放置 `dao` 合同，后者放置 `dao` JDBC 实现及谓词、变更 SQL、写入未命中分类部件。逻辑删除和乐观锁属于 DAO 的持久化一致性，不是额外拆分 `crud-core-governance` 或 `crud-core-dao` 的理由。
+第一阶段放在现有 `crud-core` 与 `crud-engine-jdbc` 的清晰包边界内：前者放置 `dao` 合同，后者放置 `dao` JDBC 实现及谓词、变更 SQL 和异常转换部件。逻辑删除和乐观锁属于 DAO 的持久化一致性，不是额外拆分 `crud-core-governance` 或 `crud-core-dao` 的理由。
 
 第一阶段不新增占位 Maven 模块。只有出现第二种持久化实现、业务项目需要独立依赖 DAO，或 DAO 已形成独立发布和兼容性验证需求后，再提取稳定的 `ent-loom-crud-dao-api` 和 `ent-loom-crud-dao-jdbc`。轻量路由或 ShardingSphere 适配模块同样等真实项目需求出现后再建立，不让普通单库项目承担分片依赖。
 
 ## 落地顺序
 
-1. 定义 `RowConstraint`、`EntityAccessScope`、`WriteOptions`、`EntityDaoFactory` 和第一阶段 `EntityDao` 合同；`PersistenceRouteHint` 只作可选逻辑路由语义，不实现分片。
-2. 从现有查询编译器和 `JdbcWritePredicateBuilder` 提取行约束、逻辑删除、版本谓词的复用部件。
-3. 将 `JdbcWriteMissClassifier` 调整为消费统一的 `WriteConstraint`，保留当前未命中分类能力。
-4. 实现 scoped `JdbcEntityDao` 的主键查询、新增、选择性更新、Patch、覆盖和删除。
-5. 让默认 Gateway / Engine 改为创建 scoped DAO，并通过等价测试确认治理范围、逻辑删除和乐观锁没有退化。
-6. 增加 H2 行为测试与 MySQL 8 方言验收，再提供 Spring Bean 装配。
-7. 按真实调用需求逐项增加非原子批量、条件写、主键 upsert 和键集分页。
-8. 首个真实分片项目出现后，先验证单分片路由闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
+1. 选定一个真实、无复杂关系的样板实体及调用入口，完成 D0 决策、第一阶段 API 草案和测试用例设计。
+2. 定义 `RowConstraint`、`EntityAccessScope`、`WriteOptions`、`EntityDaoFactory` 和最小 `EntityDao` 合同，并用样板实体验证表达能力。
+3. 从现有查询编译器和 `JdbcWritePredicateBuilder` 提取行约束、逻辑删除、版本谓词的复用部件。
+4. 实现 scoped `JdbcEntityDao` 的主键查询、新增、Patch 更新和删除；写入未命中按稳定粗粒度异常映射，不依赖后置分类查询。
+5. 让样板实体先完成 Factory -> DAO -> H2 闭环，再让默认 Gateway / Engine 复用 DAO，并通过等价与外部越权测试确认治理范围、逻辑删除和版本条件没有退化。
+6. 使用同一样板实体完成 MySQL 8 方言与全链路验收，再提供 Spring Bean 装配。
+7. 按真实调用需求逐项增加列表、分页、多主键查询、实体选择性更新、全量覆盖、非原子批量、条件写、主键 upsert 和键集分页。
+8. 首个真实分片项目出现后，再设计路由合同并验证单分片闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
 
 当前仓库尚未提供 `EntityDao` 实现，后续以本文作为 DAO 落地边界。
