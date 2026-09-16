@@ -140,8 +140,14 @@ public class CrudWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public CrudResponseDateFormatAdvice crudResponseDateFormatAdvice(CrudResponseDateFormatter dateFormatter) {
-        return new CrudResponseDateFormatAdvice(dateFormatter);
+    public CrudResponseDateFormatAdvice crudResponseDateFormatAdvice(
+        CrudResponseDateFormatter dateFormatter,
+        CrudProperties properties
+    ) {
+        return new CrudResponseDateFormatAdvice(
+            dateFormatter,
+            properties == null ? null : properties.getController().getBasePath()
+        );
     }
 
     private ZoneId resolveDefaultZone(String timezone) {
@@ -285,9 +291,17 @@ public class CrudWebAutoConfiguration {
             CrudSubjectResolver crudSubjectResolver,
             CrudQuerySpecAssembler querySpecAssembler,
             CrudResponseBuilder crudResponseBuilder,
-            CrudSchemaAssembler crudSchemaAssembler
+            CrudSchemaAssembler crudSchemaAssembler,
+            CrudProperties properties
     ) {
-        return new EntCrudQueryFacade(queryGateway, crudSubjectResolver, querySpecAssembler, crudResponseBuilder, crudSchemaAssembler);
+        return new EntCrudQueryFacade(
+            queryGateway,
+            crudSubjectResolver,
+            querySpecAssembler,
+            crudResponseBuilder,
+            crudSchemaAssembler,
+            properties.getController().getDefaultNullFieldMode()
+        );
     }
 
     @Bean

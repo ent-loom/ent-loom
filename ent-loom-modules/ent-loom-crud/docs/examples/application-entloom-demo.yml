@@ -21,6 +21,8 @@ entloom:
       default-time-field: createTime
       # 默认读结果模式。可选：MAP、ENTITY。
       default-read-result-mode: MAP
+      # 默认查询响应空字段模式。可选：INCLUDE、OMIT。
+      default-null-field-mode: OMIT
       # 允许通过默认 Controller 暴露的实体 code / alias；空集合表示不额外限制。
       include-entities: []
       string-filter:

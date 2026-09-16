@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudNullFieldMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
 import java.util.Arrays;
@@ -15,6 +16,20 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 class CrudPropertiesTest {
+    @Test
+    void controller_should_omit_null_fields_by_default_and_allow_configuration_override() {
+        CrudProperties.Controller defaults = new CrudProperties.Controller();
+        Assertions.assertEquals(CrudNullFieldMode.OMIT, defaults.getDefaultNullFieldMode());
+
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("entloom.crud.controller.default-null-field-mode", "include");
+        CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
+            .bind("entloom.crud", Bindable.of(CrudProperties.class))
+            .get();
+
+        Assertions.assertEquals(CrudNullFieldMode.INCLUDE, properties.getController().getDefaultNullFieldMode());
+    }
+
     @Test
     void default_sort_should_keep_release_contract_defaults() {
         CrudProperties.Query.DefaultSort defaultSort = new CrudProperties.Query.DefaultSort();

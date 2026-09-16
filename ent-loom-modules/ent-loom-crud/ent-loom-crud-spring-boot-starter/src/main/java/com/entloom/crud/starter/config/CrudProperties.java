@@ -2,6 +2,7 @@ package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudNullFieldMode;
 import com.entloom.crud.api.enums.CrudReadResultMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
@@ -209,6 +210,8 @@ public class CrudProperties {
         public static final String DEFAULT_TIMEZONE = "Asia/Shanghai";
         /** 默认读结果模式。 */
         public static final CrudReadResultMode DEFAULT_READ_RESULT_MODE = CrudReadResultMode.MAP;
+        /** 默认空字段模式。 */
+        public static final CrudNullFieldMode DEFAULT_NULL_FIELD_MODE = CrudNullFieldMode.OMIT;
         /** 是否启用框架默认 HTTP 控制器。 */
         private boolean enabled;
         /** 控制器基础路径。 */
@@ -219,6 +222,8 @@ public class CrudProperties {
         private String defaultTimeField;
         /** 默认读结果模式（MAP/ENTITY）。 */
         private CrudReadResultMode defaultReadResultMode = DEFAULT_READ_RESULT_MODE;
+        /** 默认空字段模式（INCLUDE/OMIT）。 */
+        private CrudNullFieldMode defaultNullFieldMode = DEFAULT_NULL_FIELD_MODE;
         /** 字符串简写过滤默认策略。 */
         private StringFilter stringFilter = new StringFilter();
         /** 允许暴露的实体集合。 */
@@ -241,6 +246,21 @@ public class CrudProperties {
                 );
             }
             this.defaultReadResultMode = resolved;
+        }
+
+        public void setDefaultNullFieldMode(String defaultNullFieldMode) {
+            String normalized = trimToNull(defaultNullFieldMode);
+            if (normalized == null) {
+                this.defaultNullFieldMode = DEFAULT_NULL_FIELD_MODE;
+                return;
+            }
+            CrudNullFieldMode resolved = CrudNullFieldMode.from(normalized);
+            if (resolved == null) {
+                throw new IllegalArgumentException(
+                    "entloom.crud.controller.default-null-field-mode 仅支持 INCLUDE 或 OMIT，当前值: " + defaultNullFieldMode
+                );
+            }
+            this.defaultNullFieldMode = resolved;
         }
 
         public void setIncludeEntities(Set<String> includeEntities) {

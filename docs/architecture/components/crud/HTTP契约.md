@@ -18,6 +18,7 @@ entloom:
       enabled: true
       base-path: /api/ent-crud
       default-timezone: Asia/Shanghai
+      default-null-field-mode: OMIT
 ```
 
 Query、Command、Import、Export 还受各自的 `enabled` 开关控制。
@@ -62,6 +63,7 @@ Import 需要业务先将源文件保存到 `FileService` 并提供 `sourceFile.
 
 - `scene` 只能来自路径，客户端传入 `options.scene` 会被拒绝。
 - 未建模的顶层字段和 `options.*` 字段会被拒绝。
+- Query 的 `options.nullFieldMode` 支持 `INCLUDE`（保留）和 `OMIT`（隐藏），未传时使用 `controller.default-null-field-mode`；仅作用于查询载荷 `item` / `items[]` 中的记录字段。
 - `options.sortExpression` 不受支持。
 - 服务端身份、访问入口和治理属性通过 `CrudInvocationContext` 提供，不能由普通 HTTP 参数注入。
 - 下载必须在打开文件流前完成任务归属、主体、用途、过期时间和文件元数据预检。

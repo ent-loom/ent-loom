@@ -15,12 +15,18 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 @ControllerAdvice
 public class CrudResponseDateFormatAdvice implements ResponseBodyAdvice<Object> {
 
-    private static final String CRUD_PATH_MARKER = "/ent-crud";
+    private static final String DEFAULT_CRUD_BASE_PATH = "/api/ent-crud";
 
     private final CrudResponseDateFormatter dateFormatter;
+    private final String crudBasePath;
 
     public CrudResponseDateFormatAdvice(CrudResponseDateFormatter dateFormatter) {
+        this(dateFormatter, DEFAULT_CRUD_BASE_PATH);
+    }
+
+    public CrudResponseDateFormatAdvice(CrudResponseDateFormatter dateFormatter, String crudBasePath) {
         this.dateFormatter = dateFormatter;
+        this.crudBasePath = normalizePath(crudBasePath);
     }
 
     @Override
@@ -40,12 +46,31 @@ public class CrudResponseDateFormatAdvice implements ResponseBodyAdvice<Object> 
         if (!isCrudRequest(request) || !isJsonResponse(selectedContentType)) {
             return body;
         }
-        return dateFormatter.format(body);
+        return dateFormatter.format(body, CrudResponseNullFieldModeContext.current());
     }
 
     private boolean isCrudRequest(ServerHttpRequest request) {
         String path = request == null || request.getURI() == null ? null : request.getURI().getPath();
-        return path != null && path.contains(CRUD_PATH_MARKER);
+        if (path == null) {
+            return false;
+        }
+        return path.equals(crudBasePath)
+            || path.endsWith(crudBasePath)
+            || path.contains(crudBasePath + "/");
+    }
+
+    private String normalizePath(String path) {
+        String normalized = path == null ? "" : path.trim();
+        if (normalized.isEmpty()) {
+            return DEFAULT_CRUD_BASE_PATH;
+        }
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private boolean isJsonResponse(MediaType mediaType) {

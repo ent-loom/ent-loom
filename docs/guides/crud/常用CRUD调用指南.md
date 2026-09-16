@@ -26,6 +26,7 @@ Content-Type: application/json
     "page": 1,
     "limit": 20,
     "countMode": "EXACT",
+    "nullFieldMode": "OMIT",
     "filterMap": {
       "displayName": {
         "op": "LIKE",

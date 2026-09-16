@@ -7,6 +7,7 @@ import com.entloom.crud.starter.web.controller.EntCrudCommandController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
+import com.entloom.crud.starter.web.support.CrudResponseDateFormatAdvice;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -61,6 +62,25 @@ class BasicCrudControllerMvcTest {
                 .andExpect(jsonPath("$.meta.schema.entity").value("TestOrderEntity"))
                 .andExpect(jsonPath("$.meta.schema.viewType").value("com.entloom.crud.api.model.CrudRecord"))
                 .andExpect(jsonPath("$.meta.schema.fields[0].name").value("id"));
+        });
+    }
+
+    @Test
+    void controller_should_omit_null_fields_by_default_and_allow_query_override() throws Exception {
+        contextRunner.run(context -> {
+            MockMvc mockMvc = buildMockMvc(context);
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"options\":{\"resultMode\":\"ENTITY\",\"filter\":{\"id\":1}}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.item.paymentChannel").doesNotExist());
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"options\":{\"resultMode\":\"ENTITY\",\"nullFieldMode\":\"INCLUDE\",\"filter\":{\"id\":1}}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.item.paymentChannel").isEmpty());
         });
     }
 
@@ -825,7 +845,10 @@ class BasicCrudControllerMvcTest {
                 context.getBean(EntCrudCommandController.class),
                 context.getBean(EntCrudStatsController.class)
             )
-            .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class))
+            .setControllerAdvice(
+                context.getBean(CrudHttpExceptionTranslator.class),
+                context.getBean(CrudResponseDateFormatAdvice.class)
+            )
             .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
             .build();
     }
