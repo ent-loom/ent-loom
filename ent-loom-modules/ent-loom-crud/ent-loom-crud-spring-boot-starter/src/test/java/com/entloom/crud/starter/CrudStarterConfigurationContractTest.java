@@ -5,7 +5,6 @@ import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
-import com.entloom.crud.core.repository.EntityRepositoryFactory;
 import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
@@ -106,7 +105,6 @@ class CrudStarterConfigurationContractTest {
                 assertThat(context).hasSingleBean(CrudStatsSpecAssembler.class);
                 assertThat(context).hasSingleBean(QueryGateway.class);
                 assertThat(context).hasSingleBean(CommandGateway.class);
-                assertThat(context).hasSingleBean(EntityRepositoryFactory.class);
                 assertThat(context).hasSingleBean(StatsGateway.class);
                 assertThat(context).hasSingleBean(EntCrudQueryFacade.class);
                 assertThat(context).hasSingleBean(EntCrudCommandFacade.class);

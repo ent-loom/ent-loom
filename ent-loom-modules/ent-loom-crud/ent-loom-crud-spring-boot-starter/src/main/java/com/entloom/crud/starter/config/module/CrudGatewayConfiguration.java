@@ -61,8 +61,6 @@ import com.entloom.crud.core.runtime.router.QueryRouter;
 import com.entloom.crud.core.runtime.scene.SceneHandlerRegistry;
 import com.entloom.crud.core.runtime.spec.CrudSpecAttributeResolver;
 import com.entloom.crud.core.runtime.validation.SpecValidator;
-import com.entloom.crud.core.repository.DefaultEntityRepositoryFactory;
-import com.entloom.crud.core.repository.EntityRepositoryFactory;
 import com.entloom.crud.core.capability.stats.StatsResult;
 import com.entloom.crud.core.capability.stats.StatsPayloadCustomizerRegistry;
 import com.entloom.crud.core.capability.stats.StatsSpec;
@@ -207,26 +205,6 @@ public class CrudGatewayConfiguration {
         ExecutionPipeline executionPipeline
     ) {
         return new CommandGatewayImpl(commandRouter, idempotencyManager, idempotencyPolicy, executionPipeline);
-    }
-
-    /**
-     * 强类型实体仓储工厂，仓储操作统一复用 Query/Command Gateway 治理主链。
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean({QueryGateway.class, CommandGateway.class})
-    public EntityRepositoryFactory entityRepositoryFactory(
-        QueryGateway queryGateway,
-        CommandGateway commandGateway,
-        EntityMetaRegistry entityMetaRegistry,
-        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
-    ) {
-        return new DefaultEntityRepositoryFactory(
-            queryGateway,
-            commandGateway,
-            entityMetaRegistry,
-            transactionExecutorProvider.getIfAvailable(DirectCrudWriteTransactionExecutor::new)
-        );
     }
 
     @Bean
