@@ -9,6 +9,8 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,15 @@ import java.util.Map;
  * 命令写入谓词构建器。
  */
 class JdbcWritePredicateBuilder {
+    private final JdbcDialect dialect;
+
+    JdbcWritePredicateBuilder() {
+        this(StandardJdbcDialect.GENERIC);
+    }
+
+    JdbcWritePredicateBuilder(JdbcDialect dialect) {
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
+    }
 
     <P, R> String buildEffectiveWriteWhere(
         EntityMeta meta,
@@ -47,7 +58,7 @@ class JdbcWritePredicateBuilder {
             return predicates;
         }
         for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
-            String column = meta.resolveColumn(entry.getKey());
+            String column = dialect.quoteIdentifier(meta.resolveColumn(entry.getKey()));
             if (column == null) {
                 throw new DataScopeDeniedException("不支持的治理范围维度: " + entry.getKey());
             }
@@ -60,7 +71,7 @@ class JdbcWritePredicateBuilder {
         if (meta.getLogicDeleteField() == null || meta.getLogicDeleteField().trim().isEmpty()) {
             return;
         }
-        String logicDeleteColumn = meta.resolveColumn(meta.getLogicDeleteField());
+        String logicDeleteColumn = dialect.quoteIdentifier(meta.resolveColumn(meta.getLogicDeleteField()));
         if (logicDeleteColumn == null) {
             throw new ValidationException("未知逻辑删除字段: " + meta.getLogicDeleteField());
         }
@@ -74,7 +85,7 @@ class JdbcWritePredicateBuilder {
     List<String> buildTargetSelectorPredicates(EntityMeta meta, List<QueryFilter> targetSelector, List<Object> args) {
         List<String> predicates = new ArrayList<String>();
         for (QueryFilter filter : targetSelector) {
-            String column = meta.resolveColumn(filter.getField());
+            String column = dialect.quoteIdentifier(meta.resolveColumn(filter.getField()));
             if (column == null) {
                 throw new ValidationException("未知目标选择器字段: " + filter.getField());
             }
@@ -94,7 +105,7 @@ class JdbcWritePredicateBuilder {
         if (!meta.getAllowedFields().contains("version")) {
             return;
         }
-        predicates.add(meta.resolveColumn("version") + " = ?");
+        predicates.add(dialect.quoteIdentifier(meta.resolveColumn("version")) + " = ?");
         args.add(spec.getExpectedVersion());
     }
 }

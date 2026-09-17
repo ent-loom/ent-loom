@@ -38,7 +38,7 @@ final class JdbcStatsSqlCompiler {
 
     JdbcStatsSqlCompiler(JdbcDialect dialect, JdbcStatsPredicateBuilder predicateBuilder) {
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
-        this.predicateBuilder = predicateBuilder == null ? new JdbcStatsPredicateBuilder() : predicateBuilder;
+        this.predicateBuilder = predicateBuilder == null ? new JdbcStatsPredicateBuilder(this.dialect) : predicateBuilder;
     }
 
     /**
@@ -69,7 +69,7 @@ final class JdbcStatsSqlCompiler {
         WhereClause where = predicateBuilder.buildWhereClause(spec, rootMeta);
         HavingClause having = predicateBuilder.buildHavingClause(payload, metricsByAlias);
 
-        String baseFrom = " from " + rootMeta.getTable() + " t";
+        String baseFrom = " from " + table(rootMeta) + " t";
         String groupBySql = dimensions.isEmpty()
             ? ""
             : " group by " + dimensions.stream().map(DimensionDescriptor::getGroupExpr).collect(Collectors.joining(","));
@@ -89,7 +89,7 @@ final class JdbcStatsSqlCompiler {
         totalGroupsArgs.addAll(having.getArgs());
 
         String summarySelect = "select " + metrics.stream()
-            .map(metric -> metric.getExpr() + " as " + metric.getAlias())
+            .map(metric -> metric.getExpr() + " as " + dialect.quoteIdentifier(metric.getAlias()))
             .collect(Collectors.joining(","));
         String summarySql = summarySelect + baseFrom + buildWhereSql(where);
         List<Object> summaryArgs = new ArrayList<Object>(where.getArgs());
@@ -109,10 +109,10 @@ final class JdbcStatsSqlCompiler {
     private String buildSelectSql(List<DimensionDescriptor> dimensions, List<MetricDescriptor> metrics) {
         List<String> selectItems = new ArrayList<String>();
         for (DimensionDescriptor dimension : dimensions) {
-            selectItems.add(dimension.getSelectExpr() + " as " + dimension.getAlias());
+            selectItems.add(dimension.getSelectExpr() + " as " + dialect.quoteIdentifier(dimension.getAlias()));
         }
         for (MetricDescriptor metric : metrics) {
-            selectItems.add(metric.getExpr() + " as " + metric.getAlias());
+            selectItems.add(metric.getExpr() + " as " + dialect.quoteIdentifier(metric.getAlias()));
         }
         return "select " + String.join(",", selectItems);
     }
@@ -131,13 +131,13 @@ final class JdbcStatsSqlCompiler {
                 throw new ValidationException("未知 groupBy 字段: " + field);
             }
             StatsTimeGranularity granularity = StatsTimeGranularity.from(groupBy.getGranularity());
-            String selectExpr = "t." + column;
+            String selectExpr = qualified(column);
             String groupExpr = selectExpr;
             if (granularity != null) {
                 switch (granularity) {
                     case DAY:
-                        selectExpr = "date(t." + column + ")";
-                        groupExpr = "date(t." + column + ")";
+                        selectExpr = "date(" + qualified(column) + ")";
+                        groupExpr = "date(" + qualified(column) + ")";
                         break;
                     default:
                         break;
@@ -169,14 +169,14 @@ final class JdbcStatsSqlCompiler {
                     if (countColumn == null) {
                         throw new ValidationException("未知指标字段: " + field);
                     }
-                    expr = "count(t." + countColumn + ")";
+                    expr = "count(" + qualified(countColumn) + ")";
                 }
             } else {
                 String column = rootMeta.resolveColumn(field == null ? null : field.trim());
                 if (column == null) {
                     throw new ValidationException("未知指标字段: " + field);
                 }
-                expr = agg.name() + "(t." + column + ")";
+                expr = agg.name() + "(" + qualified(column) + ")";
             }
             metrics.add(new MetricDescriptor(alias, expr));
         }
@@ -323,5 +323,13 @@ final class JdbcStatsSqlCompiler {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String table(EntityMeta meta) {
+        return dialect.quoteIdentifier(meta.getTable());
+    }
+
+    private String qualified(String column) {
+        return "t." + dialect.quoteIdentifier(column);
     }
 }

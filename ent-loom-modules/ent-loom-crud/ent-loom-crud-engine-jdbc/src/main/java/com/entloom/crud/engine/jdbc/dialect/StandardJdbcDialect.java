@@ -34,6 +34,35 @@ public enum StandardJdbcDialect implements JdbcDialect {
     GENERIC;
 
     /**
+     * 按数据库约定引用元数据标识符；GENERIC 保持未识别数据库的历史行为。
+     */
+    @Override
+    public String quoteIdentifier(String identifier) {
+        if (this == GENERIC || identifier == null || identifier.trim().isEmpty()) {
+            return identifier;
+        }
+        String[] parts = identifier.split("\\.", -1);
+        StringBuilder result = new StringBuilder(identifier.length() + parts.length * 2);
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                result.append('.');
+            }
+            String part = parts[i];
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("数据库标识符不允许包含空段: " + identifier);
+            }
+            if (this == MYSQL) {
+                result.append('`').append(part.replace("`", "``")).append('`');
+            } else if (this == SQL_SERVER) {
+                result.append('[').append(part.replace("]", "]]" )).append(']');
+            } else {
+                result.append('"').append(part.replace("\"", "\"\"")).append('"');
+            }
+        }
+        return result.toString();
+    }
+
+    /**
      * 追加分页子句并绑定参数。
      */
     @Override

@@ -52,7 +52,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         List<Object> dataArgs = new ArrayList<Object>(whereClause.args());
 
         StringBuilder dataSql = new StringBuilder("select ").append(buildSelectClause(plan, rootMeta))
-            .append(" from ").append(rootMeta.getTable()).append(" t");
+            .append(" from ").append(table(rootMeta)).append(" t");
         if (!where.trim().isEmpty()) {
             dataSql.append(" where ").append(where);
         }
@@ -78,7 +78,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         compiled.setDataSql(dataSql.toString());
         compiled.setDataArgs(dataArgs);
 
-        StringBuilder countSql = new StringBuilder("select count(1) from ").append(rootMeta.getTable()).append(" t");
+        StringBuilder countSql = new StringBuilder("select count(1) from ").append(table(rootMeta)).append(" t");
         if (!where.trim().isEmpty()) {
             countSql.append(" where ").append(where);
         }
@@ -121,7 +121,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
             if (column == null) {
                 throw new ValidationException("未知投影字段: " + normalized);
             }
-            columns.add("t." + column + " as " + normalized);
+            columns.add(qualified("t", column) + " as " + dialect.quoteIdentifier(normalized));
         }
         return String.join(",", columns);
     }
@@ -130,7 +130,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         List<String> predicates = new ArrayList<String>();
         if (entityMeta.getLogicDeleteField() != null && !entityMeta.getLogicDeleteField().trim().isEmpty()) {
             String logicDeleteCol = entityMeta.resolveColumn(entityMeta.getLogicDeleteField());
-            predicates.add(alias + "." + logicDeleteCol + " = ?");
+            predicates.add(qualified(alias, logicDeleteCol) + " = ?");
             args.add(JdbcLogicDeleteValues.notDeleted(entityMeta));
         }
         return predicates;
@@ -154,7 +154,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
             if (column == null) {
                 throw new DataScopeDeniedException("不支持的治理范围维度: " + entityMeta.getEntityName() + "." + entry.getKey());
             }
-            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, alias + "." + column, entry.getValue(), "governance scope");
+            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, qualified(alias, column), entry.getValue(), "governance scope");
         }
         return predicates;
     }
@@ -196,7 +196,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
                 throw new ValidationException("字段不允许过滤: " + filter.getField());
             }
 
-            String qualified = alias + "." + column;
+            String qualified = qualified(alias, column);
             FilterOperator op = filter.getOperator();
             Object value = filter.getValue();
 
@@ -279,11 +279,11 @@ public class JdbcQueryCompiler implements QueryCompiler {
         String rootColumn = rootMeta.resolveColumn(edge.getFromField());
         String targetColumn = targetMeta.resolveColumn(edge.getToField());
         List<String> predicates = new ArrayList<String>();
-        predicates.add("r." + targetColumn + " = t." + rootColumn);
+        predicates.add(qualified("r", targetColumn) + " = " + qualified("t", rootColumn));
         predicates.addAll(buildBasePredicates(targetMeta, "r", args));
         predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), targetMeta, args, "r"));
         predicates.addAll(buildFilterPredicates(existsRelationFilter.getFilters(), targetMeta, args, "r", true));
-        return "exists (select 1 from " + targetMeta.getTable() + " r where " + String.join(" and ", predicates) + ")";
+        return "exists (select 1 from " + table(targetMeta) + " r where " + String.join(" and ", predicates) + ")";
     }
 
     /**
@@ -293,7 +293,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         List<QuerySort> sorts = plan.getSpec().getSorts();
         if (sorts == null || sorts.isEmpty()) {
             String pkCol = rootMeta.resolveColumn(rootMeta.getIdField());
-            return " order by t." + pkCol + " asc";
+            return " order by " + qualified("t", pkCol) + " asc";
         }
 
         List<String> clauses = new ArrayList<>();
@@ -309,7 +309,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
                 || !rootMeta.resolveFieldMeta(sort.getField()).isSortable()) {
                 throw new ValidationException("字段不允许排序: " + sort.getField());
             }
-            clauses.add("t." + col + " " + sort.getDirection().name());
+            clauses.add(qualified("t", col) + " " + sort.getDirection().name());
         }
         return " order by " + String.join(",", clauses);
     }
@@ -332,5 +332,13 @@ public class JdbcQueryCompiler implements QueryCompiler {
         private List<Object> args() {
             return args;
         }
+    }
+
+    private String table(EntityMeta meta) {
+        return dialect.quoteIdentifier(meta.getTable());
+    }
+
+    private String qualified(String alias, String column) {
+        return alias + "." + dialect.quoteIdentifier(column);
     }
 }

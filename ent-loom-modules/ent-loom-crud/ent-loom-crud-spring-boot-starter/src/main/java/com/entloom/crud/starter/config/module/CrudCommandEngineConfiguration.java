@@ -8,6 +8,7 @@ import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.starter.config.CrudProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -29,7 +30,8 @@ public class CrudCommandEngineConfiguration {
     public CrudCommandRegistry defaultCrudCommandRegistry(
         EntityMetaRegistry metaRegistry,
         GuardedSqlExecutor guardedSqlExecutor,
-        CrudProperties properties
+        CrudProperties properties,
+        JdbcDialect jdbcDialect
     ) {
         JdbcCrudCommandOptions options = new JdbcCrudCommandOptions();
         options.setIgnoreUnchangedNonWritableUpdateFields(
@@ -39,7 +41,7 @@ public class CrudCommandEngineConfiguration {
         options.setCreateScopeFieldValidationMode(properties.getCommand().getCreateScopeFieldValidationMode());
         options.setStrictCreateScopeFieldResources(properties.getCommand().getStrictCreateScopeFieldResources());
         CrudCommandRegistry registry = new CrudCommandRegistry();
-        registry.setDefaultHandler(new JdbcCrudCommandHandler<>(metaRegistry, guardedSqlExecutor, options));
+        registry.setDefaultHandler(new JdbcCrudCommandHandler<>(metaRegistry, guardedSqlExecutor, jdbcDialect, options));
         return registry;
     }
 

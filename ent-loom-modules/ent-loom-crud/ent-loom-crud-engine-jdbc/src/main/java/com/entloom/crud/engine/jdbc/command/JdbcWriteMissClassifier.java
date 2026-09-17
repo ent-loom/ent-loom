@@ -9,6 +9,8 @@ import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,13 +22,23 @@ class JdbcWriteMissClassifier {
     private final GuardedSqlExecutor guardedSqlExecutor;
     /** 谓词构建器。 */
     private final JdbcWritePredicateBuilder predicateBuilder;
+    private final JdbcDialect dialect;
 
     JdbcWriteMissClassifier(
         GuardedSqlExecutor guardedSqlExecutor,
         JdbcWritePredicateBuilder predicateBuilder
     ) {
+        this(guardedSqlExecutor, predicateBuilder, StandardJdbcDialect.GENERIC);
+    }
+
+    JdbcWriteMissClassifier(
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcWritePredicateBuilder predicateBuilder,
+        JdbcDialect dialect
+    ) {
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.predicateBuilder = predicateBuilder == null ? new JdbcWritePredicateBuilder() : predicateBuilder;
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
     }
 
     <P, R> void classify(
@@ -64,7 +76,8 @@ class JdbcWriteMissClassifier {
         DefaultExecutionContext context
     ) {
         List<Object> args = new ArrayList<Object>();
-        StringBuilder sql = new StringBuilder("select count(1) from ").append(meta.getTable());
+        StringBuilder sql = new StringBuilder("select count(1) from ")
+            .append(dialect.quoteIdentifier(meta.getTable()));
         List<String> predicates = new ArrayList<String>();
         predicateBuilder.appendNotDeletedPredicate(meta, predicates, args);
         if (scope != null) {

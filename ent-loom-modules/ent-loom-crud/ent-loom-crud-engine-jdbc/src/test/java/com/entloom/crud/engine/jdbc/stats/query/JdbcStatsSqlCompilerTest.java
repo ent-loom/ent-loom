@@ -53,24 +53,24 @@ class JdbcStatsSqlCompilerTest {
             .governanceScope(CrudDataScope.allowAll())
             .build();
 
-        CompiledStatsSql sql = new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder())
+        CompiledStatsSql sql = new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder(StandardJdbcDialect.H2))
             .compile(spec, entityMeta(), payload);
 
         Assertions.assertEquals(
-            "select t.payment_channel as paymentChannel,SUM(t.total_amount) as totalAmountSum" +
-                " from test_order t where t.deleted = ? and t.paid = ? group by t.payment_channel" +
-                " having SUM(t.total_amount) > ? order by SUM(t.total_amount) DESC limit ? offset ?",
+            "select t.\"payment_channel\" as \"paymentChannel\",SUM(t.\"total_amount\") as \"totalAmountSum\"" +
+                " from \"test_order\" t where t.\"deleted\" = ? and t.\"paid\" = ? group by t.\"payment_channel\"" +
+                " having SUM(t.\"total_amount\") > ? order by SUM(t.\"total_amount\") DESC limit ? offset ?",
             sql.getRowsSql()
         );
         Assertions.assertEquals(Arrays.asList(2, Boolean.TRUE, new BigDecimal("100"), 10, 10), sql.getRowsArgs());
         Assertions.assertEquals(
-            "select count(1) from (select 1 from test_order t where t.deleted = ? and t.paid = ?" +
-                " group by t.payment_channel having SUM(t.total_amount) > ?) g",
+            "select count(1) from (select 1 from \"test_order\" t where t.\"deleted\" = ? and t.\"paid\" = ?" +
+                " group by t.\"payment_channel\" having SUM(t.\"total_amount\") > ?) g",
             sql.getTotalGroupsSql()
         );
         Assertions.assertEquals(Arrays.asList(2, Boolean.TRUE, new BigDecimal("100")), sql.getTotalGroupsArgs());
         Assertions.assertEquals(
-            "select SUM(t.total_amount) as totalAmountSum from test_order t where t.deleted = ? and t.paid = ?",
+            "select SUM(t.\"total_amount\") as \"totalAmountSum\" from \"test_order\" t where t.\"deleted\" = ? and t.\"paid\" = ?",
             sql.getSummarySql()
         );
         Assertions.assertEquals(Arrays.asList(2, Boolean.TRUE), sql.getSummaryArgs());
@@ -93,12 +93,12 @@ class JdbcStatsSqlCompilerTest {
             .governanceScope(CrudDataScope.allowAll())
             .build();
 
-        CompiledStatsSql sql = new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder())
+        CompiledStatsSql sql = new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder(StandardJdbcDialect.H2))
             .compile(spec, entityMeta(), payload);
 
         Assertions.assertEquals(
-            "select date(t.created_at) as createdDay,count(t.id) as orderCount" +
-                " from test_order t where t.deleted = ? group by date(t.created_at) limit ?",
+            "select date(t.\"created_at\") as \"createdDay\",count(t.\"id\") as \"orderCount\"" +
+                " from \"test_order\" t where t.\"deleted\" = ? group by date(t.\"created_at\") limit ?",
             sql.getRowsSql()
         );
         Assertions.assertEquals(Arrays.asList(2, 5), sql.getRowsArgs());

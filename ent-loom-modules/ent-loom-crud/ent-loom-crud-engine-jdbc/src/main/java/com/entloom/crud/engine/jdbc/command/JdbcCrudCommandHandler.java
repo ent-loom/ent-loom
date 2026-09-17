@@ -19,6 +19,8 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -48,9 +50,42 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     private final JdbcWriteMissClassifier writeMissClassifier;
     /** 命令处理配置。 */
     private final JdbcCrudCommandOptions options;
+    /** 数据库方言，用于引用元数据标识符。 */
+    private final JdbcDialect dialect;
 
     public JdbcCrudCommandHandler(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
-        this(metaRegistry, guardedSqlExecutor, new CommandPayloadMapper(), new JdbcWritePredicateBuilder());
+        this(metaRegistry, guardedSqlExecutor, StandardJdbcDialect.GENERIC);
+    }
+
+    public JdbcCrudCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            new CommandPayloadMapper(),
+            new JdbcWritePredicateBuilder(dialect),
+            null,
+            dialect
+        );
+    }
+
+    public JdbcCrudCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        JdbcCrudCommandOptions options
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            new CommandPayloadMapper(),
+            new JdbcWritePredicateBuilder(dialect),
+            options,
+            dialect
+        );
     }
 
     public JdbcCrudCommandHandler(
@@ -58,7 +93,14 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         GuardedSqlExecutor guardedSqlExecutor,
         JdbcCrudCommandOptions options
     ) {
-        this(metaRegistry, guardedSqlExecutor, new CommandPayloadMapper(), new JdbcWritePredicateBuilder(), options);
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            new CommandPayloadMapper(),
+            new JdbcWritePredicateBuilder(),
+            options,
+            StandardJdbcDialect.GENERIC
+        );
     }
 
     JdbcCrudCommandHandler(
@@ -67,7 +109,7 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         CommandPayloadMapper payloadMapper,
         JdbcWritePredicateBuilder predicateBuilder
     ) {
-        this(metaRegistry, guardedSqlExecutor, payloadMapper, predicateBuilder, null);
+        this(metaRegistry, guardedSqlExecutor, payloadMapper, predicateBuilder, null, StandardJdbcDialect.GENERIC);
     }
 
     JdbcCrudCommandHandler(
@@ -77,11 +119,34 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         JdbcWritePredicateBuilder predicateBuilder,
         JdbcCrudCommandOptions options
     ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            payloadMapper,
+            predicateBuilder,
+            options,
+            StandardJdbcDialect.GENERIC
+        );
+    }
+
+    JdbcCrudCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        CommandPayloadMapper payloadMapper,
+        JdbcWritePredicateBuilder predicateBuilder,
+        JdbcCrudCommandOptions options,
+        JdbcDialect dialect
+    ) {
         this.metaRegistry = metaRegistry;
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.payloadMapper = payloadMapper == null ? new CommandPayloadMapper() : payloadMapper;
         this.predicateBuilder = predicateBuilder == null ? new JdbcWritePredicateBuilder() : predicateBuilder;
-        this.writeMissClassifier = new JdbcWriteMissClassifier(this.guardedSqlExecutor, this.predicateBuilder);
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
+        this.writeMissClassifier = new JdbcWriteMissClassifier(
+            this.guardedSqlExecutor,
+            this.predicateBuilder,
+            this.dialect
+        );
         this.options = options == null ? new JdbcCrudCommandOptions() : options;
     }
 
@@ -134,9 +199,11 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             payload.put(meta.getIdField(), identityPlan.id);
         }
 
-        String columns = fields.stream().map(meta::resolveColumn).collect(Collectors.joining(","));
+        String columns = fields.stream()
+            .map(field -> dialect.quoteIdentifier(meta.resolveColumn(field)))
+            .collect(Collectors.joining(","));
         String placeholders = fields.stream().map(f -> "?").collect(Collectors.joining(","));
-        String sql = "insert into " + meta.getTable() + " (" + columns + ") values (" + placeholders + ")";
+        String sql = "insert into " + table(meta) + " (" + columns + ") values (" + placeholders + ")";
         List<Object> args = fields.stream().map(payload::get).collect(Collectors.toList());
         Object id = identityPlan.id;
         if (identityPlan.generated) {
@@ -170,10 +237,12 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             throw new ValidationException("更新载荷没有可更新字段");
         }
 
-        String setClause = setFields.stream().map(f -> meta.resolveColumn(f) + " = ?").collect(Collectors.joining(","));
+        String setClause = setFields.stream()
+            .map(f -> dialect.quoteIdentifier(meta.resolveColumn(f)) + " = ?")
+            .collect(Collectors.joining(","));
         List<Object> whereArgs = new ArrayList<Object>();
         String whereClause = predicateBuilder.buildEffectiveWriteWhere(meta, spec, targetFilters, true, whereArgs);
-        String sql = "update " + meta.getTable() + " set " + setClause + " where " + whereClause;
+        String sql = "update " + table(meta) + " set " + setClause + " where " + whereClause;
         List<Object> args = setFields.stream().map(payload::get).collect(Collectors.toCollection(ArrayList::new));
         args.addAll(whereArgs);
         int rows = guardedSqlExecutor.update(sql, args, context(spec, "main"));
@@ -197,11 +266,11 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         String sql;
         List<Object> args = new ArrayList<Object>();
         if (meta.getLogicDeleteField() != null && !meta.getLogicDeleteField().trim().isEmpty()) {
-            String logicDeleteColumn = meta.resolveColumn(meta.getLogicDeleteField());
-            sql = "update " + meta.getTable() + " set " + logicDeleteColumn + " = ? where " + whereClause;
+            String logicDeleteColumn = dialect.quoteIdentifier(meta.resolveColumn(meta.getLogicDeleteField()));
+            sql = "update " + table(meta) + " set " + logicDeleteColumn + " = ? where " + whereClause;
             args.add(JdbcLogicDeleteValues.deleted(meta));
         } else {
-            sql = "delete from " + meta.getTable() + " where " + whereClause;
+            sql = "delete from " + table(meta) + " where " + whereClause;
         }
         args.addAll(whereArgs);
         int rows = guardedSqlExecutor.update(sql, args, context(spec, "main"));
@@ -553,10 +622,12 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         List<QueryFilter> targetFilters,
         List<String> fields
     ) {
-        String selectColumns = fields.stream().map(meta::resolveColumn).collect(Collectors.joining(","));
+        String selectColumns = fields.stream()
+            .map(field -> dialect.quoteIdentifier(meta.resolveColumn(field)))
+            .collect(Collectors.joining(","));
         List<Object> whereArgs = new ArrayList<Object>();
         String whereClause = predicateBuilder.buildEffectiveWriteWhere(meta, spec, targetFilters, true, whereArgs);
-        String sql = "select " + selectColumns + " from " + meta.getTable() + " where " + whereClause;
+        String sql = "select " + selectColumns + " from " + table(meta) + " where " + whereClause;
         List<Map<String, Object>> rows = guardedSqlExecutor.queryForList(sql, whereArgs, context(spec, "sanitize"));
         if (rows == null || rows.isEmpty()) {
             writeMissClassifier.classify(meta, spec, targetFilters, "update", context(spec, "sanitize-miss"));
@@ -712,11 +783,11 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     }
 
     private boolean existsById(EntityMeta meta, CommandSpec<P> spec, Object id) {
-        String idColumn = meta.resolveColumn(meta.getIdField());
+        String idColumn = dialect.quoteIdentifier(meta.resolveColumn(meta.getIdField()));
         if (idColumn == null) {
             throw new ValidationException("未知主键字段: " + meta.getIdField());
         }
-        String sql = "select count(1) from " + meta.getTable() + " where " + idColumn + " = ?";
+        String sql = "select count(1) from " + table(meta) + " where " + idColumn + " = ?";
         Object count = guardedSqlExecutor.queryForObject(sql, Collections.singletonList(id), context(spec, "exists"));
         if (count instanceof Number) {
             return ((Number) count).longValue() > 0L;
@@ -928,6 +999,10 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             return BigDecimal.valueOf(value.doubleValue());
         }
         return new BigDecimal(value.toString());
+    }
+
+    private String table(EntityMeta meta) {
+        return dialect.quoteIdentifier(meta.getTable());
     }
 
     private static final class IdentityInsertPlan {

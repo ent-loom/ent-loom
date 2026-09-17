@@ -4,6 +4,8 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,15 +21,21 @@ final class JdbcEntityPredicateCompiler {
     static final int DEFAULT_MAX_PARAMETERS = 1000;
 
     private final int maxParameters;
+    private final JdbcDialect dialect;
 
     JdbcEntityPredicateCompiler() {
-        this(DEFAULT_MAX_PARAMETERS);
+        this(StandardJdbcDialect.GENERIC, DEFAULT_MAX_PARAMETERS);
     }
 
     JdbcEntityPredicateCompiler(int maxParameters) {
+        this(StandardJdbcDialect.GENERIC, maxParameters);
+    }
+
+    JdbcEntityPredicateCompiler(JdbcDialect dialect, int maxParameters) {
         if (maxParameters <= 0) {
             throw new ValidationException("DAO SQL 参数上限必须大于 0");
         }
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.maxParameters = maxParameters;
     }
 
@@ -83,7 +91,7 @@ final class JdbcEntityPredicateCompiler {
         List<Object> args
     ) {
         String field = constraint.getField();
-        String column = meta.resolveColumn(field);
+        String column = dialect.quoteIdentifier(meta.resolveColumn(field));
         if (column == null) {
             throw new ValidationException("DAO 范围字段未映射为列: " + field);
         }
@@ -127,7 +135,7 @@ final class JdbcEntityPredicateCompiler {
         String field,
         Object value
     ) {
-        String column = meta.resolveColumn(field);
+        String column = dialect.quoteIdentifier(meta.resolveColumn(field));
         if (column == null) {
             throw new ValidationException("DAO 主键字段未映射为列: " + field);
         }
@@ -140,7 +148,7 @@ final class JdbcEntityPredicateCompiler {
         if (field == null || field.trim().isEmpty()) {
             return;
         }
-        String column = meta.resolveColumn(field);
+        String column = dialect.quoteIdentifier(meta.resolveColumn(field));
         if (column == null || !meta.hasExplicitLogicDeleteValues()) {
             throw new ValidationException("逻辑删除字段或状态值未完整配置: " + meta.getEntityName());
         }

@@ -7,6 +7,18 @@ import java.util.List;
  */
 public interface JdbcDialect {
     /**
+     * 引用单个或限定的数据库标识符。
+     *
+     * <p>GENERIC 等不具备明确数据库语义的方言可以原样返回，保持历史 SQL 兼容。</p>
+     *
+     * @param identifier 元数据中的表名或列名
+     * @return 可拼接到 SQL 中的标识符
+     */
+    default String quoteIdentifier(String identifier) {
+        return identifier;
+    }
+
+    /**
      * 追加分页查询 SQL（PAGE 场景）。
      */
     void appendPageClause(StringBuilder sql, int limit, int offset, List<Object> args);

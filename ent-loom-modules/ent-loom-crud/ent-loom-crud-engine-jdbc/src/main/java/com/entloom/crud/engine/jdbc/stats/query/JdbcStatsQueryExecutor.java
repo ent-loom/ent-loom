@@ -45,7 +45,7 @@ public class JdbcStatsQueryExecutor implements StatsQueryExecutor {
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.sqlSecurityGuard = sqlSecurityGuard;
         this.statsValidator = statsValidator == null ? new StatsValidator() : statsValidator;
-        this.sqlCompiler = new JdbcStatsSqlCompiler(resolvedDialect, new JdbcStatsPredicateBuilder());
+        this.sqlCompiler = new JdbcStatsSqlCompiler(resolvedDialect, new JdbcStatsPredicateBuilder(resolvedDialect));
         this.resultMapper = new JdbcStatsResultMapper();
     }
 

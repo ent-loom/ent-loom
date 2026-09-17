@@ -103,13 +103,15 @@ public class CrudQueryEngineConfiguration {
         GuardedSqlExecutor guardedSqlExecutor,
         EntityMetaRegistry metaRegistry,
         CrudProperties properties,
-        RelationLoaderRegistry relationLoaderRegistry
+        RelationLoaderRegistry relationLoaderRegistry,
+        JdbcDialect jdbcDialect
     ) {
         return new JdbcQueryExecutor(
             guardedSqlExecutor,
             metaRegistry,
             !properties.getRelation().isStrictCollectionFieldName(),
-            relationLoaderRegistry
+            relationLoaderRegistry,
+            jdbcDialect
         );
     }
 

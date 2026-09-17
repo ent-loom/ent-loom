@@ -21,6 +21,8 @@ import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.enums.RelationScope;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +43,8 @@ public class JdbcQueryExecutor implements QueryExecutor {
     private final JdbcReflectiveMapper reflectiveMapper;
     /** 特殊关系加载器注册表。 */
     private final RelationLoaderRegistry relationLoaderRegistry;
+    /** 数据库方言，用于关联展开的标识符引用。 */
+    private final JdbcDialect dialect;
 
     public JdbcQueryExecutor(GuardedSqlExecutor guardedSqlExecutor, EntityMetaRegistry metaRegistry) {
         this(guardedSqlExecutor, metaRegistry, false);
@@ -64,7 +68,24 @@ public class JdbcQueryExecutor implements QueryExecutor {
             guardedSqlExecutor,
             metaRegistry,
             new JdbcReflectiveMapper(relationFieldFallbackEnabled),
-            relationLoaderRegistry
+            relationLoaderRegistry,
+            StandardJdbcDialect.GENERIC
+        );
+    }
+
+    public JdbcQueryExecutor(
+        GuardedSqlExecutor guardedSqlExecutor,
+        EntityMetaRegistry metaRegistry,
+        boolean relationFieldFallbackEnabled,
+        RelationLoaderRegistry relationLoaderRegistry,
+        JdbcDialect dialect
+    ) {
+        this(
+            guardedSqlExecutor,
+            metaRegistry,
+            new JdbcReflectiveMapper(relationFieldFallbackEnabled),
+            relationLoaderRegistry,
+            dialect
         );
     }
 
@@ -90,10 +111,27 @@ public class JdbcQueryExecutor implements QueryExecutor {
         JdbcReflectiveMapper reflectiveMapper,
         RelationLoaderRegistry relationLoaderRegistry
     ) {
+        this(
+            guardedSqlExecutor,
+            metaRegistry,
+            reflectiveMapper,
+            relationLoaderRegistry,
+            StandardJdbcDialect.GENERIC
+        );
+    }
+
+    JdbcQueryExecutor(
+        GuardedSqlExecutor guardedSqlExecutor,
+        EntityMetaRegistry metaRegistry,
+        JdbcReflectiveMapper reflectiveMapper,
+        RelationLoaderRegistry relationLoaderRegistry,
+        JdbcDialect dialect
+    ) {
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.metaRegistry = metaRegistry;
         this.reflectiveMapper = reflectiveMapper == null ? new JdbcReflectiveMapper() : reflectiveMapper;
         this.relationLoaderRegistry = relationLoaderRegistry == null ? RelationLoaderRegistry.empty() : relationLoaderRegistry;
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
     }
 
     @Override
@@ -207,9 +245,9 @@ public class JdbcQueryExecutor implements QueryExecutor {
             String toColumn = childMeta.resolveColumn(edge.getToField());
             List<Object> childArgs = new ArrayList<Object>(parentIds);
             List<String> predicates = new ArrayList<String>();
-            predicates.add("c." + toColumn + " in (" + placeholders + ")");
+            predicates.add(qualified("c", toColumn) + " in (" + placeholders + ")");
             if (childMeta.getLogicDeleteField() != null && !childMeta.getLogicDeleteField().trim().isEmpty()) {
-                predicates.add("c." + childMeta.resolveColumn(childMeta.getLogicDeleteField()) + " = ?");
+                predicates.add(qualified("c", childMeta.resolveColumn(childMeta.getLogicDeleteField())) + " = ?");
                 childArgs.add(JdbcLogicDeleteValues.notDeleted(childMeta));
             }
             appendExpandScopePredicates(
@@ -219,7 +257,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
                 childArgs
             );
             StringBuilder sql = new StringBuilder("select ").append(buildExpandSelectClause(childMeta))
-                .append(" from ").append(childMeta.getTable())
+                .append(" from ").append(table(childMeta))
                 .append(" c where ").append(String.join(" and ", predicates));
 
             DefaultExecutionContext context = buildContext(query, "expand");
@@ -252,7 +290,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
             JdbcPredicateBuilder.appendEqualityOrIn(
                 scopePredicates,
                 args,
-                "c." + column,
+                qualified("c", column),
                 entry.getValue(),
                 "relation expand governance scope"
             );
@@ -334,8 +372,16 @@ public class JdbcQueryExecutor implements QueryExecutor {
         return childMeta.getAllowedFields().stream()
             .map(childMeta::resolveColumn)
             .filter(Objects::nonNull)
-            .map(column -> "c." + column)
+            .map(column -> qualified("c", column))
             .collect(Collectors.joining(","));
+    }
+
+    private String table(EntityMeta meta) {
+        return dialect.quoteIdentifier(meta.getTable());
+    }
+
+    private String qualified(String alias, String column) {
+        return alias + "." + dialect.quoteIdentifier(column);
     }
 
     private boolean isPageOutOfRange(int page, int limit, long total) {

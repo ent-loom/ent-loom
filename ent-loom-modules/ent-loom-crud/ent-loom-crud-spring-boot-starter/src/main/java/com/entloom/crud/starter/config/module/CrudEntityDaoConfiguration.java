@@ -4,6 +4,7 @@ import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -22,8 +23,9 @@ public class CrudEntityDaoConfiguration {
     @ConditionalOnMissingBean(EntityDaoFactory.class)
     public JdbcEntityDaoFactory jdbcEntityDaoFactory(
         EntityMetaRegistry metaRegistry,
-        GuardedSqlExecutor guardedSqlExecutor
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect jdbcDialect
     ) {
-        return new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor);
+        return new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor, jdbcDialect);
     }
 }

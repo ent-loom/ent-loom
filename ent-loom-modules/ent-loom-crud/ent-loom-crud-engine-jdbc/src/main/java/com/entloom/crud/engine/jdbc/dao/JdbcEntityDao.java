@@ -15,6 +15,8 @@ import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -35,6 +37,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
     private final RowConstraint scope;
     private final GuardedSqlExecutor guardedSqlExecutor;
     private final JdbcEntityPredicateCompiler predicateCompiler;
+    private final JdbcDialect dialect;
 
     JdbcEntityDao(
         EntityType<T, ID> entityType,
@@ -42,7 +45,14 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         RowConstraint scope,
         GuardedSqlExecutor guardedSqlExecutor
     ) {
-        this(entityType, meta, scope, guardedSqlExecutor, new JdbcEntityPredicateCompiler());
+        this(
+            entityType,
+            meta,
+            scope,
+            guardedSqlExecutor,
+            new JdbcEntityPredicateCompiler(),
+            StandardJdbcDialect.GENERIC
+        );
     }
 
     JdbcEntityDao(
@@ -52,11 +62,30 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         GuardedSqlExecutor guardedSqlExecutor,
         JdbcEntityPredicateCompiler predicateCompiler
     ) {
+        this(
+            entityType,
+            meta,
+            scope,
+            guardedSqlExecutor,
+            predicateCompiler,
+            StandardJdbcDialect.GENERIC
+        );
+    }
+
+    JdbcEntityDao(
+        EntityType<T, ID> entityType,
+        EntityMeta meta,
+        RowConstraint scope,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcEntityPredicateCompiler predicateCompiler,
+        JdbcDialect dialect
+    ) {
         this.entityType = entityType;
         this.meta = meta;
         this.scope = scope;
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.predicateCompiler = predicateCompiler;
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
     }
 
     @Override
@@ -65,7 +94,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         JdbcEntityPredicateCompiler.CompiledWhere where = predicateCompiler.byId(
             meta, meta.getIdField(), normalizedId, scope
         );
-        String sql = "select " + selectColumns() + " from " + meta.getTable()
+        String sql = "select " + selectColumns() + " from " + table()
             + " where " + where.getSql();
         List<Map<String, Object>> rows = guardedSqlExecutor.queryForList(
             sql, where.getArgs(), context("findById")
@@ -99,11 +128,11 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         List<Object> args = new ArrayList<Object>();
         List<String> columns = new ArrayList<String>();
         for (String field : fields) {
-            columns.add(meta.resolveColumn(field));
+            columns.add(column(field));
             args.add(normalizeFieldValue(field, scopedValues.get(field)));
         }
         predicateCompiler.validateParameterCount(args.size());
-        String sql = "insert into " + meta.getTable() + " (" + String.join(",", columns) + ") values ("
+        String sql = "insert into " + table() + " (" + String.join(",", columns) + ") values ("
             + placeholders(fields.size()) + ")";
         try {
             int rows = guardedSqlExecutor.update(sql, args, context("insert"));
@@ -127,7 +156,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         List<Object> args = new ArrayList<Object>();
         List<String> assignments = new ArrayList<String>();
         for (String field : fields) {
-            assignments.add(meta.resolveColumn(field) + " = ?");
+            assignments.add(column(field) + " = ?");
             args.add(normalizeFieldValue(field, normalizedPatch.getChanges().get(field)));
         }
         if (assignments.isEmpty()) {
@@ -138,7 +167,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         );
         args.addAll(where.getArgs());
         predicateCompiler.validateParameterCount(args.size());
-        String sql = "update " + meta.getTable() + " set " + String.join(",", assignments)
+        String sql = "update " + table() + " set " + String.join(",", assignments)
             + " where " + where.getSql();
         try {
             int rows = guardedSqlExecutor.update(sql, args, context("updateById"));
@@ -157,11 +186,11 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         List<Object> args = new ArrayList<Object>();
         String sql;
         if (hasLogicDelete()) {
-            sql = "update " + meta.getTable() + " set "
-                + meta.resolveColumn(meta.getLogicDeleteField()) + " = ? where " + where.getSql();
+            sql = "update " + table() + " set "
+                + column(meta.getLogicDeleteField()) + " = ? where " + where.getSql();
             args.add(meta.getLogicDeleteDeletedValue());
         } else {
-            sql = "delete from " + meta.getTable() + " where " + where.getSql();
+            sql = "delete from " + table() + " where " + where.getSql();
         }
         args.addAll(where.getArgs());
         predicateCompiler.validateParameterCount(args.size());
@@ -295,7 +324,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         List<String> columns = new ArrayList<String>();
         for (Map.Entry<String, EntityFieldMeta> entry : meta.getFieldMetas().entrySet()) {
             if (!entry.getValue().isRelation()) {
-                columns.add(meta.resolveColumn(entry.getKey()) + " as " + entry.getKey());
+                columns.add(column(entry.getKey()) + " as " + dialect.quoteIdentifier(entry.getKey()));
             }
         }
         return String.join(",", columns);
@@ -307,6 +336,14 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
             placeholders.add("?");
         }
         return String.join(",", placeholders);
+    }
+
+    private String table() {
+        return dialect.quoteIdentifier(meta.getTable());
+    }
+
+    private String column(String fieldName) {
+        return dialect.quoteIdentifier(meta.resolveColumn(fieldName));
     }
 
     private DefaultExecutionContext context(String operation) {

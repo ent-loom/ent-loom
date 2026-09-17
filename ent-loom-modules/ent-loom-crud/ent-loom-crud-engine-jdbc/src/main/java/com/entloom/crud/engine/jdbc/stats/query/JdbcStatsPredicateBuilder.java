@@ -8,6 +8,8 @@ import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.HavingClause;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.MetricDescriptor;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.WhereClause;
@@ -25,6 +27,15 @@ import java.util.stream.Collectors;
  * 负责将治理范围、过滤条件和 having 条件转换为 SQL 谓词。
  */
 final class JdbcStatsPredicateBuilder {
+    private final JdbcDialect dialect;
+
+    JdbcStatsPredicateBuilder() {
+        this(StandardJdbcDialect.GENERIC);
+    }
+
+    JdbcStatsPredicateBuilder(JdbcDialect dialect) {
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
+    }
 
     /**
      * 构建 where 子句（逻辑删除 + 治理范围 + 调用方过滤）。
@@ -34,7 +45,7 @@ final class JdbcStatsPredicateBuilder {
         List<Object> args = new ArrayList<Object>();
         if (hasText(rootMeta.getLogicDeleteField())) {
             String logicDeleteCol = rootMeta.resolveColumn(rootMeta.getLogicDeleteField());
-            predicates.add("t." + logicDeleteCol + " = ?");
+            predicates.add(qualified(logicDeleteCol) + " = ?");
             args.add(JdbcLogicDeleteValues.notDeleted(rootMeta));
         }
         predicates.addAll(buildGovernancePredicates(spec.getGovernanceScope(), rootMeta, args));
@@ -72,7 +83,7 @@ final class JdbcStatsPredicateBuilder {
             if (column == null) {
                 throw new DataScopeDeniedException("不支持的治理范围维度: " + entry.getKey());
             }
-            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, "t." + column, entry.getValue(), "governance scope");
+            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, qualified(column), entry.getValue(), "governance scope");
         }
         return predicates;
     }
@@ -87,7 +98,7 @@ final class JdbcStatsPredicateBuilder {
             if (column == null) {
                 throw new ValidationException("未知过滤字段: " + filter.getField());
             }
-            appendPredicate(predicates, args, "t." + column, filter.getOperator(), filter.getValue(), filter.getField());
+            appendPredicate(predicates, args, qualified(column), filter.getOperator(), filter.getValue(), filter.getField());
         }
         return predicates;
     }
@@ -169,5 +180,9 @@ final class JdbcStatsPredicateBuilder {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String qualified(String column) {
+        return "t." + dialect.quoteIdentifier(column);
     }
 }

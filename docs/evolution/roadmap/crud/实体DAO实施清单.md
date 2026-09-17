@@ -280,10 +280,11 @@ flowchart LR
 - [x] H2 用于快速行为回归，但不作为 MySQL 方言最终证据。
 - [x] MySQL 8 验证显式主键、逻辑删除、唯一键异常、无变化更新和影响行数；显式 `null` 仍由 H2 DAO 合同测试覆盖。
 - [x] 验证 matched-rows 必需连接配置正确时 DAO 语义稳定，错误配置在真实 MySQL 连接启动期 fail-fast；不承诺兼容会改变影响行数语义的配置。
-- [ ] 验证字段名、保留字、字符集、时区和常用 Java/MySQL 类型映射。
+- [x] 验证实体表名、字段名和保留字：JDBC 方言统一引用元数据标识符，H2 真实用例覆盖 `order` 表及 `select`/`group` 列的 DAO 写入、读取、更新和查询编译。
+- [ ] 验证字符集、时区和更多常用 Java/MySQL 类型映射。
 - [x] 验证测试结束后临时 schema 无残留。
 
-D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核。保留字段名、时区及更多常用类型映射作为后续数据库矩阵，不提前宣称完成。
+D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核。新增 `JdbcReservedIdentifierIntegrationTest` 2 项通过，H2 真实验证保留表名/列名的 DAO CRUD 与查询编译。时区和更多常用类型映射仍作为后续数据库矩阵，不提前宣称完成。
 
 ### D4.2 模块与装配
 

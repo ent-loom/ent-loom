@@ -13,6 +13,8 @@ import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 
 /**
  * JDBC 实体 DAO 工厂。
@@ -21,14 +23,37 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     private final EntityMetaRegistry metaRegistry;
     private final GuardedSqlExecutor guardedSqlExecutor;
     private final int maxParameters;
+    private final JdbcDialect dialect;
 
     public JdbcEntityDaoFactory(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
-        this(metaRegistry, guardedSqlExecutor, JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS);
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS
+        );
     }
 
     public JdbcEntityDaoFactory(
         EntityMetaRegistry metaRegistry,
         GuardedSqlExecutor guardedSqlExecutor,
+        int maxParameters
+    ) {
+        this(metaRegistry, guardedSqlExecutor, StandardJdbcDialect.GENERIC, maxParameters);
+    }
+
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect
+    ) {
+        this(metaRegistry, guardedSqlExecutor, dialect, JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS);
+    }
+
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
         int maxParameters
     ) {
         if (metaRegistry == null || guardedSqlExecutor == null) {
@@ -39,6 +64,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         }
         this.metaRegistry = metaRegistry;
         this.guardedSqlExecutor = guardedSqlExecutor;
+        this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.maxParameters = maxParameters;
     }
 
@@ -56,7 +82,8 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             meta,
             normalizedScope,
             guardedSqlExecutor,
-            new JdbcEntityPredicateCompiler(maxParameters)
+            new JdbcEntityPredicateCompiler(dialect, maxParameters),
+            dialect
         );
     }
 
