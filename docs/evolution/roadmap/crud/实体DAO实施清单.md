@@ -247,7 +247,7 @@ flowchart LR
 
 验收日期：2026-09-17<br>
 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`<br>
-测试结果：Core 244 项、JDBC 75 项通过，0 失败、0 错误。<br>
+测试结果：Core 244 项、JDBC 79 项通过，0 失败、0 错误。<br>
 关键测试：`InsertConstraintValueBinderTest`、`JdbcEntityPredicateCompilerTest`、`JdbcMatchedRowsStartupValidatorTest`、`JdbcEntityDaoTest`、`DefaultEngineSingleTableCrudTest`、`DefaultEngineDaoScopeGatewayTest`。<br>
 边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 已切换到 DAO，批量、save-or-update 和其他实体仍由旧 Handler 处理。<br>
 遗留事项：D4.1 的 MySQL 8 实例验收和 D4.2 的 Starter 装配验收已补齐；共享 `JdbcWriteMissClassifier` 仍仅被未迁移的批量、save-or-update 路径使用。
@@ -289,6 +289,7 @@ D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实�
 - [x] 第一阶段沿用 `crud-core`、`crud-engine-jdbc` 和现有 Starter，不创建占位 Maven 模块。
 - [x] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 `JdbcEntityDaoFactory`，并允许用户通过 `EntityDaoFactory` 显式覆盖。
 - [x] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO；Starter 只提供 Factory，不注册裸 `EntityDao` Bean。
+- [x] Starter 不将 `JdbcEntityDaoCommandHandler` 自动设为全局默认处理器；选定实体按实体显式注册，未迁移实体、批量和 `save-or-update` 保持旧 Handler，避免首期能力边界被全局切换扩大。
 - [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
 
 D4.2 验收证据（2026-09-17）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露及无裸 DAO Bean；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。

@@ -7,6 +7,7 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +65,7 @@ class JdbcWritePredicateBuilder {
             throw new ValidationException("未知逻辑删除字段: " + meta.getLogicDeleteField());
         }
         predicates.add(logicDeleteColumn + " = ?");
-        args.add(Integer.valueOf(0));
+        args.add(JdbcLogicDeleteValues.notDeleted(meta));
     }
 
     /**

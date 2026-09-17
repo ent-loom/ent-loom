@@ -131,6 +131,22 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     }
 
     @Test
+    void update_unique_key_conflict_should_have_stable_constraint_error() {
+        jdbcTemplate.execute("create unique index uk_t_order_order_no on t_order(order_no)");
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scoped(
+            ORDER_TYPE,
+            EntityAccessScope.of(RowConstraint.eq("schoolId", 198L))
+        );
+        dao.insert(order(10007L, "ORD-UNIQUE-1"));
+        dao.insert(order(10008L, "ORD-UNIQUE-2"));
+
+        Assertions.assertThrows(
+            EntityDaoConstraintException.class,
+            () -> dao.updateById(10008L, patch(10008L, "ORD-UNIQUE-1"))
+        );
+    }
+
+    @Test
     void concurrent_write_with_wrong_scope_cannot_modify_the_row() throws Exception {
         jdbcTemplate.update(
             "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",

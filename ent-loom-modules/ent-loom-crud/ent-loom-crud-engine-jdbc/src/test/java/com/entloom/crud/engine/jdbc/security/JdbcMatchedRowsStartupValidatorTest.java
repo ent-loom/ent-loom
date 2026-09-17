@@ -30,15 +30,22 @@ class JdbcMatchedRowsStartupValidatorTest {
     }
 
     @Test
-    void mysql_false_or_default_and_non_mysql_are_accepted() throws Exception {
+    void mysql_false_and_non_mysql_are_accepted() throws Exception {
         JdbcMatchedRowsStartupValidator.validateConnection(
             connection("MySQL", "MySQL Connector/J", "jdbc:mysql://localhost/test?useAffectedRows=false")
         );
         JdbcMatchedRowsStartupValidator.validateConnection(
-            connection("MySQL", "MySQL Connector/J", "jdbc:mysql://localhost/test")
-        );
-        JdbcMatchedRowsStartupValidator.validateConnection(
             connection("H2", "H2 JDBC Driver", "jdbc:h2:mem:test")
+        );
+    }
+
+    @Test
+    void mysql_without_explicit_url_value_fails_closed_when_driver_property_cannot_be_read() {
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> JdbcMatchedRowsStartupValidator.validateConnection(
+                connection("MySQL", "MySQL Connector/J", "jdbc:mysql://localhost/test")
+            )
         );
     }
 

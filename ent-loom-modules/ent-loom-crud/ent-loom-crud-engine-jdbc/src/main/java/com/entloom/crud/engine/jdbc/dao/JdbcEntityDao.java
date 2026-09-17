@@ -140,8 +140,12 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         predicateCompiler.validateParameterCount(args.size());
         String sql = "update " + meta.getTable() + " set " + String.join(",", assignments)
             + " where " + where.getSql();
-        int rows = guardedSqlExecutor.update(sql, args, context("updateById"));
-        return requireSingleWrite(rows, "updateById");
+        try {
+            int rows = guardedSqlExecutor.update(sql, args, context("updateById"));
+            return requireSingleWrite(rows, "updateById");
+        } catch (DataIntegrityViolationException ex) {
+            throw new EntityDaoConstraintException("updateById 违反数据约束: " + meta.getEntityName(), ex);
+        }
     }
 
     @Override
@@ -161,8 +165,12 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         }
         args.addAll(where.getArgs());
         predicateCompiler.validateParameterCount(args.size());
-        int rows = guardedSqlExecutor.update(sql, args, context("deleteById"));
-        return requireSingleWrite(rows, "deleteById");
+        try {
+            int rows = guardedSqlExecutor.update(sql, args, context("deleteById"));
+            return requireSingleWrite(rows, "deleteById");
+        } catch (DataIntegrityViolationException ex) {
+            throw new EntityDaoConstraintException("deleteById 违反数据约束: " + meta.getEntityName(), ex);
+        }
     }
 
     private int requireSingleWrite(int rows, String operation) {

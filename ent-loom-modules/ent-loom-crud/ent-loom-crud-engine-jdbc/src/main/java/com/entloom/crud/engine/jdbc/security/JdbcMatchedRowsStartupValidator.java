@@ -68,7 +68,12 @@ public final class JdbcMatchedRowsStartupValidator {
             return urlValue;
         }
         Boolean driverValue = readConnectorProperty(connection);
-        return driverValue == null ? Boolean.FALSE : driverValue;
+        if (driverValue == null) {
+            throw new ValidationException(
+                "无法读取 MySQL 连接实际 useAffectedRows 配置；请在 JDBC URL 中显式设置 useAffectedRows=false"
+            );
+        }
+        return driverValue;
     }
 
     /** 通过 Connector/J 的连接实现读取池化连接实际生效的属性。 */

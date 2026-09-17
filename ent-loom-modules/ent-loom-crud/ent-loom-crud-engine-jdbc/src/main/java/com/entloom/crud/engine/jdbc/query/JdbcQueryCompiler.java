@@ -16,6 +16,7 @@ import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.foundation.read.relation.ResolvedExistsRelationFilter;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -92,7 +93,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
     private WhereClause buildWhereClause(QueryPlan plan, EntityMeta rootMeta) {
         List<Object> args = new ArrayList<Object>();
         List<String> predicates = new ArrayList<>();
-        predicates.addAll(buildBasePredicates(rootMeta, "t"));
+        predicates.addAll(buildBasePredicates(rootMeta, "t", args));
         predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), rootMeta, args, "t"));
         predicates.addAll(buildCallerFilterPredicates(plan.getFilters(), rootMeta, args));
         String existsPredicate = buildExistsRelationPredicate(plan, rootMeta, args);
@@ -125,11 +126,12 @@ public class JdbcQueryCompiler implements QueryCompiler {
         return String.join(",", columns);
     }
 
-    private List<String> buildBasePredicates(EntityMeta entityMeta, String alias) {
+    private List<String> buildBasePredicates(EntityMeta entityMeta, String alias, List<Object> args) {
         List<String> predicates = new ArrayList<String>();
         if (entityMeta.getLogicDeleteField() != null && !entityMeta.getLogicDeleteField().trim().isEmpty()) {
             String logicDeleteCol = entityMeta.resolveColumn(entityMeta.getLogicDeleteField());
-            predicates.add(alias + "." + logicDeleteCol + " = 0");
+            predicates.add(alias + "." + logicDeleteCol + " = ?");
+            args.add(JdbcLogicDeleteValues.notDeleted(entityMeta));
         }
         return predicates;
     }
@@ -278,7 +280,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         String targetColumn = targetMeta.resolveColumn(edge.getToField());
         List<String> predicates = new ArrayList<String>();
         predicates.add("r." + targetColumn + " = t." + rootColumn);
-        predicates.addAll(buildBasePredicates(targetMeta, "r"));
+        predicates.addAll(buildBasePredicates(targetMeta, "r", args));
         predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), targetMeta, args, "r"));
         predicates.addAll(buildFilterPredicates(existsRelationFilter.getFilters(), targetMeta, args, "r", true));
         return "exists (select 1 from " + targetMeta.getTable() + " r where " + String.join(" and ", predicates) + ")";

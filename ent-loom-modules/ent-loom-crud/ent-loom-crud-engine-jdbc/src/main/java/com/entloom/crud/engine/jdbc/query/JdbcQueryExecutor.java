@@ -19,6 +19,7 @@ import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.enums.RelationScope;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -208,7 +209,8 @@ public class JdbcQueryExecutor implements QueryExecutor {
             List<String> predicates = new ArrayList<String>();
             predicates.add("c." + toColumn + " in (" + placeholders + ")");
             if (childMeta.getLogicDeleteField() != null && !childMeta.getLogicDeleteField().trim().isEmpty()) {
-                predicates.add("c." + childMeta.resolveColumn(childMeta.getLogicDeleteField()) + " = 0");
+                predicates.add("c." + childMeta.resolveColumn(childMeta.getLogicDeleteField()) + " = ?");
+                childArgs.add(JdbcLogicDeleteValues.notDeleted(childMeta));
             }
             appendExpandScopePredicates(
                 query.getQueryPlan().getGovernanceScope(),

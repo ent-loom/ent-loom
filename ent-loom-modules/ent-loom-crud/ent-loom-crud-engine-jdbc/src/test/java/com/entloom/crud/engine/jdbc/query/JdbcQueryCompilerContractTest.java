@@ -59,15 +59,46 @@ class JdbcQueryCompilerContractTest {
         CompiledQuery compiled = compiler.compile(plan(spec));
 
         Assertions.assertEquals(
-            "select t.id as id,t.order_no as orderNo from t_order t where t.is_deleted = 0 and t.school_id = ? order by t.order_no DESC limit ?",
+            "select t.id as id,t.order_no as orderNo from t_order t where t.is_deleted = ? and t.school_id = ? order by t.order_no DESC limit ?",
             compiled.getDataSql()
         );
-        Assertions.assertEquals(Arrays.<Object>asList(10L, 20), compiled.getDataArgs());
+        Assertions.assertEquals(Arrays.<Object>asList(0, 10L, 20), compiled.getDataArgs());
         Assertions.assertEquals(
-            "select count(1) from t_order t where t.is_deleted = 0 and t.school_id = ?",
+            "select count(1) from t_order t where t.is_deleted = ? and t.school_id = ?",
             compiled.getCountSql()
         );
-        Assertions.assertEquals(Collections.<Object>singletonList(10L), compiled.getCountArgs());
+        Assertions.assertEquals(Arrays.<Object>asList(0, 10L), compiled.getCountArgs());
+    }
+
+    @Test
+    void should_bind_explicit_non_default_logic_delete_value() {
+        EntityMeta explicitStateMeta = new EntityMeta(
+            OrderTestEntity.class,
+            orderMeta.getResourceDescriptor(),
+            orderMeta.getTable(),
+            orderMeta.getIdField(),
+            orderMeta.getIdPolicy(),
+            orderMeta.getLogicDeleteField(),
+            Integer.valueOf(2),
+            Integer.valueOf(9),
+            orderMeta.getFieldMetas()
+        );
+        QuerySpec<OrderTestEntity> spec = QuerySpec.<OrderTestEntity>builder()
+            .rootType(OrderTestEntity.class)
+            .resultType(OrderTestEntity.class)
+            .op(QueryOperation.LIST)
+            .limit(10)
+            .filters(Collections.singletonList(new QueryFilter("schoolId", FilterOperator.EQ, 10L)))
+            .build();
+
+        CompiledQuery compiled = compiler.compile(plan(spec, explicitStateMeta));
+
+        Assertions.assertEquals(
+            "select * from t_order t where t.is_deleted = ? and t.school_id = ? order by t.id asc limit ?",
+            compiled.getDataSql()
+        );
+        Assertions.assertEquals(Arrays.<Object>asList(2, 10L, 10), compiled.getDataArgs());
+        Assertions.assertEquals(Arrays.<Object>asList(2, 10L), compiled.getCountArgs());
     }
 
     @Test
@@ -92,15 +123,15 @@ class JdbcQueryCompilerContractTest {
         CompiledQuery compiled = compiler.compile(plan);
 
         Assertions.assertEquals(
-            "select * from t_order t where t.is_deleted = 0 and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = 0 and r.sku_code = ?) order by t.id asc limit ?",
+            "select * from t_order t where t.is_deleted = ? and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = ? and r.sku_code = ?) order by t.id asc limit ?",
             compiled.getDataSql()
         );
-        Assertions.assertEquals(Arrays.<Object>asList("SKU-1", 20), compiled.getDataArgs());
+        Assertions.assertEquals(Arrays.<Object>asList(0, 0, "SKU-1", 20), compiled.getDataArgs());
         Assertions.assertEquals(
-            "select count(1) from t_order t where t.is_deleted = 0 and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = 0 and r.sku_code = ?)",
+            "select count(1) from t_order t where t.is_deleted = ? and exists (select 1 from t_order_item r where r.order_id = t.id and r.is_deleted = ? and r.sku_code = ?)",
             compiled.getCountSql()
         );
-        Assertions.assertEquals(Collections.<Object>singletonList("SKU-1"), compiled.getCountArgs());
+        Assertions.assertEquals(Arrays.<Object>asList(0, 0, "SKU-1"), compiled.getCountArgs());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.HavingClause;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.MetricDescriptor;
@@ -33,7 +34,8 @@ final class JdbcStatsPredicateBuilder {
         List<Object> args = new ArrayList<Object>();
         if (hasText(rootMeta.getLogicDeleteField())) {
             String logicDeleteCol = rootMeta.resolveColumn(rootMeta.getLogicDeleteField());
-            predicates.add("t." + logicDeleteCol + " = 0");
+            predicates.add("t." + logicDeleteCol + " = ?");
+            args.add(JdbcLogicDeleteValues.notDeleted(rootMeta));
         }
         predicates.addAll(buildGovernancePredicates(spec.getGovernanceScope(), rootMeta, args));
         predicates.addAll(buildCallerFilterPredicates(spec.getFilters(), rootMeta, args));

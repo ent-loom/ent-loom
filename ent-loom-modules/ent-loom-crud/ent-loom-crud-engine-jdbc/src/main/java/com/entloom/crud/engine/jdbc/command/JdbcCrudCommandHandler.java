@@ -18,6 +18,7 @@ import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import com.entloom.crud.core.util.RouteKeyFactory;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -194,13 +195,16 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         List<Object> whereArgs = new ArrayList<Object>();
         String whereClause = predicateBuilder.buildEffectiveWriteWhere(meta, spec, targetFilters, true, whereArgs);
         String sql;
+        List<Object> args = new ArrayList<Object>();
         if (meta.getLogicDeleteField() != null && !meta.getLogicDeleteField().trim().isEmpty()) {
             String logicDeleteColumn = meta.resolveColumn(meta.getLogicDeleteField());
-            sql = "update " + meta.getTable() + " set " + logicDeleteColumn + " = 1 where " + whereClause;
+            sql = "update " + meta.getTable() + " set " + logicDeleteColumn + " = ? where " + whereClause;
+            args.add(JdbcLogicDeleteValues.deleted(meta));
         } else {
             sql = "delete from " + meta.getTable() + " where " + whereClause;
         }
-        int rows = guardedSqlExecutor.update(sql, whereArgs, context(spec, "main"));
+        args.addAll(whereArgs);
+        int rows = guardedSqlExecutor.update(sql, args, context(spec, "main"));
         if (rows == 0) {
             writeMissClassifier.classify(meta, spec, targetFilters, "delete", context(spec, "post-check"));
         }
