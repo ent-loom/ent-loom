@@ -7,6 +7,7 @@ import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
@@ -187,8 +188,21 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             model.idField().value(),
             resolveIdPolicy(entityClass, model.idField().value()),
             model.logicDeleteField().value(),
+            resolveLogicDeleteValue(model.logicDeleteNotDeletedValue().value(), model.logicDeleteField().value(), fieldMetas),
+            resolveLogicDeleteValue(model.logicDeleteDeletedValue().value(), model.logicDeleteField().value(), fieldMetas),
             fieldMetas
         );
+    }
+
+    private Object resolveLogicDeleteValue(String rawValue, String fieldName, Map<String, EntityFieldMeta> fields) {
+        if (rawValue == null || rawValue.trim().isEmpty() || fieldName == null || fieldName.trim().isEmpty()) {
+            return null;
+        }
+        EntityFieldMeta field = fields.get(fieldName.trim());
+        if (field == null) {
+            return null;
+        }
+        return RowConstraintNormalizer.normalizeValue(field, rawValue.trim());
     }
 
     private EntityIdPolicy resolveIdPolicy(Class<?> entityClass, String idField) {

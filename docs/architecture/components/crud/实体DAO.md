@@ -1,8 +1,10 @@
 # 实体 DAO
 
-> 状态：Proposed<br>
+> 状态：In Progress（D0-D3、D4.2-D4.3 已完成；D1.2 Web 边界、D4.1 数据库矩阵和 D5 待后续）<br>
 > 最近核验：2026-09-17
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
+
+当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO。批量、save-or-update、其他实体和旧 Handler 共享分类器仍未切换；更完整数据库字段/时区/常用类型矩阵继续按实施清单推进。
 
 ## 定位
 
@@ -64,7 +66,7 @@ orderDao.deleteById(orderId);
 
 `EntityAccessScope` 是 scoped DAO 的不可变访问上下文，第一阶段只包含必需的 `RowConstraint`，不为尚未出现的分片需求预留 `PersistenceRouteHint`。首个真实分片项目出现后，再根据已验证的路由需求扩展创建 DAO 的合同。
 
-这里的“不可变”是深不可变快照，而不只是没有 setter：构造 `EntityAccessScope`、`RowConstraint` 及其节点时必须防御性复制集合、数组等可变入参，访问器不得暴露可变内部状态，组合约束必须返回新对象。Factory 创建 scoped DAO 时保存该快照；调用方之后修改原始集合、构造器或普通查询条件，都不能改变已绑定范围。具体实现形式在 D1 定稿，但不得削弱这些可观察语义。
+这里的“不可变”是深不可变快照，而不只是没有 setter：构造 `EntityAccessScope`、`RowConstraint` 及其节点时必须防御性复制集合、数组等可变入参，访问器不得暴露可变内部状态，组合约束必须返回新对象。当前 Core 和 JDBC Factory 已保存该快照；调用方之后修改原始集合、构造器或普通查询条件，都不能改变已绑定范围。
 
 `RowConstraint` 只表达当前实体字段上的行约束，不携带主体、角色、Scene Policy 等治理对象，也不允许包含 SQL 片段。字段和操作符必须经过实体元数据白名单校验，值始终使用参数化绑定。外部请求只能提供用于收窄范围的普通业务条件，不能直接提交、反序列化或替换可执行的 `RowConstraint`；可信应用层负责把授权结果和必要的业务条件解析为最终约束。
 
@@ -298,7 +300,7 @@ DAO 的安全保证从“收到最终 `EntityAccessScope`”开始：它保证�
 
 ### D0.1 合同测试设计
 
-下列用例先固定验收意图，待相应合同与真实入口出现后实现。D1 负责 Core 不可变性和 Factory 绑定测试，D3 负责 Web / Gateway 越权与两类可信调用路径的集成测试。
+下列用例先固定验收意图。D1 已覆盖 Core 不可变性和 Factory 绑定，D3 已覆盖 Gateway 越权与可信调用路径；Web 绑定层阻止外部输入形成可执行 scope 的装配集成测试仍留在 D1.2。
 
 | 阶段 | 场景 | 操作 | 必须观察到的结果 |
 |---|---|---|---|
@@ -384,4 +386,4 @@ flowchart TB
 7. 按真实调用需求逐项增加列表、分页、多主键查询、实体选择性更新、全量覆盖、非原子批量、条件写、主键 upsert 和键集分页。
 8. 首个真实分片项目出现后，再设计路由合同并验证单分片闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
 
-当前仓库尚未提供 `EntityDao` 实现，后续以本文作为 DAO 落地边界。
+当前仓库已提供首期 `EntityDao` Core 合同和 JDBC 实现；后续以本文及实施清单作为列表、批量、版本和分片能力的演进边界。

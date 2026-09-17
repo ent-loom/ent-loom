@@ -5,9 +5,11 @@ import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.security.JdbcMatchedRowsStartupValidator;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
 import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
 import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
+import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -64,5 +66,17 @@ public class CrudSqlSecurityConfiguration {
         SqlExecutionLogger sqlExecutionLogger
     ) {
         return new JdbcGuardedSqlExecutor(jdbcTemplate, sqlSecurityGuard, sqlExecutionLogger);
+    }
+
+    /**
+     * 启动期确认 MySQL 使用 matched-rows 影响行数语义。
+     */
+    @Bean
+    @ConditionalOnBean(JdbcTemplate.class)
+    @ConditionalOnMissingBean
+    public JdbcMatchedRowsStartupValidator jdbcMatchedRowsStartupValidator(DataSource dataSource) {
+        JdbcMatchedRowsStartupValidator validator = new JdbcMatchedRowsStartupValidator(dataSource);
+        validator.validateOrThrow();
+        return validator;
     }
 }

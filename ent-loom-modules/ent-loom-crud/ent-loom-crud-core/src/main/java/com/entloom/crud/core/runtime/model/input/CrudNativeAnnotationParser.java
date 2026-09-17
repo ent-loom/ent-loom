@@ -86,6 +86,8 @@ public class CrudNativeAnnotationParser {
                 stringExplicitOrInferred(entity.table(), defaultTable(entityClass)),
                 "id".equals(entity.idField()) ? SourcedValue.unknown("id") : SourcedValue.nativeExplicit(entity.idField()),
                 stringExplicitOrUnknown(entity.logicDeleteField()),
+                stringExplicitOrUnknown(entity.logicDeleteNotDeletedValue()),
+                stringExplicitOrUnknown(entity.logicDeleteDeletedValue()),
                 stringExplicitOrUnknown(entity.ownerService()),
                 fields,
                 relations

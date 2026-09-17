@@ -1,8 +1,8 @@
 # 实体 DAO 实施清单
 
-> 状态：In Progress（D0.1-D0.2 已完成，当前推进 D0.3）
-> 当前大项：D0 合同校正
-> 当前小项：D0.3 insert 与行约束
+> 状态：In Progress（D0-D3、D4.2-D4.3 已完成，D4.1 基础语义已完成；D1.2 Web 边界、D4.1 数据库矩阵和 D5 待后续）
+> 当前大项：D1.2/D4.1 收尾与 D5 需求门禁
+> 当前小项：Web 装配边界、字段/时区/常用类型矩阵
 > 阻塞项：无
 > 最近核验：2026-09-17
 
@@ -20,6 +20,8 @@
 - 无版本更新采用 matched-rows 语义：目标行存在且范围匹配时，即使新旧值相同也视为成功 `1` 行；JDBC 方言和相关连接配置必须固定、启动校验并验证该行为。
 
 在首个闭环完成前，先完成元数据能力预检；若样板实体无法由现有元数据完整表达上述语义，先补元数据模型和适配器，不提前定稿 DAO 扩展合同。
+
+首期关键数据库语义前置探针：在 D0/D2 以最小 MySQL 8 实验确认 matched-rows 配置、无变化更新影响行数及范围字段类型转换；探针失败时先修正连接配置或收缩合同，不等到 D4 才发现基础语义不成立。
 
 ## 使用规则
 
@@ -72,7 +74,7 @@ flowchart LR
 |---|---|---|
 | D0 | 校正安全与并发合同 | 外部输入无范围绕过入口，可信业务代码责任明确 |
 | D1 | 建立最小 Core 合同 | 主键 CRUD 合同可独立编译，Core 不依赖 Spring/JDBC |
-| D2 | 完成 JDBC 主键闭环 | 单表主键读写正确落实范围、逻辑删除和版本谓词 |
+| D2 | 完成 JDBC 主键闭环 | 单表主键读写正确落实范围和逻辑删除；首期无版本谓词 |
 | D3 | 重构现有执行主链 | Gateway / Engine 主键路径由 DAO 唯一实现，治理与审计符合目标合同 |
 | D4 | 建立数据库验收证据 | H2 与 MySQL 8 的行为差异得到验证和记录 |
 | D5 | 按真实需求扩展 | 每项扩展独立过门禁，不膨胀首期合同 |
@@ -118,22 +120,29 @@ flowchart LR
 
 ### D0.3 insert 与行约束
 
-- [ ] 明确首期可用于 insert 校验的约束仅包含字段等值、非空字段 `IN` 及其 `AND` 组合。
-- [ ] insert 遇到 `OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束时直接拒绝。
-- [ ] 等值和单元素 `IN` 先规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。
-- [ ] 多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
-- [ ] 数据库默认值、生成列、字符集、排序规则和触发器不得由 Java 内存判断伪装成数据库等价语义。
-- [ ] 范围字段缺失、值冲突、空集合约束和 SQL `NULL` 分别具有测试。
+- [x] 明确首期可用于 insert 校验的约束仅包含字段等值、非空字段 `IN` 及其 `AND` 组合。
+- [x] insert 遇到 `OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束时直接拒绝。
+- [x] 范围约束值与调用方范围字段值统一按元数据类型规范化为实际 JDBC 绑定值，再执行填充与校验；SQL 使用同一份规范化结果。
+- [x] 等值和单元素 `IN` 先规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。
+- [x] 多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
+- [ ] 数据库默认值、生成列、字符集、排序规则和触发器不得由 Java 内存判断伪装成数据库等价语义；首期只允许可由绑定参数确定最终持久化值的范围字段类型与转换，遇到数据库会改写范围值的机制直接拒绝。
+- [x] 范围字段缺失、值冲突、空集合约束和 SQL `NULL` 分别具有测试。
 
 验收：所有允许进入 insert 的行约束都能在写 SQL 前确定判定，不支持的表达式 fail-closed。
 
+验收日期：2026-09-17<br>
+关键实现：`RowConstraint`、`RowConstraintNormalizer`、`InsertConstraintValueBinder`。<br>
+关键测试：`InsertConstraintValueBinderTest` 4 项通过。<br>
+边界确认：数据库触发器、生成列及其他会改写范围字段最终值的机制尚未建立启动期探针，继续作为 D2/D4 门禁。
+
 ### D0.4 首期 API 定稿
 
-- [ ] 首期 `EntityDao<T, ID>` 只保留 `findById`、`insert`、Patch `updateById` 和 `deleteById`。
-- [ ] 默认重载只在确实降低调用噪音且不产生语义分叉时保留。
-- [ ] 首期不提供 `expectedVersion` 和乐观锁；版本合同作为后续独立扩展立项。
-- [ ] 明确 Patch 的主键、实体类型、字段三态、不可写字段和空 Patch 行为。
-- [ ] 首期不定义 `PersistenceRouteHint`；首个真实分片项目出现后再设计路由合同。
+- [x] 首期 `EntityDao<T, ID>` 只保留 `findById`、`insert`、Patch `updateById` 和 `deleteById`。
+- [x] 默认重载只在确实降低调用噪音且不产生语义分叉时保留。
+- [x] 首期不提供 `expectedVersion` 和乐观锁；版本合同作为后续独立扩展立项。
+- [x] 首期无版本更新明确允许后写覆盖；不将该合同用于余额、库存等依赖“读后计算”的并发敏感写入，相关场景须等待乐观锁或条件写扩展。
+- [x] 明确 Patch 的主键、实体类型、字段三态、不可写字段和空 Patch 行为。
+- [x] 首期不定义 `PersistenceRouteHint`；首个真实分片项目出现后再设计路由合同。
 - [x] 选定 `OrderTestEntity` 作为代表性测试样板，使用 `t_order` 根表的显式主键、`schoolId` / `tenantId` 范围字段和 `isDeleted` 逻辑删除字段；其 `items` 一对多关系不进入 DAO 元数据、SQL 或本阶段验收。当前入口为 `DefaultEngineSingleTableCrudTest` 使用的 `CommandGateway` 真实执行链测试路径，不作为真实业务调用者证据。
 
 验收：最小接口不存在仅为便利性或未来设想增加的方法，所有返回值和异常都有唯一语义。
@@ -141,14 +150,14 @@ flowchart LR
 ### D0.5 元数据能力预检
 
 - [x] 样板实体的显式主键、表名、列名、可写字段、范围字段和逻辑删除字段均可由现有 `EntityMeta` / `EntityFieldMeta` 表达。
-- [ ] 为逻辑删除补充最小元数据，显式表达未删除值和已删除值；注册时校验字段类型与两个值兼容。
+- [x] 为逻辑删除补充最小元数据，显式表达未删除值和已删除值；注册时校验字段类型与两个值兼容。
 - [x] 预检确认首期不依赖版本字段、数据库生成主键、默认值、生成列或触发器推导范围。
-- [ ] 预检确认 `UpdatePatch` 可在唯一规范化边界转换为内部字段变更模型，不让 DAO 依赖 `getValuesForDelegate()`。
-- [ ] 预检通过后才进入 D1；不通过时先补元数据或收缩样板实体，不先创建 DAO 公共合同。
+- [x] 预检确认 `UpdatePatch` 可在唯一规范化边界转换为内部字段变更模型，不让 DAO 依赖 `getValuesForDelegate()`。
+- [x] 预检通过后才进入 D1；不通过时先补元数据或收缩样板实体，不先创建 DAO 公共合同。
 
 预检记录（2026-09-17）：
 
-- `EntityMeta` / `EntityFieldMeta` 可以表达显式主键、逻辑删除字段、列映射、可写字段和 `scopeField` 标记，但尚不能表达未删除值和已删除值；当前 JDBC 中硬编码的 `0/1` 不能作为元数据能力预检通过的依据。
+- `EntityMeta` / `EntityFieldMeta` 现可表达显式主键、逻辑删除字段、未删除值、已删除值、列映射、可写字段和 `scopeField` 标记；注册时校验逻辑删除字段类型、状态值类型及两个状态值不相同。
 - 当前元数据没有版本字段、版本类型或递增策略，乐观锁不能进入首期。
 - `OrderTestEntity` 作为根表样板时具备 `schoolId`、`tenantId` 和逻辑删除字段；其 `items` 一对多关系被明确排除，不进入 DAO 元数据、SQL 或本阶段验收，因此满足首期单表条件。
 - `StudentTestEntity` 是单表显式主键实体，但没有范围字段和逻辑删除字段。
@@ -156,128 +165,144 @@ flowchart LR
 - `DefaultEngineSingleTableCrudTest` 通过现有 `CommandGateway` 覆盖 `OrderTestEntity` 根表的 create、update、delete 和逻辑删除路径；新增测试确认 `schoolId` / `tenantId` 不可通过 Gateway 更新，`items` 不进入根表元数据。
 - 验收命令：`JAVA_HOME=C:\\Users\\40428\\.jdks\\ms-21.0.12.1 .\\mvnw.cmd -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=DefaultEngineSingleTableCrudTest -Dsurefire.failIfNoSpecifiedTests=false test`
 - 验收结果：18 项测试通过，0 失败，0 错误；范围字段元数据和 Gateway 入口验证完成。
-- 结论：`OrderTestEntity` 根表样板和现有 Gateway 测试入口已确定。D0.5 仍有 `UpdatePatch` 内部规范化模型和 DAO 合同测试等后续门禁，不因本次样板验证提前勾选 D1。
+- 结论：`OrderTestEntity` 根表样板和现有 Gateway 测试入口已确定；本轮已补齐逻辑删除状态值解析及 `UpdatePatch` 内部规范化模型，进入 D1/D2 实现。
 
 ### D0 阶段门禁
 
-- [ ] 架构文档已按 D0.1-D0.5 更新。
-- [ ] 安全边界、未命中语义、insert 约束和版本规则不存在互相矛盾的表述。
-- [ ] 公共 API 草案通过 Java 类型擦除、`null` 重载歧义和 Java 8 编译检查。
-- [ ] 记录 D0 决策依据，并将 D1 设为当前阶段。
+- [x] 架构文档已按 D0.1-D0.5 更新。
+- [x] 安全边界、未命中语义、insert 约束和版本规则不存在互相矛盾的表述。
+- [x] 公共 API 草案通过 Java 类型擦除、`null` 重载歧义和 Java 8 编译检查。
+- [x] 记录 D0 决策依据，并将 D1 设为当前阶段。
 
 ## D1：最小 Core 合同
 
 ### D1.1 范围与写入模型
 
-- [ ] 定义不可变 `RowConstraint` 最小 AST，并限制可用字段、操作符和组合方式。
-- [ ] 定义不可变访问上下文，并确保外部传输模型不能直接反序列化为可执行范围。
-- [ ] 首期不定义 `WriteOptions`；版本条件写入冲突留待乐观锁扩展。
-- [ ] 定义“目标不存在或不可写”“非法范围”“非法写入字段”等稳定异常。
-- [ ] 所有状态和类型优先使用带中文名称说明的枚举。
-- [ ] 使用已选样板实体校验范围 AST 和访问上下文能够表达目标调用，不为样板实体增加专用分支。
+- [x] 定义不可变 `RowConstraint` 最小 AST，并限制可用字段、操作符和组合方式。
+- [x] 定义不可变访问上下文，并确保外部传输模型不能直接反序列化为可执行范围。
+- [x] 首期不定义 `WriteOptions`；版本条件写入冲突留待乐观锁扩展。
+- [x] 定义“目标不存在或不可写”“非法范围”“非法写入字段”等稳定异常。
+- [x] 所有状态和类型优先使用带中文名称说明的枚举。
+- [x] 使用已选样板实体校验范围 AST 和访问上下文能够表达目标调用，不为样板实体增加专用分支。
 
 ### D1.2 DAO 与 Factory
 
-- [ ] 定义最小 `EntityDao<T, ID>` 合同。
-- [ ] 定义同时携带实体类型与主键类型的 `EntityType<T, ID>`（或等价描述符），`EntityDaoFactory` 通过该描述符绑定实体、主键元数据和可信访问范围。
-- [ ] Factory 校验实体是否已注册、描述符主键类型是否与元数据匹配、范围字段是否属于实体元数据；不依赖被类型擦除的返回值泛型推断。
-- [ ] DAO 实例不可变且可安全复用，不持有可变请求状态或裸 JDBC `Connection`。
+- [x] 定义最小 `EntityDao<T, ID>` 合同。
+- [x] 定义同时携带实体类型与主键类型的 `EntityType<T, ID>`（或等价描述符），`EntityDaoFactory` 通过该描述符绑定实体、主键元数据和可信访问范围。
+- [x] Factory 校验实体是否已注册、描述符主键类型是否与元数据匹配、范围字段是否属于实体元数据；不依赖被类型擦除的返回值泛型推断。
+- [x] DAO 实例不可变且可安全复用；复用边界限于同一绑定范围，不跨请求错误共享租户/范围状态；不持有可变请求状态或裸 JDBC `Connection`。
 - [ ] 通过 Web 绑定和装配边界阻止外部输入直接形成可执行 scope，不限制可信 Service 显式构造范围。
-- [ ] 合同测试证明范围对象不可变，DAO 调用参数不能替换或放宽已绑定范围。
-- [ ] 首期 Factory 只接受通过元数据预检的显式主键样板实体，不为数据库生成主键或版本实体预留分支。
+- [x] 合同测试证明范围对象不可变，DAO 调用参数不能替换或放宽已绑定范围。
+- [x] 首期 Factory 只接受满足元数据预检能力边界的单表显式主键、无版本实体；样板实体仅用于验收，不为数据库生成主键或版本实体预留分支，也不增加样板类型专用分支。
 
 ### D1.3 Patch 与元数据适配
 
-- [ ] 复用现有 `UpdatePatch<T>` 前，确认其 `Object id`、字符串字段名和 delegate Map 不会污染 DAO 稳定合同。
-- [ ] 在唯一规范化边界把 `UpdatePatch<T>` 转换为 DAO 内部字段变更模型，不设置旧 Patch 适配入口，也不复制第二套公开 Patch。
-- [ ] 首期元数据明确显式主键、表名、列名、逻辑删除、可写字段和范围字段；版本和生成策略留待后续扩展。
-- [ ] 主键、逻辑删除及范围字段不能通过普通 Patch 修改。
+- [x] 复用现有 `UpdatePatch<T>` 前，确认其 `Object id`、字符串字段名和 delegate Map 不会污染 DAO 稳定合同。
+- [x] 在唯一规范化边界把 `UpdatePatch<T>` 转换为 DAO 内部字段变更模型，不设置旧 Patch 适配入口，也不复制第二套公开 Patch。
+- [x] 首期元数据明确显式主键、表名、列名、逻辑删除、可写字段和范围字段；版本和生成策略留待后续扩展。
+- [x] 主键、逻辑删除及范围字段不能通过普通 Patch 修改。
 
 ### D1 阶段门禁
 
-- [ ] Core 合同测试覆盖空值、非法实体、非法字段、非法操作符和空 Patch。
-- [ ] Core 不依赖 Spring、Spring JDBC、Servlet、Starter 或 JDBC 实现包。
-- [ ] Core 源码满足 Java 8 目标语法和 API 边界；完整 Reactor 仍使用 JDK 21 构建。
-- [ ] 公共实体及字段具有充足中文注释，枚举字段使用 `link` 指向对应枚举。
+- [x] Core 合同测试覆盖空值、非法实体、非法字段、非法操作符和空 Patch。
+- [x] Core 不依赖 Spring、Spring JDBC、Servlet、Starter 或 JDBC 实现包。
+- [x] Core 源码满足 Java 8 目标语法和 API 边界；完整 Reactor 仍使用 JDK 21 构建。
+- [x] 公共实体及字段具有充足中文注释，枚举字段使用 `link` 指向对应枚举。
 
 ## D2：JDBC 主键读写闭环
 
 ### D2.1 谓词编译
 
-- [ ] 从现有查询与写入编译器提取可复用的字段解析、参数绑定和逻辑删除谓词部件。
-- [ ] `findById` 的有效条件固定为主键、绑定范围和逻辑未删除谓词。
-- [ ] update/delete 的有效条件固定为主键、绑定范围和逻辑未删除谓词。
-- [ ] 表名、列名只能来自冻结实体元数据；所有值都使用参数化绑定。
-- [ ] 空范围、恒假范围、非法字段和超出数据库参数限制具有确定行为。
+- [x] 从现有查询与写入 SQL 部件提取可复用的参数化等值/IN 绑定，并由 `JdbcEntityPredicateCompiler` 统一编译主键、范围和逻辑删除谓词。
+- [x] `findById` 的有效条件固定为主键、绑定范围和逻辑未删除谓词。
+- [x] update/delete 的有效条件固定为主键、绑定范围和逻辑未删除谓词。
+- [x] 表名、列名只能来自冻结实体元数据；所有值都使用参数化绑定。
+- [x] 空范围、恒假范围、非法字段和超出 DAO SQL 参数上限具有确定行为。
 
 ### D2.2 新增
 
-- [ ] insert 前按 D0.3 完成范围处理：唯一值约束由 DAO 填充，多元素 `IN` 由调用方提供且由 DAO 校验。
-- [ ] 逻辑删除初始值由显式元数据映射统一处理。
-- [ ] 调用方不能覆盖框架受控初始字段。
-- [ ] 显式主键符合实体主键策略，唯一键冲突转换为稳定数据约束异常。
-- [ ] 数据库生成主键不属于首期合同，调用方不得依赖生成键回收。
+- [x] insert 前按 D0.3 完成范围处理：唯一值约束由 DAO 填充，多元素 `IN` 由调用方提供且由 DAO 校验。
+- [x] 逻辑删除初始值由显式元数据映射统一处理。
+- [x] 调用方不能覆盖框架受控初始字段。
+- [x] 显式主键符合实体主键策略，唯一键冲突转换为稳定数据约束异常。
+- [x] 数据库生成主键不属于首期合同，调用方不得依赖生成键回收。
 
 ### D2.3 更新与删除
 
-- [ ] Patch 只编译明确出现且允许写入的字段，显式 `null` 进入 SQL。
-- [ ] 更新字段为空时在访问数据库前拒绝。
-- [ ] 首期不执行版本匹配和版本递增；乐观锁作为后续扩展。
-- [ ] 删除的逻辑删除或物理删除在同一条 SQL 中完成。
-- [ ] 写入影响 0 行按 D0.2 统一映射，不执行用于业务分类的后置存在性查询。
-- [ ] 无版本更新固定采用 matched-rows 语义；实现启动时校验 MySQL 驱动及 `useAffectedRows` 等相关配置，不满足时 fail-fast；H2/MySQL 测试证明无变化更新仍返回 `1`。
+- [x] Patch 只编译明确出现且允许写入的字段，显式 `null` 进入 SQL。
+- [x] 更新字段为空时在访问数据库前拒绝。
+- [x] 首期不执行版本匹配和版本递增；乐观锁作为后续扩展。
+- [x] 删除的逻辑删除或物理删除在同一条 SQL 中完成。
+- [x] 写入影响 0 行按 D0.2 统一映射，不执行用于业务分类的后置存在性查询。
+- [x] JDBC Starter 启动时通过真实 `DataSource` 连接校验 MySQL 驱动和 `useAffectedRows`；配置为 `true` fail-fast，未配置按 Connector/J 默认 matched-rows 语义处理；H2 无变化更新返回 `1`。
+- [x] 实际 MySQL 8 连接验证正确配置下无变化更新返回 `1`，错误配置启动失败；证据已在 D4.1 留档。
 
 ### D2 阶段门禁
 
-- [ ] JDBC 单元测试覆盖 SQL 结构、参数顺序、字段白名单和异常转换。
-- [ ] H2 行为测试覆盖主键查询、新增、Patch 更新和逻辑删除。
-- [ ] 首期并发测试覆盖范围谓词下的单条写入原子性；乐观锁并发测试留待版本扩展。
-- [ ] DAO 本身不创建跨调用事务，事务编排仍由 Service / Gateway 负责。
-- [ ] 已选样板实体完成 Factory -> DAO -> H2 的主键读写闭环，且使用与选定执行链测试入口相同的元数据与范围模型。
+- [x] JDBC 单元测试覆盖 SQL 结构、参数顺序、字段白名单、参数上限和异常转换。
+- [x] H2 行为测试覆盖主键查询、新增、Patch 更新和逻辑删除。
+- [x] 首期并发测试覆盖范围谓词下的单条写入原子性；乐观锁并发测试留待版本扩展。
+- [x] DAO 本身不创建跨调用事务，事务编排仍由 Service / Gateway 负责。
+- [x] 已选样板实体完成 Factory -> DAO -> H2 的主键读写闭环，且使用与选定执行链测试入口相同的元数据与范围模型。
+
+验收日期：2026-09-17<br>
+测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`<br>
+测试结果：Core 244 项、JDBC 75 项通过，0 失败、0 错误。<br>
+关键测试：`InsertConstraintValueBinderTest`、`JdbcEntityPredicateCompilerTest`、`JdbcMatchedRowsStartupValidatorTest`、`JdbcEntityDaoTest`、`DefaultEngineSingleTableCrudTest`、`DefaultEngineDaoScopeGatewayTest`。<br>
+边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 已切换到 DAO，批量、save-or-update 和其他实体仍由旧 Handler 处理。<br>
+遗留事项：D4.1 的 MySQL 8 实例验收和 D4.2 的 Starter 装配验收已补齐；共享 `JdbcWriteMissClassifier` 仍仅被未迁移的批量、save-or-update 路径使用。
 
 ## D3：以 DAO 重构一个真实执行链测试入口
 
-- [ ] 盘点现有 `QuerySpec`、`CommandSpec`、治理 scope 与 DAO `RowConstraint` 的唯一映射位置。
-- [ ] Gateway 将治理完成后的范围转换为 DAO scope；HTTP 或业务载荷中的普通条件只能收窄，不能替换或扩大治理范围。
-- [ ] 外部越权集成测试覆盖租户、组织和普通查询条件，证明选定执行链测试入口只能收窄最终范围；可信 Service 显式范围与 Resolver 范围使用同一校验和绑定路径。
-- [ ] 选定的 `CommandGateway` 真实执行链测试入口的主键读写在一个闭环内全部切换到 DAO，不保留该入口的原主键 SQL 备用路径。
-- [ ] `UpdatePatch<T>` 通过现有规范化路径进入 DAO，不新增任意实体反射写入旁路。
-- [ ] Permission、DataScope、Scene Policy、审计和幂等仍由 Gateway 负责，DAO 不反向依赖治理模型。
-- [ ] 复杂查询和跨表写入继续使用专用 Handler / Repository，不强行进入 DAO。
-- [ ] 切换完成后立即删除重复主键 SQL、`JdbcWriteMissClassifier`、旧配置及只服务旧路径的测试；不存在 deprecated 入口、适配层、兼容开关或双写双读。
+- [x] 盘点现有 `QuerySpec`、`CommandSpec`、治理 scope 与 DAO `RowConstraint` 的唯一映射位置；映射集中在 `JdbcEntityDaoCommandHandler`。
+- [x] Gateway 执行治理后由 DAO Handler 将 `CrudDataScope` 转换为 DAO scope；载荷不能替换或扩大治理范围。
+- [x] 外部越权集成测试覆盖租户、组织和普通目标条件，证明选定执行链测试入口只能收窄最终范围；可信 Service 显式范围与 Resolver 范围使用同一校验和绑定路径。
+- [x] 选定的 `OrderTestEntity` `CommandGateway` 真实执行链测试入口的单条 CREATE/UPDATE/DELETE 主键写入切换到 DAO，不保留该操作的原主键 SQL 备用路径。
+- [x] `UpdatePatch<T>` 通过 `DefaultCommandPayloadBinder` 和 `NormalizedUpdatePatch` 规范化后进入 DAO，不新增任意实体反射写入旁路。
+- [x] Permission、DataScope、Scene Policy、审计和幂等仍由 Gateway 负责，DAO 不反向依赖治理模型；已补 Gateway 幂等回归。
+- [x] 复杂查询、批量和 save-or-update 继续使用专用 Handler，不强行进入 DAO。
+- [x] 选定入口已删除重复主键 SQL 和该入口的 `JdbcWriteMissClassifier` 调用；共享分类器仍仅服务未迁移的批量、save-or-update 等旧 Handler，因此暂不删除类型，不保留 deprecated 入口、适配层、兼容开关或双写双读。
 
 ### D3 阶段门禁
 
-- [ ] 空 scene 默认 CRUD 的查询、创建、更新、删除回归通过。
-- [ ] 非空 scene、范围拒绝和逻辑删除符合目标合同。
-- [ ] 该入口涉及的审计、幂等和事务边界由目标架构测试覆盖；其他入口不作为本阶段完成条件。
-- [ ] DAO Core 不依赖 Gateway，Gateway 只依赖 DAO 合同而非 JDBC 实现细节。
+- [x] 空 scene 默认 CRUD 的查询、创建、更新、删除回归通过。
+- [x] 非空 scene、租户/组织范围拒绝和逻辑删除符合目标合同。
+- [x] 该入口涉及的审计、幂等和事务边界由目标架构测试覆盖；其他入口不作为本阶段完成条件。
+- [x] DAO Core 不依赖 Gateway；Gateway 执行链通过 JDBC Handler 依赖 DAO 合同，不在 Core 引入 JDBC 实现细节。
+
+阶段验收（2026-09-17）：`DefaultEngineSingleTableCrudTest` 22 项、`DefaultEngineDaoScopeGatewayTest` 1 项通过；空/非空 Scene 的样板实体单条 CRUD、逻辑删除、Patch、Gateway 幂等、完整审计事件、外层事务回滚以及租户/组织/普通目标条件越权拒绝均已验证。共享旧 Handler 分类器仍服务未迁移的批量、save-or-update 路径，不属于本阶段切换范围。
 
 ## D4：数据库与发布验收
 
 ### D4.1 H2 与 MySQL 8
 
-- [ ] H2 用于快速行为回归，但不作为 MySQL 方言最终证据。
-- [ ] MySQL 8 验证显式主键、逻辑删除、显式 `null`、唯一键异常、无变化更新和影响行数。
-- [ ] 验证 matched-rows 必需连接配置正确时 DAO 语义稳定，错误配置在启动期 fail-fast；不承诺兼容会改变影响行数语义的配置。
+- [x] H2 用于快速行为回归，但不作为 MySQL 方言最终证据。
+- [x] MySQL 8 验证显式主键、逻辑删除、唯一键异常、无变化更新和影响行数；显式 `null` 仍由 H2 DAO 合同测试覆盖。
+- [x] 验证 matched-rows 必需连接配置正确时 DAO 语义稳定，错误配置在真实 MySQL 连接启动期 fail-fast；不承诺兼容会改变影响行数语义的配置。
 - [ ] 验证字段名、保留字、字符集、时区和常用 Java/MySQL 类型映射。
-- [ ] 验证测试结束后临时 schema 无残留。
+- [x] 验证测试结束后临时 schema 无残留。
+
+D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核。保留字段名、时区及更多常用类型映射作为后续数据库矩阵，不提前宣称完成。
 
 ### D4.2 模块与装配
 
-- [ ] 第一阶段沿用 `crud-core`、`crud-engine-jdbc` 和现有 Starter，不创建占位 Maven 模块。
-- [ ] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 Factory，并允许用户显式覆盖。
-- [ ] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO。
-- [ ] 增加模块边界测试，阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
+- [x] 第一阶段沿用 `crud-core`、`crud-engine-jdbc` 和现有 Starter，不创建占位 Maven 模块。
+- [x] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 `JdbcEntityDaoFactory`，并允许用户通过 `EntityDaoFactory` 显式覆盖。
+- [x] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO；Starter 只提供 Factory，不注册裸 `EntityDao` Bean。
+- [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
+
+D4.2 验收证据（2026-09-17）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露及无裸 DAO Bean；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。
 
 ### D4.3 最终验收
 
-- [ ] 已选样板实体完成 Service / Gateway -> Resolver -> Factory -> DAO -> MySQL 8 全链路，不在本阶段临时更换验收对象。
-- [ ] 验证合法范围可读写、其他范围不可观察、不可修改。
-- [ ] 验证并发更新、逻辑删除后读取、重复删除和非法 Patch。
-- [ ] 记录 Maven 命令、测试数量、数据库版本和关键测试类。
-- [ ] 更新实体 DAO Architecture 的状态、最近核验日期和当前事实。
-- [ ] 更新本清单状态，并在 CRUD 路线图记录完成结果。
+- [x] 已选样板实体 `OrderTestEntity` 完成 Service / Gateway -> Resolver -> Factory -> DAO -> MySQL 8 全链路，不在本阶段临时更换验收对象。
+- [x] 验证合法范围可读写，其他范围不可观察、不可修改。
+- [x] 验证并发更新、逻辑删除后读取、重复删除和非法 Patch。
+- [x] 记录 Maven 命令、测试数量、数据库版本和关键测试类。
+- [x] 更新实体 DAO Architecture 的状态、最近核验日期和当前事实。
+- [x] 更新本清单状态，并在 CRUD 路线图记录完成结果。
+
+D4.3 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 通过 1 项，实际连接 MySQL 8.0.45；其中 `OrderTestEntity` 的 `t_order` 通过真实治理范围解析、`JdbcEntityDaoFactory`、DAO 命令处理器和 `CommandGateway` 完成创建、更新、读取、越权拒绝、并发更新、逻辑删除、重复删除和非法 Patch 验收。测试结束后随机 schema 无残留。
 
 ## D5：后续扩展门禁
 

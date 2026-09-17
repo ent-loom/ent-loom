@@ -21,6 +21,8 @@ import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -109,6 +111,8 @@ public class CrudNativeRuntimeModelParser {
             idField,
             resolveIdPolicy(entityClass, entity, idField),
             trimToNull(entity.logicDeleteField()),
+            resolveLogicDeleteValue(nativeModel, entity.logicDeleteField(), entity.logicDeleteNotDeletedValue()),
+            resolveLogicDeleteValue(nativeModel, entity.logicDeleteField(), entity.logicDeleteDeletedValue()),
             fieldMetas
         );
         return new ParsedEntity(entityMeta, relationEdges);
@@ -159,6 +163,50 @@ public class CrudNativeRuntimeModelParser {
             }
         }
         return null;
+    }
+
+    private Object resolveLogicDeleteValue(
+        CrudNativeEntityModel model,
+        String logicDeleteField,
+        String rawValue
+    ) {
+        String value = trimToNull(rawValue);
+        String fieldName = trimToNull(logicDeleteField);
+        if (value == null || fieldName == null || model == null) {
+            return null;
+        }
+        CrudNativeFieldModel field = findFieldModel(model, fieldName);
+        Class<?> type = field == null ? null : field.javaType();
+        if (type == null || type == String.class) {
+            return value;
+        }
+        try {
+            if (type == Boolean.class || type == Boolean.TYPE) {
+                if ("true".equalsIgnoreCase(value) || "1".equals(value)) {
+                    return Boolean.TRUE;
+                }
+                if ("false".equalsIgnoreCase(value) || "0".equals(value)) {
+                    return Boolean.FALSE;
+                }
+            } else if (type == Integer.class || type == Integer.TYPE) {
+                return Integer.valueOf(value);
+            } else if (type == Long.class || type == Long.TYPE) {
+                return Long.valueOf(value);
+            } else if (type == Short.class || type == Short.TYPE) {
+                return Short.valueOf(value);
+            } else if (type == Byte.class || type == Byte.TYPE) {
+                return Byte.valueOf(value);
+            } else if (type == BigDecimal.class) {
+                return new BigDecimal(value);
+            } else if (type == BigInteger.class) {
+                return new BigInteger(value);
+            } else if (type.isEnum()) {
+                return Enum.valueOf((Class<? extends Enum>) type, value);
+            }
+        } catch (RuntimeException ex) {
+            throw new ValidationException("逻辑删除值无法转换为字段类型: " + fieldName + " = " + rawValue);
+        }
+        throw new ValidationException("逻辑删除字段类型不支持显式状态值: " + fieldName + " -> " + type.getName());
     }
 
     private RelationEdge toRelationEdge(

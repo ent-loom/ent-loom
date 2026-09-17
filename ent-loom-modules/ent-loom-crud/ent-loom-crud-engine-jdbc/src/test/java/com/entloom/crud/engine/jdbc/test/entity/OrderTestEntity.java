@@ -15,6 +15,8 @@ import lombok.Setter;
     table = "t_order",
     idField = "id",
     logicDeleteField = "isDeleted",
+    logicDeleteNotDeletedValue = "0",
+    logicDeleteDeletedValue = "1",
     scopeFields = {"schoolId", "tenantId"},
     ownerService = "test-service"
 )

@@ -25,6 +25,10 @@ public class EntityMeta {
     private final EntityIdPolicy idPolicy;
     /** 逻辑删除字段名。 */
     private final String logicDeleteField;
+    /** 逻辑未删除值；逻辑删除字段为空时不使用。 */
+    private final Object logicDeleteNotDeletedValue;
+    /** 逻辑已删除值；逻辑删除字段为空时不使用。 */
+    private final Object logicDeleteDeletedValue;
     /** 归属服务名。 */
     private final String ownerService;
     /** 字段到列名的映射。 */
@@ -54,6 +58,36 @@ public class EntityMeta {
         String logicDeleteField,
         Map<String, EntityFieldMeta> fieldMetas
     ) {
+        this(
+            entityType,
+            resourceDescriptor,
+            table,
+            idField,
+            idPolicy,
+            logicDeleteField,
+            null,
+            null,
+            fieldMetas
+        );
+    }
+
+    /**
+     * 创建包含显式逻辑删除值的实体元数据。
+     *
+     * @param logicDeleteNotDeletedValue 未删除值
+     * @param logicDeleteDeletedValue 已删除值
+     */
+    public EntityMeta(
+        Class<?> entityType,
+        ResourceDescriptor resourceDescriptor,
+        String table,
+        String idField,
+        EntityIdPolicy idPolicy,
+        String logicDeleteField,
+        Object logicDeleteNotDeletedValue,
+        Object logicDeleteDeletedValue,
+        Map<String, EntityFieldMeta> fieldMetas
+    ) {
         if (resourceDescriptor == null) {
             throw new IllegalArgumentException("resourceDescriptor 不能为空");
         }
@@ -69,6 +103,8 @@ public class EntityMeta {
         this.idField = idField;
         this.idPolicy = idPolicy == null ? EntityIdPolicy.EXPLICIT : idPolicy;
         this.logicDeleteField = logicDeleteField;
+        this.logicDeleteNotDeletedValue = logicDeleteNotDeletedValue;
+        this.logicDeleteDeletedValue = logicDeleteDeletedValue;
         this.ownerService = resourceDescriptor.getOwnerService();
         LinkedHashMap<String, EntityFieldMeta> copy = fieldMetas == null
             ? new LinkedHashMap<String, EntityFieldMeta>()
@@ -102,5 +138,10 @@ public class EntityMeta {
 
     public EntityFieldMeta resolveFieldMeta(String field) {
         return fieldMetas.get(field);
+    }
+
+    /** 是否已显式提供逻辑删除的两个状态值。 */
+    public boolean hasExplicitLogicDeleteValues() {
+        return logicDeleteNotDeletedValue != null && logicDeleteDeletedValue != null;
     }
 }

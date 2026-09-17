@@ -6,7 +6,8 @@ import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.gateway.CommandGatewayImpl;
 import com.entloom.crud.core.capability.query.gateway.QueryGatewayImpl;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
-import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.service.CrudGovernanceService;
 import com.entloom.crud.core.governance.service.DefaultCrudGovernanceService;
 import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
@@ -15,6 +16,7 @@ import com.entloom.crud.core.governance.policy.ScenePolicyRegistry;
 import com.entloom.crud.core.runtime.spec.DefaultCrudSpecAttributeResolver;
 import com.entloom.crud.core.governance.permission.AllowAllCrudPermissionService;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
+import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.idempotency.IdempotencyManager;
 import com.entloom.crud.core.idempotency.IdempotencyStore;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
@@ -26,8 +28,10 @@ import com.entloom.crud.core.runtime.router.DefaultQueryRouter;
 import com.entloom.crud.core.runtime.router.CommandRouter;
 import com.entloom.crud.core.runtime.router.QueryRouter;
 import com.entloom.crud.core.runtime.validation.SpecValidator;
+import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
+import com.entloom.crud.engine.jdbc.command.JdbcEntityDaoCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
 import com.entloom.crud.engine.jdbc.idempotency.JdbcIdempotencyStore;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
@@ -44,7 +48,9 @@ import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -63,9 +69,11 @@ public abstract class EngineJdbcTestSupport {
     protected QueryRouter queryRouter;
     protected CommandRouter commandRouter;
     protected SpecValidator specValidator;
+    protected JdbcEntityDaoFactory entityDaoFactory;
+    protected RecordingAuditRecorder auditRecorder;
 
     @BeforeEach
-    void setUpEngineFixture() {
+    protected void setUpEngineFixture() {
         this.dataSource = new DriverManagerDataSource(
             "jdbc:h2:mem:ent_loom_crud;MODE=MYSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
             "sa",
@@ -89,6 +97,7 @@ public abstract class EngineJdbcTestSupport {
         SqlSafetyGuard sqlSecurityGuard = new SqlSafetyGuard(whitelist, paramLimiter);
         SqlExecutionLogger sqlExecutionLogger = new SqlExecutionLogger();
         JdbcGuardedSqlExecutor guardedSqlExecutor = new JdbcGuardedSqlExecutor(jdbcTemplate, sqlSecurityGuard, sqlExecutionLogger);
+        this.entityDaoFactory = new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor);
 
         JdbcQueryEngine defaultQueryEngine = new JdbcQueryEngine(
             metaRegistry,
@@ -99,7 +108,15 @@ public abstract class EngineJdbcTestSupport {
         );
 
         CrudCommandRegistry commandRegistry = new CrudCommandRegistry();
-        commandRegistry.setDefaultHandler(new JdbcCrudCommandHandler<>(metaRegistry, guardedSqlExecutor));
+        JdbcCrudCommandHandler<Object, Object> fallbackHandler = new JdbcCrudCommandHandler<>(
+            metaRegistry,
+            guardedSqlExecutor
+        );
+        commandRegistry.setDefaultHandler(fallbackHandler);
+        commandRegistry.register(
+            OrderTestEntity.class,
+            new JdbcEntityDaoCommandHandler<Object, Object>(metaRegistry, entityDaoFactory, fallbackHandler)
+        );
         RegistryBackedCommandEngine defaultCommandEngine = new RegistryBackedCommandEngine(commandRegistry, sqlSecurityGuard);
 
         this.queryRouter = new DefaultQueryRouter(defaultQueryEngine);
@@ -114,6 +131,7 @@ public abstract class EngineJdbcTestSupport {
         );
         ((JdbcIdempotencyStore) idempotencyStore).initializeSchema();
         this.idempotencyManager = new IdempotencyManager(idempotencyStore);
+        this.auditRecorder = new RecordingAuditRecorder();
         CrudGovernanceService governanceService = new DefaultCrudGovernanceService(
             metaRegistry,
             specValidator,
@@ -124,9 +142,9 @@ public abstract class EngineJdbcTestSupport {
                 }
             },
             new AllowAllCrudPermissionService(),
-            new AllowAllCrudDataScopeResolver(),
+            createDataScopeResolver(),
             Collections.emptyList(),
-            new LoggingCrudGovernanceAuditRecorder(),
+            auditRecorder,
             new DefaultCrudSpecAttributeResolver(),
             new DefaultScenePolicyService(new ScenePolicyRegistry(null), new AttributeAccessEntryResolver())
         );
@@ -145,5 +163,24 @@ public abstract class EngineJdbcTestSupport {
         subject.setSubjectId("tester");
         subject.setTenantId("tenant-a");
         return subject;
+    }
+
+    /** 允许单测替换可信治理范围来源，验证 Gateway 到 DAO 的范围传递。 */
+    protected CrudDataScopeResolver createDataScopeResolver() {
+        return new AllowAllCrudDataScopeResolver();
+    }
+
+    /** 测试用审计记录器，保留完整事件供 Gateway 主链断言。 */
+    protected static final class RecordingAuditRecorder implements CrudGovernanceAuditRecorder {
+        private final List<CrudGovernanceAuditEvent> events = new ArrayList<CrudGovernanceAuditEvent>();
+
+        @Override
+        public void record(CrudGovernanceAuditEvent event) {
+            events.add(event);
+        }
+
+        public List<CrudGovernanceAuditEvent> getEvents() {
+            return Collections.unmodifiableList(new ArrayList<CrudGovernanceAuditEvent>(events));
+        }
     }
 }

@@ -48,6 +48,20 @@ public @interface EntCrudEntity {
     String logicDeleteField() default "";
 
     /**
+     * 逻辑删除字段的未删除值，必须与字段 Java 类型兼容。
+     *
+     * @return 未删除值文本
+     */
+    String logicDeleteNotDeletedValue() default "";
+
+    /**
+     * 逻辑删除字段的已删除值，必须与字段 Java 类型兼容。
+     *
+     * @return 已删除值文本
+     */
+    String logicDeleteDeletedValue() default "";
+
+    /**
      * 治理范围字段；创建时由可信治理范围提供，不能由普通载荷覆盖。
      *
      * @return 范围字段名

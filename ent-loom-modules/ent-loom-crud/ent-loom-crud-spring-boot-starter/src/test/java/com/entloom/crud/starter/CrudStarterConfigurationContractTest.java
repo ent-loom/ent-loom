@@ -2,6 +2,10 @@ package com.entloom.crud.starter;
 
 import com.entloom.crud.api.enums.CrudReadResultMode;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
+import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoFactory;
+import com.entloom.crud.core.capability.dao.EntityAccessScope;
+import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
@@ -21,6 +25,7 @@ import com.entloom.crud.starter.web.facade.EntCrudStatsFacade;
 import com.entloom.crud.starter.web.support.CrudRequestSupport;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
+import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -84,6 +89,44 @@ class CrudStarterConfigurationContractTest {
         Assertions.assertEquals(12L, properties.getImportExport().getRetentionHours());
         Assertions.assertEquals(1048576L, properties.getImportExport().getMaxFileBytes());
         Assertions.assertEquals(IdempotencyPolicy.Mode.REQUIRED, properties.getIdempotency().getMode());
+    }
+
+    @Test
+    void starter_should_create_dao_factory_when_jdbc_and_metadata_are_available() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(JdbcEntityDaoFactory.class);
+            assertThat(context).hasSingleBean(EntityDaoFactory.class);
+            assertThat(context).doesNotHaveBean(EntityDao.class);
+        });
+    }
+
+    @Test
+    void starter_should_back_off_when_business_supplies_dao_factory() {
+        contextRunner
+            .withBean(EntityDaoFactory.class, this::testEntityDaoFactory)
+            .run(context -> {
+                assertThat(context).hasSingleBean(EntityDaoFactory.class);
+                assertThat(context).doesNotHaveBean(JdbcEntityDaoFactory.class);
+        });
+    }
+
+    @Test
+    void dao_factory_should_not_follow_command_engine_toggle() {
+        contextRunner
+            .withPropertyValues("entloom.crud.command.enabled=false")
+            .run(context -> assertThat(context).hasSingleBean(JdbcEntityDaoFactory.class));
+    }
+
+    private EntityDaoFactory testEntityDaoFactory() {
+        return new EntityDaoFactory() {
+            @Override
+            public <T, ID> EntityDao<T, ID> scoped(
+                EntityType<T, ID> entityType,
+                EntityAccessScope scope
+            ) {
+                throw new UnsupportedOperationException("测试替代 Factory");
+            }
+        };
     }
 
     @Test

@@ -19,6 +19,8 @@ public final class CrudRuntimeEntityModel {
     private final String table;
     private final CrudRuntimeIdentityModel identity;
     private final String logicDeleteField;
+    private final Object logicDeleteNotDeletedValue;
+    private final Object logicDeleteDeletedValue;
     private final String ownerService;
     private final Map<String, CrudRuntimeFieldModel> fields;
     private final CrudRuntimeCapabilityModel capabilities;
@@ -32,11 +34,37 @@ public final class CrudRuntimeEntityModel {
         Map<String, CrudRuntimeFieldModel> fields,
         CrudRuntimeCapabilityModel capabilities
     ) {
+        this(
+            entityType,
+            resourceDescriptor,
+            table,
+            identity,
+            logicDeleteField,
+            null,
+            null,
+            fields,
+            capabilities
+        );
+    }
+
+    public CrudRuntimeEntityModel(
+        Class<?> entityType,
+        ResourceDescriptor resourceDescriptor,
+        String table,
+        CrudRuntimeIdentityModel identity,
+        String logicDeleteField,
+        Object logicDeleteNotDeletedValue,
+        Object logicDeleteDeletedValue,
+        Map<String, CrudRuntimeFieldModel> fields,
+        CrudRuntimeCapabilityModel capabilities
+    ) {
         this.entityType = entityType;
         this.resourceDescriptor = resourceDescriptor;
         this.table = table;
         this.identity = identity;
         this.logicDeleteField = logicDeleteField;
+        this.logicDeleteNotDeletedValue = logicDeleteNotDeletedValue;
+        this.logicDeleteDeletedValue = logicDeleteDeletedValue;
         this.ownerService = resourceDescriptor == null ? null : resourceDescriptor.getOwnerService();
         this.fields = fields == null
             ? Collections.<String, CrudRuntimeFieldModel>emptyMap()
@@ -58,6 +86,8 @@ public final class CrudRuntimeEntityModel {
             meta.getTable(),
             CrudRuntimeIdentityModel.from(meta),
             meta.getLogicDeleteField(),
+            meta.getLogicDeleteNotDeletedValue(),
+            meta.getLogicDeleteDeletedValue(),
             fields,
             CrudRuntimeCapabilityModel.empty()
         );
@@ -103,6 +133,8 @@ public final class CrudRuntimeEntityModel {
             identity == null ? null : identity.getIdField(),
             identity == null ? EntityIdPolicy.EXPLICIT : identity.getIdPolicy(),
             logicDeleteField,
+            logicDeleteNotDeletedValue,
+            logicDeleteDeletedValue,
             fieldMetas
         );
     }

@@ -8,6 +8,8 @@ public final class CrudRuntimeProperties {
     public static final String TABLE = "table";
     public static final String ID_FIELD = "idField";
     public static final String LOGIC_DELETE_FIELD = "logicDeleteField";
+    public static final String LOGIC_DELETE_NOT_DELETED_VALUE = "logicDeleteNotDeletedValue";
+    public static final String LOGIC_DELETE_DELETED_VALUE = "logicDeleteDeletedValue";
     public static final String OWNER_SERVICE = "ownerService";
     public static final String FIELD_NAME = "fieldName";
     public static final String JAVA_TYPE = "javaType";

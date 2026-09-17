@@ -202,6 +202,29 @@ public class CrudRuntimeModelBackedEntityMetaRegistry implements EntityMetaRegis
             throw new ValidationException("逻辑删除字段类型必须是布尔或数值类型: "
                 + meta.getEntityType().getName() + "." + field.getFieldName());
         }
+        if (!meta.hasExplicitLogicDeleteValues()) {
+            throw new ValidationException("逻辑删除字段必须显式声明未删除值和已删除值: "
+                + meta.getEntityType().getName() + "." + field.getFieldName());
+        }
+        validateLogicDeleteValue(meta, field, meta.getLogicDeleteNotDeletedValue(), "未删除值");
+        validateLogicDeleteValue(meta, field, meta.getLogicDeleteDeletedValue(), "已删除值");
+        if (meta.getLogicDeleteNotDeletedValue().equals(meta.getLogicDeleteDeletedValue())) {
+            throw new ValidationException("逻辑删除未删除值和已删除值不能相同: "
+                + meta.getEntityType().getName() + "." + field.getFieldName());
+        }
+    }
+
+    private void validateLogicDeleteValue(EntityMeta meta, com.entloom.crud.core.runtime.meta.EntityFieldMeta field,
+        Object value, String label) {
+        if (value == null) {
+            throw new ValidationException("逻辑删除" + label + "不能为空: "
+                + meta.getEntityType().getName() + "." + field.getFieldName());
+        }
+        Class<?> type = wrap(field.getJavaType());
+        if (!type.isInstance(value)) {
+            throw new ValidationException("逻辑删除" + label + "类型不匹配: "
+                + meta.getEntityType().getName() + "." + field.getFieldName());
+        }
     }
 
     private boolean isSupportedGeneratedIdType(Class<?> type) {

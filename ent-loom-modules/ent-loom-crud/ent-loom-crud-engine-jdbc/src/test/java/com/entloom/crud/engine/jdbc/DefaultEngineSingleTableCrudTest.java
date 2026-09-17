@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CommandResult;
@@ -12,11 +13,16 @@ import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
 import com.entloom.crud.core.exception.RouteNotFoundException;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.capability.command.scene.AbstractPatchUpdateSceneHandler;
 import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditOutcome;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditReasonCode;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
 import java.util.Arrays;
@@ -24,6 +30,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -90,6 +98,127 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
         );
         Assertions.assertTrue(deleteResult.isSuccess());
         Assertions.assertEquals(1, deletedFlagById(1001L));
+    }
+
+    @Test
+    void dao_primary_key_path_remains_under_gateway_idempotency() {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1008L);
+        payload.put("orderNo", "ORD-IDEMPOTENT-DAO");
+        payload.put("isDeleted", 0);
+        CommandSpec<Object> spec = commandSpec(CommandOperation.CREATE, "c-idempotent-dao", payload);
+
+        CommandResult first = commandGateway.action(spec);
+        CommandResult second = commandGateway.action(spec);
+
+        Assertions.assertTrue(first.isSuccess());
+        Assertions.assertTrue(second.isSuccess());
+        Assertions.assertEquals(1, countById(1008L));
+    }
+
+    @Test
+    void gateway_should_record_complete_dao_success_and_execution_failure_audit() {
+        int before = auditRecorder.getEvents().size();
+        Map<String, Object> createPayload = new LinkedHashMap<String, Object>();
+        createPayload.put("id", 1011L);
+        createPayload.put("orderNo", "ORD-AUDIT");
+        createPayload.put("isDeleted", 0);
+        Map<String, Object> attributes = new LinkedHashMap<String, Object>();
+        attributes.put("requestId", "request-audit-1");
+        attributes.put("traceId", "trace-audit-1");
+
+        CommandSpec<Object> create = commandSpec(CommandOperation.CREATE, "c-audit-1", createPayload)
+            .toBuilder()
+            .attributes(attributes)
+            .build();
+        CommandResult result = commandGateway.action(create);
+        Assertions.assertTrue(result.isSuccess());
+
+        CrudGovernanceAuditEvent success = auditRecorder.getEvents().get(before);
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS, success.getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditReasonCode.NONE, success.getReason());
+        Assertions.assertNull(success.getStage());
+        Assertions.assertTrue(success.isAllowed());
+        Assertions.assertNotNull(success.getSubject());
+        Assertions.assertEquals("tenant-a", success.getSubject().getTenantId());
+        Assertions.assertNotNull(success.getAction());
+        Assertions.assertNotNull(success.getRouteKey());
+        Assertions.assertEquals("request-audit-1", success.getRequestId());
+        Assertions.assertEquals("trace-audit-1", success.getTraceId());
+        Assertions.assertTrue(success.getGovernanceScope().isExplicitAll());
+
+        Map<String, Object> missingPayload = new LinkedHashMap<String, Object>();
+        missingPayload.put("id", 10999L);
+        missingPayload.put("orderNo", "ORD-MISSING");
+        Assertions.assertThrows(
+            EntityDaoWriteMissException.class,
+            () -> commandGateway.action(commandSpec(CommandOperation.UPDATE, "u-audit-miss", missingPayload))
+        );
+
+        CrudGovernanceAuditEvent failure = auditRecorder.getEvents().get(before + 1);
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, failure.getOutcome());
+        Assertions.assertEquals(CrudErrorStage.EXECUTE, failure.getStage());
+        Assertions.assertTrue(failure.isAllowed());
+        Assertions.assertNotEquals(CrudGovernanceAuditReasonCode.NONE, failure.getReason());
+        Assertions.assertNotNull(failure.getRouteKey());
+    }
+
+    @Test
+    void gateway_should_join_caller_transaction_and_rollback_dao_write() {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1012L);
+        payload.put("orderNo", "ORD-ROLLBACK");
+        payload.put("isDeleted", 0);
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+
+        Assertions.assertThrows(
+            IllegalStateException.class,
+            () -> transaction.execute(status -> {
+                commandGateway.action(commandSpec(CommandOperation.CREATE, "c-rollback", payload));
+                throw new IllegalStateException("测试外层事务回滚");
+            })
+        );
+
+        Assertions.assertEquals(0, countById(1012L));
+    }
+
+    @Test
+    void non_empty_update_scene_should_delegate_to_dao_primary_key_path() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            1009L,
+            "ORD-SCENE",
+            198L,
+            "tenant-a",
+            0
+        );
+        ((com.entloom.crud.core.runtime.router.DefaultCommandRouter) commandRouter).registerSceneHandler(
+            new AbstractPatchUpdateSceneHandler<OrderTestEntity, Object>(
+                metaRegistry,
+                OrderTestEntity.class,
+                "dao.patch"
+            ) {
+                @Override
+                protected Object handlePatch(
+                    CommandSpec<com.entloom.crud.core.capability.command.patch.UpdatePatch<OrderTestEntity>> spec,
+                    com.entloom.crud.core.runtime.scene.SceneDelegate<CommandSpec<Object>, Object> delegate
+                ) {
+                    return invokeDelegateUpdate(spec, delegate);
+                }
+            }
+        );
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1009L);
+        payload.put("orderNo", "ORD-SCENE-UPDATED");
+        CommandResult result = commandGateway.action(
+            commandSpec(CommandOperation.UPDATE, "u-scene-dao", payload).toBuilder()
+                .scene("dao.patch")
+                .build()
+        );
+
+        Assertions.assertTrue(result.isSuccess());
+        Assertions.assertEquals("ORD-SCENE-UPDATED", orderNoById(1009L));
     }
 
     @Test

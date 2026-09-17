@@ -14,6 +14,8 @@ public final class CrudEntityRuntimeModel {
     private final SourcedValue<String> table;
     private final SourcedValue<String> idField;
     private final SourcedValue<String> logicDeleteField;
+    private final SourcedValue<String> logicDeleteNotDeletedValue;
+    private final SourcedValue<String> logicDeleteDeletedValue;
     private final SourcedValue<String> ownerService;
     private final List<CrudFieldRuntimeModel> fields;
     private final List<CrudRelationRuntimeModel> relations;
@@ -28,11 +30,39 @@ public final class CrudEntityRuntimeModel {
         List<CrudFieldRuntimeModel> fields,
         List<CrudRelationRuntimeModel> relations
     ) {
+        this(
+            entityClass,
+            resourceCode,
+            table,
+            idField,
+            logicDeleteField,
+            SourcedValue.unknown(null),
+            SourcedValue.unknown(null),
+            ownerService,
+            fields,
+            relations
+        );
+    }
+
+    public CrudEntityRuntimeModel(
+        Class<?> entityClass,
+        SourcedValue<String> resourceCode,
+        SourcedValue<String> table,
+        SourcedValue<String> idField,
+        SourcedValue<String> logicDeleteField,
+        SourcedValue<String> logicDeleteNotDeletedValue,
+        SourcedValue<String> logicDeleteDeletedValue,
+        SourcedValue<String> ownerService,
+        List<CrudFieldRuntimeModel> fields,
+        List<CrudRelationRuntimeModel> relations
+    ) {
         this.entityClass = entityClass;
         this.resourceCode = resourceCode;
         this.table = table;
         this.idField = idField;
         this.logicDeleteField = logicDeleteField;
+        this.logicDeleteNotDeletedValue = logicDeleteNotDeletedValue;
+        this.logicDeleteDeletedValue = logicDeleteDeletedValue;
         this.ownerService = ownerService;
         this.fields = immutableList(fields);
         this.relations = immutableList(relations);
@@ -56,6 +86,14 @@ public final class CrudEntityRuntimeModel {
 
     public SourcedValue<String> logicDeleteField() {
         return logicDeleteField;
+    }
+
+    public SourcedValue<String> logicDeleteNotDeletedValue() {
+        return logicDeleteNotDeletedValue;
+    }
+
+    public SourcedValue<String> logicDeleteDeletedValue() {
+        return logicDeleteDeletedValue;
     }
 
     public SourcedValue<String> ownerService() {

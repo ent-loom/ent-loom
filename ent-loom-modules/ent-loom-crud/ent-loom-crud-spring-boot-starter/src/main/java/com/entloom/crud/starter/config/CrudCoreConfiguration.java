@@ -2,6 +2,7 @@ package com.entloom.crud.starter.config;
 
 import com.entloom.crud.starter.config.module.CrudCommandEngineConfiguration;
 import com.entloom.crud.starter.config.module.CrudCommonConfiguration;
+import com.entloom.crud.starter.config.module.CrudEntityDaoConfiguration;
 import com.entloom.crud.starter.config.module.CrudGatewayConfiguration;
 import com.entloom.crud.starter.config.module.CrudIdempotencyConfiguration;
 import com.entloom.crud.starter.config.module.CrudQueryEngineConfiguration;
@@ -24,6 +25,7 @@ import org.springframework.context.annotation.Import;
     CrudCommonConfiguration.class,
     CrudIdempotencyConfiguration.class,
     CrudSqlSecurityConfiguration.class,
+    CrudEntityDaoConfiguration.class,
     CrudStatsEngineConfiguration.class,
     CrudQueryEngineConfiguration.class,
     CrudCommandEngineConfiguration.class,
