@@ -271,6 +271,31 @@ class SubjectContextPropagationTest {
         )).hasMessageContaining("CrudSpecAttributeContributor");
     }
 
+    @Test
+    void command_http_request_should_not_deserialize_executable_scope() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        CrudCommandSpecAssembler commandAssembler = new CrudCommandSpecAssembler(
+            requestSupport(),
+            Mockito.mock(CommandActionSceneResolver.class),
+            metaRegistry(),
+            objectMapper
+        );
+        CrudCommandHttpRequest request = objectMapper.readValue(
+            "{\"scope\":{\"kind\":\"UNRESTRICTED\"},\"payload\":{\"id\":1}}",
+            CrudCommandHttpRequest.class
+        );
+
+        assertThatThrownBy(() -> commandAssembler.assemble(
+            "TestOrderEntity",
+            CommandOperation.UPDATE,
+            null,
+            request,
+            subject("test-user", "test-tenant", "test-org")
+        ))
+            .hasMessageContaining("不支持顶层字段")
+            .hasMessageContaining("scope");
+    }
+
     private CrudRequestSupport requestSupport() {
         ExposedEntityRegistry entityRegistry = new ExposedEntityRegistry();
         entityRegistry.expose(TestOrderEntity.class);

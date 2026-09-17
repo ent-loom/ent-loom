@@ -1,6 +1,6 @@
 # 实体 DAO
 
-> 状态：In Progress（D0-D3、D4.2-D4.3 已完成；D1.2 Web 边界、D4.1 数据库矩阵和 D5 待后续）<br>
+> 状态：In Progress（D0-D4.3 已完成；D4.1 数据库矩阵和 D5 待后续）<br>
 > 最近核验：2026-09-17
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 
@@ -300,7 +300,7 @@ DAO 的安全保证从“收到最终 `EntityAccessScope`”开始：它保证�
 
 ### D0.1 合同测试设计
 
-下列用例先固定验收意图。D1 已覆盖 Core 不可变性和 Factory 绑定，D3 已覆盖 Gateway 越权与可信调用路径；Web 绑定层阻止外部输入形成可执行 scope 的装配集成测试仍留在 D1.2。
+下列用例先固定验收意图。D1 已覆盖 Core 不可变性和 Factory 绑定，D3 已覆盖 Gateway 越权与可信调用路径，Starter Web 装配已验证外部输入不能形成可执行 scope。
 
 | 阶段 | 场景 | 操作 | 必须观察到的结果 |
 |---|---|---|---|
