@@ -2,6 +2,7 @@ package com.entloom.e5.statictest.fixture;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.ddl.annotations.EntDbEntity;
 import com.entloom.ddl.annotations.EntDbField;
 import com.entloom.ddl.annotations.EntDbIndex;
@@ -37,7 +38,12 @@ import java.time.LocalDateTime;
     fields = {"display_name"},
     unique = OptionalBoolean.TRUE
 )
-@EntCrudEntity(name = "customer_profile", table = "customer_profile", ownerService = "customer-service")
+@EntCrudEntity(
+    name = "customer_profile",
+    table = "customer_profile",
+    idPolicy = CrudIdPolicy.EXPLICIT,
+    ownerService = "customer-service"
+)
 @EntDocEntity(name = "客户档案", description = "客户档案")
 public final class CustomerProfile {
     /** 数据库主键。 */

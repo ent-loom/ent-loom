@@ -364,12 +364,22 @@ class EntLoomMetaAutoConfigurationTest {
     @EntEntity(entity = "starter_convention_entity")
     static class StarterConventionEntity {
         private LocalDateTime createdAt;
+
+        /**
+         * 实体主键，使用默认 id 命名约定。
+         */
+        private Long id;
     }
 
     @EntEntity(entity = "starter_crud_convention_entity")
     @EntCrudEntity(name = "starter_crud_convention_entity")
     static class StarterCrudConventionEntity {
         private LocalDateTime createdAt;
+
+        /**
+         * 实体主键，使用默认 id 命名约定。
+         */
+        private Long id;
     }
 
     @EntCrudEntity(name = "p1_crud_only_order", table = "p1_crud_only_order")
