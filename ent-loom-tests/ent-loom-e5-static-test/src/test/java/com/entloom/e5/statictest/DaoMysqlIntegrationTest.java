@@ -111,8 +111,8 @@ class DaoMysqlIntegrationTest {
                 "create table dao_order ("
                     + "id bigint not null,"
                     + "order_no varchar(64) not null,"
-                    + "school_id bigint not null,"
-                    + "tenant_id varchar(64) not null,"
+                    + "school_id bigint not null default 999,"
+                    + "tenant_id varchar(64) collate utf8mb4_0900_ai_ci not null default 'DEFAULT-TENANT',"
                     + "is_deleted int not null,"
                     + "primary key (id),"
                     + "unique key uk_dao_order_order_no (order_no)"
@@ -123,7 +123,7 @@ class DaoMysqlIntegrationTest {
                     + "id bigint not null,"
                     + "order_no varchar(64),"
                     + "school_id bigint,"
-                    + "tenant_id varchar(64),"
+                    + "tenant_id varchar(64) collate utf8mb4_bin,"
                     + "is_deleted int,"
                     + "primary key (id)"
                     + ") engine=InnoDB default character set=utf8mb4 collate=utf8mb4_0900_ai_ci"
@@ -147,10 +147,23 @@ class DaoMysqlIntegrationTest {
                 new CrudNativeRuntimeModelParser().parse(Collections.<Class<?>>singletonList(DaoOrder.class))
             );
             metaRegistry.validateOrThrow();
-            new JdbcInsertScopeDatabaseValidator(
+            JdbcInsertScopeDatabaseValidator scopeDatabaseValidator = new JdbcInsertScopeDatabaseValidator(
                 dataSource(withSchema(settings.url(), schema, false), settings.username(), settings.password()),
                 metaRegistry
-            ).validateOrThrow();
+            );
+            assertEquals(1, jdbcTemplate.queryForObject(
+                "select 'tenant-a' collate utf8mb4_0900_ai_ci = 'TENANT-A'", Integer.class
+            ));
+            ValidationException collationError = assertThrows(
+                ValidationException.class,
+                scopeDatabaseValidator::validateOrThrow
+            );
+            assertTrue(collationError.getMessage().contains("二进制排序规则"));
+            jdbcTemplate.execute(
+                "alter table dao_order modify tenant_id varchar(64)"
+                    + " character set utf8mb4 collate utf8mb4_bin not null default 'DEFAULT-TENANT'"
+            );
+            scopeDatabaseValidator.validateOrThrow();
             SqlSafetyGuard securityGuard = new SqlSafetyGuard(
                 new SqlIdentifierAllowlistValidator(metaRegistry),
                 new SqlParameterLimiter()
@@ -158,7 +171,7 @@ class DaoMysqlIntegrationTest {
             EntityDao<DaoOrder, Long> dao = new JdbcEntityDaoFactory(
                 metaRegistry,
                 new JdbcGuardedSqlExecutor(jdbcTemplate, securityGuard, new SqlExecutionLogger())
-            ).scoped(ORDER_TYPE, scoped("tenant-a", 7L));
+            ).scoped(ORDER_TYPE, scoped("tenant-a", "007"));
 
             DaoOrder order = new DaoOrder();
             order.id = 1L;
@@ -169,6 +182,7 @@ class DaoMysqlIntegrationTest {
             );
             assertEquals(Long.valueOf(7L), ((Number) stored.get("school_id")).longValue());
             assertEquals("tenant-a", stored.get("tenant_id"));
+            assertFalse("DEFAULT-TENANT".equals(stored.get("tenant_id")));
             assertEquals(Integer.valueOf(0), ((Number) stored.get("is_deleted")).intValue());
             assertEquals("DAO-MYSQL-1", dao.findById(1L).get().orderNo);
 
@@ -302,7 +316,7 @@ class DaoMysqlIntegrationTest {
         }
     }
 
-    private EntityAccessScope scoped(String tenantId, Long schoolId) {
+    private EntityAccessScope scoped(String tenantId, Object schoolId) {
         return EntityAccessScope.of(RowConstraint.and(
             RowConstraint.eq("schoolId", schoolId),
             RowConstraint.eq("tenantId", tenantId)

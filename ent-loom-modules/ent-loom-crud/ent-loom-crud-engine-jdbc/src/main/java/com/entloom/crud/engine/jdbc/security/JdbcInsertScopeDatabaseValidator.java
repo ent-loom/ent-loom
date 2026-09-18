@@ -120,6 +120,11 @@ public final class JdbcInsertScopeDatabaseValidator {
                 throw new ValidationException("范围字段不能使用 ON UPDATE 自动改写: "
                     + meta.getEntityName() + "." + entry.getKey());
             }
+            if (isStringField(field) && !column.hasBinaryCollation()) {
+                throw new ValidationException("字符串范围字段必须使用二进制排序规则: "
+                    + meta.getEntityName() + "." + entry.getKey()
+                    + " -> " + column.collationName);
+            }
         }
         if (!hasTriggerMetadataPrivilege(connection, schema, meta.getTable())) {
             throw new ValidationException("当前 MySQL 账号无法可靠读取范围表触发器元数据，"
@@ -147,7 +152,7 @@ public final class JdbcInsertScopeDatabaseValidator {
         if (isBlank(table)) {
             throw new ValidationException("实体表名不能为空");
         }
-        String sql = "select column_name, extra, generation_expression"
+        String sql = "select column_name, data_type, collation_name, extra, generation_expression"
             + " from information_schema.columns where table_schema = ? and table_name = ?";
         Map<String, ColumnState> result = new HashMap<String, ColumnState>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -156,9 +161,13 @@ public final class JdbcInsertScopeDatabaseValidator {
             try (ResultSet rows = statement.executeQuery()) {
                 while (rows.next()) {
                     String name = rows.getString("column_name");
+                    String dataType = rows.getString("data_type");
+                    String collationName = rows.getString("collation_name");
                     String extra = rows.getString("extra");
                     String generationExpression = rows.getString("generation_expression");
                     result.put(normalize(name), new ColumnState(
+                        dataType,
+                        collationName,
                         isGenerated(extra, generationExpression),
                         containsIgnoreCase(extra, "auto_increment"),
                         containsIgnoreCase(extra, "on update")
@@ -167,6 +176,10 @@ public final class JdbcInsertScopeDatabaseValidator {
             }
         }
         return result;
+    }
+
+    private boolean isStringField(EntityFieldMeta field) {
+        return field != null && field.getJavaType() == String.class;
     }
 
     private boolean hasTrigger(Connection connection, String schema, String table) throws Exception {
@@ -253,14 +266,29 @@ public final class JdbcInsertScopeDatabaseValidator {
     }
 
     private static final class ColumnState {
+        private final String dataType;
+        private final String collationName;
         private final boolean generated;
         private final boolean autoIncrement;
         private final boolean onUpdate;
 
-        private ColumnState(boolean generated, boolean autoIncrement, boolean onUpdate) {
+        private ColumnState(
+            String dataType,
+            String collationName,
+            boolean generated,
+            boolean autoIncrement,
+            boolean onUpdate
+        ) {
+            this.dataType = trim(dataType);
+            this.collationName = trim(collationName);
             this.generated = generated;
             this.autoIncrement = autoIncrement;
             this.onUpdate = onUpdate;
+        }
+
+        private boolean hasBinaryCollation() {
+            return "binary".equalsIgnoreCase(dataType)
+                || collationName.toLowerCase(Locale.ROOT).endsWith("_bin");
         }
     }
 }

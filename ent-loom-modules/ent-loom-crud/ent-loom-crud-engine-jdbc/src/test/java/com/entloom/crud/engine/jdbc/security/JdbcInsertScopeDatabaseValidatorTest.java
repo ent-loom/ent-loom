@@ -159,6 +159,37 @@ class JdbcInsertScopeDatabaseValidatorTest {
         ));
     }
 
+    @Test
+    void case_insensitive_collation_is_rejected_for_string_scope_fields() {
+        DataSource dataSource = new FakeMysqlDataSource(
+            Collections.singletonList(column(
+                "tenant_id", "varchar", "utf8mb4_0900_ai_ci", "DEFAULT-TENANT", "", ""
+            )),
+            false
+        );
+
+        ValidationException exception = assertThrows(
+            ValidationException.class,
+            () -> new JdbcInsertScopeDatabaseValidator(dataSource, registry()).validateOrThrow()
+        );
+
+        assertTrue(exception.getMessage().contains("二进制排序规则"), exception.getMessage());
+    }
+
+    @Test
+    void binary_collation_and_database_default_are_allowed_for_string_scope_fields() {
+        DataSource dataSource = new FakeMysqlDataSource(
+            Collections.singletonList(column(
+                "tenant_id", "varchar", "utf8mb4_bin", "DEFAULT-TENANT", "", ""
+            )),
+            false
+        );
+
+        assertDoesNotThrow(
+            () -> new JdbcInsertScopeDatabaseValidator(dataSource, registry()).validateOrThrow()
+        );
+    }
+
     private EntityMetaRegistry registry() {
         EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
             new CrudNativeRuntimeModelParser().parse(
@@ -170,8 +201,22 @@ class JdbcInsertScopeDatabaseValidatorTest {
     }
 
     private static Map<String, String> column(String name, String extra, String generationExpression) {
+        return column(name, "varchar", "utf8mb4_bin", null, extra, generationExpression);
+    }
+
+    private static Map<String, String> column(
+        String name,
+        String dataType,
+        String collationName,
+        String columnDefault,
+        String extra,
+        String generationExpression
+    ) {
         Map<String, String> result = new HashMap<String, String>();
         result.put("column_name", name);
+        result.put("data_type", dataType);
+        result.put("collation_name", collationName);
+        result.put("column_default", columnDefault);
         result.put("extra", extra);
         result.put("generation_expression", generationExpression);
         return result;
@@ -336,6 +381,9 @@ class JdbcInsertScopeDatabaseValidatorTest {
                 if ("getString".equals(method.getName())) {
                     Object key = args[0];
                     if (key instanceof Integer) {
+                        if ("grant".equals(snapshot.get(index).get("column_name"))) {
+                            return snapshot.get(index).get("extra");
+                        }
                         return snapshot.get(index).values().iterator().next();
                     }
                     return snapshot.get(index).get(String.valueOf(key).toLowerCase(java.util.Locale.ROOT));

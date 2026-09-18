@@ -128,7 +128,7 @@ flowchart LR
 - [x] 多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
 - [x] 首期范围字段最终值只能由绑定参数确定；MySQL 已有表的启动期复验失败只记录告警，显式 Factory 在 scoped DAO 创建时仍严格拒绝生成列、`AUTO_INCREMENT`、`ON UPDATE` 和触发器。
 - [x] 已验证 MySQL 只有表级 DML 权限时可能隐藏触发器元数据；校验要求目标表 `TRIGGER`/`ALL PRIVILEGES` 可见性，角色权限必须在当前连接激活或设为默认角色，权限不足时 fail-closed。
-- [ ] 数据库默认值、字符集和排序规则对范围字段最终值及类型转换的影响仍需数据库矩阵验证；未验证时不得宣称 Java 判断与数据库语义等价。
+- [x] 数据库默认值、字符集和排序规则对范围字段最终值及类型转换已完成 MySQL 8 矩阵验证；字符串范围列要求 `_bin` 二进制排序规则，默认值不得替代 DAO 显式绑定。
 - [x] 范围字段缺失、值冲突、空集合约束和 SQL `NULL` 分别具有测试。
 
 验收：所有允许进入 insert 的行约束都能在写 SQL 前确定判定，不支持的表达式 fail-closed。
@@ -136,7 +136,9 @@ flowchart LR
 验收日期：2026-09-17<br>
 关键实现：`RowConstraint`、`RowConstraintNormalizer`、`InsertConstraintValueBinder`。<br>
 关键测试：`InsertConstraintValueBinderTest` 4 项、`JdbcInsertScopeDatabaseValidatorTest` 8 项通过。<br>
-边界确认：`JdbcInsertScopeDatabaseValidator` 仅针对 MySQL 8 已存在表检查范围列的生成列、AUTO_INCREMENT、ON UPDATE 和触发器；同时确认当前账号具备触发器元数据可见性。表不存在交由 DDL/迁移阶段处理，Starter 在容器刷新最低优先级再次复验，非 MySQL 继续由行为测试验证。
+边界确认：`JdbcInsertScopeDatabaseValidator` 针对 MySQL 8 已存在表检查范围列的生成列、AUTO_INCREMENT、ON UPDATE、触发器及字符串排序规则；同时确认当前账号具备触发器元数据可见性。字符串范围列只接受 `_bin` 二进制排序规则。表不存在交由 DDL/迁移阶段处理，Starter 在容器刷新最低优先级再次复验，非 MySQL 继续由行为测试验证。
+
+数据库语义矩阵补充验收（2026-09-18）：`JdbcInsertScopeDatabaseValidatorTest` 10 项通过；`DaoMysqlIntegrationTest` 在 MySQL 8.0.45 验证 `utf8mb4_0900_ai_ci` 会把 `tenant-a` 与 `TENANT-A` 判为相等并由校验器拒绝，切换到 `utf8mb4_bin` 后通过。范围列配置数据库默认值时，DAO insert 仍显式写入 `tenant-a` 与规范化后的 `BIGINT 7`（输入为字符串 `007`），数据库最终值未采用默认值；随机 schema 清理完成。
 
 ### D0.4 首期 API 定稿
 
