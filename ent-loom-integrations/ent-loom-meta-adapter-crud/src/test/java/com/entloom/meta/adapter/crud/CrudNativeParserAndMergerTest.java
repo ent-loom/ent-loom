@@ -28,7 +28,6 @@ import com.entloom.meta.enums.RelationCardinality;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
-import com.entloom.meta.enums.EntFieldKind;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -207,17 +206,17 @@ class CrudNativeParserAndMergerTest {
 
     @EntEntity(entity = "meta_only_order")
     private static final class MetaOnlyOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 
     @EntEntity(entity = "merge_order")
     @EntCrudEntity(name = "merge_order_native")
     private static final class MergeOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "merge_customer", sourceField = "customerId", targetField = "idCode")
         @EntCrudField(targetClass = MergeCustomer.class, sourceField = "buyerId", targetField = "customerCode")
         private Long customerId;
@@ -228,7 +227,7 @@ class CrudNativeParserAndMergerTest {
     @EntEntity(entity = "merge_customer")
     @EntCrudEntity(name = "merge_customer")
     private static final class MergeCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         private String idCode;

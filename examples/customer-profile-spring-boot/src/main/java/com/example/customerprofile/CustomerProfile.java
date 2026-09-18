@@ -4,7 +4,6 @@ import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.enums.EntFieldKind;
 
 /**
  * The only entity in this example.
@@ -20,13 +19,13 @@ import com.entloom.meta.enums.EntFieldKind;
     ownerService = "customer-profile"
 )
 public class CustomerProfile {
-    @EntField(value = EntFieldKind.ID, label = "ID")
+    @EntField(label = "ID")
     private Long id;
 
-    @EntField(value = EntFieldKind.TEXT, label = "Display name", required = OptionalBoolean.TRUE)
+    @EntField(label = "Display name", required = OptionalBoolean.TRUE)
     private String displayName;
 
-    @EntField(value = EntFieldKind.TEXT, label = "Email", required = OptionalBoolean.TRUE)
+    @EntField(label = "Email", required = OptionalBoolean.TRUE)
     private String email;
 
     public Long getId() {

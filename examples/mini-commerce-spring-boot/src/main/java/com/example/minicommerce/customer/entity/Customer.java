@@ -4,7 +4,6 @@ import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.enums.EntFieldKind;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,15 +22,15 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
-    @EntField(value = EntFieldKind.ID, label = "客户 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "客户 ID", required = OptionalBoolean.TRUE)
     private Long id;
 
     /** 客户展示名称。 */
-    @EntField(value = EntFieldKind.TEXT, label = "客户名称", required = OptionalBoolean.TRUE)
+    @EntField(label = "客户名称", required = OptionalBoolean.TRUE)
     private String displayName;
 
     /** 客户联系邮箱。 */
-    @EntField(value = EntFieldKind.TEXT, label = "邮箱", required = OptionalBoolean.TRUE)
+    @EntField(label = "邮箱", required = OptionalBoolean.TRUE)
     private String email;
 
 }

@@ -31,15 +31,15 @@ import com.entloom.meta.enums.role.TextRole;
 @EntIndex(name = "idx_content_article_stage_publish_time", fields = {"publishStage", "publishAtEpochSeconds"})
 public class DemoEntArticle {
 
-    @EntField(EntFieldKind.ID)
+    @EntField
     @EntMetaId
     private Long id;
 
-    @EntField(EntFieldKind.REF_ID)
+    @EntField
     @EntRelation(role = RefIdRole.GENERIC, targetService = "account-center", targetEntity = "account")
     private Long creatorId;
 
-    @EntField(EntFieldKind.TEXT)
+    @EntField
     @EntMetaText(TextRole.GENERIC)
     private String title;
 
@@ -50,11 +50,11 @@ public class DemoEntArticle {
     @EntField(EntFieldKind.RICH_CONTENT)
     private String bodyContent;
 
-    @EntField(EntFieldKind.ENUM)
+    @EntField
     @EntMetaEnum(value = EnumRole.GENERIC, valueType = EntMetaEnum.ValueType.STRING)
     private PublishStage publishStage;
 
-    @EntField(EntFieldKind.NUMBER)
+    @EntField
     @EntMetaNumber(NumberRole.GENERIC)
     private Integer qualityScore;
 

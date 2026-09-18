@@ -1,6 +1,5 @@
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntEntity;
-import com.entloom.meta.enums.EntFieldKind;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -24,7 +23,7 @@ public class DemoEntInferredOrder {
 
     private String orderNo;
 
-    @EntField(value = EntFieldKind.ENUM, label = "订单状态")
+    @EntField(label = "订单状态")
     private OrderStatus orderStatus;
 
     private String orderType;

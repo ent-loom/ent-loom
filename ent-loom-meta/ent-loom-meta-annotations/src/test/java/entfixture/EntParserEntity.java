@@ -7,7 +7,6 @@
 //import com.pro.framework.jts.annotation.JtsTable;
 //import com.entloom.meta.annotations.EntField;
 //import com.entloom.meta.annotations.EntEntity;
-//import com.entloom.meta.enums.EntFieldKind;
 //import com.entloom.meta.annotations.meta.EntMetaDateTime;
 //import com.entloom.meta.annotations.meta.EntMetaEnum;
 //import com.entloom.meta.annotations.meta.EntMetaFlag;
@@ -40,28 +39,28 @@
 //)
 //public class EntParserEntity {
 //
-//    @EntField(EntFieldKind.ID)
+//    @EntField
 //    @EntMetaId
 //    private Long id;
 //
-//    @EntField(EntFieldKind.REF_ID)
+//    @EntField
 //    @EntRelation(role = RefIdRole.GENERIC, targetService = "userService", targetEntity = "user")
 //    private Long ownerId;
 //
-//    @EntField(EntFieldKind.ENUM)
+//    @EntField
 //    @EntMetaEnum(value = EnumRole.STATUS, valueType = EntMetaEnum.ValueType.INT)
 //    private BizStatus taskStatus;
 //
-//    @EntField(EntFieldKind.ENUM)
+//    @EntField
 //    private BizStatus interfaceStatus;
 //
-//    @EntField(EntFieldKind.ENUM)
+//    @EntField
 //    private BizType plainType;
 //
-//    @EntField(EntFieldKind.ENUM)
+//    @EntField
 //    private BizCode codeType;
 //
-//    @EntField(EntFieldKind.FLAG)
+//    @EntField
 //    @EntMetaFlag(FlagRole.SOFT_DELETE)
 //    private Boolean deleted;
 //
@@ -74,7 +73,7 @@
 //    @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
 //    private LocalDateTime updateTime;
 //
-//    @EntField(EntFieldKind.TEXT)
+//    @EntField
 //    @EntMetaText(TextRole.GENERIC)
 //    @JtsColumn(sqlType = EnumJtsSqlType.VARCHAR, length = 64)
 //    private String title;
@@ -94,7 +93,7 @@
 //    @EntMetaJson(JsonRole.GENERIC)
 //    private String catSuggestionResponseJson;
 //
-//    @EntField(EntFieldKind.NUMBER)
+//    @EntField
 //    @EntMetaNumber(NumberRole.MONEY)
 //    private BigDecimal priceAmount;
 //

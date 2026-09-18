@@ -18,7 +18,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
 import com.entloom.meta.enums.RelationCardinality;
-import com.entloom.meta.enums.EntFieldKind;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
@@ -173,17 +172,17 @@ class MetaCrudAdapterP0AcceptanceTest {
 
     @EntEntity(entity = "meta_only_order")
     private static final class MetaOnlyOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "meta_only_customer")
         private Long customerId;
     }
 
     @EntEntity(entity = "meta_only_customer")
     private static final class MetaOnlyCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 
@@ -203,10 +202,10 @@ class MetaCrudAdapterP0AcceptanceTest {
     @EntEntity(entity = "override_order")
     @EntCrudEntity(name = "override_order_native", table = "override_order_table")
     private static final class OverrideOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "override_customer", targetField = "idCode")
         @EntCrudField(targetClass = OverrideCustomer.class, targetField = "customerCode")
         private Long customerId;
@@ -215,7 +214,7 @@ class MetaCrudAdapterP0AcceptanceTest {
     @EntEntity(entity = "override_customer")
     @EntCrudEntity(name = "override_customer", table = "override_customer")
     private static final class OverrideCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         private String customerCode;
@@ -225,29 +224,29 @@ class MetaCrudAdapterP0AcceptanceTest {
 
     @EntEntity(entity = "broken_target_field_order")
     private static final class BrokenTargetFieldOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "broken_customer", targetField = "missingCode")
         private Long customerId;
     }
 
     @EntEntity(entity = "broken_customer")
     private static final class BrokenCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 
     @EntEntity(entity = "mybatis_auto_id_order")
     private static final class MybatisAutoIdOrder extends MybatisAutoIdBase {
-        @EntField(EntFieldKind.TEXT)
+        @EntField
         private String orderNo;
     }
 
     private static class MybatisAutoIdBase {
         @TableId(type = IdType.AUTO)
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 

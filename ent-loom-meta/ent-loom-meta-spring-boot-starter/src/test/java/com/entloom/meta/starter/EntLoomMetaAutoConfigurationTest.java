@@ -29,7 +29,6 @@ import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.convention.MetaConventionContext;
 import com.entloom.meta.core.parser.EntMetaParser;
-import com.entloom.meta.enums.EntFieldKind;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -342,22 +341,22 @@ class EntLoomMetaAutoConfigurationTest {
 
     @EntEntity(entity = "p1_meta_order", label = "Meta Order", service = "order-service")
     static class MetaOrder {
-        @EntField(value = EntFieldKind.ID, required = OptionalBoolean.TRUE)
+        @EntField(required = OptionalBoolean.TRUE)
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, label = "Order No", required = OptionalBoolean.TRUE)
+        @EntField(label = "Order No", required = OptionalBoolean.TRUE)
         private String orderNo;
 
-        @EntField(value = EntFieldKind.REF_ID)
+        @EntField
         private Long customerId;
     }
 
     @EntEntity(entity = "p1_meta_customer", label = "Meta Customer", service = "order-service")
     static class MetaCustomer {
-        @EntField(value = EntFieldKind.ID, required = OptionalBoolean.TRUE)
+        @EntField(required = OptionalBoolean.TRUE)
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT)
+        @EntField
         private String name;
     }
 

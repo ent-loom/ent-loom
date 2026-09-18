@@ -8,7 +8,6 @@ import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.enums.RelationOwnerSide;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
-import com.entloom.meta.enums.EntFieldKind;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -81,23 +80,23 @@ class MetaCrudAdapterRelationDirectionTest {
 
     @EntEntity(entity = "direction_order")
     private static final class DirectionOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "direction_customer")
         private Long customerId;
     }
 
     @EntEntity(entity = "direction_customer")
     private static final class DirectionCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 
     @EntEntity(entity = "direction_customer_aggregate")
     private static final class DirectionCustomerAggregate {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         @EntRelation(
@@ -110,16 +109,16 @@ class MetaCrudAdapterRelationDirectionTest {
 
     @EntEntity(entity = "direction_order_line")
     private static final class DirectionOrderLine {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         private Long customerId;
     }
 
     @EntEntity(entity = "direction_article")
     private static final class DirectionArticle {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         @EntRelation(
@@ -131,7 +130,7 @@ class MetaCrudAdapterRelationDirectionTest {
 
     @EntEntity(entity = "direction_tag")
     private static final class DirectionTag {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 }

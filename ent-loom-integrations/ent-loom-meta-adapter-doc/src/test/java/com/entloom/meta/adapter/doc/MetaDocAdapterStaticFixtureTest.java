@@ -17,7 +17,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.enums.RelationCardinality;
-import com.entloom.meta.enums.EntFieldKind;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -142,14 +141,14 @@ class MetaDocAdapterStaticFixtureTest {
     @EntIndex(name = "uk_order_no", fields = {"orderNo"}, unique = true)
     @EntDocEntity(name = "订单文档覆盖")
     private static final class Order {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, label = "订单号", required = OptionalBoolean.TRUE)
+        @EntField(label = "订单号", required = OptionalBoolean.TRUE)
         @EntDocField(name = "订单号文档覆盖", example = "SO-001")
         private String orderNo;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "customer")
         @EntDocField(targetEntityLabel = "客户", relationRemark = "订单归属客户")
         private Long customerId;
@@ -160,19 +159,19 @@ class MetaDocAdapterStaticFixtureTest {
 
     @EntEntity(entity = "order_item")
     private static final class OrderItem {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         private Long orderId;
     }
 
     @EntEntity(entity = "customer")
     private static final class Customer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.TEXT)
+        @EntField
         private String name;
     }
 

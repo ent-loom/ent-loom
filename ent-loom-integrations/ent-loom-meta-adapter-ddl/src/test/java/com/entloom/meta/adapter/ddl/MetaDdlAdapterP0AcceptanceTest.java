@@ -23,7 +23,6 @@ import com.entloom.meta.annotations.meta.EntMetaText;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
-import com.entloom.meta.enums.EntFieldKind;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
@@ -184,19 +183,19 @@ class MetaDdlAdapterP0AcceptanceTest {
     @EntEntity(entity = "meta_only_account")
     @EntIndex(name = "uk_meta_account_display_name", fields = {"displayName"}, unique = true)
     private static final class MetaOnlyAccount {
-        @EntField(EntFieldKind.ID)
+        @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.AUTO)
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, required = OptionalBoolean.TRUE, description = "账户名称")
+        @EntField(required = OptionalBoolean.TRUE, description = "账户名称")
         @EntMetaText(maxLength = 64)
         private String displayName;
 
-        @EntField(EntFieldKind.NUMBER)
+        @EntField
         @EntMetaNumber(precision = 10, scale = 2)
         private BigDecimal amount;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "tenant")
         private Long tenantId;
     }
@@ -217,11 +216,11 @@ class MetaDdlAdapterP0AcceptanceTest {
     @EntEntity(entity = "meta_override_account", description = "Meta description")
     @EntDbEntity(table = "native_override_account")
     private static final class OverrideAccount {
-        @EntField(EntFieldKind.ID)
+        @EntField
         @EntDbField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, required = OptionalBoolean.TRUE)
+        @EntField(required = OptionalBoolean.TRUE)
         @EntMetaText(maxLength = 80)
         @EntDbField(column = "native_display", length = 24, nullable = OptionalBoolean.TRUE)
         private String displayName;

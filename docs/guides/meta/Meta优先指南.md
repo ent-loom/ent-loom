@@ -31,18 +31,14 @@ Runtime Model 是组件最终执行契约
 只表达通用语义时，仅使用 Meta 注解：
 
 ```java
-@EntField(
-    value = EntFieldKind.TEXT,
-    label = "姓名",
-    required = OptionalBoolean.TRUE
-)
+@EntField(label = "姓名", required = OptionalBoolean.TRUE)
 private String studentName;
 ```
 
 通用关系同样由 Meta 声明：
 
 ```java
-@EntField(value = EntFieldKind.REF_ID, label = "班级")
+@EntField(label = "班级")
 @EntRelation(
     targetEntity = "class",
     sourceField = "classId",
@@ -59,7 +55,7 @@ private Long classId;
 只有出现组件专属行为时才增加组件注解。例如 CRUD 需要目标类型或加载策略：
 
 ```java
-@EntField(value = EntFieldKind.REF_ID, label = "班级")
+@EntField(label = "班级")
 @EntRelation(targetEntity = "class", targetField = "id")
 @EntCrudField(
     targetClass = SchoolClass.class,

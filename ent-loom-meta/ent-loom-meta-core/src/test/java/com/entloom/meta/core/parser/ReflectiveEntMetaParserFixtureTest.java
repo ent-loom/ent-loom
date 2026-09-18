@@ -179,7 +179,7 @@ class ReflectiveEntMetaParserFixtureTest {
         @EntMetaNumber(precision = 4, scale = 6, min = "9", max = "1")
         private BigDecimal amount;
 
-        @EntField(EntFieldKind.DATETIME)
+        @EntField
         @EntMetaDateTime(timezone = "Invalid/Zone")
         private LocalDateTime createdAt;
 
@@ -190,15 +190,15 @@ class ReflectiveEntMetaParserFixtureTest {
     @EntIndex(name = "idx_parser_fixture_name_status", fields = {"name", "status"})
     @EntIndex(name = "idx_parser_fixture_missing", fields = {"missingIndexField"})
     private static final class ParserFixtureEntity {
-        @EntField(EntFieldKind.ID)
+        @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.SNOWFLAKE)
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, required = OptionalBoolean.TRUE)
+        @EntField(required = OptionalBoolean.TRUE)
         @EntMetaText(value = TextRole.GENERIC, maxLength = 80)
         private String name;
 
-        @EntField(EntFieldKind.ENUM)
+        @EntField
         @EntMetaEnum(
             value = EnumRole.STATUS,
             enumClass = ParserFixtureStatus.class,
@@ -207,7 +207,7 @@ class ReflectiveEntMetaParserFixtureTest {
         )
         private ParserFixtureStatus status;
 
-        @EntField(EntFieldKind.DATETIME)
+        @EntField
         @EntMetaDateTime(
             value = DateTimeRole.CREATED_TIME,
             autoFill = EntMetaDateTime.AutoFill.CREATED,
@@ -216,21 +216,21 @@ class ReflectiveEntMetaParserFixtureTest {
         )
         private LocalDateTime createdAt;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(role = RefIdRole.TENANT, targetEntity = "owner")
         private Long ownerId;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(sourceField = "missingReviewerId", targetEntity = "reviewer")
         private Long reviewerId;
     }
 
     @EntEntity(entity = "legacy_relation_naming")
     private static final class LegacyRelationNamingEntity {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @LegacyRelation(relationEntityEn = "owner", refEntity = "owner")
         private Long ownerId;
     }

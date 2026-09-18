@@ -10,7 +10,6 @@ import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
-import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.role.DateTimeRole;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -89,7 +88,7 @@ class MetaConventionTest {
     private static final class ConventionEntity {
         private LocalDateTime createdAt;
 
-        @EntField(value = EntFieldKind.DATETIME, label = "更新时间", readOnly = OptionalBoolean.FALSE)
+        @EntField(label = "更新时间", readOnly = OptionalBoolean.FALSE)
         @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
         private LocalDateTime createTime;
     }

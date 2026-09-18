@@ -15,7 +15,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
 import com.entloom.meta.enums.RelationCardinality;
-import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.base.common.OptionalBoolean;
 import java.util.Arrays;
 import java.util.Collection;
@@ -105,13 +104,13 @@ class MetaCrudAdapterStaticFixtureTest {
     @EntEntity(entity = "order", service = "order-service")
     @EntCrudEntity(name = "order", table = "sales_order")
     private static final class Order {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(value = EntFieldKind.TEXT, readOnly = OptionalBoolean.TRUE)
+        @EntField(readOnly = OptionalBoolean.TRUE)
         private String orderNo;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "customer")
         @EntCrudField(targetClass = Customer.class, joinType = JoinType.INNER)
         private Long customerId;
@@ -124,23 +123,23 @@ class MetaCrudAdapterStaticFixtureTest {
     @EntEntity(entity = "order_item", service = "order-service")
     @EntCrudEntity(name = "order_item", table = "sales_order_item")
     private static final class OrderItem {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         private Long orderId;
 
-        @EntField(EntFieldKind.TEXT)
+        @EntField
         private String sku;
     }
 
     @EntEntity(entity = "customer", service = "customer-service")
     @EntCrudEntity(name = "customer", table = "crm_customer")
     private static final class Customer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.TEXT)
+        @EntField
         private String name;
     }
 

@@ -24,7 +24,6 @@ import com.entloom.meta.contract.enums.RelationResolutionStatus;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.MetaValueState;
 import com.entloom.meta.contract.value.SourcedValue;
-import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.role.NumberRole;
 import com.entloom.meta.enums.role.RefIdRole;
 import com.entloom.meta.enums.role.TextRole;
@@ -59,7 +58,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         Assertions.assertEquals("ID", id.fieldKind());
         Assertions.assertEquals("ID", id.role());
         Assertions.assertEquals("SNOWFLAKE", constraints(id).get("id.generator"));
-        assertSource(id.sourcedValue(MetaDescriptorProperties.FIELD_KIND), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
+        assertSource(id.sourcedValue(MetaDescriptorProperties.FIELD_KIND), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
         assertSource(id.sourcedValue(MetaDescriptorProperties.JAVA_TYPE), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
         assertSource(id.sourcedValue(MetaDescriptorProperties.ROLE), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
 
@@ -194,16 +193,15 @@ class ReflectiveEntMetaParserDescriptorContractTest {
     )
     @EntIndex(name = "uk_contract_entity_name", fields = {"name"}, unique = true)
     private static final class ContractEntity {
-        @EntField(EntFieldKind.ID)
+        @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.SNOWFLAKE)
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(role = RefIdRole.TENANT, targetService = "account-service", targetEntity = "account")
         private Long ownerId;
 
         @EntField(
-            value = EntFieldKind.TEXT,
             label = "Name",
             description = "Displayed name",
             examples = {"Alice"},
@@ -214,7 +212,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         @EntMetaText(value = TextRole.SECRET, maxLength = 64, pattern = "[A-Za-z]+", masking = EntMetaText.Masking.PARTIAL)
         private String name;
 
-        @EntField(value = EntFieldKind.NUMBER, createDefaultValue = "12.34")
+        @EntField(createDefaultValue = "12.34")
         @EntMetaNumber(value = NumberRole.MONEY, precision = 10, scale = 2, min = "0", max = "9999.99", unit = "CNY")
         private BigDecimal amount;
     }
@@ -222,10 +220,10 @@ class ReflectiveEntMetaParserDescriptorContractTest {
     @EntEntity(entity = "broken_contract_entity")
     @EntIndex(name = "idx_missing", fields = {"missingIndexField"})
     private static final class BrokenContractEntity {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(sourceField = "missingOwnerId")
         private Long ownerId;
     }

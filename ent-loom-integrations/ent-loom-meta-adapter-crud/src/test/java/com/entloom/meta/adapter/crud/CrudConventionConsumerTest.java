@@ -14,7 +14,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.core.convention.MetaConvention;
-import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.enums.role.DateTimeRole;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import java.time.LocalDateTime;
@@ -135,7 +134,7 @@ class CrudConventionConsumerTest {
 
     @EntEntity(entity = "unsupported_datetime_order")
     private static final class UnsupportedDateTimeOrder {
-        @EntField(EntFieldKind.DATETIME)
+        @EntField
         @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
         private LocalDateTime updatedAt;
     }

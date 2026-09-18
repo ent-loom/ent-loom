@@ -5,7 +5,6 @@ import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.enums.EntFieldKind;
 import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,31 +20,31 @@ import lombok.Setter;
 @NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
-    @EntField(value = EntFieldKind.ID, label = "明细 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "明细 ID", required = OptionalBoolean.TRUE)
     private Long id;
 
     /** 所属订单主键，由订单聚合保存时填充。 */
-    @EntField(value = EntFieldKind.REF_ID, label = "订单 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "订单 ID", required = OptionalBoolean.TRUE)
     private Long orderId;
 
     /** 下单商品主键。 */
-    @EntField(value = EntFieldKind.REF_ID, label = "商品 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "商品 ID", required = OptionalBoolean.TRUE)
     private Long productId;
 
     /** 下单时的商品名称快照，不随商品主数据变化。 */
-    @EntField(value = EntFieldKind.TEXT, label = "商品名称", required = OptionalBoolean.TRUE)
+    @EntField(label = "商品名称", required = OptionalBoolean.TRUE)
     private String productName;
 
     /** 下单时的商品单价快照。 */
-    @EntField(value = EntFieldKind.NUMBER, label = "成交单价", required = OptionalBoolean.TRUE)
+    @EntField(label = "成交单价", required = OptionalBoolean.TRUE)
     private BigDecimal unitPrice;
 
     /** 购买数量，业务层校验为正数。 */
-    @EntField(value = EntFieldKind.NUMBER, label = "购买数量", required = OptionalBoolean.TRUE)
+    @EntField(label = "购买数量", required = OptionalBoolean.TRUE)
     private Integer quantity;
 
     /** 成交单价乘以购买数量，由业务层计算。 */
-    @EntField(value = EntFieldKind.NUMBER, label = "明细金额", required = OptionalBoolean.TRUE)
+    @EntField(label = "明细金额", required = OptionalBoolean.TRUE)
     private BigDecimal lineAmount;
 
 }

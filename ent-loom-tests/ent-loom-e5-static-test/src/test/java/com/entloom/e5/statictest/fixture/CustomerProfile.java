@@ -47,7 +47,7 @@ import java.time.LocalDateTime;
 @EntDocEntity(name = "客户档案", description = "客户档案")
 public final class CustomerProfile {
     /** 数据库主键。 */
-    @EntField(value = EntFieldKind.ID, label = "标识", description = "主键", required = OptionalBoolean.TRUE)
+    @EntField(label = "标识", description = "主键", required = OptionalBoolean.TRUE)
     @EntDbField(
         column = "id",
         nullable = OptionalBoolean.FALSE,
@@ -60,7 +60,6 @@ public final class CustomerProfile {
 
     /** 客户展示名称。 */
     @EntField(
-        value = EntFieldKind.TEXT,
         label = "显示名称",
         description = "客户展示名称",
         examples = {"张三"},
@@ -79,7 +78,6 @@ public final class CustomerProfile {
 
     /** 客户信用额度。 */
     @EntField(
-        value = EntFieldKind.NUMBER,
         label = "信用额度",
         description = "客户信用额度",
         examples = {"1000.00"},
@@ -97,7 +95,6 @@ public final class CustomerProfile {
 
     /** 客户注册时间。 */
     @EntField(
-        value = EntFieldKind.DATETIME,
         label = "注册时间",
         description = "客户注册时间",
         required = OptionalBoolean.TRUE

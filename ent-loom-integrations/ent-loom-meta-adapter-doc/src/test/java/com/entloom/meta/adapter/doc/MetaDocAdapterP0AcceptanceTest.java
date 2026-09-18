@@ -15,7 +15,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
 import com.entloom.meta.enums.RelationCardinality;
-import com.entloom.meta.enums.EntFieldKind;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -190,17 +189,17 @@ class MetaDocAdapterP0AcceptanceTest {
     @EntEntity(entity = "meta_only_order")
     @EntIndex(name = "idx_meta_order_customer", fields = {"customerId"})
     private static final class MetaOnlyOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "meta_only_customer")
         private Long customerId;
     }
 
     @EntEntity(entity = "meta_only_customer")
     private static final class MetaOnlyCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
     }
 
@@ -214,10 +213,10 @@ class MetaDocAdapterP0AcceptanceTest {
 
     @EntEntity(entity = "override_order")
     private static final class OverrideOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "override_customer", targetField = "idCode")
         @EntDocField(name = "客户编号", targetField = "customerCode", targetEntityLabel = "客户")
         private Long customerId;
@@ -225,7 +224,7 @@ class MetaDocAdapterP0AcceptanceTest {
 
     @EntEntity(entity = "override_customer")
     private static final class OverrideCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         private String customerCode;
@@ -235,10 +234,10 @@ class MetaDocAdapterP0AcceptanceTest {
 
     @EntEntity(entity = "broken_order")
     private static final class BrokenOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "missing_customer", cardinality = com.entloom.meta.enums.RelationCardinality.MANY_TO_ONE)
         private Long customerId;
     }

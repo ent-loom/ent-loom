@@ -16,7 +16,6 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.value.MetaValueSource;
-import com.entloom.meta.enums.EntFieldKind;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -95,10 +94,10 @@ class DocNativeParserAndMergerTest {
 
     @EntEntity(entity = "merge_order")
     private static final class MergeOrder {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
-        @EntField(EntFieldKind.REF_ID)
+        @EntField
         @EntRelation(targetEntity = "merge_customer", targetField = "idCode")
         @EntDocField(targetField = "customerCode")
         private Long customerId;
@@ -106,7 +105,7 @@ class DocNativeParserAndMergerTest {
 
     @EntEntity(entity = "merge_customer")
     private static final class MergeCustomer {
-        @EntField(EntFieldKind.ID)
+        @EntField
         private Long id;
 
         private String idCode;

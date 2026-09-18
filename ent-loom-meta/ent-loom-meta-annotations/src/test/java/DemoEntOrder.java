@@ -36,27 +36,27 @@ import java.time.LocalDateTime;
 @EntIndex(name = "uk_trade_order_order_no", fields = {"orderNo"}, unique = true)
 public class DemoEntOrder {
 
-    @EntField(EntFieldKind.ID)
+    @EntField
     @EntMetaId
     private Long id;
 
-    @EntField(EntFieldKind.REF_ID)
+    @EntField
     @EntRelation(role = RefIdRole.TENANT, targetService = "iam-center", targetEntity = "tenant")
     private Long tenantId;
 
-    @EntField(EntFieldKind.REF_ID)
+    @EntField
     @EntRelation(role = RefIdRole.GENERIC, targetService = "account-center", targetEntity = "account")
     private Long ownerId;
 
-    @EntField(EntFieldKind.TEXT)
+    @EntField
     @EntMetaText(TextRole.GENERIC)
     private String orderNo;
 
-    @EntField(EntFieldKind.ENUM)
+    @EntField
     @EntMetaEnum(EnumRole.STATUS)
     private OrderStatus orderStatus;
 
-    @EntField(EntFieldKind.NUMBER)
+    @EntField
     @EntMetaNumber(NumberRole.MONEY)
     private BigDecimal payAmount;
 
@@ -64,15 +64,15 @@ public class DemoEntOrder {
     @EntMetaJson(JsonRole.GENERIC)
     private String extensionJson;
 
-    @EntField(EntFieldKind.FLAG)
+    @EntField
     @EntMetaFlag(FlagRole.SOFT_DELETE)
     private Boolean deleted;
 
-    @EntField(EntFieldKind.DATETIME)
+    @EntField
     @EntMetaDateTime(DateTimeRole.CREATED_TIME)
     private LocalDateTime createdAt;
 
-    @EntField(EntFieldKind.DATETIME)
+    @EntField
     @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
     private LocalDateTime updatedAt;
 

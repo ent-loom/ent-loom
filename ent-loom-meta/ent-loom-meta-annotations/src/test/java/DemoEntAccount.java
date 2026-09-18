@@ -1,7 +1,6 @@
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntIndex;
-import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
 import com.entloom.meta.annotations.meta.EntMetaFlag;
@@ -28,27 +27,27 @@ import java.time.LocalDateTime;
 @EntIndex(name = "uk_account_mobile", fields = {"mobile"}, unique = true)
 public class DemoEntAccount {
 
-    @EntField(EntFieldKind.ID)
+    @EntField
     @EntMetaId
     private Long id;
 
-    @EntField(EntFieldKind.TEXT)
+    @EntField
     @EntMetaText(TextRole.GENERIC)
     private String nickname;
 
-    @EntField(EntFieldKind.TEXT)
+    @EntField
     @EntMetaText(TextRole.GENERIC)
     private String mobile;
 
-    @EntField(EntFieldKind.ENUM)
+    @EntField
     @EntMetaEnum(value = EnumRole.STATUS, valueType = EntMetaEnum.ValueType.STRING)
     private AccountStatus status;
 
-    @EntField(EntFieldKind.FLAG)
+    @EntField
     @EntMetaFlag(FlagRole.ENABLED)
     private Boolean enabled;
 
-    @EntField(EntFieldKind.DATETIME)
+    @EntField
     @EntMetaDateTime(DateTimeRole.CREATED_TIME)
     private LocalDateTime createdAt;
 
