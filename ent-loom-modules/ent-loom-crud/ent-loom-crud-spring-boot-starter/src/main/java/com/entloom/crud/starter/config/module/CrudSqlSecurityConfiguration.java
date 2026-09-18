@@ -6,6 +6,7 @@ import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.JdbcMatchedRowsStartupValidator;
+import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
 import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
 import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
@@ -78,5 +79,30 @@ public class CrudSqlSecurityConfiguration {
         JdbcMatchedRowsStartupValidator validator = new JdbcMatchedRowsStartupValidator(dataSource);
         validator.validateOrThrow();
         return validator;
+    }
+
+    /**
+     * 启动期拒绝会改写 DAO 范围字段的 MySQL 结构。
+     */
+    @Bean
+    @ConditionalOnBean({JdbcTemplate.class, EntityMetaRegistry.class})
+    @ConditionalOnMissingBean
+    public JdbcInsertScopeDatabaseValidator jdbcInsertScopeDatabaseValidator(
+        DataSource dataSource,
+        EntityMetaRegistry metaRegistry
+    ) {
+        return new JdbcInsertScopeDatabaseValidator(dataSource, metaRegistry);
+    }
+
+    /**
+     * 在 DDL 和其它容器刷新监听器完成后执行范围字段数据库校验。
+     */
+    @Bean
+    @ConditionalOnBean(JdbcInsertScopeDatabaseValidator.class)
+    @ConditionalOnMissingBean
+    public JdbcInsertScopeDatabaseStartupValidator jdbcInsertScopeDatabaseStartupValidator(
+        JdbcInsertScopeDatabaseValidator validator
+    ) {
+        return new JdbcInsertScopeDatabaseStartupValidator(validator);
     }
 }

@@ -26,6 +26,7 @@ import com.entloom.crud.starter.web.support.CrudRequestSupport;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.starter.config.module.JdbcInsertScopeDatabaseStartupValidator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
@@ -96,6 +97,7 @@ class CrudStarterConfigurationContractTest {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(JdbcEntityDaoFactory.class);
             assertThat(context).hasSingleBean(EntityDaoFactory.class);
+            assertThat(context).hasSingleBean(JdbcInsertScopeDatabaseStartupValidator.class);
             assertThat(context).doesNotHaveBean(EntityDao.class);
         });
     }

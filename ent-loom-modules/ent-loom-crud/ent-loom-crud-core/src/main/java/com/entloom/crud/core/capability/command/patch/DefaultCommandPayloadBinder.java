@@ -11,6 +11,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -159,6 +161,12 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
             }
             if (targetType == BigInteger.class) {
                 return (V) (value instanceof BigInteger ? value : new BigInteger(String.valueOf(value)));
+            }
+            if (targetType == LocalDate.class) {
+                return (V) LocalDate.parse(String.valueOf(value).trim());
+            }
+            if (targetType == LocalDateTime.class) {
+                return (V) LocalDateTime.parse(String.valueOf(value).trim().replace(' ', 'T'));
             }
             if (targetType == Date.class) {
                 return (V) convertToDate(value);

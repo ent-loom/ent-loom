@@ -17,6 +17,7 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -188,7 +189,9 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         if (hasLogicDelete()) {
             sql = "update " + table() + " set "
                 + column(meta.getLogicDeleteField()) + " = ? where " + where.getSql();
-            args.add(meta.getLogicDeleteDeletedValue());
+            args.add(normalizeFieldValue(
+                meta.getLogicDeleteField(), JdbcLogicDeleteValues.deleted(meta)
+            ));
         } else {
             sql = "delete from " + table() + " where " + where.getSql();
         }
@@ -222,7 +225,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         }
         String field = meta.getLogicDeleteField();
         Object supplied = values.get(field);
-        Object expected = meta.getLogicDeleteNotDeletedValue();
+        Object expected = normalizeFieldValue(field, JdbcLogicDeleteValues.notDeleted(meta));
         if (supplied != null && !expected.equals(normalizeFieldValue(field, supplied))) {
             throw new ValidationException("insert 不能覆盖逻辑删除初始值: " + field);
         }
@@ -317,7 +320,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         if (value == null) {
             return null;
         }
-        return RowConstraintNormalizer.normalizeValue(meta.resolveFieldMeta(fieldName), value);
+        return JdbcEntityValueBinder.normalize(meta.resolveFieldMeta(fieldName), value);
     }
 
     private String selectColumns() {

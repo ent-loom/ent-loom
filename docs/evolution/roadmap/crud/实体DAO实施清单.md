@@ -1,8 +1,8 @@
 # 实体 DAO 实施清单
 
-> 状态：In Progress（D0-D4.3 已完成，D4.1 基础语义已完成；D4.1 数据库矩阵和 D5 待后续）
-> 当前大项：D1.2/D4.1 收尾与 D5 需求门禁
-> 当前小项：Web 装配边界、字段/时区/常用类型矩阵
+> 状态：In Progress（D0-D4.3 主键 CRUD 闭环已完成；D4.1 数据库类型矩阵和 D5 待后续）
+> 当前大项：D4.1 数据库类型矩阵与 D5 需求门禁
+> 当前小项：字段/时区/常用类型矩阵
 > 阻塞项：无
 > 最近核验：2026-09-17
 
@@ -126,15 +126,17 @@ flowchart LR
 - [x] 范围约束值与调用方范围字段值统一按元数据类型规范化为实际 JDBC 绑定值，再执行填充与校验；SQL 使用同一份规范化结果。
 - [x] 等值和单元素 `IN` 先规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。
 - [x] 多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
-- [ ] 数据库默认值、生成列、字符集、排序规则和触发器不得由 Java 内存判断伪装成数据库等价语义；首期只允许可由绑定参数确定最终持久化值的范围字段类型与转换，遇到数据库会改写范围值的机制直接拒绝。
+- [x] 首期范围字段最终值只能由绑定参数确定；MySQL 已有表的启动期/显式 Factory 校验拒绝生成列、`AUTO_INCREMENT`、`ON UPDATE` 和触发器。
+- [x] 已验证 MySQL 只有表级 DML 权限时可能隐藏触发器元数据；校验要求目标表 `TRIGGER`/`ALL PRIVILEGES` 可见性，角色权限必须在当前连接激活或设为默认角色，权限不足时 fail-closed。
+- [ ] 数据库默认值、字符集和排序规则对范围字段最终值及类型转换的影响仍需数据库矩阵验证；未验证时不得宣称 Java 判断与数据库语义等价。
 - [x] 范围字段缺失、值冲突、空集合约束和 SQL `NULL` 分别具有测试。
 
 验收：所有允许进入 insert 的行约束都能在写 SQL 前确定判定，不支持的表达式 fail-closed。
 
 验收日期：2026-09-17<br>
 关键实现：`RowConstraint`、`RowConstraintNormalizer`、`InsertConstraintValueBinder`。<br>
-关键测试：`InsertConstraintValueBinderTest` 4 项通过。<br>
-边界确认：数据库触发器、生成列及其他会改写范围字段最终值的机制尚未建立启动期探针，继续作为 D2/D4 门禁。
+关键测试：`InsertConstraintValueBinderTest` 4 项、`JdbcInsertScopeDatabaseValidatorTest` 8 项通过。<br>
+边界确认：`JdbcInsertScopeDatabaseValidator` 仅针对 MySQL 8 已存在表检查范围列的生成列、AUTO_INCREMENT、ON UPDATE 和触发器；同时确认当前账号具备触发器元数据可见性。表不存在交由 DDL/迁移阶段处理，Starter 在容器刷新最低优先级再次复验，非 MySQL 继续由行为测试验证。
 
 ### D0.4 首期 API 定稿
 
@@ -284,17 +286,18 @@ flowchart LR
 - [ ] 验证字符集、时区和更多常用 Java/MySQL 类型映射。
 - [x] 验证测试结束后临时 schema 无残留。
 
-D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核。新增 `JdbcReservedIdentifierIntegrationTest` 2 项通过，H2 真实验证保留表名/列名的 DAO CRUD 与查询编译。时区和更多常用类型映射仍作为后续数据库矩阵，不提前宣称完成。
+D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核，并执行 `JdbcInsertScopeDatabaseValidator` 验证范围列数据库结构。新增 `JdbcReservedIdentifierIntegrationTest` 2 项通过，H2 真实验证保留表名/列名的 DAO CRUD 与查询编译。时区和更多常用类型映射仍作为后续数据库矩阵，不提前宣称完成。
 
 ### D4.2 模块与装配
 
 - [x] 第一阶段沿用 `crud-core`、`crud-engine-jdbc` 和现有 Starter，不创建占位 Maven 模块。
 - [x] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 `JdbcEntityDaoFactory`，并允许用户通过 `EntityDaoFactory` 显式覆盖。
+- [x] 默认 Factory 注入 `JdbcInsertScopeDatabaseValidator`；标准 `JdbcGuardedSqlExecutor` 自动复用底层 `DataSource`，自定义执行器必须显式传入校验器，缺失时 scoped DAO 拒绝创建。
 - [x] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO；Starter 只提供 Factory，不注册裸 `EntityDao` Bean。
 - [x] Starter 不将 `JdbcEntityDaoCommandHandler` 自动设为全局默认处理器；选定实体按实体显式注册，未迁移实体、批量和 `save-or-update` 保持旧 Handler，避免首期能力边界被全局切换扩大。
 - [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
 
-D4.2 验收证据（2026-09-17）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露及无裸 DAO Bean；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。
+D4.2 验收证据（2026-09-17）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露、范围数据库校验监听器及无裸 DAO Bean；`JdbcInsertScopeDatabaseStartupValidatorTest` 验证监听器以最低优先级执行并触发复验；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。
 
 ### D4.3 最终验收
 

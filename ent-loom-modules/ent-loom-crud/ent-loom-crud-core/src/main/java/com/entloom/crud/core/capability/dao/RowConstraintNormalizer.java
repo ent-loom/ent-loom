@@ -5,6 +5,8 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -113,6 +115,12 @@ public final class RowConstraintNormalizer {
             }
             if (target == BigInteger.class) {
                 return new BigInteger(text);
+            }
+            if (target == LocalDate.class) {
+                return LocalDate.parse(text);
+            }
+            if (target == LocalDateTime.class) {
+                return LocalDateTime.parse(text.replace(' ', 'T'));
             }
             if (target == Boolean.class) {
                 if ("true".equalsIgnoreCase(text) || "1".equals(text)) {

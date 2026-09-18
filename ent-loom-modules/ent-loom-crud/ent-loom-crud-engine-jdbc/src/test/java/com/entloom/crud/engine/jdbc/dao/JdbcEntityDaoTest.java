@@ -9,10 +9,23 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.EntityDaoConstraintException;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.runtime.context.CrudExecutionContext;
+import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.security.GuardedSqlExecutor;
+import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
+import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
+import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
+import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
+import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
+import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -25,6 +38,47 @@ import org.junit.jupiter.api.Test;
 class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     private static final EntityType<OrderTestEntity, Long> ORDER_TYPE =
         EntityType.of(OrderTestEntity.class, Long.class);
+
+    @Test
+    void custom_guarded_executor_must_supply_scope_database_validator() {
+        JdbcEntityDaoFactory factory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            new GuardedSqlExecutor() {
+                @Override
+                public List<Map<String, Object>> queryForList(
+                    String sql, List<Object> args, CrudExecutionContext context
+                ) {
+                    return Collections.emptyList();
+                }
+
+                @Override
+                public Map<String, Object> queryForMap(
+                    String sql, List<Object> args, CrudExecutionContext context
+                ) {
+                    return Collections.emptyMap();
+                }
+
+                @Override
+                public Object queryForObject(
+                    String sql, List<Object> args, CrudExecutionContext context
+                ) {
+                    return null;
+                }
+
+                @Override
+                public int update(String sql, List<Object> args, CrudExecutionContext context) {
+                    return 0;
+                }
+            }
+        );
+
+        ValidationException exception = Assertions.assertThrows(
+            ValidationException.class,
+            () -> factory.scoped(ORDER_TYPE, EntityAccessScope.of(RowConstraint.eq("schoolId", 198L)))
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("必须配置"), exception.getMessage());
+    }
 
     @Test
     void should_complete_scoped_primary_key_crud_with_explicit_logic_delete_values() {
@@ -147,6 +201,52 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     }
 
     @Test
+    void explicit_logic_delete_values_should_drive_dao_insert_find_and_delete() {
+        EntityMetaRegistry customRegistry = registryWithLogicDeleteValues(2, 9);
+        EntityDao<OrderTestEntity, Long> dao = newFactory(customRegistry).scoped(
+            ORDER_TYPE,
+            EntityAccessScope.of(RowConstraint.eq("schoolId", 198L))
+        );
+
+        dao.insert(order(10009L, "ORD-STATE"));
+        Assertions.assertEquals(2, jdbcTemplate.queryForObject(
+            "select is_deleted from t_order where id=?", Integer.class, 10009L
+        ).intValue());
+        Assertions.assertTrue(dao.findById(10009L).isPresent());
+
+        Assertions.assertEquals(1, dao.deleteById(10009L));
+        Assertions.assertEquals(9, jdbcTemplate.queryForObject(
+            "select is_deleted from t_order where id=?", Integer.class, 10009L
+        ).intValue());
+        Assertions.assertFalse(dao.findById(10009L).isPresent());
+    }
+
+    @Test
+    void logic_delete_unique_conflict_should_have_stable_constraint_error() {
+        jdbcTemplate.execute("create unique index uk_t_order_order_no_state on t_order(order_no,is_deleted)");
+        EntityMetaRegistry customRegistry = registryWithLogicDeleteValues(2, 9);
+        EntityDao<OrderTestEntity, Long> dao = newFactory(customRegistry).scoped(
+            ORDER_TYPE,
+            EntityAccessScope.of(RowConstraint.eq("schoolId", 198L))
+        );
+
+        dao.insert(order(10010L, "ORD-STATE-CONFLICT"));
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            10011L,
+            "ORD-STATE-CONFLICT",
+            198L,
+            "tenant-a",
+            9
+        );
+
+        Assertions.assertThrows(EntityDaoConstraintException.class, () -> dao.deleteById(10010L));
+        Assertions.assertEquals(2, jdbcTemplate.queryForObject(
+            "select is_deleted from t_order where id=?", Integer.class, 10010L
+        ).intValue());
+    }
+
+    @Test
     void concurrent_write_with_wrong_scope_cannot_modify_the_row() throws Exception {
         jdbcTemplate.update(
             "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
@@ -223,6 +323,38 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         payload.put("orderNo", orderNo);
         return new DefaultCommandPayloadBinder().bindUpdatePatch(
             payload, OrderTestEntity.class, metaRegistry.getEntityMeta(OrderTestEntity.class)
+        );
+    }
+
+    private EntityMetaRegistry registryWithLogicDeleteValues(int notDeleted, int deleted) {
+        EntityMeta original = metaRegistry.getEntityMeta(OrderTestEntity.class);
+        EntityMeta custom = new EntityMeta(
+            OrderTestEntity.class,
+            original.getResourceDescriptor(),
+            original.getTable(),
+            original.getIdField(),
+            original.getIdPolicy(),
+            original.getLogicDeleteField(),
+            Integer.valueOf(notDeleted),
+            Integer.valueOf(deleted),
+            original.getFieldMetas()
+        );
+        return new CrudRuntimeModelBackedEntityMetaRegistry(
+            CrudRuntimeModel.from(
+                Collections.singletonList(custom),
+                Collections.emptyList()
+            )
+        );
+    }
+
+    private JdbcEntityDaoFactory newFactory(EntityMetaRegistry registry) {
+        SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
+            new SqlIdentifierAllowlistValidator(registry),
+            new SqlParameterLimiter()
+        );
+        return new JdbcEntityDaoFactory(
+            registry,
+            new JdbcGuardedSqlExecutor(jdbcTemplate, safetyGuard, new SqlExecutionLogger())
         );
     }
 }

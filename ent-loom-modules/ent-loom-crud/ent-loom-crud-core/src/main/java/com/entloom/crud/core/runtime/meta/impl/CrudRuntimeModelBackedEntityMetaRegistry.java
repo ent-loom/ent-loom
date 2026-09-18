@@ -9,6 +9,7 @@ import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.model.CrudRuntimeEntityModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.math.BigDecimal;
@@ -55,6 +56,11 @@ public class CrudRuntimeModelBackedEntityMetaRegistry implements EntityMetaRegis
     @Override
     public ResourceDescriptor getResourceDescriptor(Class<?> entityType) {
         return getEntityMeta(entityType).getResourceDescriptor();
+    }
+
+    @Override
+    public Collection<EntityMeta> getEntityMetas() {
+        return entityMetaMap.values();
     }
 
     @Override

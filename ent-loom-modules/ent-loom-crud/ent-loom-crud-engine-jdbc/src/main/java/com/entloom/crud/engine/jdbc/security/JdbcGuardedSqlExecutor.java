@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -24,6 +25,15 @@ public class JdbcGuardedSqlExecutor implements GuardedSqlExecutor {
     private final SqlSecurityGuard sqlSecurityGuard;
     /** SQL 执行日志器。 */
     private final SqlExecutionLogger sqlExecutionLogger;
+
+    /**
+     * 返回底层数据源，供 JDBC DAO Factory 复用数据库结构安全校验。
+     *
+     * @return JDBC 数据源
+     */
+    public DataSource getDataSource() {
+        return jdbcTemplate.getDataSource();
+    }
 
     /**
      * 执行受保护的列表查询并记录日志。

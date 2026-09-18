@@ -4,8 +4,10 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,7 +105,7 @@ final class JdbcEntityPredicateCompiler {
                 predicates,
                 args,
                 column,
-                constraint.getValues().get(0),
+                JdbcEntityValueBinder.normalize(meta.resolveFieldMeta(field), constraint.getValues().get(0)),
                 field
             );
             return;
@@ -117,7 +119,7 @@ final class JdbcEntityPredicateCompiler {
                 predicates,
                 args,
                 column,
-                constraint.getValues(),
+                normalizeValues(meta.resolveFieldMeta(field), constraint.getValues()),
                 field
             );
             validateParameterCount(args.size());
@@ -140,7 +142,7 @@ final class JdbcEntityPredicateCompiler {
             throw new ValidationException("DAO 主键字段未映射为列: " + field);
         }
         predicates.add(column + " = ?");
-        args.add(value);
+        args.add(JdbcEntityValueBinder.normalize(meta.resolveFieldMeta(field), value));
     }
 
     private void appendNotDeleted(EntityMeta meta, List<String> predicates, List<Object> args) {
@@ -149,11 +151,21 @@ final class JdbcEntityPredicateCompiler {
             return;
         }
         String column = dialect.quoteIdentifier(meta.resolveColumn(field));
-        if (column == null || !meta.hasExplicitLogicDeleteValues()) {
+        if (column == null) {
             throw new ValidationException("逻辑删除字段或状态值未完整配置: " + meta.getEntityName());
         }
         predicates.add(column + " = ?");
-        args.add(meta.getLogicDeleteNotDeletedValue());
+        args.add(JdbcEntityValueBinder.normalize(
+            meta.resolveFieldMeta(field), JdbcLogicDeleteValues.notDeleted(meta)
+        ));
+    }
+
+    private List<Object> normalizeValues(EntityFieldMeta field, List<Object> values) {
+        List<Object> normalized = new ArrayList<Object>();
+        for (Object value : values) {
+            normalized.add(JdbcEntityValueBinder.normalize(field, value));
+        }
+        return normalized;
     }
 
     /** 已编译的参数化 WHERE 片段。 */

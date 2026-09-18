@@ -42,6 +42,7 @@ import com.entloom.crud.engine.jdbc.idempotency.JdbcIdempotencyStore;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.JdbcMatchedRowsStartupValidator;
+import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
 import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
 import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
@@ -146,6 +147,10 @@ class DaoMysqlIntegrationTest {
                 new CrudNativeRuntimeModelParser().parse(Collections.<Class<?>>singletonList(DaoOrder.class))
             );
             metaRegistry.validateOrThrow();
+            new JdbcInsertScopeDatabaseValidator(
+                dataSource(withSchema(settings.url(), schema, false), settings.username(), settings.password()),
+                metaRegistry
+            ).validateOrThrow();
             SqlSafetyGuard securityGuard = new SqlSafetyGuard(
                 new SqlIdentifierAllowlistValidator(metaRegistry),
                 new SqlParameterLimiter()
@@ -195,6 +200,10 @@ class DaoMysqlIntegrationTest {
                 )
             );
             orderMetaRegistry.validateOrThrow();
+            new JdbcInsertScopeDatabaseValidator(
+                dataSource(withSchema(settings.url(), schema, false), settings.username(), settings.password()),
+                orderMetaRegistry
+            ).validateOrThrow();
             SqlSafetyGuard orderSecurityGuard = new SqlSafetyGuard(
                 new SqlIdentifierAllowlistValidator(orderMetaRegistry),
                 new SqlParameterLimiter()

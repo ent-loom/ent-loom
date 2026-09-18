@@ -1,10 +1,10 @@
 # 实体 DAO
 
-> 状态：In Progress（D0-D4.3 已完成；D4.1 数据库矩阵和 D5 待后续）<br>
+> 状态：In Progress（D0-D4.3 主键 CRUD 闭环已完成；D4.1 数据库类型矩阵和 D5 待后续）<br>
 > 最近核验：2026-09-17
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 
-当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO，也不把 DAO Handler 自动设为全局默认处理器；选定实体的命令切换由业务按实体显式注册，未迁移实体、批量和 save-or-update 继续使用旧 Handler。更完整数据库字段/时区/常用类型矩阵继续按实施清单推进。
+当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO，也不把 DAO Handler 自动设为全局默认处理器；选定实体的命令切换由业务按实体显式注册，未迁移实体、批量和 save-or-update 继续使用旧 Handler。MySQL 启动期会拒绝范围字段的生成列、AUTO_INCREMENT、ON UPDATE 和触发器结构；触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性，否则 fail-closed；更完整数据库字段/时区/常用类型矩阵继续按实施清单推进。
 
 ## 定位
 
@@ -193,6 +193,10 @@ WHERE id = ?
 - 逻辑删除元数据必须显式声明未删除值和已删除值，并校验其与字段类型兼容；调用方不能借普通字段覆盖。现有 JDBC 中隐含的 `0/1` 不能作为稳定合同；版本初始值和递增不属于第一阶段合同。
 - DAO 不处理业务必填、状态流转和跨实体规则。
 
+### MySQL 结构校验权限
+
+`JdbcInsertScopeDatabaseValidator` 对已有 MySQL 表读取 `information_schema.columns` 和 `information_schema.triggers`，并执行 `SHOW GRANTS` 确认当前连接能看到目标表触发器。MySQL 对只有表级 DML 权限的账号可能返回空触发器结果，即使触发器实际存在；因此范围表校验要求当前账号对目标表或目标 schema 具有 `TRIGGER` / `ALL PRIVILEGES`，或者传入具备该元数据可见性的专用校验连接。通过角色获得的权限必须在当前连接中激活或设为默认角色；仅授予但未激活的角色仍按元数据不可见处理。权限不足时启动和显式 Factory 都直接失败，不把空结果当成“没有触发器”。
+
 ## 后续扩展
 
 以下能力不进入第一阶段最小合同，等主键读写闭环稳定后再逐项加入。
@@ -371,7 +375,7 @@ flowchart TB
     business --> contract
 ```
 
-第一阶段放在现有 `crud-core` 与 `crud-engine-jdbc` 的清晰包边界内：前者放置 `dao` 合同，后者放置 `dao` JDBC 实现及谓词、变更 SQL 和异常转换部件。逻辑删除和乐观锁属于 DAO 的持久化一致性，不是额外拆分 `crud-core-governance` 或 `crud-core-dao` 的理由。
+第一阶段放在现有 `crud-core` 与 `crud-engine-jdbc` 的清晰包边界内：前者放置 `dao` 合同，后者放置 `dao` JDBC 实现及谓词、变更 SQL 和异常转换部件。Starter 为默认 Factory 注入 `JdbcInsertScopeDatabaseValidator`，并在容器刷新最低优先级再次校验，以覆盖同一容器中 DDL 完成后的表结构。自定义 `EntityMetaRegistry` 必须提供完整元数据快照；自定义 `GuardedSqlExecutor` 必须显式传入数据库校验器。逻辑删除和乐观锁属于 DAO 的持久化一致性，不是额外拆分 `crud-core-governance` 或 `crud-core-dao` 的理由。
 
 第一阶段不新增占位 Maven 模块。只有出现第二种持久化实现、业务项目需要独立依赖 DAO，或 DAO 已形成独立发布和演进验证需求后，再提取稳定的 `ent-loom-crud-dao-api` 和 `ent-loom-crud-dao-jdbc`。轻量路由或 ShardingSphere 适配模块同样等真实项目需求出现后再建立，不让普通单库项目承担分片依赖。
 

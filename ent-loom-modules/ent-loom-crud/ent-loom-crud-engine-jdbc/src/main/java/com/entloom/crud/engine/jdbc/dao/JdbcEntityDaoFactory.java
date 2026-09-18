@@ -15,6 +15,8 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 
 /**
  * JDBC 实体 DAO 工厂。
@@ -24,13 +26,15 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     private final GuardedSqlExecutor guardedSqlExecutor;
     private final int maxParameters;
     private final JdbcDialect dialect;
+    private final JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator;
 
     public JdbcEntityDaoFactory(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
         this(
             metaRegistry,
             guardedSqlExecutor,
             StandardJdbcDialect.GENERIC,
-            JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS
+            JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS,
+            null
         );
     }
 
@@ -56,6 +60,40 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         JdbcDialect dialect,
         int maxParameters
     ) {
+        this(metaRegistry, guardedSqlExecutor, dialect, maxParameters, null);
+    }
+
+    /**
+     * 创建使用默认参数上限并绑定数据库结构安全校验器的 Factory。
+     */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            dialect,
+            JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS,
+            insertScopeDatabaseValidator
+        );
+    }
+
+    /**
+     * 创建 JDBC DAO Factory，并绑定数据库结构安全校验器。
+     *
+     * <p>自定义 {@link GuardedSqlExecutor} 时必须显式传入校验器；标准
+     * {@link JdbcGuardedSqlExecutor} 会自动从其底层 {@code DataSource} 创建校验器。</p>
+     */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator
+    ) {
         if (metaRegistry == null || guardedSqlExecutor == null) {
             throw new ValidationException("EntityMetaRegistry 和 GuardedSqlExecutor 不能为空");
         }
@@ -66,6 +104,9 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.maxParameters = maxParameters;
+        this.insertScopeDatabaseValidator = insertScopeDatabaseValidator == null
+            ? resolveInsertScopeValidator(metaRegistry, guardedSqlExecutor)
+            : insertScopeDatabaseValidator;
     }
 
     @Override
@@ -75,6 +116,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         }
         EntityMeta meta = metaRegistry.getEntityMeta(entityType.getEntityClass());
         validateEntityType(entityType, meta);
+        validateDatabaseStructure(meta);
         RowConstraint normalizedScope = RowConstraintNormalizer.normalize(scope.getRowConstraint(), meta);
         validateScope(normalizedScope, meta);
         return new JdbcEntityDao<T, ID>(
@@ -85,6 +127,42 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             new JdbcEntityPredicateCompiler(dialect, maxParameters),
             dialect
         );
+    }
+
+    private void validateDatabaseStructure(EntityMeta meta) {
+        if (!hasScopeField(meta)) {
+            return;
+        }
+        if (insertScopeDatabaseValidator == null) {
+            throw new ValidationException(
+                "包含范围字段的 JDBC DAO 必须配置 JdbcInsertScopeDatabaseValidator: "
+                    + meta.getEntityName()
+            );
+        }
+        insertScopeDatabaseValidator.validateEntityOrThrow(meta);
+    }
+
+    private boolean hasScopeField(EntityMeta meta) {
+        if (meta == null || meta.getFieldMetas() == null) {
+            return false;
+        }
+        for (EntityFieldMeta field : meta.getFieldMetas().values()) {
+            if (field != null && field.isScopeField()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private JdbcInsertScopeDatabaseValidator resolveInsertScopeValidator(
+        EntityMetaRegistry registry,
+        GuardedSqlExecutor executor
+    ) {
+        if (!(executor instanceof JdbcGuardedSqlExecutor)) {
+            return null;
+        }
+        javax.sql.DataSource dataSource = ((JdbcGuardedSqlExecutor) executor).getDataSource();
+        return dataSource == null ? null : new JdbcInsertScopeDatabaseValidator(dataSource, registry);
     }
 
     private <T, ID> void validateEntityType(EntityType<T, ID> entityType, EntityMeta meta) {
