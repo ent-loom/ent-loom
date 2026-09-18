@@ -19,7 +19,7 @@ public @interface EntField {
     /**
      * 属性类型枚举。
      */
-    EntFieldKind value();
+    EntFieldKind value() default EntFieldKind.AUTO;
 
     /**
      * 字段展示名称，空字符串表示使用默认命名策略。

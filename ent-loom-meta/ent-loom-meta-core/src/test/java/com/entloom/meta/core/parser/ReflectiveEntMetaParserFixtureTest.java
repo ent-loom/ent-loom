@@ -163,6 +163,7 @@ class ReflectiveEntMetaParserFixtureTest {
         private String name;
         private InferredStatus status;
         private Boolean enabled;
+        @EntField(label = "创建时间")
         private LocalDateTime createdAt;
         private String profileJson;
         private String coverImageUrl;

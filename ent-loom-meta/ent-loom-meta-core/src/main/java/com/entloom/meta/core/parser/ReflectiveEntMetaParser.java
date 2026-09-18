@@ -162,7 +162,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         MetaDiagnosticCollector diagnostics
     ) {
         EntFieldKind kind = fieldKind(field, entField);
-        boolean explicitField = entField != null;
+        boolean explicitField = entField != null && entField.value() != EntFieldKind.AUTO;
         TypedDefaultValue defaultValue = typedDefaultValue(field, entField, diagnostics);
         SourcedValue<String> role = fieldRole(field, kind);
         List<EntFieldConstraintDescriptor> constraints = constraints(field);
@@ -623,7 +623,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
     }
 
     private EntFieldKind fieldKind(Field field, EntField entField) {
-        if (entField != null) {
+        if (entField != null && entField.value() != EntFieldKind.AUTO) {
             return entField.value();
         }
         return inferFieldKind(field);

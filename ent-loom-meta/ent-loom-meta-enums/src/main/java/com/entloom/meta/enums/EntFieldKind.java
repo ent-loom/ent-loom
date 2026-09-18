@@ -4,6 +4,8 @@ package com.entloom.meta.enums;
  * 属性字段的基础数据类型分类。
  */
 public enum EntFieldKind {
+    /** 自动根据 Java 字段类型和命名约定推断。 */
+    AUTO,
     /** 主键类型。 */
     ID,
     /** 外部引用 ID。 */
