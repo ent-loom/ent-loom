@@ -252,8 +252,8 @@ flowchart LR
 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`<br>
 测试结果：Core 244 项、JDBC 79 项通过，0 失败、0 错误。<br>
 关键测试：`InsertConstraintValueBinderTest`、`JdbcEntityPredicateCompilerTest`、`JdbcMatchedRowsStartupValidatorTest`、`JdbcEntityDaoTest`、`DefaultEngineSingleTableCrudTest`、`DefaultEngineDaoScopeGatewayTest`。<br>
-边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 已切换到 DAO，批量、save-or-update 和其他实体仍由旧 Handler 处理。<br>
-遗留事项：D4.1 的 MySQL 8 实例验收和 D4.2 的 Starter 装配验收已补齐；共享 `JdbcWriteMissClassifier` 仍仅被未迁移的批量、save-or-update 路径使用。
+边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。显式主键实体的 CommandGateway 单条、批量和 save-or-update 已统一切换到 DAO；生成主键等超出 DAO 合同的实体继续使用专用回退处理器。<br>
+遗留事项：D4.1 的 MySQL 8 实例验收和 D4.2 的 Starter 装配验收已补齐；DAO 原生批量公共合同仍按 D5 真实需求门禁管理。
 
 ## D3：以 DAO 重构一个真实执行链测试入口
 
@@ -264,7 +264,7 @@ flowchart LR
 - [x] `UpdatePatch<T>` 通过 `DefaultCommandPayloadBinder` 和 `NormalizedUpdatePatch` 规范化后进入 DAO，不新增任意实体反射写入旁路。
 - [x] Permission、DataScope、Scene Policy、审计和幂等仍由 Gateway 负责，DAO 不反向依赖治理模型；已补 Gateway 幂等回归。
 - [x] 复杂查询、批量和 save-or-update 继续使用专用 Handler，不强行进入 DAO。
-- [x] 选定入口已删除重复主键 SQL 和该入口的 `JdbcWriteMissClassifier` 调用；共享分类器仍仅服务未迁移的批量、save-or-update 等旧 Handler，因此暂不删除类型，不保留 deprecated 入口、适配层、兼容开关或双写双读。
+- [x] 显式主键实体的单条、批量和 save-or-update 已删除重复主键 SQL 调用；`JdbcWriteMissClassifier` 类型及全部调用点已删除，不保留 deprecated 入口、适配层、兼容开关或双写双读。
 
 ### D3 阶段门禁
 
@@ -273,7 +273,7 @@ flowchart LR
 - [x] 该入口涉及的审计、幂等和事务边界由目标架构测试覆盖；其他入口不作为本阶段完成条件。
 - [x] DAO Core 不依赖 Gateway；Gateway 执行链通过 JDBC Handler 依赖 DAO 合同，不在 Core 引入 JDBC 实现细节。
 
-阶段验收（2026-09-17）：`DefaultEngineSingleTableCrudTest` 22 项、`DefaultEngineDaoScopeGatewayTest` 1 项通过；空/非空 Scene 的样板实体单条 CRUD、逻辑删除、Patch、Gateway 幂等、完整审计事件、外层事务回滚以及租户/组织/普通目标条件越权拒绝均已验证。共享旧 Handler 分类器仍服务未迁移的批量、save-or-update 路径，不属于本阶段切换范围。
+阶段验收（2026-09-18 更新）：`DefaultEngineSingleTableCrudTest` 22 项、`DefaultEngineDaoScopeGatewayTest` 1 项通过；空/非空 Scene 的样板实体单条 CRUD、批量、save-or-update、逻辑删除、Patch、Gateway 幂等、完整审计事件、外层事务回滚以及租户/组织/普通目标条件越权拒绝均已验证。Starter 默认处理器已切换为 DAO 优先路由，生成主键等超出 DAO 合同的实体才进入回退处理器。
 
 ## D4：数据库与发布验收
 
@@ -296,7 +296,7 @@ D4.1 类型矩阵验收（2026-09-18）：`JdbcCommonTypesEntityDaoTest` 在 H2 
 - [x] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 `JdbcEntityDaoFactory`，并允许用户通过 `EntityDaoFactory` 显式覆盖。
 - [x] 默认 Factory 注入 `JdbcInsertScopeDatabaseValidator`；标准 `JdbcGuardedSqlExecutor` 自动复用底层 `DataSource`，自定义执行器必须显式传入校验器，缺失时 scoped DAO 拒绝创建。
 - [x] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO；Starter 只提供 Factory，不注册裸 `EntityDao` Bean。
-- [x] Starter 不将 `JdbcEntityDaoCommandHandler` 自动设为全局默认处理器；选定实体按实体显式注册，未迁移实体、批量和 `save-or-update` 保持旧 Handler，避免首期能力边界被全局切换扩大。
+- [x] Starter 将 `JdbcEntityDaoCommandHandler` 设为全局默认处理器；处理器仅对显式主键实体执行 DAO 合同，数据库生成主键等不支持实体明确回退到 `JdbcCrudCommandHandler`。
 - [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
 
 D4.2 验收证据（2026-09-18）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露、范围数据库校验监听器及无裸 DAO Bean；`JdbcInsertScopeDatabaseStartupValidatorTest` 验证监听器以最低优先级执行、触发复验且失败时不阻塞容器刷新；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。

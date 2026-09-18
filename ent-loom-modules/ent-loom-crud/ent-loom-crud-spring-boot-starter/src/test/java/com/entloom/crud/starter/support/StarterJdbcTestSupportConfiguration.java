@@ -14,7 +14,9 @@ import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
+import com.entloom.crud.engine.jdbc.command.JdbcEntityDaoCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
+import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.log.SqlLogLevel;
 import com.entloom.crud.engine.jdbc.query.JdbcQueryEngine;
@@ -224,7 +226,15 @@ public class StarterJdbcTestSupportConfiguration {
             sqlExecutionLogger()
         );
         CrudCommandRegistry registry = new CrudCommandRegistry();
-        registry.setDefaultHandler(new JdbcCrudCommandHandler<>(metaRegistry, guardedSqlExecutor));
+        JdbcCrudCommandHandler<Object, Object> fallback = new JdbcCrudCommandHandler<>(
+            metaRegistry,
+            guardedSqlExecutor
+        );
+        registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<Object, Object>(
+            metaRegistry,
+            new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor),
+            fallback
+        ));
         return new RegistryBackedCommandEngine(registry, sqlSecurityGuard);
     }
 

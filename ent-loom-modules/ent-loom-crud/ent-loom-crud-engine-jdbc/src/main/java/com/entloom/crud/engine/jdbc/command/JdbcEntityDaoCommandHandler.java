@@ -8,16 +8,18 @@ import com.entloom.crud.core.capability.command.handler.CrudCommandHandler;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -25,20 +27,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 将选定实体的单条主键 CRUD 命令切换到 EntityDao。
+ * 将显式主键实体的写命令统一切换到 EntityDao。
  *
- * <p>该处理器保留旧处理器作为其它操作的委托，便于按真实执行链逐实体切换；DAO 路径本身不再
- * 调用旧的主键 SQL。</p>
+ * <p>数据库生成主键等超出 EntityDao 合同的实体交给回退处理器；显式主键实体的单条、批量和
+ * save-or-update 命令不再调用旧的主键 SQL。</p>
  */
 public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     private final EntityMetaRegistry metaRegistry;
-    private final JdbcEntityDaoFactory daoFactory;
+    private final EntityDaoFactory daoFactory;
     private final CrudCommandHandler<P, R> fallback;
     private final DefaultCommandPayloadBinder payloadBinder;
 
     public JdbcEntityDaoCommandHandler(
         EntityMetaRegistry metaRegistry,
-        JdbcEntityDaoFactory daoFactory,
+        EntityDaoFactory daoFactory,
         CrudCommandHandler<P, R> fallback
     ) {
         if (metaRegistry == null || daoFactory == null || fallback == null) {
@@ -60,6 +62,10 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         if (spec == null || spec.getRootType() == null) {
             throw new ValidationException("DAO 命令根实体不能为空");
         }
+        EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
+        if (meta.getIdPolicy() != EntityIdPolicy.EXPLICIT) {
+            return fallback.action(spec);
+        }
         switch (spec.getOp()) {
             case CREATE:
                 return create(spec);
@@ -67,6 +73,13 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
                 return update(spec);
             case DELETE:
                 return delete(spec);
+            case SAVE_OR_UPDATE:
+                return saveOrUpdate(spec);
+            case CREATE_BATCH:
+            case UPDATE_BATCH:
+            case DELETE_BATCH:
+            case SAVE_OR_UPDATE_BATCH:
+                return batch(spec);
             default:
                 return fallback.action(spec);
         }
@@ -108,7 +121,149 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
 
     @Override
     public R batch(CommandSpec<P> spec) {
-        return fallback.batch(spec);
+        rejectVersion(spec);
+        if (!(spec.getPayload() instanceof BatchCommand<?>)) {
+            throw new ValidationException("批量载荷必须是 BatchCommand");
+        }
+        List<? extends WriteCommand<?>> items = ((BatchCommand<?>) spec.getPayload()).getItems();
+        if (items.isEmpty()) {
+            throw new ValidationException("批量命令 items 不能为空");
+        }
+        int rows = 0;
+        List<Map<String, Object>> itemResults = new ArrayList<Map<String, Object>>();
+        for (int index = 0; index < items.size(); index++) {
+            WriteCommand<?> item = items.get(index);
+            if (item == null) {
+                throw new ValidationException("批量命令 item 不能为空");
+            }
+            CommandOperation operation = batchChildOperation(spec.getOp(), item.getOp());
+            R itemResult = action(childSpec(spec, item, operation));
+            int itemRows = rows(itemResult);
+            rows += itemRows;
+            itemResults.add(batchItemResult(index, operation, item, itemResult, itemRows));
+        }
+        return batchResult(spec, rows, itemResults);
+    }
+
+    private R saveOrUpdate(CommandSpec<P> spec) {
+        rejectVersion(spec);
+        EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
+        Map<String, Object> values = payloadValues(spec, meta);
+        Object id = resolveId(values, meta);
+        EntityDao<Object, Object> entityDao = dao(meta, scope(spec));
+        CommandOperation operation = entityDao.findById(id).isPresent()
+            ? CommandOperation.UPDATE
+            : CommandOperation.CREATE;
+        R result = action(childSpec(spec, new WriteCommand<Object>(operation, id, values), operation));
+        return saveOrUpdateResult(spec, operation, id, rows(result));
+    }
+
+    private CommandOperation batchChildOperation(CommandOperation batchOperation, CommandOperation itemOperation) {
+        if (itemOperation != null) {
+            if (itemOperation == CommandOperation.ACTION || isBatchOperation(itemOperation)) {
+                throw new ValidationException("批量命令不支持子操作: " + itemOperation);
+            }
+            return itemOperation;
+        }
+        switch (batchOperation) {
+            case CREATE_BATCH:
+                return CommandOperation.CREATE;
+            case UPDATE_BATCH:
+                return CommandOperation.UPDATE;
+            case DELETE_BATCH:
+                return CommandOperation.DELETE;
+            case SAVE_OR_UPDATE_BATCH:
+                return CommandOperation.SAVE_OR_UPDATE;
+            default:
+                throw new ValidationException("不支持的批量命令操作: " + batchOperation);
+        }
+    }
+
+    private boolean isBatchOperation(CommandOperation operation) {
+        return operation == CommandOperation.CREATE_BATCH
+            || operation == CommandOperation.UPDATE_BATCH
+            || operation == CommandOperation.DELETE_BATCH
+            || operation == CommandOperation.SAVE_OR_UPDATE_BATCH;
+    }
+
+    @SuppressWarnings("unchecked")
+    private CommandSpec<P> childSpec(CommandSpec<P> source, WriteCommand<?> item, CommandOperation operation) {
+        return (CommandSpec<P>) CommandSpec.builder()
+            .scene(source.getScene())
+            .rootType(source.getRootType())
+            .entityClasses(source.getEntityClasses())
+            .subject(source.getSubject())
+            .attributes(source.getAttributes())
+            .grantedScope(source.getGrantedScope())
+            .governanceScope(source.getGovernanceScope())
+            .accessDecision(source.getAccessDecision())
+            .resultType(source.getResultType())
+            .op(operation)
+            .payload(item)
+            .expectedVersion(item.getExpectedVersion() == null ? source.getExpectedVersion() : item.getExpectedVersion())
+            .targetFilters(item.getTargetFilters())
+            .build();
+    }
+
+    private int rows(Object result) {
+        Object data = result;
+        if (result instanceof CommandResult<?>) {
+            data = ((CommandResult<?>) result).getData();
+        }
+        if (!(data instanceof Map<?, ?>)) {
+            return 0;
+        }
+        Object value = ((Map<?, ?>) data).get("rows");
+        return value instanceof Number ? ((Number) value).intValue() : 0;
+    }
+
+    private Map<String, Object> batchItemResult(
+        int index,
+        CommandOperation operation,
+        WriteCommand<?> item,
+        Object result,
+        int rows
+    ) {
+        Map<String, Object> value = new LinkedHashMap<String, Object>();
+        value.put("index", Integer.valueOf(index));
+        value.put("rows", Integer.valueOf(rows));
+        if (item.getId() != null) {
+            value.put("id", item.getId());
+        }
+        Object data = result instanceof CommandResult<?> ? ((CommandResult<?>) result).getData() : result;
+        Object actualOperation = data instanceof Map<?, ?> ? ((Map<?, ?>) data).get("operation") : null;
+        value.put("operation", actualOperation == null ? operation.name() : actualOperation);
+        if (data instanceof Map<?, ?> && ((Map<?, ?>) data).get("id") != null) {
+            value.put("id", ((Map<?, ?>) data).get("id"));
+        }
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private R batchResult(CommandSpec<P> spec, int rows, List<Map<String, Object>> items) {
+        if (spec.getResultType() == Void.class) {
+            return null;
+        }
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("rows", Integer.valueOf(rows));
+        data.put("items", items);
+        return CommandResult.class.isAssignableFrom(spec.getResultType())
+            ? (R) CommandResult.success(data)
+            : (R) data;
+    }
+
+    @SuppressWarnings("unchecked")
+    private R saveOrUpdateResult(CommandSpec<P> spec, CommandOperation operation, Object id, int rows) {
+        if (spec.getResultType() == Void.class) {
+            return null;
+        }
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("operation", operation.name());
+        data.put("rows", Integer.valueOf(rows));
+        data.put("id", id);
+        return CommandResult.class.isAssignableFrom(spec.getResultType())
+            ? (R) CommandResult.success(data)
+            : (R) data;
     }
 
     @SuppressWarnings("unchecked")

@@ -6,6 +6,7 @@ import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
 import com.entloom.crud.core.exception.DataScopeDeniedException;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.capability.command.handler.CrudCommandHandler;
@@ -46,8 +47,6 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     private final CommandPayloadMapper payloadMapper;
     /** 谓词构建器。 */
     private final JdbcWritePredicateBuilder predicateBuilder;
-    /** 写入未命中判定器。 */
-    private final JdbcWriteMissClassifier writeMissClassifier;
     /** 命令处理配置。 */
     private final JdbcCrudCommandOptions options;
     /** 数据库方言，用于引用元数据标识符。 */
@@ -142,11 +141,6 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         this.payloadMapper = payloadMapper == null ? new CommandPayloadMapper() : payloadMapper;
         this.predicateBuilder = predicateBuilder == null ? new JdbcWritePredicateBuilder() : predicateBuilder;
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
-        this.writeMissClassifier = new JdbcWriteMissClassifier(
-            this.guardedSqlExecutor,
-            this.predicateBuilder,
-            this.dialect
-        );
         this.options = options == null ? new JdbcCrudCommandOptions() : options;
     }
 
@@ -247,7 +241,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         args.addAll(whereArgs);
         int rows = guardedSqlExecutor.update(sql, args, context(spec, "main"));
         if (rows == 0) {
-            writeMissClassifier.classify(meta, spec, targetFilters, "update", context(spec, "post-check"));
+            throw new EntityDaoWriteMissException(
+                "目标不存在或不可写: " + meta.getEntityName()
+            );
         }
         return buildResult(spec, rows);
     }
@@ -275,7 +271,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         args.addAll(whereArgs);
         int rows = guardedSqlExecutor.update(sql, args, context(spec, "main"));
         if (rows == 0) {
-            writeMissClassifier.classify(meta, spec, targetFilters, "delete", context(spec, "post-check"));
+            throw new EntityDaoWriteMissException(
+                "目标不存在或不可写: " + meta.getEntityName()
+            );
         }
         return buildResult(spec, rows);
     }
@@ -630,7 +628,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         String sql = "select " + selectColumns + " from " + table(meta) + " where " + whereClause;
         List<Map<String, Object>> rows = guardedSqlExecutor.queryForList(sql, whereArgs, context(spec, "sanitize"));
         if (rows == null || rows.isEmpty()) {
-            writeMissClassifier.classify(meta, spec, targetFilters, "update", context(spec, "sanitize-miss"));
+            throw new EntityDaoWriteMissException(
+                "目标不存在或不可写: " + meta.getEntityName()
+            );
         }
         return rows;
     }

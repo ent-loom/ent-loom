@@ -1,12 +1,14 @@
 package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
+import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
+import com.entloom.crud.engine.jdbc.command.JdbcEntityDaoCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.starter.config.CrudProperties;
@@ -26,10 +28,11 @@ public class CrudCommandEngineConfiguration {
      * 默认命令处理注册表，自动注入 JDBC 默认处理器。
      */
     @Bean
-    @ConditionalOnBean(GuardedSqlExecutor.class)
+    @ConditionalOnBean({GuardedSqlExecutor.class, EntityDaoFactory.class})
     public CrudCommandRegistry defaultCrudCommandRegistry(
         EntityMetaRegistry metaRegistry,
         GuardedSqlExecutor guardedSqlExecutor,
+        EntityDaoFactory entityDaoFactory,
         CrudProperties properties,
         JdbcDialect jdbcDialect
     ) {
@@ -41,7 +44,13 @@ public class CrudCommandEngineConfiguration {
         options.setCreateScopeFieldValidationMode(properties.getCommand().getCreateScopeFieldValidationMode());
         options.setStrictCreateScopeFieldResources(properties.getCommand().getStrictCreateScopeFieldResources());
         CrudCommandRegistry registry = new CrudCommandRegistry();
-        registry.setDefaultHandler(new JdbcCrudCommandHandler<>(metaRegistry, guardedSqlExecutor, jdbcDialect, options));
+        JdbcCrudCommandHandler<Object, Object> fallback = new JdbcCrudCommandHandler<>(
+            metaRegistry,
+            guardedSqlExecutor,
+            jdbcDialect,
+            options
+        );
+        registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<>(metaRegistry, entityDaoFactory, fallback));
         return registry;
     }
 

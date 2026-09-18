@@ -4,7 +4,7 @@
 > 最近核验：2026-09-18
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 
-当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO，也不把 DAO Handler 自动设为全局默认处理器；选定实体的命令切换由业务按实体显式注册，未迁移实体、批量和 save-or-update 继续使用旧 Handler。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE 和触发器结构，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收，未覆盖的时间类型和数据库生成策略仍按实施清单推进。
+当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。Starter 默认命令链对所有显式主键实体使用 DAO，单条、批量和 save-or-update 均不再调用旧主键 SQL；批量由 Handler 逐项复用 DAO，未扩张 DAO 公共合同。数据库生成主键等当前 DAO 不支持的实体由专用回退处理器承接。空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据、JDBC 安全执行器和 Factory 齐备时装配默认命令链，不注册裸 DAO。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE 和触发器结构，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收，未覆盖的时间类型和数据库生成策略仍按实施清单推进。
 
 ## 定位
 
@@ -167,7 +167,7 @@ WHERE id = ?
 - 首期所有 `0` 行写入统一表示“目标不存在或不可写”，不区分不存在、逻辑删除和范围拒绝。
 - 无版本更新固定采用 matched-rows 语义；目标行存在且范围匹配时，即使新旧值相同也返回 `1`。实现必须在启动期校验 MySQL 驱动及 `useAffectedRows` 等相关配置，不满足时 fail-fast，不承诺兼容会改变影响行数语义的连接配置。
 
-现有 `JdbcWriteMissClassifier` 及写入后的分类查询不进入目标架构。选定的 `OrderTestEntity` Gateway 主键入口切换到 DAO 时，必须同时删除该入口的分类器调用点和只验证精细分类的测试，不保留诊断旁路或开关；其他尚未迁移的 Engine 入口不在首期切换范围。DAO 的正确性不能依赖写入后的查询，也不能假设多条语句天然处于同一事务或使用同一连接。
+`JdbcWriteMissClassifier`、写入后的分类查询及其调用点已经删除，不保留诊断旁路或开关。DAO 和生成主键回退路径都不依赖写入后的查询，也不假设多条语句天然处于同一事务或使用同一连接。
 
 ### D0.2 合同测试设计
 

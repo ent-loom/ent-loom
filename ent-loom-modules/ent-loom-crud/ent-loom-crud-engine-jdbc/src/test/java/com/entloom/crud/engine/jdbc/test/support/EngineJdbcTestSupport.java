@@ -112,9 +112,7 @@ public abstract class EngineJdbcTestSupport {
             metaRegistry,
             guardedSqlExecutor
         );
-        commandRegistry.setDefaultHandler(fallbackHandler);
-        commandRegistry.register(
-            OrderTestEntity.class,
+        commandRegistry.setDefaultHandler(
             new JdbcEntityDaoCommandHandler<Object, Object>(metaRegistry, entityDaoFactory, fallbackHandler)
         );
         RegistryBackedCommandEngine defaultCommandEngine = new RegistryBackedCommandEngine(commandRegistry, sqlSecurityGuard);

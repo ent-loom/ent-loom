@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.support;
 
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -10,7 +11,12 @@ import lombok.Setter;
 /**
  * 仅用于测试的示例实体。
  */
-@EntCrudEntity(table = "test_order", idField = "id", ownerService = "starter-test-service")
+@EntCrudEntity(
+    table = "test_order",
+    idField = "id",
+    idPolicy = CrudIdPolicy.EXPLICIT,
+    ownerService = "starter-test-service"
+)
 @Getter
 @Setter
 public class TestOrderEntity {
