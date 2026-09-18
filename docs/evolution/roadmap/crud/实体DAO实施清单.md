@@ -126,7 +126,7 @@ flowchart LR
 - [x] 范围约束值与调用方范围字段值统一按元数据类型规范化为实际 JDBC 绑定值，再执行填充与校验；SQL 使用同一份规范化结果。
 - [x] 等值和单元素 `IN` 先规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。
 - [x] 多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
-- [x] 首期范围字段最终值只能由绑定参数确定；MySQL 已有表的启动期/显式 Factory 校验拒绝生成列、`AUTO_INCREMENT`、`ON UPDATE` 和触发器。
+- [x] 首期范围字段最终值只能由绑定参数确定；MySQL 已有表的启动期复验失败只记录告警，显式 Factory 在 scoped DAO 创建时仍严格拒绝生成列、`AUTO_INCREMENT`、`ON UPDATE` 和触发器。
 - [x] 已验证 MySQL 只有表级 DML 权限时可能隐藏触发器元数据；校验要求目标表 `TRIGGER`/`ALL PRIVILEGES` 可见性，角色权限必须在当前连接激活或设为默认角色，权限不足时 fail-closed。
 - [ ] 数据库默认值、字符集和排序规则对范围字段最终值及类型转换的影响仍需数据库矩阵验证；未验证时不得宣称 Java 判断与数据库语义等价。
 - [x] 范围字段缺失、值冲突、空集合约束和 SQL `NULL` 分别具有测试。
@@ -297,7 +297,7 @@ D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实�
 - [x] Starter 不将 `JdbcEntityDaoCommandHandler` 自动设为全局默认处理器；选定实体按实体显式注册，未迁移实体、批量和 `save-or-update` 保持旧 Handler，避免首期能力边界被全局切换扩大。
 - [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
 
-D4.2 验收证据（2026-09-17）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露、范围数据库校验监听器及无裸 DAO Bean；`JdbcInsertScopeDatabaseStartupValidatorTest` 验证监听器以最低优先级执行并触发复验；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。
+D4.2 验收证据（2026-09-18）：`CrudStarterConfigurationContractTest` 已验证 JDBC/元数据齐备时 Factory 条件装配、Factory 类型暴露、范围数据库校验监听器及无裸 DAO Bean；`JdbcInsertScopeDatabaseStartupValidatorTest` 验证监听器以最低优先级执行、触发复验且失败时不阻塞容器刷新；`CrudCoreModuleBoundaryTest` 维持 Core 构件边界，Starter 不创建新的 Maven 模块。
 
 ### D4.3 最终验收
 

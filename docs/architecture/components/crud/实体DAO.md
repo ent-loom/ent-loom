@@ -4,7 +4,7 @@
 > 最近核验：2026-09-17
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 
-当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO，也不把 DAO Handler 自动设为全局默认处理器；选定实体的命令切换由业务按实体显式注册，未迁移实体、批量和 save-or-update 继续使用旧 Handler。MySQL 启动期会拒绝范围字段的生成列、AUTO_INCREMENT、ON UPDATE 和触发器结构；触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性，否则 fail-closed；更完整数据库字段/时区/常用类型矩阵继续按实施清单推进。
+当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。`OrderTestEntity` 的 CommandGateway 单条 CREATE/UPDATE/DELETE 测试入口已切换到 DAO，空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据与 JDBC 安全执行器齐备时装配可覆盖的 Factory，不注册裸 DAO，也不把 DAO Handler 自动设为全局默认处理器；选定实体的命令切换由业务按实体显式注册，未迁移实体、批量和 save-or-update 继续使用旧 Handler。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE 和触发器结构，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；更完整数据库字段/时区/常用类型矩阵继续按实施清单推进。
 
 ## 定位
 
