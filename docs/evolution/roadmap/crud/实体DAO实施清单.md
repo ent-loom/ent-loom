@@ -1,8 +1,8 @@
 # 实体 DAO 实施清单
 
-> 状态：In Progress（D0-D4.3 主键 CRUD 闭环已完成；D4.1 数据库类型矩阵和 D5 待后续）
-> 当前大项：D4.1 数据库类型矩阵与 D5 需求门禁
-> 当前小项：字段/时区/常用类型矩阵
+> 状态：In Progress（D0-D4.3 主键 CRUD 闭环及 D4.1 数据库类型矩阵已完成；D5 待后续）
+> 当前大项：D5 需求门禁
+> 当前小项：等待首个真实扩展调用
 > 阻塞项：无
 > 最近核验：2026-09-18
 
@@ -283,10 +283,12 @@ flowchart LR
 - [x] MySQL 8 验证显式主键、逻辑删除、唯一键异常、无变化更新和影响行数；显式 `null` 仍由 H2 DAO 合同测试覆盖。
 - [x] 验证 matched-rows 必需连接配置正确时 DAO 语义稳定，错误配置在真实 MySQL 连接启动期 fail-fast；不承诺兼容会改变影响行数语义的配置。
 - [x] 验证实体表名、字段名和保留字：JDBC 方言统一引用元数据标识符，H2 真实用例覆盖 `order` 表及 `select`/`group` 列的 DAO 写入、读取、更新和查询编译。
-- [ ] 验证字符集、时区和更多常用 Java/MySQL 类型映射。
+- [x] 验证字符集、时区和更多常用 Java/MySQL 类型映射。
 - [x] 验证测试结束后临时 schema 无残留。
 
-D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核，并执行 `JdbcInsertScopeDatabaseValidator` 验证范围列数据库结构。新增 `JdbcReservedIdentifierIntegrationTest` 2 项通过，H2 真实验证保留表名/列名的 DAO CRUD 与查询编译。时区和更多常用类型映射仍作为后续数据库矩阵，不提前宣称完成。
+D4.1 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 1 项通过，实际连接 MySQL 8.0.45；覆盖 `useAffectedRows=true` 启动拒绝、`false` 启动通过、无变化更新返回 1、范围字段 SQL 填充、逻辑删除、唯一键异常、字符集/字段类型和随机 schema 清理复核，并执行 `JdbcInsertScopeDatabaseValidator` 验证范围列数据库结构。新增 `JdbcReservedIdentifierIntegrationTest` 2 项通过，H2 真实验证保留表名/列名的 DAO CRUD 与查询编译。
+
+D4.1 类型矩阵验收（2026-09-18）：`JdbcCommonTypesEntityDaoTest` 在 H2 验证 UTF-8 文本、Boolean、Integer、Long、`DECIMAL(19,4)`、`DATE`、`TIMESTAMP`、可空字段的插入、读取、Patch、精度和显式 `null`；`DaoMysqlTypeMatrixIntegrationTest` 在实际 MySQL 8.0.45 上通过 `mysql-integration` profile 验证 `utf8mb4`、`TINYINT(1)`、`DECIMAL(19,4)`、`DATE`、`DATETIME(6)` 及 session 时区切换。此次与 `DaoMysqlIntegrationTest` 共 2 项真实 MySQL 测试通过，随机 schema 清理完成。
 
 ### D4.2 模块与装配
 
@@ -310,7 +312,7 @@ D4.2 验收证据（2026-09-18）：`CrudStarterConfigurationContractTest` 已�
 
 D4.3 验收证据（2026-09-17）：`DaoMysqlIntegrationTest` 通过 1 项，实际连接 MySQL 8.0.45；其中 `OrderTestEntity` 的 `t_order` 通过真实治理范围解析、`JdbcEntityDaoFactory`、DAO 命令处理器和 `CommandGateway` 完成创建、更新、读取、越权拒绝、并发更新、逻辑删除、重复删除和非法 Patch 验收。测试结束后随机 schema 无残留。
 
-全仓 Reactor 回归证据（2026-09-18）：使用 JDK 21 执行 `./mvnw test`，37 个模块全部成功，632 项测试执行，0 失败、0 错误、3 项跳过。跳过项为未配置连接信息的 MySQL 集成测试；本次回归未替代 D4.1/D4.3 已记录的真实 MySQL 8.0.45 验收。
+全仓 Reactor 回归证据（2026-09-18）：使用 JDK 21 执行 `./mvnw test`，37 个模块全部成功，634 项测试执行，0 失败、0 错误、4 项跳过。跳过项为未配置连接信息的 MySQL 集成测试；本次回归未替代 D4.1/D4.3 已记录的真实 MySQL 8.0.45 验收。
 
 ## D5：后续扩展门禁
 
