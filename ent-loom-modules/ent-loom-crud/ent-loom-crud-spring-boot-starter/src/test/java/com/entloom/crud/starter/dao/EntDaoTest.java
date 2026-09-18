@@ -187,6 +187,21 @@ class EntDaoTest {
     }
 
     @Test
+    void annotated_base_method_fails_at_startup_instead_of_bypassing_validation() {
+        direct(AnnotatedBaseOverrideDao.class).run(context -> assertThat(context.getStartupFailure())
+            .hasRootCauseMessage("DAO 自定义方法不能覆盖 EntityDao 基础方法: "
+                + "public default java.util.Optional "
+                + AnnotatedBaseOverrideDao.class.getName() + ".findById(java.lang.Object)"));
+    }
+
+    @Test
+    void annotated_default_method_fails_at_startup_instead_of_executing_default_body() {
+        direct(DefaultCustomDao.class).run(context -> assertThat(context.getStartupFailure())
+            .hasRootCauseMessage("DAO 自定义方法不能声明为 default: "
+                + "public default java.lang.String " + DefaultCustomDao.class.getName() + ".findByName()"));
+    }
+
+    @Test
     void resolves_generic_parent_interface() {
         direct(InheritedDao.class).run(context -> assertThat(context).hasNotFailed().hasSingleBean(InheritedDao.class));
     }
@@ -213,6 +228,14 @@ class EntDaoTest {
 
         @EntCommand("update customer set name = :name where id = :id")
         int updateName(Long id, String name);
+    }
+    interface AnnotatedBaseOverrideDao extends EntityDao<String, Long> {
+        @EntQuery("select * from customer where id = :id")
+        Optional<String> findById(Long id);
+    }
+    interface DefaultCustomDao extends EntityDao<String, Long> {
+        @EntQuery("select * from customer where name = :name")
+        default String findByName() { return "不应执行"; }
     }
     interface GenericDao<T> extends EntityDao<T, Long> {}
     interface InheritedDao extends GenericDao<String> {}

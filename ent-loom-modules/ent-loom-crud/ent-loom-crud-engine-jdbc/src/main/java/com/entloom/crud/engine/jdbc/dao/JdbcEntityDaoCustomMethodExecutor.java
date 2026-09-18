@@ -44,6 +44,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private static final Pattern NUMBER_LITERAL = Pattern.compile("[0-9]+(?:\\.[0-9]+)?");
     private static final Set<String> STOP_WORDS = new HashSet<String>();
     private static final Set<String> SQL_KEYWORDS = new HashSet<String>();
+    private static final Set<String> ALLOWED_FUNCTIONS = new HashSet<String>();
 
     static {
         Collections.addAll(STOP_WORDS, "where", "group", "having", "order", "limit", "offset", "for");
@@ -51,6 +52,10 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             "select", "from", "where", "and", "or", "not", "in", "is", "null", "true", "false",
             "update", "delete", "set", "as", "order", "by", "asc", "desc", "like", "between",
             "distinct", "case", "when", "then", "else", "end"
+        );
+        Collections.addAll(ALLOWED_FUNCTIONS,
+            "abs", "ceil", "ceiling", "coalesce", "concat", "concat_ws", "date", "ifnull",
+            "length", "lower", "ltrim", "nullif", "round", "rtrim", "substr", "substring", "trim", "upper"
         );
     }
 
@@ -94,7 +99,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             EntityAccessScope.unrestricted().getRowConstraint()
         );
         validateReturnType(method, isQuery(annotation), parsed);
-        validateParameters(method, parsed.parameterNames, false);
+        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, false);
         if (parsed.parameterNames.size() > maxParameters) {
             throw new ValidationException("DAO 自定义方法参数数量超过上限: " + maxParameters + ": " + method);
         }
@@ -104,9 +109,11 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     public Object invoke(Method method, Object[] args) {
         Annotation annotation = annotation(method);
         ParsedSql parsed = parse(sql(annotation), method, meta, dialect, scope);
-        validateReturnType(method, isQuery(annotation), parsed);
-        validateParameters(method, parsed.parameterNames, true);
-        BoundSql bound = bind(parsed.sql, method, args);
+        QueryReturn queryReturn = isQuery(annotation)
+            ? validateReturnType(method, true, parsed)
+            : null;
+        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, true);
+        BoundSql bound = bind(parsed, method, args);
         if (bound.args.size() > maxParameters) {
             throw new ValidationException("DAO 自定义方法参数数量超过上限: " + maxParameters + ": " + method);
         }
@@ -125,7 +132,11 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             return Integer.valueOf(rows);
         }
 
-        QueryReturn queryReturn = QueryReturn.resolve(method.getGenericReturnType(), method);
+        if (queryReturn != null && queryReturn.kind != QueryKind.LIST) {
+            StringBuilder limitedSql = new StringBuilder(bound.sql);
+            dialect.appendFindOneClause(limitedSql, bound.args);
+            bound = new BoundSql(limitedSql.toString(), bound.args);
+        }
         List<Map<String, Object>> rows = executor.queryForList(bound.sql, bound.args, context);
         if (queryReturn.kind == QueryKind.LIST) {
             List<Object> result = new ArrayList<Object>();
@@ -182,9 +193,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         if (sql.isEmpty()) {
             throw new ValidationException("DAO 自定义 SQL 不能为空: " + method);
         }
-        if (sql.endsWith(";")) {
-            throw new ValidationException("DAO 自定义 SQL 不允许分号: " + method);
-        }
+        rejectUnsafeLexemes(sql, method);
         List<Token> tokens = tokens(sql);
         if (tokens.isEmpty()) {
             throw new ValidationException("DAO 自定义 SQL 不能为空: " + method);
@@ -206,9 +215,16 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         rejectNestedStatements(tokens, method);
         if (query) {
             rejectUnsupportedQueryConstructs(tokens, method);
+            if (keyword(tokens, "limit", 0) != null || keyword(tokens, "offset", 0) != null) {
+                throw unsupportedSql(method, "自定义分页");
+            }
         }
         TablePart table = query ? parseSelectTable(tokens, sql, meta, dialect, method)
             : parseWriteTable(tokens, sql, meta, dialect, method);
+        rejectAdditionalTables(tokens, table, method);
+        if (!query) {
+            rejectUnsupportedWriteClauses(tokens, method);
+        }
         validateIdentifiers(tokens, table, meta, method);
         if (!query && "update".equals(command)) {
             validateUpdateAssignments(tokens, table, meta, method);
@@ -231,15 +247,29 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             String originalWhere = where == null
                 ? ""
                 : sql.substring(where.start + "where".length(), whereEnd).trim();
+            if (where != null && originalWhere.isEmpty()) {
+                throw new ValidationException("DAO 自定义 SQL WHERE 条件不能为空: " + method);
+            }
             rewritten = tablePrefix + " where "
-                + (originalWhere.isEmpty() ? governance : "(" + originalWhere + ") and (" + governance + ")");
+                + (originalWhere.isEmpty()
+                    ? SqlExpression.raw(governance).render()
+                    : SqlExpression.and(SqlExpression.parse(originalWhere, method),
+                        SqlExpression.raw(governance)).render());
         } else if (where == null) {
-            rewritten = sql.substring(0, whereEnd) + " where " + governance + sql.substring(whereEnd);
+            rewritten = sql.substring(0, whereEnd) + " where "
+                + SqlExpression.raw(governance).render() + sql.substring(whereEnd);
         } else {
-            rewritten = sql.substring(0, whereEnd) + " and (" + governance + ")" + sql.substring(whereEnd);
+            String businessWhere = sql.substring(where.start + "where".length(), whereEnd).trim();
+            if (businessWhere.isEmpty()) {
+                throw new ValidationException("DAO 自定义 SQL WHERE 条件不能为空: " + method);
+            }
+            rewritten = sql.substring(0, where.start) + "where "
+                + SqlExpression.and(SqlExpression.parse(businessWhere, method),
+                    SqlExpression.raw(governance)).render() + sql.substring(whereEnd);
         }
         List<String> parameterNames = namedParameterNames(rewritten, method);
-        return new ParsedSql(rewritten, parameterNames, query, table);
+        Map<String, ParameterBinding> parameterBindings = parameterBindings(tokens, table, meta, method);
+        return new ParsedSql(rewritten, parameterNames, parameterBindings, query, table);
     }
 
     private static TablePart parseSelectTable(
@@ -287,7 +317,42 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             alias = aliasToken(tokens, next, method);
             next++;
         }
-        return new TablePart(table.text, alias);
+        return new TablePart(table.text, alias, next);
+    }
+
+    private static void rejectAdditionalTables(List<Token> tokens, TablePart table, Method method) {
+        boolean clauseStarted = false;
+        for (int i = table.afterIndex; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            if (token.depth == 0 && isAllowedTableClause(token.lower)) {
+                clauseStarted = true;
+            }
+            if (!clauseStarted && token.depth == 0 && ",".equals(token.text)) {
+                throw unsupportedSql(method, "顶层逗号多表");
+            }
+            if (i == table.afterIndex && token.depth == 0 && !isAllowedTableClause(token.lower)) {
+                throw unsupportedSql(method, "表名或别名之后的语句");
+            }
+        }
+    }
+
+    private static void rejectUnsupportedWriteClauses(List<Token> tokens, Method method) {
+        for (Token token : tokens) {
+            if (token.depth != 0) {
+                continue;
+            }
+            if ("order".equals(token.lower) || "limit".equals(token.lower)
+                || "offset".equals(token.lower) || "for".equals(token.lower)
+                || "group".equals(token.lower) || "having".equals(token.lower)) {
+                throw unsupportedSql(method, "UPDATE/DELETE 的排序或分页子句");
+            }
+        }
+    }
+
+    private static boolean isAllowedTableClause(String token) {
+        return "where".equals(token) || "group".equals(token) || "having".equals(token)
+            || "order".equals(token) || "limit".equals(token) || "offset".equals(token)
+            || "for".equals(token) || "set".equals(token);
     }
 
     private static String aliasToken(List<Token> tokens, int index, Method method) {
@@ -311,6 +376,12 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             }
             if ("as".equals(lower)) {
                 skipAlias = true;
+                continue;
+            }
+            if (!SQL_KEYWORDS.contains(lower) && isFunctionCall(tokens, i)) {
+                if (!ALLOWED_FUNCTIONS.contains(lower)) {
+                    throw unsupportedSql(method, "未列入白名单的函数: " + value);
+                }
                 continue;
             }
             if (SQL_KEYWORDS.contains(lower) || ",".equals(value) || isOperator(value)
@@ -344,9 +415,14 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         ClausePosition where = keyword(tokens, "where", 0);
         int end = where == null ? tokens.size() : where.index;
         boolean expectField = true;
+        boolean expectEquals = false;
+        boolean hasValue = false;
         for (int i = set.index + 1; i < end; i++) {
             Token token = tokens.get(i);
             if (token.depth != 0) {
+                if (!expectField && !expectEquals) {
+                    hasValue = true;
+                }
                 continue;
             }
             if (expectField) {
@@ -356,15 +432,29 @@ public final class JdbcEntityDaoCustomMethodExecutor {
                 }
                 EntityFieldMeta field = meta.resolveFieldMeta(fieldName);
                 if (fieldName.equals(meta.getIdField()) || field.isScopeField()
-                    || fieldName.equals(meta.getLogicDeleteField())) {
-                    throw new ValidationException("DAO UPDATE 不允许修改主键、范围或逻辑删除字段: " + token.text);
+                    || fieldName.equals(meta.getLogicDeleteField()) || field.isRelation()
+                    || !field.isWritable() || field.isImmutable()) {
+                    throw new ValidationException("DAO UPDATE 不允许修改主键、范围、逻辑删除或不可写字段: " + token.text);
                 }
                 expectField = false;
+                expectEquals = true;
+            } else if (expectEquals) {
+                if (!"=".equals(token.text)) {
+                    throw new ValidationException("DAO UPDATE SET 赋值缺少等号: " + method);
+                }
+                expectEquals = false;
+                hasValue = false;
             } else if (",".equals(token.text)) {
+                if (!hasValue) {
+                    throw new ValidationException("DAO UPDATE SET 赋值不能为空: " + method);
+                }
                 expectField = true;
+                hasValue = false;
+            } else {
+                hasValue = true;
             }
         }
-        if (expectField) {
+        if (expectField || expectEquals || !hasValue) {
             throw new ValidationException("DAO UPDATE SET 赋值不完整: " + method);
         }
     }
@@ -372,7 +462,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private static String resolveField(EntityMeta meta, String alias, String expression) {
         String[] parts = expression.split("\\.");
         String field = parts.length == 1 ? parts[0] : parts.length == 2 ? parts[1] : null;
-        if (field == null || (parts.length == 2 && (alias == null || !alias.equalsIgnoreCase(parts[0])))) {
+        if (field == null || (parts.length == 2
+            && !parts[0].equalsIgnoreCase(meta.getTable())
+            && (alias == null || !alias.equalsIgnoreCase(parts[0])))) {
             return null;
         }
         if (meta.resolveFieldMeta(field) != null) {
@@ -396,6 +488,11 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             || "<=".equals(value) || ">=".equals(value) || "<>".equals(value)
             || "!=".equals(value) || "+".equals(value) || "-".equals(value)
             || "*".equals(value) || "/".equals(value) || "%".equals(value);
+    }
+
+    private static boolean isFunctionCall(List<Token> tokens, int index) {
+        return index >= 0 && index + 1 < tokens.size()
+            && tokens.get(index + 1).depth > tokens.get(index).depth;
     }
 
     private static String governancePredicate(
@@ -496,19 +593,24 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         return (alias == null ? "" : alias + ".") + dialect.quoteIdentifier(column);
     }
 
-    private static void validateReturnType(Method method, boolean query, ParsedSql parsed) {
+    private static QueryReturn validateReturnType(Method method, boolean query, ParsedSql parsed) {
         if (!query) {
             Class<?> returnType = method.getReturnType();
             if (!(returnType == Integer.TYPE || returnType == Integer.class
                 || returnType == Long.TYPE || returnType == Long.class)) {
                 throw new ValidationException("@EntCommand 返回类型必须是 int 或 long: " + method);
             }
-            return;
+            return null;
         }
-        QueryReturn.resolve(method.getGenericReturnType(), method);
+        return QueryReturn.resolve(method.getGenericReturnType(), method);
     }
 
-    private static void validateParameters(Method method, List<String> names, boolean allowScopeFramework) {
+    private static void validateParameters(
+        Method method,
+        List<String> names,
+        Map<String, ParameterBinding> parameterBindings,
+        boolean allowScopeFramework
+    ) {
         Set<String> declared = new HashSet<String>();
         for (Parameter parameter : method.getParameters()) {
             if (!parameter.isNamePresent()) {
@@ -533,6 +635,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             if (!declared.contains(name)) {
                 throw new ValidationException("DAO SQL 命名参数未声明: " + name + ": " + method);
             }
+            if (!parameterBindings.containsKey(name)) {
+                throw new ValidationException("DAO SQL 参数无法推断实体字段类型: " + name + ": " + method);
+            }
         }
         for (Parameter parameter : method.getParameters()) {
             if (!names.contains(parameter.getName())) {
@@ -556,7 +661,8 @@ public final class JdbcEntityDaoCustomMethodExecutor {
 
     private static void rejectUnsupportedQueryConstructs(List<Token> tokens, Method method) {
         for (Token token : tokens) {
-            if ("group".equals(token.lower) || "having".equals(token.lower) || "over".equals(token.lower)) {
+            if ("group".equals(token.lower) || "having".equals(token.lower) || "over".equals(token.lower)
+                || "for".equals(token.lower)) {
                 throw unsupportedSql(method, "复杂聚合或窗口函数");
             }
             if ("count".equals(token.lower) || "sum".equals(token.lower) || "avg".equals(token.lower)
@@ -566,7 +672,8 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         }
     }
 
-    private BoundSql bind(String sql, Method method, Object[] args) {
+    private BoundSql bind(ParsedSql parsed, Method method, Object[] args) {
+        String sql = parsed.sql;
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         Parameter[] parameters = method.getParameters();
         Object[] actual = args == null ? new Object[0] : args;
@@ -574,11 +681,20 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             throw new ValidationException("DAO 方法参数数量不匹配: " + method);
         }
         for (int i = 0; i < parameters.length; i++) {
-            values.put(parameters[i].getName(), actual[i]);
+            String name = parameters[i].getName();
+            ParameterBinding binding = parsed.parameterBindings.get(name);
+            if (binding == null) {
+                throw new ValidationException("DAO 方法参数无法绑定到实体字段: " + name + ": " + method);
+            }
+            values.put(name, normalizeParameterValue(binding, actual[i], method));
         }
         appendScopeValues(scope, values, new int[] {0});
-        values.put(RESERVED_PARAMETER_PREFIX + "logic_delete", JdbcLogicDeleteValues.notDeleted(meta));
-        values.put(RESERVED_PARAMETER_PREFIX + "logic_deleted", JdbcLogicDeleteValues.deleted(meta));
+        EntityFieldMeta logicDeleteField = meta.getLogicDeleteField() == null
+            ? null : meta.resolveFieldMeta(meta.getLogicDeleteField());
+        values.put(RESERVED_PARAMETER_PREFIX + "logic_delete",
+            JdbcEntityValueBinder.normalize(logicDeleteField, JdbcLogicDeleteValues.notDeleted(meta)));
+        values.put(RESERVED_PARAMETER_PREFIX + "logic_deleted",
+            JdbcEntityValueBinder.normalize(logicDeleteField, JdbcLogicDeleteValues.deleted(meta)));
         StringBuilder result = new StringBuilder();
         List<Object> boundArgs = new ArrayList<Object>();
         int[] last = new int[] {0};
@@ -610,6 +726,29 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         });
         result.append(sql, last[0], sql.length());
         return new BoundSql(result.toString(), boundArgs);
+    }
+
+    private static Object normalizeParameterValue(ParameterBinding binding, Object value, Method method) {
+        if (binding.collectionParameter && value == null) {
+            throw new ValidationException("DAO 集合参数不能为 NULL: " + binding.name + ": " + method);
+        }
+        if (value instanceof Collection<?>) {
+            if (!binding.collectionAllowed) {
+                throw new ValidationException("DAO 集合参数只允许出现在 IN 条件中: " + method);
+            }
+            List<Object> normalized = new ArrayList<Object>();
+            for (Object item : (Collection<?>) value) {
+                if (item == null) {
+                    throw new ValidationException("DAO IN 参数不能包含 NULL: " + binding.name + ": " + method);
+                }
+                normalized.add(JdbcEntityValueBinder.normalize(binding.field, item));
+            }
+            return normalized;
+        }
+        if (binding.collectionParameter) {
+            throw new ValidationException("DAO 集合参数必须传入 Collection: " + binding.name + ": " + method);
+        }
+        return JdbcEntityValueBinder.normalize(binding.field, value);
     }
 
     private void appendScopeValues(RowConstraint constraint, Map<String, Object> values, int[] parameterIndex) {
@@ -644,6 +783,215 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             }
         });
         return names;
+    }
+
+    private static Map<String, ParameterBinding> parameterBindings(
+        List<Token> tokens,
+        TablePart table,
+        EntityMeta meta,
+        Method method
+    ) {
+        Map<String, ParameterBinding> result = new LinkedHashMap<String, ParameterBinding>();
+        for (int i = 0; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            if (!token.text.startsWith(":")) {
+                continue;
+            }
+            String name = token.text.substring(1);
+            if (!SIMPLE_IDENTIFIER.matcher(name).matches()) {
+                throw new ValidationException("DAO SQL 命名参数不合法: " + token.text + ": " + method);
+            }
+            if (name.startsWith(RESERVED_PARAMETER_PREFIX)) {
+                throw new ValidationException("DAO SQL 参数不能使用保留前缀 " + RESERVED_PARAMETER_PREFIX + ": " + method);
+            }
+            EntityFieldMeta field = parameterField(tokens, i, table, meta);
+            if (field == null || field.getJavaType() == null) {
+                throw new ValidationException("DAO SQL 参数无法推断实体字段类型: " + name + ": " + method);
+            }
+            boolean collectionAllowed = isInParameter(tokens, i);
+            Parameter parameter = parameter(method, name);
+            boolean collectionParameter = parameter != null
+                && Collection.class.isAssignableFrom(parameter.getType());
+            if (collectionParameter && !collectionAllowed) {
+                throw new ValidationException("DAO 集合参数只允许出现在 IN 条件中: " + name + ": " + method);
+            }
+            ParameterBinding previous = result.get(name);
+            if (previous != null && (!previous.field.getFieldName().equals(field.getFieldName())
+                || previous.collectionAllowed != collectionAllowed)) {
+                throw new ValidationException("DAO SQL 参数不能绑定多个字段或混用集合条件: " + name + ": " + method);
+            }
+            if (previous == null) {
+                result.put(name, new ParameterBinding(name, field, collectionAllowed, collectionParameter));
+            }
+        }
+        return result;
+    }
+
+    private static Parameter parameter(Method method, String name) {
+        for (Parameter parameter : method.getParameters()) {
+            if (parameter.isNamePresent() && parameter.getName().equals(name)) {
+                return parameter;
+            }
+        }
+        return null;
+    }
+
+    private static EntityFieldMeta parameterField(
+        List<Token> tokens,
+        int parameterIndex,
+        TablePart table,
+        EntityMeta meta
+    ) {
+        int left = parameterIndex - 1;
+        if (left >= 0 && isFunctionCall(tokens, left)) {
+            EntityFieldMeta functionField = fieldExpression(tokens, left, table, meta);
+            if (functionField != null) {
+                return functionField;
+            }
+            int functionDepth = tokens.get(left).depth;
+            for (int i = left - 1; i >= 0; i--) {
+                if (tokens.get(i).depth != functionDepth) {
+                    continue;
+                }
+                if (isParameterOperator(tokens.get(i).lower, tokens.get(i).text)) {
+                    EntityFieldMeta field = fieldExpression(tokens, i - 1, table, meta);
+                    if (field != null) {
+                        return field;
+                    }
+                    return fieldExpression(tokens, i + 1, table, meta);
+                }
+            }
+        }
+        if (left >= 0 && "(".equals(tokens.get(left).text)) {
+            left--;
+            if (left >= 0 && "in".equals(tokens.get(left).lower)) {
+                left--;
+            }
+        }
+        if (left >= 0 && isParameterOperator(tokens.get(left).lower, tokens.get(left).text)) {
+            EntityFieldMeta field = fieldExpression(tokens, left - 1, table, meta);
+            if (field != null) {
+                return field;
+            }
+        }
+        if (left >= 0 && "and".equals(tokens.get(left).lower)) {
+            for (int i = left - 1; i >= 0; i--) {
+                if (tokens.get(i).depth != tokens.get(left).depth) {
+                    continue;
+                }
+                if ("between".equals(tokens.get(i).lower)) {
+                    return fieldToken(tokens, i - 1, table, meta);
+                }
+                if ("where".equals(tokens.get(i).lower) || "or".equals(tokens.get(i).lower)) {
+                    break;
+                }
+            }
+        }
+        int right = parameterIndex + 1;
+        if (right < tokens.size() && isParameterOperator(tokens.get(right).lower, tokens.get(right).text)) {
+            return fieldExpression(tokens, right + 1, table, meta);
+        }
+        return null;
+    }
+
+    private static EntityFieldMeta fieldExpression(
+        List<Token> tokens,
+        int index,
+        TablePart table,
+        EntityMeta meta
+    ) {
+        EntityFieldMeta direct = fieldToken(tokens, index, table, meta);
+        if (direct != null || !isFunctionCall(tokens, index)) {
+            return direct;
+        }
+        int functionDepth = tokens.get(index).depth;
+        for (int i = index + 1; i < tokens.size() && tokens.get(i).depth > functionDepth; i++) {
+            EntityFieldMeta nested = fieldToken(tokens, i, table, meta);
+            if (nested != null) {
+                return nested;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isInParameter(List<Token> tokens, int parameterIndex) {
+        int left = parameterIndex - 1;
+        if (left >= 0 && "(".equals(tokens.get(left).text)) {
+            left--;
+        }
+        return left >= 0 && "in".equals(tokens.get(left).lower);
+    }
+
+    private static boolean isParameterOperator(String lower, String text) {
+        return "=".equals(text) || "<".equals(text) || ">".equals(text)
+            || "<=".equals(text) || ">=".equals(text) || "<>".equals(text)
+            || "!=".equals(text) || "like".equals(lower) || "in".equals(lower)
+            || "between".equals(lower);
+    }
+
+    private static EntityFieldMeta fieldToken(
+        List<Token> tokens,
+        int index,
+        TablePart table,
+        EntityMeta meta
+    ) {
+        if (index < 0 || index >= tokens.size()) {
+            return null;
+        }
+        String fieldName = resolveField(meta, table.alias, tokens.get(index).text);
+        return fieldName == null ? null : meta.resolveFieldMeta(fieldName);
+    }
+
+    private static void rejectUnsafeLexemes(String sql, Method method) {
+        boolean singleQuote = false;
+        boolean doubleQuote = false;
+        boolean backtick = false;
+        for (int i = 0; i < sql.length(); i++) {
+            char ch = sql.charAt(i);
+            if (singleQuote) {
+                if (ch == '\\' && i + 1 < sql.length()) {
+                    i++;
+                } else if (ch == '\'' && i + 1 < sql.length() && sql.charAt(i + 1) == '\'') {
+                    i++;
+                } else if (ch == '\'') {
+                    singleQuote = false;
+                }
+                continue;
+            }
+            if (doubleQuote) {
+                if (ch == '\\' && i + 1 < sql.length()) {
+                    i++;
+                } else if (ch == '"' && i + 1 < sql.length() && sql.charAt(i + 1) == '"') {
+                    i++;
+                } else if (ch == '"') {
+                    doubleQuote = false;
+                }
+                continue;
+            }
+            if (backtick) {
+                if (ch == '`' && i + 1 < sql.length() && sql.charAt(i + 1) == '`') {
+                    i++;
+                } else if (ch == '`') {
+                    backtick = false;
+                }
+                continue;
+            }
+            if (ch == '\'') {
+                singleQuote = true;
+            } else if (ch == '"') {
+                doubleQuote = true;
+            } else if (ch == '`') {
+                backtick = true;
+            } else if (ch == ';' || ch == '#'
+                || (ch == '-' && i + 1 < sql.length() && sql.charAt(i + 1) == '-')
+                || (ch == '/' && i + 1 < sql.length() && sql.charAt(i + 1) == '*')
+                || (ch == '*' && i + 1 < sql.length() && sql.charAt(i + 1) == '/')) {
+                throw unsupportedSql(method, "SQL 注释或多语句分隔符");
+            }
+        }
+        if (singleQuote || doubleQuote || backtick) {
+            throw new ValidationException("DAO 自定义 SQL 引号未闭合: " + method);
+        }
     }
 
     private static void scanNamedParameters(String sql, NamedParameterConsumer consumer) {
@@ -824,6 +1172,190 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         return new ValidationException("DAO 自定义 SQL 暂不支持 " + detail + "，请改用专用 Repository: " + method);
     }
 
+    /** 只解析 WHERE 的布尔组合，原子 SQL 保留为不可变片段。 */
+    private static final class SqlExpression {
+        private final String raw;
+        private final String operator;
+        private final List<SqlExpression> children;
+
+        private SqlExpression(String raw, String operator, List<SqlExpression> children) {
+            this.raw = raw;
+            this.operator = operator;
+            this.children = children;
+        }
+
+        private static SqlExpression raw(String value) {
+            return new SqlExpression(value.trim(), null, Collections.emptyList());
+        }
+
+        private static SqlExpression and(SqlExpression left, SqlExpression right) {
+            return combine("and", left, right);
+        }
+
+        private static SqlExpression combine(String operator, SqlExpression left, SqlExpression right) {
+            List<SqlExpression> children = new ArrayList<SqlExpression>();
+            children.add(left);
+            children.add(right);
+            return new SqlExpression(null, operator, children);
+        }
+
+        private static SqlExpression parse(String source, Method method) {
+            String value = stripOuterParentheses(source.trim());
+            if (value.isEmpty()) {
+                throw new ValidationException("DAO 自定义 SQL WHERE 条件不能为空: " + method);
+            }
+            List<String> parts = splitTopLevel(value, "or");
+            if (parts.size() > 1) {
+                return combine("or", parse(parts.get(0), method), parseRemaining(parts, 1, "or", method));
+            }
+            parts = splitTopLevel(value, "and");
+            if (parts.size() > 1) {
+                return combine("and", parse(parts.get(0), method), parseRemaining(parts, 1, "and", method));
+            }
+            return raw(value);
+        }
+
+        private static SqlExpression parseRemaining(
+            List<String> parts, int start, String operator, Method method
+        ) {
+            SqlExpression result = parse(parts.get(start), method);
+            for (int i = start + 1; i < parts.size(); i++) {
+                result = combine(operator, result, parse(parts.get(i), method));
+            }
+            return result;
+        }
+
+        private static List<String> splitTopLevel(String source, String operator) {
+            List<String> result = new ArrayList<String>();
+            int depth = 0;
+            int start = 0;
+            boolean betweenPending = false;
+            boolean singleQuote = false;
+            boolean doubleQuote = false;
+            boolean backtick = false;
+            for (int i = 0; i < source.length(); i++) {
+                char ch = source.charAt(i);
+                if (singleQuote) {
+                    if (ch == '\'' && i + 1 < source.length() && source.charAt(i + 1) == '\'') {
+                        i++;
+                    } else if (ch == '\'') {
+                        singleQuote = false;
+                    }
+                    continue;
+                }
+                if (doubleQuote) {
+                    if (ch == '"' && i + 1 < source.length() && source.charAt(i + 1) == '"') {
+                        i++;
+                    } else if (ch == '"') {
+                        doubleQuote = false;
+                    }
+                    continue;
+                }
+                if (backtick) {
+                    if (ch == '`' && i + 1 < source.length() && source.charAt(i + 1) == '`') {
+                        i++;
+                    } else if (ch == '`') {
+                        backtick = false;
+                    }
+                    continue;
+                }
+                if (ch == '\'') {
+                    singleQuote = true;
+                } else if (ch == '"') {
+                    doubleQuote = true;
+                } else if (ch == '`') {
+                    backtick = true;
+                } else if (ch == '(') {
+                    depth++;
+                } else if (ch == ')') {
+                    depth--;
+                } else if (depth == 0 && keywordAt(source, i, "between")) {
+                    betweenPending = true;
+                    i += "between".length() - 1;
+                } else if (depth == 0 && keywordAt(source, i, operator)
+                    && !("and".equals(operator) && betweenPending)) {
+                    result.add(source.substring(start, i).trim());
+                    start = i + operator.length();
+                    i += operator.length() - 1;
+                } else if (depth == 0 && "and".equals(operator)
+                    && betweenPending && keywordAt(source, i, "and")) {
+                    betweenPending = false;
+                    i += "and".length() - 1;
+                }
+            }
+            if (!result.isEmpty()) {
+                result.add(source.substring(start).trim());
+            }
+            return result;
+        }
+
+        private static boolean keywordAt(String source, int index, String keyword) {
+            int end = index + keyword.length();
+            if (end > source.length() || !source.regionMatches(true, index, keyword, 0, keyword.length())) {
+                return false;
+            }
+            return (index == 0 || !Character.isJavaIdentifierPart(source.charAt(index - 1)))
+                && (end == source.length() || !Character.isJavaIdentifierPart(source.charAt(end)));
+        }
+
+        private static String stripOuterParentheses(String source) {
+            String value = source;
+            while (value.startsWith("(") && value.endsWith(")") && enclosesWholeExpression(value)) {
+                value = value.substring(1, value.length() - 1).trim();
+            }
+            return value;
+        }
+
+        private static boolean enclosesWholeExpression(String source) {
+            int depth = 0;
+            boolean singleQuote = false;
+            boolean doubleQuote = false;
+            for (int i = 0; i < source.length(); i++) {
+                char ch = source.charAt(i);
+                if (singleQuote) {
+                    if (ch == '\'' && i + 1 < source.length() && source.charAt(i + 1) == '\'') {
+                        i++;
+                    } else if (ch == '\'') {
+                        singleQuote = false;
+                    }
+                    continue;
+                }
+                if (doubleQuote) {
+                    if (ch == '"' && i + 1 < source.length() && source.charAt(i + 1) == '"') {
+                        i++;
+                    } else if (ch == '"') {
+                        doubleQuote = false;
+                    }
+                    continue;
+                }
+                if (ch == '\'') {
+                    singleQuote = true;
+                } else if (ch == '"') {
+                    doubleQuote = true;
+                } else if (ch == '(') {
+                    depth++;
+                } else if (ch == ')' && --depth == 0 && i != source.length() - 1) {
+                    return false;
+                }
+            }
+            return depth == 0;
+        }
+
+        private String render() {
+            if (operator == null) {
+                return raw;
+            }
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < children.size(); i++) {
+                if (i > 0) {
+                    result.append(' ').append(operator).append(' ');
+                }
+                result.append('(').append(children.get(i).render()).append(')');
+            }
+            return result.toString();
+        }
+    }
+
     private interface NamedParameterConsumer {
         void accept(String name, int start, int end);
     }
@@ -858,24 +1390,53 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private static final class TablePart {
         private final String tableName;
         private final String alias;
+        private final int afterIndex;
 
-        private TablePart(String tableName, String alias) {
+        private TablePart(String tableName, String alias, int afterIndex) {
             this.tableName = tableName;
             this.alias = alias;
+            this.afterIndex = afterIndex;
         }
     }
 
     private static final class ParsedSql {
         private final String sql;
         private final List<String> parameterNames;
+        private final Map<String, ParameterBinding> parameterBindings;
         private final boolean query;
         private final TablePart table;
 
-        private ParsedSql(String sql, List<String> parameterNames, boolean query, TablePart table) {
+        private ParsedSql(
+            String sql,
+            List<String> parameterNames,
+            Map<String, ParameterBinding> parameterBindings,
+            boolean query,
+            TablePart table
+        ) {
             this.sql = sql;
             this.parameterNames = parameterNames;
+            this.parameterBindings = parameterBindings;
             this.query = query;
             this.table = table;
+        }
+    }
+
+    private static final class ParameterBinding {
+        private final String name;
+        private final EntityFieldMeta field;
+        private final boolean collectionAllowed;
+        private final boolean collectionParameter;
+
+        private ParameterBinding(
+            String name,
+            EntityFieldMeta field,
+            boolean collectionAllowed,
+            boolean collectionParameter
+        ) {
+            this.name = name;
+            this.field = field;
+            this.collectionAllowed = collectionAllowed;
+            this.collectionParameter = collectionParameter;
         }
     }
 

@@ -46,20 +46,28 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
         EntityType<?, ?> entityType = EntityType.of(type.getGeneric(0).resolve(), type.getGeneric(1).resolve());
         EntityDaoFactory factory = beanFactory.getBean(EntityDaoFactory.class);
         for (var method : daoType.getMethods()) {
-            if (!method.isDefault() && !Modifier.isStatic(method.getModifiers())) {
-                try {
-                    EntityDao.class.getMethod(method.getName(), method.getParameterTypes());
-                } catch (NoSuchMethodException exception) {
-                    boolean customQuery = method.isAnnotationPresent(EntQuery.class);
-                    boolean customCommand = method.isAnnotationPresent(EntCommand.class);
-                    if (customQuery == customCommand) {
-                        throw new IllegalArgumentException(
-                            "DAO 自定义抽象方法必须且只能声明 @EntQuery 或 @EntCommand: " + method,
-                            exception
-                        );
-                    }
-                    factory.validateCustomMethod(entityType, method);
+            if (Modifier.isStatic(method.getModifiers())) {
+                continue;
+            }
+            boolean customQuery = method.isAnnotationPresent(EntQuery.class);
+            boolean customCommand = method.isAnnotationPresent(EntCommand.class);
+            boolean custom = customQuery || customCommand;
+            boolean baseMethod = isEntityDaoMethod(method);
+            if (custom) {
+                if (customQuery && customCommand) {
+                    throw new IllegalArgumentException("DAO 自定义方法不能同时声明 @EntQuery 和 @EntCommand: " + method);
                 }
+                if (baseMethod) {
+                    throw new IllegalArgumentException("DAO 自定义方法不能覆盖 EntityDao 基础方法: " + method);
+                }
+                if (method.isDefault()) {
+                    throw new IllegalArgumentException("DAO 自定义方法不能声明为 default: " + method);
+                }
+                factory.validateCustomMethod(entityType, method);
+            } else if (!method.isDefault() && !baseMethod) {
+                throw new IllegalArgumentException(
+                    "DAO 自定义抽象方法必须且只能声明 @EntQuery 或 @EntCommand: " + method
+                );
             }
         }
         var meta = beanFactory.getBean(EntityMetaRegistry.class).getEntityMeta(entityType.getEntityClass());
@@ -96,6 +104,15 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
                     throw exception.getCause();
                 }
             }));
+    }
+
+    private static boolean isEntityDaoMethod(java.lang.reflect.Method method) {
+        try {
+            EntityDao.class.getMethod(method.getName(), method.getParameterTypes());
+            return true;
+        } catch (NoSuchMethodException exception) {
+            return false;
+        }
     }
 
     @Override

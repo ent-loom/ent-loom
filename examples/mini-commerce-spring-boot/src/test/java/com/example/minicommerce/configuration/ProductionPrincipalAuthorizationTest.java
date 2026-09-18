@@ -56,7 +56,7 @@ class ProductionPrincipalAuthorizationTest {
         product.setPrice(new BigDecimal("19.90"));
         product.setActive(true);
         when(customers.findById(2001L)).thenReturn(Optional.of(customer));
-        when(products.findById(1001L)).thenReturn(Optional.of(product));
+        when(products.findForOrder(1001L)).thenReturn(Optional.of(product));
         when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class),
             org.mockito.ArgumentMatchers.anyList())).thenReturn(3001L);
 

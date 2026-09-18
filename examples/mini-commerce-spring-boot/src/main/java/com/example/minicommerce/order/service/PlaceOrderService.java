@@ -50,7 +50,7 @@ public class PlaceOrderService {
             if (!productIds.add(requestItem.getProductId())) {
                 throw new OrderValidationException("DUPLICATE_PRODUCT", "同一订单不能重复提交商品");
             }
-            Product product = productDao.findById(requestItem.getProductId())
+            Product product = productDao.findForOrder(requestItem.getProductId())
                 .orElseThrow(() -> new OrderValidationException("PRODUCT_NOT_FOUND", "商品不存在"));
             if (!Boolean.TRUE.equals(product.getActive())) {
                 throw new OrderValidationException("PRODUCT_INACTIVE", "商品当前不可下单");
