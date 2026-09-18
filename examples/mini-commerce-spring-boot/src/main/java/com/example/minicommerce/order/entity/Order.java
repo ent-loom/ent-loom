@@ -6,15 +6,21 @@ import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.EntFieldKind;
-import java.math.BigDecimal;
 import com.example.minicommerce.order.enums.OrderStatus;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** 订单持久化实体，由订单业务服务经专用 Repository 保存。 */
 @EntEntity(entity = "order", label = "订单", description = "商城订单",
     service = "mini-commerce", defaultLabelFields = {"id"})
 @EntCrudEntity(name = "order", table = "commerce_order", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)
+@Getter
+@Setter
+@NoArgsConstructor
 public class Order {
     /** 订单主键，由数据库自增生成。 */
     @EntField(value = EntFieldKind.ID, label = "订单 ID", required = OptionalBoolean.TRUE)
@@ -36,43 +42,4 @@ public class Order {
     @EntField(value = EntFieldKind.DATETIME, label = "创建时间", required = OptionalBoolean.TRUE)
     private LocalDateTime createdAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getCustomerId() {
-        return customerId;
-    }
-
-    public void setCustomerId(Long customerId) {
-        this.customerId = customerId;
-    }
-
-    public OrderStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(OrderStatus status) {
-        this.status = status;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public void setTotalAmount(BigDecimal totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

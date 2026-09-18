@@ -5,6 +5,9 @@ import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.EntFieldKind;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** 客户主数据实体，交由 ent-loom 通用 CRUD 维护。 */
 @EntEntity(
@@ -15,6 +18,9 @@ import com.entloom.meta.enums.EntFieldKind;
     defaultLabelFields = {"displayName"}
 )
 @EntCrudEntity(name = "customer", table = "customer", ownerService = "mini-commerce")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
     @EntField(value = EntFieldKind.ID, label = "客户 ID", required = OptionalBoolean.TRUE)
@@ -28,27 +34,4 @@ public class Customer {
     @EntField(value = EntFieldKind.TEXT, label = "邮箱", required = OptionalBoolean.TRUE)
     private String email;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
 }

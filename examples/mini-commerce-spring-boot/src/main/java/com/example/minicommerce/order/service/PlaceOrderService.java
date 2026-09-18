@@ -20,25 +20,18 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 承载下单事务和业务不变量的应用服务。 */
 @Service
+@RequiredArgsConstructor
 public class PlaceOrderService {
     private final CustomerDao customerDao;
     private final ProductDao productDao;
     private final OrderRepository orderRepository;
     private final OrderAccessPolicy accessPolicy;
-
-    public PlaceOrderService(CustomerDao customerDao, ProductDao productDao,
-                             OrderRepository orderRepository,
-                             OrderAccessPolicy accessPolicy) {
-        this.customerDao = customerDao;
-        this.productDao = productDao;
-        this.orderRepository = orderRepository;
-        this.accessPolicy = accessPolicy;
-    }
 
     /** 校验客户和商品，锁定当前价格快照，再一次性写入订单聚合。 */
     @Transactional(rollbackFor = Exception.class)

@@ -6,6 +6,9 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.EntFieldKind;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** 商品主数据实体，交由 ent-loom 通用 CRUD 维护。 */
 @EntEntity(
@@ -16,6 +19,9 @@ import java.math.BigDecimal;
     defaultLabelFields = {"name"}
 )
 @EntCrudEntity(name = "product", table = "product", ownerService = "mini-commerce")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Product {
     /** 商品主键。 */
     @EntField(value = EntFieldKind.ID, label = "商品 ID", required = OptionalBoolean.TRUE)
@@ -33,35 +39,4 @@ public class Product {
     @EntField(value = EntFieldKind.FLAG, label = "启用状态", required = OptionalBoolean.TRUE)
     private Boolean active;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price) {
-        this.price = price;
-    }
-
-    public Boolean getActive() {
-        return active;
-    }
-
-    public void setActive(Boolean active) {
-        this.active = active;
-    }
 }

@@ -7,12 +7,18 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.EntFieldKind;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** 订单明细持久化实体，由订单业务服务经专用 Repository 保存。 */
 @EntEntity(entity = "orderItem", label = "订单明细", description = "商城订单明细",
     service = "mini-commerce", defaultLabelFields = {"id"})
 @EntCrudEntity(name = "orderItem", table = "commerce_order_item", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)
+@Getter
+@Setter
+@NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
     @EntField(value = EntFieldKind.ID, label = "明细 ID", required = OptionalBoolean.TRUE)
@@ -42,59 +48,4 @@ public class OrderItem {
     @EntField(value = EntFieldKind.NUMBER, label = "明细金额", required = OptionalBoolean.TRUE)
     private BigDecimal lineAmount;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getOrderId() {
-        return orderId;
-    }
-
-    public void setOrderId(Long orderId) {
-        this.orderId = orderId;
-    }
-
-    public Long getProductId() {
-        return productId;
-    }
-
-    public void setProductId(Long productId) {
-        this.productId = productId;
-    }
-
-    public String getProductName() {
-        return productName;
-    }
-
-    public void setProductName(String productName) {
-        this.productName = productName;
-    }
-
-    public BigDecimal getUnitPrice() {
-        return unitPrice;
-    }
-
-    public void setUnitPrice(BigDecimal unitPrice) {
-        this.unitPrice = unitPrice;
-    }
-
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
-    }
-
-    public BigDecimal getLineAmount() {
-        return lineAmount;
-    }
-
-    public void setLineAmount(BigDecimal lineAmount) {
-        this.lineAmount = lineAmount;
-    }
 }

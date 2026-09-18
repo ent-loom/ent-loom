@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -20,12 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** 订单聚合的最小 JDBC 持久化端口。 */
 @Repository
+@RequiredArgsConstructor
 public class OrderRepository {
     private final JdbcTemplate jdbcTemplate;
-
-    public OrderRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     /** 在调用方事务内新增订单及明细；回填订单 ID 和明细的订单关联，明细自增 ID 不回填。 */
     @Transactional(propagation = Propagation.MANDATORY)

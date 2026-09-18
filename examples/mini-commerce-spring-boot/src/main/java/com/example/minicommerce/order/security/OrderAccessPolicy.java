@@ -7,18 +7,15 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.model.CrudResourceAction;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /** 复用主体与动作权限规则；本地示例不提供租户或订单归属隔离。 */
 @Component
+@RequiredArgsConstructor
 public class OrderAccessPolicy {
     private final CrudSubjectResolver subjectResolver;
     private final CrudPermissionService permissionService;
-
-    public OrderAccessPolicy(CrudSubjectResolver subjectResolver, CrudPermissionService permissionService) {
-        this.subjectResolver = subjectResolver;
-        this.permissionService = permissionService;
-    }
 
     /** 检查 {@link OrderAction}，仅明确允许时继续执行。 */
     public void require(OrderAction action) {

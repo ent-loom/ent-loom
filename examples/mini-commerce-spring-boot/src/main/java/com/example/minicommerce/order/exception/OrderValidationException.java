@@ -1,6 +1,9 @@
 package com.example.minicommerce.order.exception;
 
+import lombok.Getter;
+
 /** 下单业务校验失败。 */
+@Getter
 public class OrderValidationException extends RuntimeException {
     private final String code;
 
@@ -9,7 +12,4 @@ public class OrderValidationException extends RuntimeException {
         this.code = code;
     }
 
-    public String getCode() {
-        return code;
-    }
 }
