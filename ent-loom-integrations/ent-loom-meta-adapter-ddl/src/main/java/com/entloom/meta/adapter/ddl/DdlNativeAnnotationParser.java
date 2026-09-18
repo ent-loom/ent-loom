@@ -10,7 +10,6 @@ import com.entloom.ddl.enums.IndexType;
 import com.entloom.ddl.enums.NamingStrategy;
 import com.entloom.ddl.enums.UniqueScope;
 import com.entloom.ddl.enums.SqlType;
-import com.entloom.ddl.enums.WritePolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
@@ -77,8 +76,6 @@ final class DdlNativeAnnotationParser {
             warnUnsupported(entityClass, field.getName(), "dialectOptions", blankAsNull(annotation.dialectOptions()) != null, diagnostics);
             warnUnsupported(entityClass, field.getName(), "defaultValueHint",
                 annotation.defaultValueHint() != com.entloom.base.util.value.TypedValueType.UNSET, diagnostics);
-            warnUnsupported(entityClass, field.getName(), "writePolicy",
-                annotation.writePolicy() != WritePolicy.READ_WRITE, diagnostics);
         }
         boolean inferredPrimaryKey = "id".equals(field.getName());
         String column = annotation == null ? null : blankAsNull(annotation.column());

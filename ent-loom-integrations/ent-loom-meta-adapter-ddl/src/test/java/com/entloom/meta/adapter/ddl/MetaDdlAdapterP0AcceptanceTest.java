@@ -12,7 +12,6 @@ import com.entloom.ddl.enums.IndexType;
 import com.entloom.ddl.enums.NamingStrategy;
 import com.entloom.ddl.enums.SqlType;
 import com.entloom.ddl.enums.UniqueScope;
-import com.entloom.ddl.enums.WritePolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntIndex;
@@ -119,7 +118,6 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "collation"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "dialectOptions"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "defaultValueHint"));
-        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "writePolicy"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "uniqueScope"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "type"));
     }
@@ -253,8 +251,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         private Long id;
 
         @EntDbField(sqlType = SqlType.JSON, collation = "utf8mb4_bin", dialectOptions = "VISIBLE",
-            defaultValueHint = com.entloom.base.util.value.TypedValueType.STRING,
-            writePolicy = WritePolicy.READ_ONLY)
+            defaultValueHint = com.entloom.base.util.value.TypedValueType.STRING)
         private String payload;
     }
 }

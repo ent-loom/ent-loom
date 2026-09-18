@@ -42,6 +42,8 @@ DDL 当前主线是“实体声明 -> DDL Runtime Model -> MySQL 8 结构执行�
 
 边界规则：
 
+DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / UPDATE 写入策略。写入规则归属 CRUD 持久化映射，由 DAO 写入执行链路落实；数据库默认值仍由 DDL 声明。当前已移除未被执行链路消费的 `writePolicy`，不在 CRUD 中新增占位策略；后续按实际需求扩展 CRUD 现有写入元数据。
+
 1. 文档基线统一理解为 `annotations <- api <- core <- bootstrap/spring <- spring-boot-starter`
 2. `core` 依赖 `api`，`api` 依赖 `annotations`，且 `annotations/api` 不允许反向依赖上层
 3. 跨模块交互优先使用 `api` 类型，不暴露实现细节

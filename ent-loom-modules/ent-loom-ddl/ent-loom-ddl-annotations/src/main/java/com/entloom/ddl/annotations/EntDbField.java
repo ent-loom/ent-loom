@@ -4,7 +4,6 @@ import com.entloom.base.common.OptionalBoolean;
 import com.entloom.base.util.value.TypedValueType;
 import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.ddl.enums.SqlType;
-import com.entloom.ddl.enums.WritePolicy;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -102,10 +101,5 @@ public @interface EntDbField {
      * 默认值解析提示。UNSET 表示按 sqlType 和方言推导。
      */
     TypedValueType defaultValueHint() default TypedValueType.UNSET;
-
-    /**
-     * 写入策略。
-     */
-    WritePolicy writePolicy() default WritePolicy.READ_WRITE;
 
 }
