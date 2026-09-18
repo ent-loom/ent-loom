@@ -37,23 +37,16 @@ public class PlaceOrderService {
     @Transactional(rollbackFor = Exception.class)
     public PlaceOrderResult handle(PlaceOrderCommand command) {
         accessPolicy.require(OrderAction.PLACE);
-        if (command == null || command.getCustomerId() == null) {
+        // @Valid 不会校验整个请求对象为 null；服务入口保留这项防御性检查。
+        if (command == null) {
             throw new OrderValidationException("CUSTOMER_REQUIRED", "下单客户不能为空");
         }
-        if (command.getItems() == null || command.getItems().isEmpty()) {
-            throw new OrderValidationException("ITEMS_REQUIRED", "订单至少需要一件商品");
-        }
-
         Customer customer = customerDao.findById(command.getCustomerId())
             .orElseThrow(() -> new OrderValidationException("CUSTOMER_NOT_FOUND", "客户不存在"));
         Set<Long> productIds = new HashSet<>();
         List<OrderItem> items = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (PlaceOrderItem requestItem : command.getItems()) {
-            if (requestItem == null || requestItem.getProductId() == null
-                || requestItem.getQuantity() == null || requestItem.getQuantity() <= 0) {
-                throw new OrderValidationException("ITEM_INVALID", "商品和数量必须有效");
-            }
             if (!productIds.add(requestItem.getProductId())) {
                 throw new OrderValidationException("DUPLICATE_PRODUCT", "同一订单不能重复提交商品");
             }

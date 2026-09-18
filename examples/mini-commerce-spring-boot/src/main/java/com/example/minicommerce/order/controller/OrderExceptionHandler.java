@@ -2,14 +2,29 @@ package com.example.minicommerce.order.controller;
 
 import com.example.minicommerce.order.exception.OrderValidationException;
 import com.entloom.crud.core.exception.PermissionDeniedException;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** 将业务校验失败转换为稳定、可观察的 HTTP 错误。 */
 @RestControllerAdvice(assignableTypes = OrderController.class)
 public class OrderExceptionHandler {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handle(MethodArgumentNotValidException exception) {
+        String message = exception.getBindingResult().getFieldErrors().stream()
+            .map(error -> error.getDefaultMessage())
+            .filter(Objects::nonNull)
+            .collect(Collectors.joining("；"));
+        if (message.isBlank()) {
+            message = "请求参数无效";
+        }
+        return ResponseEntity.badRequest().body(new ErrorResponse("REQUEST_INVALID", message));
+    }
+
     @ExceptionHandler(OrderValidationException.class)
     public ResponseEntity<ErrorResponse> handle(OrderValidationException exception) {
         HttpStatus status = "ORDER_NOT_FOUND".equals(exception.getCode())

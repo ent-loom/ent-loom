@@ -71,6 +71,23 @@ class OrderAccessTest {
         assertThrows(PermissionDeniedException.class, () -> policy.require(OrderAction.DETAIL));
     }
 
+    @Test
+    void invalidCommandIsRejectedByBeanValidationBeforeBusinessService() throws Exception {
+        OrderAccessPolicy placePolicy = policy("local-developer", List.of(rule("PLACE", AccessDecision.ALLOW)));
+        OrderAccessPolicy detailPolicy = policy("local-developer", List.of(rule("DETAIL", AccessDecision.ALLOW)));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
+                new PlaceOrderService(customers, products, orders, placePolicy),
+                new OrderQueryService(orders, detailPolicy)))
+            .setControllerAdvice(new OrderExceptionHandler()).build();
+
+        mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"customerId\":2001,\"items\":[{\"productId\":1001,\"quantity\":0}]}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("REQUEST_INVALID"))
+            .andExpect(jsonPath("$.message").value("购买数量必须大于零"));
+        verifyNoInteractions(customers, products, orders);
+    }
+
     private void assertDenied(OrderAccessPolicy policy) throws Exception {
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
                 new PlaceOrderService(customers, products, orders, policy),

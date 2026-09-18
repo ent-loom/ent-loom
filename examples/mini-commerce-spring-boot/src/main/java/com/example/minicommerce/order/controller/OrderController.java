@@ -1,10 +1,11 @@
 package com.example.minicommerce.order.controller;
 
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
-import com.example.minicommerce.order.service.PlaceOrderService;
+import com.example.minicommerce.order.dto.OrderDetail;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
 import com.example.minicommerce.order.service.OrderQueryService;
-import com.example.minicommerce.order.dto.OrderDetail;
+import com.example.minicommerce.order.service.PlaceOrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,7 +27,7 @@ public class OrderController {
     /** 提交订单。 */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PlaceOrderResult placeOrder(@RequestBody PlaceOrderCommand command) {
+    public PlaceOrderResult placeOrder(@Valid @RequestBody PlaceOrderCommand command) {
         return placeOrderService.handle(command);
     }
 
