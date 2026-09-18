@@ -29,8 +29,8 @@ import java.util.Map;
 /**
  * 将显式主键实体的写命令统一切换到 EntityDao。
  *
- * <p>数据库生成主键等超出 EntityDao 合同的实体交给回退处理器；显式主键实体的单条、批量和
- * save-or-update 命令不再调用旧的主键 SQL。</p>
+ * <p>数据库生成主键实体在默认 Command 路由中仍交给回退处理器；业务直接调用 EntityDao 时已支持
+ * 生成主键回填。显式主键实体的单条、批量和 save-or-update 命令不再调用旧的主键 SQL。</p>
  */
 public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     private final EntityMetaRegistry metaRegistry;

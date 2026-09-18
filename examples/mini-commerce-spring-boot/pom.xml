@@ -32,6 +32,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.github.ent-loom</groupId>
             <artifactId>ent-loom-crud-core</artifactId>
             <version>${ent-loom.version}</version>

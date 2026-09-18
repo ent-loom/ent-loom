@@ -9,7 +9,8 @@ import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderStatus;
 import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.product.dao.ProductDao;
-import com.example.minicommerce.order.repository.OrderRepository;
+import com.example.minicommerce.order.dao.OrderDao;
+import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.service.OrderQueryService;
 import com.example.minicommerce.order.service.PlaceOrderService;
@@ -46,7 +47,8 @@ class ProductionPrincipalAuthorizationTest {
     void authenticatedPrincipalCanPlaceOrderThroughBusinessController() throws Exception {
         CustomerDao customers = mock(CustomerDao.class);
         ProductDao products = mock(ProductDao.class);
-        OrderRepository orders = mock(OrderRepository.class);
+        OrderDao orders = mock(OrderDao.class);
+        OrderItemDao orderItems = mock(OrderItemDao.class);
         Customer customer = new Customer();
         customer.setId(2001L);
         customer.setDisplayName("Ada Lovelace");
@@ -57,8 +59,10 @@ class ProductionPrincipalAuthorizationTest {
         product.setActive(true);
         when(customers.findById(2001L)).thenReturn(Optional.of(customer));
         when(products.findForOrder(1001L)).thenReturn(Optional.of(product));
-        when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class),
-            org.mockito.ArgumentMatchers.anyList())).thenReturn(3001L);
+        when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Order.class).setId(3001L);
+            return 3001L;
+        });
 
         AtomicReference<HttpServletRequest> currentRequest = new AtomicReference<>();
         ObjectProvider<HttpServletRequest> requestProvider = mock(ObjectProvider.class);
@@ -68,8 +72,8 @@ class ProductionPrincipalAuthorizationTest {
             new RuleBasedCrudPermissionService(List.of(permission("alice", "PLACE")))
         );
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderService(customers, products, orders, accessPolicy),
-                new OrderQueryService(orders, accessPolicy)))
+                new PlaceOrderService(customers, products, orders, orderItems, accessPolicy),
+                new OrderQueryService(customers, orders, orderItems, accessPolicy)))
             .setControllerAdvice(new OrderExceptionHandler())
             .addInterceptors(requestContextInterceptor(currentRequest))
             .build();
@@ -84,15 +88,16 @@ class ProductionPrincipalAuthorizationTest {
             .andExpect(jsonPath("$.totalAmount").value(39.80));
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(orders).insert(orderCaptor.capture(), itemsCaptor.capture());
+        verify(orders).insert(orderCaptor.capture());
         Order order = orderCaptor.getValue();
         assertEquals(2001L, order.getCustomerId());
         assertEquals(OrderStatus.CREATED, order.getStatus());
         assertEquals(new BigDecimal("39.80"), order.getTotalAmount());
         assertNotNull(order.getCreatedAt());
-        assertEquals(1, itemsCaptor.getValue().size());
-        OrderItem item = itemsCaptor.getValue().getFirst();
+        ArgumentCaptor<OrderItem> itemCaptor = ArgumentCaptor.forClass(OrderItem.class);
+        verify(orderItems).insert(itemCaptor.capture());
+        OrderItem item = itemCaptor.getValue();
+        assertEquals(3001L, item.getOrderId());
         assertEquals(1001L, item.getProductId());
         assertEquals("Entity Book", item.getProductName());
         assertEquals(new BigDecimal("19.90"), item.getUnitPrice());

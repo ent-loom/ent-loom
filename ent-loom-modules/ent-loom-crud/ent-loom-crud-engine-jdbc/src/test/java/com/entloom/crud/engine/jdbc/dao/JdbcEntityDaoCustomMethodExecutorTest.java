@@ -135,7 +135,8 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         EntityFieldMeta dateTimeField = new EntityFieldMeta(
             "updatedAt", LocalDateTime.class, "updated_at", false, false, true, true
         );
-        assertEquals(SampleStatus.ACTIVE, JdbcEntityValueBinder.normalize(enumField, "ACTIVE"));
+        assertEquals("ACTIVE", JdbcEntityValueBinder.normalize(enumField, "ACTIVE"));
+        assertEquals("ACTIVE", JdbcEntityValueBinder.normalize(enumField, SampleStatus.ACTIVE));
         assertEquals(java.sql.Date.valueOf("2026-09-18"),
             JdbcEntityValueBinder.normalize(dateField, "2026-09-18"));
         assertEquals(java.sql.Timestamp.valueOf("2026-09-18 10:20:30"),

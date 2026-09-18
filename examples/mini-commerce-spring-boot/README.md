@@ -54,9 +54,9 @@ com.example.minicommerce/
 
 Spring JDBC 事务通过线程绑定复用连接，DAO 调用自动参与 Service 事务；事务上下文不负责解析数据权限。本示例不另建 ThreadLocal 权限上下文，也不注册可直接注入的裸 EntityDao。
 
-`Order`、`OrderItem` 与主数据实体采用相同的字段、中文注释和元数据注解风格，分别映射 `commerce_order`、`commerce_order_item`，明确声明数据库生成主键。当前元数据注册列表仍仅包含 `Product`、`Customer`；订单实体通过专用 SQL 持久化，不因添加实体注解自动注册或开放通用 CRUD。
+`Order`、`OrderItem` 与主数据实体采用相同的字段、中文注释和元数据注解风格，分别映射 `commerce_order`、`commerce_order_item`，明确声明数据库生成主键。当前元数据注册列表仍仅包含 `Product`、`Customer`；订单实体通过 `@EntDao` 扫描代理按需注册，不因添加实体注解自动开放通用 HTTP CRUD。
 
-`OrderRepository.insert(order, items)` 是新增订单聚合的唯一写入入口，要求加入 Service 已开启的事务，统一保存订单和明细并回填订单关联。批量明细不回填自身自增 ID，当前下单响应仅需要订单 ID。Repository 保留自增主键写入、明细批量写入、详情 JOIN 和按订单查询明细的 SQL；这些操作超出当前 DAO 的显式主键 CRUD 合同。后续扩展 DAO 能力时按真实需求迁移，不为消除 SQL 改变主键策略或拆散聚合事务。
+`PlaceOrderService` 是新增订单聚合的事务边界：先通过 `OrderDao` 写入订单并回填数据库生成主键，再逐条通过 `OrderItemDao` 写入明细并回填各自主键。任一明细失败时，订单和已写入明细由 Spring 事务整体回滚。详情查询由 `OrderQueryService` 分别读取订单、客户和明细后组装，DAO 保持单表职责。
 
 下单内部直接读取 `Customer`、`Product`，组装 `Order` 和 `OrderItem`；商品名称、单价和明细金额作为快照字段保存在 `OrderItem` 中，不再维护重复的快照模型。详情接口继续使用 `OrderDetail` DTO 表达跨表查询结果。`record` 仅用于表达不可变数据载体，不代表独立架构层；按实际职责归包，不额外引入 BO/PO/VO 层。
 
@@ -145,6 +145,12 @@ python3 scripts/verify.py --maven-repository "$repo"
 ```
 
 这条路径只替换 `ent-loom` 构件来源，示例仍然是独立消费者；不会把示例加入默认主 Reactor。
+
+## 订单 DAO 回归验证
+
+使用 JDK 21，在仓库根目录先运行 `./mvnw -pl :ent-loom-crud-spring-boot-starter -am -DskipTests -Dmaven.javadoc.skip=true install`，再在本示例目录运行 `../../mvnw test`（Windows 使用对应的 `mvnw.cmd`）。
+
+`OrderDaoIntegrationTest` 使用 H2 MySQL 模式、真实 `@EntDao` 扫描代理、JDBC 执行器与 Spring 服务事务，验证生成主键回填、下单详情，以及第二条明细违反数据库约束时订单和首条明细全部回滚。测试自身不添加事务，避免掩盖业务服务事务失效；此快速回归不替代 MySQL 8 实例验收。
 
 ## 停止和清理
 

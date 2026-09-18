@@ -13,7 +13,7 @@ public interface EntityDao<T, ID> {
     /** 在绑定范围和逻辑未删除条件内按主键查询。 */
     Optional<T> findById(ID id);
 
-    /** 新增显式主键实体。 */
+    /** 新增实体；显式主键直接写入，数据库生成主键则回填到实体后返回。 */
     ID insert(T entity);
 
     /** 按主键执行局部更新；空 Patch 和无可写字段 Patch 必须拒绝。 */

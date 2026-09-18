@@ -4,7 +4,8 @@ import com.example.minicommerce.order.service.OrderQueryService;
 import com.example.minicommerce.order.service.PlaceOrderService;
 import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.product.dao.ProductDao;
-import com.example.minicommerce.order.repository.OrderRepository;
+import com.example.minicommerce.order.dao.OrderDao;
+import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import com.example.minicommerce.order.controller.OrderController;
@@ -35,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderAccessTest {
     private final CustomerDao customers = mock(CustomerDao.class);
     private final ProductDao products = mock(ProductDao.class);
-    private final OrderRepository orders = mock(OrderRepository.class);
+    private final OrderDao orders = mock(OrderDao.class);
+    private final OrderItemDao orderItems = mock(OrderItemDao.class);
 
     @Test
     void missingRulesRejectBothHttpEntrypointsBeforePersistence() throws Exception {
@@ -76,8 +78,8 @@ class OrderAccessTest {
         OrderAccessPolicy placePolicy = policy("local-developer", List.of(rule("PLACE", AccessDecision.ALLOW)));
         OrderAccessPolicy detailPolicy = policy("local-developer", List.of(rule("DETAIL", AccessDecision.ALLOW)));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderService(customers, products, orders, placePolicy),
-                new OrderQueryService(orders, detailPolicy)))
+                new PlaceOrderService(customers, products, orders, orderItems, placePolicy),
+                new OrderQueryService(customers, orders, orderItems, detailPolicy)))
             .setControllerAdvice(new OrderExceptionHandler()).build();
 
         mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON)
@@ -85,20 +87,20 @@ class OrderAccessTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("REQUEST_INVALID"))
             .andExpect(jsonPath("$.message").value("购买数量必须大于零"));
-        verifyNoInteractions(customers, products, orders);
+        verifyNoInteractions(customers, products, orders, orderItems);
     }
 
     private void assertDenied(OrderAccessPolicy policy) throws Exception {
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderService(customers, products, orders, policy),
-                new OrderQueryService(orders, policy)))
+                new PlaceOrderService(customers, products, orders, orderItems, policy),
+                new OrderQueryService(customers, orders, orderItems, policy)))
             .setControllerAdvice(new OrderExceptionHandler()).build();
         mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"customerId\":2001,\"items\":[{\"productId\":1001,\"quantity\":1}]}"))
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ORDER_ACCESS_DENIED"));
         mvc.perform(get("/orders/1"))
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ORDER_ACCESS_DENIED"));
-        verifyNoInteractions(customers, products, orders);
+        verifyNoInteractions(customers, products, orders, orderItems);
     }
 
     private OrderAccessPolicy policy(String subjectId, List<CrudPermissionRule> rules) {

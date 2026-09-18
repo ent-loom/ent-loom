@@ -12,6 +12,9 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.context.CrudExecutionContext;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
+import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
@@ -24,6 +27,7 @@ import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +42,45 @@ import org.junit.jupiter.api.Test;
 class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     private static final EntityType<OrderTestEntity, Long> ORDER_TYPE =
         EntityType.of(OrderTestEntity.class, Long.class);
+
+    @Test
+    void generated_id_insert_omits_id_column_and_backfills_entity() {
+        LinkedHashMap<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
+        fields.put("name", new EntityFieldMeta("name", String.class, "name", true, false, true, true));
+        EntityMeta generatedMeta = new EntityMeta(
+            GeneratedEntity.class,
+            new ResourceDescriptor(GeneratedEntity.class, "generated", "test-service", Collections.emptyList()),
+            "t_generated",
+            "id",
+            EntityIdPolicy.GENERATED,
+            null,
+            fields
+        );
+        EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
+            CrudRuntimeModel.from(Collections.singletonList(generatedMeta), Collections.emptyList())
+        );
+        GeneratedKeyExecutor executor = new GeneratedKeyExecutor();
+        EntityDao<GeneratedEntity, Long> dao = new JdbcEntityDaoFactory(registry, executor)
+            .scoped(EntityType.of(GeneratedEntity.class, Long.class), EntityAccessScope.unrestricted());
+
+        GeneratedEntity entity = new GeneratedEntity();
+        entity.setName("generated");
+        Assertions.assertEquals(Long.valueOf(9527L), dao.insert(entity));
+        Assertions.assertEquals(Long.valueOf(9527L), entity.getId());
+        Assertions.assertTrue(executor.sql.contains("(name)"), executor.sql);
+        Assertions.assertFalse(executor.sql.contains("id)"), executor.sql);
+        Assertions.assertThrows(ValidationException.class, () -> dao.insert(entity));
+        entity.setId(null);
+        executor.generatedKey = null;
+        Assertions.assertThrows(com.entloom.crud.core.exception.EntityDaoPersistenceException.class,
+            () -> dao.insert(entity));
+        Assertions.assertNull(entity.getId());
+        executor.generatedKey = "非法主键";
+        Assertions.assertThrows(com.entloom.crud.core.exception.EntityDaoPersistenceException.class,
+            () -> dao.insert(entity));
+        Assertions.assertNull(entity.getId());
+    }
 
     @Test
     void custom_guarded_executor_must_supply_scope_database_validator() {
@@ -345,6 +388,60 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
                 Collections.emptyList()
             )
         );
+    }
+
+    private static final class GeneratedEntity {
+        private Long id;
+        private String name;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+    }
+
+    private static final class GeneratedKeyExecutor implements GuardedSqlExecutor {
+        private String sql;
+        private Object generatedKey = Long.valueOf(9527L);
+
+        @Override
+        public List<Map<String, Object>> queryForList(String sql, List<Object> args, CrudExecutionContext context) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public Map<String, Object> queryForMap(String sql, List<Object> args, CrudExecutionContext context) {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public Object queryForObject(String sql, List<Object> args, CrudExecutionContext context) {
+            return null;
+        }
+
+        @Override
+        public int update(String sql, List<Object> args, CrudExecutionContext context) {
+            throw new AssertionError("生成主键插入不应调用 update");
+        }
+
+        @Override
+        public Object insertAndReturnGeneratedKey(
+            String sql, List<Object> args, CrudExecutionContext context
+        ) {
+            this.sql = sql;
+            return generatedKey;
+        }
     }
 
     private JdbcEntityDaoFactory newFactory(EntityMetaRegistry registry) {

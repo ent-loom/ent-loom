@@ -50,15 +50,15 @@ public interface GuardedSqlExecutor {
 
     /**
      * 执行插入并返回数据库生成主键。
-     * 默认实现仅执行插入，不回传主键；具体实现可覆盖以支持自增主键回填。
+     * 默认实现执行前拒绝；支持此能力的实现必须检查影响一行且返回唯一非空生成键。
      *
      * @param sql SQL 模板
      * @param args 参数列表
      * @param context 执行上下文
-     * @return 生成主键，未获取到时返回 null
+     * @return 唯一非空生成主键
+     * @throws UnsupportedOperationException 当前执行器未实现生成键能力，且尚未执行 SQL
      */
     default Object insertAndReturnGeneratedKey(String sql, List<Object> args, CrudExecutionContext context) {
-        update(sql, args, context);
-        return null;
+        throw new UnsupportedOperationException("当前 SQL 执行器不支持数据库生成主键");
     }
 }

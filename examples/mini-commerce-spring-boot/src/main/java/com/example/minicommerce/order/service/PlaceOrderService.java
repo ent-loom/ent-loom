@@ -1,18 +1,19 @@
 package com.example.minicommerce.order.service;
 
 import com.example.minicommerce.customer.dao.CustomerDao;
-import com.example.minicommerce.product.dao.ProductDao;
 import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.order.dao.OrderDao;
+import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderItem;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
-import com.example.minicommerce.order.exception.OrderValidationException;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderStatus;
-import com.example.minicommerce.order.repository.OrderRepository;
+import com.example.minicommerce.order.exception.OrderValidationException;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
+import com.example.minicommerce.product.dao.ProductDao;
 import com.example.minicommerce.product.entity.Product;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlaceOrderService {
     private final CustomerDao customerDao;
     private final ProductDao productDao;
-    private final OrderRepository orderRepository;
+    private final OrderDao orderDao;
+    private final OrderItemDao orderItemDao;
     private final OrderAccessPolicy accessPolicy;
 
     /** 校验客户和商品，锁定当前价格快照，再一次性写入订单聚合。 */
@@ -74,7 +76,11 @@ public class PlaceOrderService {
         order.setStatus(OrderStatus.CREATED);
         order.setTotalAmount(totalAmount);
         order.setCreatedAt(LocalDateTime.now());
-        Long orderId = orderRepository.insert(order, items);
+        Long orderId = orderDao.insert(order);
+        for (OrderItem item : items) {
+            item.setOrderId(orderId);
+            orderItemDao.insert(item);
+        }
         return new PlaceOrderResult(orderId, totalAmount);
     }
 }

@@ -1,9 +1,10 @@
 package com.entloom.crud.engine.jdbc.security;
 
-import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
+import com.entloom.crud.core.exception.EntityDaoPersistenceException;
 import com.entloom.crud.core.runtime.context.CrudExecutionContext;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
+import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.Collections;
@@ -124,21 +125,19 @@ public class JdbcGuardedSqlExecutor implements GuardedSqlExecutor {
                 }
                 return preparedStatement;
             }, keyHolder);
+            if (rows != 1) {
+                throw new EntityDaoPersistenceException("生成主键 insert 影响行数不是 1: " + rows);
+            }
+            List<Map<String, Object>> keyRows = keyHolder.getKeyList();
+            if (keyRows.size() != 1 || keyRows.get(0).size() != 1) {
+                throw new EntityDaoPersistenceException("insert 必须返回唯一数据库生成主键");
+            }
+            Object generated = keyRows.get(0).values().iterator().next();
+            if (generated == null) {
+                throw new EntityDaoPersistenceException("insert 返回的数据库生成主键为空");
+            }
             sqlExecutionLogger.logSql(context, op(context), phase(context), sql, safeArgs, rows, System.currentTimeMillis() - start);
-            Number generated = keyHolder.getKey();
-            if (generated != null) {
-                return generated;
-            }
-            Map<String, Object> keys = keyHolder.getKeys();
-            if (keys == null || keys.isEmpty()) {
-                return null;
-            }
-            for (Object value : keys.values()) {
-                if (value != null) {
-                    return value;
-                }
-            }
-            return null;
+            return generated;
         } catch (RuntimeException ex) {
             sqlExecutionLogger.logSqlFailure(context, op(context), phase(context), sql, safeArgs, System.currentTimeMillis() - start, ex);
             throw ex;

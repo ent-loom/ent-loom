@@ -13,6 +13,7 @@ import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
@@ -115,8 +116,18 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
             throw new ValidationException("insert 实体类型不一致: " + meta.getEntityName());
         }
         Map<String, Object> values = readEntityValues(entity);
-        Object id = normalizeId(values.get(meta.getIdField()));
-        values.put(meta.getIdField(), id);
+        Object suppliedId = values.get(meta.getIdField());
+        boolean generatedId = meta.getIdPolicy() == EntityIdPolicy.GENERATED;
+        Object id = null;
+        if (generatedId) {
+            if (suppliedId != null) {
+                throw new ValidationException("GENERATED 主键实体不能显式指定主键: " + meta.getEntityName());
+            }
+            values.remove(meta.getIdField());
+        } else {
+            id = normalizeId(suppliedId);
+            values.put(meta.getIdField(), id);
+        }
         Map<String, Object> scopedValues = new LinkedHashMap<String, Object>(
             InsertConstraintValueBinder.bind(scope, meta, values)
         );
@@ -136,9 +147,21 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         String sql = "insert into " + table() + " (" + String.join(",", columns) + ") values ("
             + placeholders(fields.size()) + ")";
         try {
-            int rows = guardedSqlExecutor.update(sql, args, context("insert"));
-            if (rows != 1) {
-                throw new EntityDaoPersistenceException("insert 影响行数不是 1: " + rows);
+            if (generatedId) {
+                Object generated = guardedSqlExecutor.insertAndReturnGeneratedKey(
+                    sql, args, context("insert")
+                );
+                try {
+                    id = normalizeId(generated);
+                } catch (ValidationException ex) {
+                    throw new EntityDaoPersistenceException("数据库生成主键缺失或类型不匹配: " + meta.getEntityName(), ex);
+                }
+                writeField(entity, meta.getIdField(), id);
+            } else {
+                int rows = guardedSqlExecutor.update(sql, args, context("insert"));
+                if (rows != 1) {
+                    throw new EntityDaoPersistenceException("insert 影响行数不是 1: " + rows);
+                }
             }
         } catch (DataIntegrityViolationException ex) {
             throw new EntityDaoConstraintException("insert 违反数据约束: " + meta.getEntityName(), ex);
@@ -268,6 +291,19 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
             return field.get(entity);
         } catch (IllegalAccessException ex) {
             throw new ValidationException("实体字段无法读取: " + fieldName);
+        }
+    }
+
+    private void writeField(Object entity, String fieldName, Object value) {
+        Field field = resolveField(entity.getClass(), fieldName);
+        if (field == null) {
+            throw new EntityDaoPersistenceException("实体字段不存在，无法回填主键: " + fieldName);
+        }
+        try {
+            field.setAccessible(true);
+            field.set(entity, value);
+        } catch (IllegalAccessException | IllegalArgumentException ex) {
+            throw new EntityDaoPersistenceException("实体主键无法回填: " + fieldName, ex);
         }
     }
 

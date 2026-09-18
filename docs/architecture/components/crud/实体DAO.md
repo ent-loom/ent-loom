@@ -5,7 +5,7 @@
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 > 自定义方法目标：[实体 DAO 自定义方法](./实体DAO自定义方法.md)
 
-当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。Starter 默认命令链对所有显式主键实体使用 DAO，单条、批量和 save-or-update 均不再调用旧主键 SQL；批量由 Handler 逐项复用 DAO，未扩张 DAO 公共合同。数据库生成主键等当前 DAO 不支持的实体由专用回退处理器承接。空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据、JDBC 安全执行器和 Factory 齐备时装配默认命令链，不注册裸 DAO。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE、触发器和字符串排序规则，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。字符串范围列必须采用 `_bin` 二进制排序规则，避免数据库把 Java 中不同的范围值判为相等；数据库默认值可以存在，但 DAO insert 始终显式绑定最终范围值。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度、范围字段类型转换和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收，未覆盖的时间类型和数据库生成策略仍按实施清单推进。
+当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。EntityDao 直接支持显式主键和数据库生成主键，生成主键会回填实体；Starter 默认命令链仍对显式主键实体使用 DAO，单条、批量和 save-or-update 均不再调用旧主键 SQL，数据库生成主键实体在该默认命令链中继续由回退处理器承接。批量由 Handler 逐项复用 DAO，未扩张 DAO 公共合同。空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据、JDBC 安全执行器和 Factory 齐备时装配默认命令链，不注册裸 DAO。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE、触发器和字符串排序规则，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。字符串范围列必须采用 `_bin` 二进制排序规则，避免数据库把 Java 中不同的范围值判为相等；数据库默认值可以存在，但 DAO insert 始终显式绑定最终范围值。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度、范围字段类型转换和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收。数据库生成主键已完成 H2 真实代理与事务回归；MySQL 8 生成键验收、未覆盖的时间类型和其他数据库生成策略仍按实施清单推进。
 
 ## 定位
 
@@ -221,8 +221,9 @@ WHERE id = ?
 
 ## 新增语义
 
-- `insert` 返回显式主键；数据库生成主键不属于第一阶段合同。
-- 显式主键必须符合实体主键策略和类型。
+- `insert` 按实体策略写入显式主键，或回收数据库生成的唯一非空主键并回填实体后返回。
+- 显式主键必须符合实体主键策略和类型；生成主键实体禁止预先提供主键。
+- 生成主键执行器必须在执行前明确支持该能力，并校验 INSERT 影响一行；缺失、多值或类型不匹配统一转换为持久化异常。
 - 第一阶段只允许用字段等值、非空字段 `IN` 及其 `AND` 组合校验新增数据；`OR`、`NOT`、范围比较、数据库函数或无法从最终持久化值确定的约束直接拒绝。
 - 等值和单元素 `IN` 规范化为唯一值并由 DAO 强制填充；调用方提供冲突值时拒绝。多元素 `IN` 不存在唯一可填值，调用方必须提供范围字段，DAO 校验其属于集合；字段缺失时拒绝。
 - 数据库默认值不得替代 DAO 的范围参数绑定；生成列、自动更新和触发器不得改写范围字段。MySQL 字符串范围列必须使用 `_bin` 二进制排序规则，确保数据库等值语义不会比 Java 精确字符串语义更宽；无法可靠判定时 fail-closed。

@@ -213,8 +213,9 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         if (meta.getEntityType() == null || !meta.getEntityType().equals(entityType.getEntityClass())) {
             throw new ValidationException("EntityType 实体类型与元数据不一致");
         }
-        if (meta.getIdPolicy() != EntityIdPolicy.EXPLICIT) {
-            throw new ValidationException("首期 EntityDao 只支持显式主键: " + meta.getEntityName());
+        if (meta.getIdPolicy() != EntityIdPolicy.EXPLICIT && meta.getIdPolicy() != EntityIdPolicy.GENERATED) {
+            throw new ValidationException("EntityDao 不支持该主键策略: " + meta.getIdPolicy()
+                + ": " + meta.getEntityName());
         }
         EntityFieldMeta idField = meta.resolveFieldMeta(meta.getIdField());
         if (idField == null || !wrap(idField.getJavaType()).equals(wrap(entityType.getIdClass()))) {
