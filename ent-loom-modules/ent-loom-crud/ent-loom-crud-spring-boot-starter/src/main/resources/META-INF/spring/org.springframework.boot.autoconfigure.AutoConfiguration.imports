@@ -1,1 +1,2 @@
 com.entloom.crud.starter.config.CrudAutoConfiguration
+com.entloom.crud.starter.config.EntDaoAutoConfiguration

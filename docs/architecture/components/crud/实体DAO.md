@@ -35,6 +35,42 @@ flowchart TB
 
 信任边界明确如下：Gateway、Scene Handler 和业务 Service 属于可信应用层，负责正确完成授权、范围解析和业务规则；DAO 防止 HTTP 参数、DTO、查询条件等外部输入绕过已经确定的范围，但不防止可信业务代码主动构造错误范围或显式选择全量范围。后者属于业务代码审查、模块边界和运维治理责任，不伪装成 DAO 能够解决的安全问题。
 
+## Spring Boot 接口注入
+
+业务侧推荐声明接口，由 Starter 自动创建代理，无需实现类或手写 CRUD 转发：
+
+```java
+import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.starter.dao.EntDao;
+
+/** 客户数据访问。 */
+@EntDao
+public interface CustomerDao extends EntityDao<Customer, Long> {
+}
+```
+
+Service 构造器直接注入 `CustomerDao`。默认扫描 Spring Boot 应用包；跨包时在配置类声明
+`@EntDaoScan(basePackageClasses = CustomerDao.class)` 或 `basePackages`。显式扫描替代默认应用包扫描，
+多个声明合并；无参数时扫描配置类所在包。DAO Bean 以接口全名注册，通常按接口类型注入。
+
+应用必须提供一个 `EntityDaoScopeResolver` Bean。解析器接收 `EntityType<?, ?>`，从可信应用上下文计算
+`EntityAccessScope`；下列配置仅适用于明确允许全量访问的场景：
+
+```java
+@Bean
+public EntityDaoScopeResolver entityDaoScopeResolver() {
+    return entityType -> EntityAccessScope.unrestricted();
+}
+```
+
+代理本身是无请求状态的单例，每次基础 CRUD 调用都重新解析范围，再委托 `EntityDaoFactory.scoped(...)`。
+启动时不会解析请求范围；缺少解析器、未注册实体、主键泛型不匹配、未确定泛型或不支持的抽象方法都会使启动失败。
+范围返回 `null` 时在调用工厂前拒绝执行，不自动退回全量范围。动作授权仍由 Service 等可信调用层负责。
+
+接口可声明 `default` 方法组合基础 CRUD；内部每次 CRUD 调用仍经过代理和范围解析。
+首期不支持方法名推导查询、SQL 注解或自定义抽象查询方法，复杂 SQL 继续放在专用 Repository。
+扫描、FactoryBean 和代理位于 Starter；Core 只增加框架无关的范围解析合同。
+
 ## 按访问范围获取 DAO
 
 默认入口不直接按实体类型获取裸 DAO，而是显式绑定访问范围：

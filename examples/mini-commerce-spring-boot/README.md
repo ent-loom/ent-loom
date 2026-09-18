@@ -10,9 +10,11 @@
 - Docker Desktop，包含 Docker Compose v2.20+（干净验收）
 - Python 3.9+（非交互验收，仅使用标准库；Windows 可通过 PowerShell 入口执行）
 - Spring Boot 3.5.16
-- ent-loom 1.0.1，来自 Maven Central
+- ent-loom 1.0.1，当前 DAO 版本使用工作区构件（见下方验证步骤）
 
-本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 只声明公开 Starter/API/Annotations 和 Spring Boot 基础依赖。2026-09-08 已使用仅下载公开构件的隔离 Maven 仓库，通过 `ent-loom 1.0.1` 的构建、真实启动、HTTP/MySQL、价格快照和事务回滚验收。修改框架源码时可使用下方当前工作区构件路径。
+本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 声明公开 Starter/API/Annotations、CRUD Core 的 DAO 合同和 Spring Boot 基础依赖。当前 DAO 重构版须使用下方当前工作区构件路径验证；2026-09-08 对 Maven Central `1.0.1` 的验收属于重构前版本，不能作为当前 DAO 能力已发布的依据。
+
+2026-09-18 已使用 JDK 21 和隔离 Maven 仓库完成工作区完整 Reactor 构建、示例 clean/test/package（10 项测试）及真实 MySQL HTTP 验收，覆盖下单、详情、价格快照、失败回滚和生产入口授权。
 
 ## 业务边界
 
@@ -30,29 +32,37 @@
 ```text
 com.example.minicommerce/
 ├── MiniCommerceApplication.java
-├── configuration/          # 示例开发态治理装配
-├── customer/entity/        # 客户实体，由框架提供通用 CRUD
-├── product/entity/         # 商品实体，由框架提供通用 CRUD
+├── configuration/          # 示例治理装配
+├── customer/               # entity/ 客户实体，dao/ 客户业务 DAO
+├── product/                # entity/ 商品实体，dao/ 商品业务 DAO
 └── order/
     ├── controller/         # HTTP 入口和异常响应
     ├── service/            # 下单、查询服务，负责业务校验与事务编排
-    ├── dto/                # 命令、结果、详情及下单所需的当前客户/商品信息
-    ├── model/              # 下单时固化的订单明细快照
-    ├── repository/         # Order、Customer、Product 三个 JDBC Repository
+    ├── dto/                # 命令、结果和详情
+    ├── entity/             # Order、OrderItem，分别映射订单表和明细表
+    ├── repository/         # 订单聚合的专用 SQL Repository
     ├── enums/              # 订单生命周期状态
     ├── exception/          # 订单业务异常
     └── security/           # 订单动作及主体权限检查
 ```
 
-调用方向为 `controller -> service -> repository`，服务先经 `security` 授权，再执行业务校验和数据访问。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
+调用方向为 `controller -> service -> 业务 DAO / 专用 Repository`，业务 DAO 内部使用 scoped EntityDao，服务先经 `security` 授权，再执行业务校验和数据访问。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
 
-`Customer`、`Product` 是框架管理的实体，无需为通用 CRUD 配齐 Controller、Service 和 Repository。订单中的三个 Repository 按数据职责划分：`OrderRepository` 负责订单主表与明细的保存和查询，`CustomerRepository`、`ProductRepository` 只服务于下单读取，主数据维护仍由通用 CRUD 承担。Repository 不要求与表一一对应，也不因只有查询方法而改名。
+`Customer`、`Product` 是框架管理的实体，主数据维护仍由通用 CRUD 承担。业务 DAO 只需声明 `@EntDao public interface CustomerDao extends EntityDao<Customer, Long> {}`，下单服务构造器直接注入并调用 `customerDao.findById(id)`。Starter 默认扫描应用包，也可用 `@EntDaoScan(basePackageClasses = CustomerDao.class)` 指定扫描范围。接口继承基础 CRUD，可通过 `default` 方法组合调用；不支持的方法声明会在启动时失败。
 
-`OrderCustomerInfo`、`OrderProductInfo` 是当前信息 DTO；`OrderItemSnapshot` 是下单时固定并持久化的业务快照。`record` 仅用于表达不可变数据载体，不代表独立架构层；按实际职责归包，不额外引入 BO/PO/VO 或持久化 projection 层。
+`DaoConfiguration` 提供必需的 `EntityDaoScopeResolver`，本示例显式使用全量主数据范围。代理每次 CRUD 调用解析范围并创建 scoped EntityDao，单例不缓存请求范围；生产项目须接入可信租户或组织上下文，不能从 HTTP 参数直接接受访问范围。缺少解析器、实体元数据或主键类型不匹配时启动失败。
+
+Spring JDBC 事务通过线程绑定复用连接，DAO 调用自动参与 Service 事务；事务上下文不负责解析数据权限。本示例不另建 ThreadLocal 权限上下文，也不注册可直接注入的裸 EntityDao。
+
+`Order`、`OrderItem` 与主数据实体采用相同的字段、中文注释和元数据注解风格，分别映射 `commerce_order`、`commerce_order_item`，明确声明数据库生成主键。当前元数据注册列表仍仅包含 `Product`、`Customer`；订单实体通过专用 SQL 持久化，不因添加实体注解自动注册或开放通用 CRUD。
+
+`OrderRepository.insert(order, items)` 是新增订单聚合的唯一写入入口，要求加入 Service 已开启的事务，统一保存订单和明细并回填订单关联。批量明细不回填自身自增 ID，当前下单响应仅需要订单 ID。Repository 保留自增主键写入、明细批量写入、详情 JOIN 和按订单查询明细的 SQL；这些操作超出当前 DAO 的显式主键 CRUD 合同。后续扩展 DAO 能力时按真实需求迁移，不为消除 SQL 改变主键策略或拆散聚合事务。
+
+下单内部直接读取 `Customer`、`Product`，组装 `Order` 和 `OrderItem`；商品名称、单价和明细金额作为快照字段保存在 `OrderItem` 中，不再维护重复的快照模型。详情接口继续使用 `OrderDetail` DTO 表达跨表查询结果。`record` 仅用于表达不可变数据载体，不代表独立架构层；按实际职责归包，不额外引入 BO/PO/VO 层。
 
 ## 日常开发
 
-首次配置时创建本地环境文件和数据库账号。以下命令在本示例目录执行；真实凭据只写入被 Git 忽略的 `.env`。
+首次配置时先安装包含 DAO 能力的工作区构件，再创建本地环境文件和数据库账号。以下命令在本示例目录执行；若构件安装在隔离 Maven 仓库，运行 Maven 时同时传入 `-Dmaven.repo.local=实际仓库路径`。真实凭据只写入被 Git 忽略的 `.env`。
 
 ```powershell
 Copy-Item .env.example .env
@@ -125,7 +135,7 @@ curl http://localhost:8082/orders/1
 
 ## 使用当前工作区构件验证
 
-默认 POM 消费 Maven Central 的 `ent-loom 1.0.1`。验证框架源码改动时，从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
+POM 版本仍为 `ent-loom 1.0.1`；当前重构依赖工作区 DAO 合同，不能仅凭同一版本号假设 Maven Central 已包含该能力。从 ent-loom 仓库根目录安装到隔离 Maven 仓库，再执行本示例脚本：
 
 ```bash
 repo=$(mktemp -d)

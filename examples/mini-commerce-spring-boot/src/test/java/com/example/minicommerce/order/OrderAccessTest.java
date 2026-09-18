@@ -2,9 +2,9 @@ package com.example.minicommerce.order;
 
 import com.example.minicommerce.order.service.OrderQueryService;
 import com.example.minicommerce.order.service.PlaceOrderService;
-import com.example.minicommerce.order.repository.CustomerRepository;
+import com.example.minicommerce.customer.dao.CustomerDao;
+import com.example.minicommerce.product.dao.ProductDao;
 import com.example.minicommerce.order.repository.OrderRepository;
-import com.example.minicommerce.order.repository.ProductRepository;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import com.example.minicommerce.order.controller.OrderController;
@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 业务入口必须在读取或写入数据前完成授权，不能依赖 CRUD Controller 的检查。 */
 class OrderAccessTest {
-    private final ProductRepository products = mock(ProductRepository.class);
-    private final CustomerRepository customers = mock(CustomerRepository.class);
+    private final CustomerDao customers = mock(CustomerDao.class);
+    private final ProductDao products = mock(ProductDao.class);
     private final OrderRepository orders = mock(OrderRepository.class);
 
     @Test
@@ -73,7 +73,7 @@ class OrderAccessTest {
 
     private void assertDenied(OrderAccessPolicy policy) throws Exception {
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderService(products, customers, orders, policy),
+                new PlaceOrderService(customers, products, orders, policy),
                 new OrderQueryService(orders, policy)))
             .setControllerAdvice(new OrderExceptionHandler()).build();
         mvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON)
@@ -81,7 +81,7 @@ class OrderAccessTest {
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ORDER_ACCESS_DENIED"));
         mvc.perform(get("/orders/1"))
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ORDER_ACCESS_DENIED"));
-        verifyNoInteractions(products, customers, orders);
+        verifyNoInteractions(customers, products, orders);
     }
 
     private OrderAccessPolicy policy(String subjectId, List<CrudPermissionRule> rules) {

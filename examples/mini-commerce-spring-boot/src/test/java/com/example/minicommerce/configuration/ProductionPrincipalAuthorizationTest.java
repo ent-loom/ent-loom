@@ -2,11 +2,14 @@ package com.example.minicommerce.configuration;
 
 import com.example.minicommerce.order.controller.OrderController;
 import com.example.minicommerce.order.controller.OrderExceptionHandler;
-import com.example.minicommerce.order.dto.OrderCustomerInfo;
-import com.example.minicommerce.order.dto.OrderProductInfo;
-import com.example.minicommerce.order.repository.CustomerRepository;
+import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.product.entity.Product;
+import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.OrderItem;
+import com.example.minicommerce.order.enums.OrderStatus;
+import com.example.minicommerce.customer.dao.CustomerDao;
+import com.example.minicommerce.product.dao.ProductDao;
 import com.example.minicommerce.order.repository.OrderRepository;
-import com.example.minicommerce.order.repository.ProductRepository;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.service.OrderQueryService;
 import com.example.minicommerce.order.service.PlaceOrderService;
@@ -20,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -27,7 +31,8 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,14 +44,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProductionPrincipalAuthorizationTest {
     @Test
     void authenticatedPrincipalCanPlaceOrderThroughBusinessController() throws Exception {
-        CustomerRepository customers = mock(CustomerRepository.class);
-        ProductRepository products = mock(ProductRepository.class);
+        CustomerDao customers = mock(CustomerDao.class);
+        ProductDao products = mock(ProductDao.class);
         OrderRepository orders = mock(OrderRepository.class);
-        when(customers.findById(2001L)).thenReturn(Optional.of(new OrderCustomerInfo(2001L, "Ada Lovelace")));
-        when(products.findById(1001L)).thenReturn(Optional.of(new OrderProductInfo(
-            1001L, "Entity Book", new BigDecimal("19.90"), true)));
-        when(orders.insertOrder(eq(2001L), eq(com.example.minicommerce.order.enums.OrderStatus.CREATED),
-            eq(new BigDecimal("39.80")), org.mockito.ArgumentMatchers.any())).thenReturn(3001L);
+        Customer customer = new Customer();
+        customer.setId(2001L);
+        customer.setDisplayName("Ada Lovelace");
+        Product product = new Product();
+        product.setId(1001L);
+        product.setName("Entity Book");
+        product.setPrice(new BigDecimal("19.90"));
+        product.setActive(true);
+        when(customers.findById(2001L)).thenReturn(Optional.of(customer));
+        when(products.findById(1001L)).thenReturn(Optional.of(product));
+        when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class),
+            org.mockito.ArgumentMatchers.anyList())).thenReturn(3001L);
 
         AtomicReference<HttpServletRequest> currentRequest = new AtomicReference<>();
         ObjectProvider<HttpServletRequest> requestProvider = mock(ObjectProvider.class);
@@ -56,7 +68,7 @@ class ProductionPrincipalAuthorizationTest {
             new RuleBasedCrudPermissionService(List.of(permission("alice", "PLACE")))
         );
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new OrderController(
-                new PlaceOrderService(products, customers, orders, accessPolicy),
+                new PlaceOrderService(customers, products, orders, accessPolicy),
                 new OrderQueryService(orders, accessPolicy)))
             .setControllerAdvice(new OrderExceptionHandler())
             .addInterceptors(requestContextInterceptor(currentRequest))
@@ -71,9 +83,21 @@ class ProductionPrincipalAuthorizationTest {
             .andExpect(jsonPath("$.orderId").value(3001))
             .andExpect(jsonPath("$.totalAmount").value(39.80));
 
-        verify(orders).insertOrder(eq(2001L), eq(com.example.minicommerce.order.enums.OrderStatus.CREATED),
-            eq(new BigDecimal("39.80")), org.mockito.ArgumentMatchers.any());
-        verify(orders).insertItems(eq(3001L), org.mockito.ArgumentMatchers.anyList());
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        ArgumentCaptor<List<OrderItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(orders).insert(orderCaptor.capture(), itemsCaptor.capture());
+        Order order = orderCaptor.getValue();
+        assertEquals(2001L, order.getCustomerId());
+        assertEquals(OrderStatus.CREATED, order.getStatus());
+        assertEquals(new BigDecimal("39.80"), order.getTotalAmount());
+        assertNotNull(order.getCreatedAt());
+        assertEquals(1, itemsCaptor.getValue().size());
+        OrderItem item = itemsCaptor.getValue().getFirst();
+        assertEquals(1001L, item.getProductId());
+        assertEquals("Entity Book", item.getProductName());
+        assertEquals(new BigDecimal("19.90"), item.getUnitPrice());
+        assertEquals(2, item.getQuantity());
+        assertEquals(new BigDecimal("39.80"), item.getLineAmount());
     }
 
     private CrudPermissionRule permission(String subjectId, String action) {

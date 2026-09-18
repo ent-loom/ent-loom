@@ -32,6 +32,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.github.ent-loom</groupId>
+            <artifactId>ent-loom-crud-core</artifactId>
+            <version>${ent-loom.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

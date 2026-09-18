@@ -297,7 +297,7 @@ D4.1 类型矩阵验收（2026-09-18）：`JdbcCommonTypesEntityDaoTest` 在 H2 
 - [x] 第一阶段沿用 `crud-core`、`crud-engine-jdbc` 和现有 Starter，不创建占位 Maven 模块。
 - [x] Starter 仅在实体元数据和 JDBC 依赖齐备时装配 `JdbcEntityDaoFactory`，并允许用户通过 `EntityDaoFactory` 显式覆盖。
 - [x] 默认 Factory 注入 `JdbcInsertScopeDatabaseValidator`；标准 `JdbcGuardedSqlExecutor` 自动复用底层 `DataSource`，自定义执行器必须显式传入校验器，缺失时 scoped DAO 拒绝创建。
-- [x] 普通业务 Bean 无法直接注入全量或未绑定范围的 DAO；Starter 只提供 Factory，不注册裸 `EntityDao` Bean。
+- [x] Starter 不注册未绑定范围的裸 `EntityDao`；业务通过 `@EntDao` 接口注入，每次调用由显式配置的 `EntityDaoScopeResolver` 解析可信范围，再委托 Factory。支持默认应用包扫描和 `@EntDaoScan`，缺少解析器或声明不合法时启动失败。
 - [x] Starter 将 `JdbcEntityDaoCommandHandler` 设为全局默认处理器；处理器仅对显式主键实体执行 DAO 合同，数据库生成主键等不支持实体明确回退到 `JdbcCrudCommandHandler`。
 - [x] 现有 Core 模块边界测试阻止 Core 引入 Spring/JDBC 依赖或 Starter 细节。
 

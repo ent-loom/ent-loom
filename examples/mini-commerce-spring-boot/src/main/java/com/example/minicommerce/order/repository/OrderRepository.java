@@ -1,7 +1,8 @@
 package com.example.minicommerce.order.repository;
 
 import com.example.minicommerce.order.dto.OrderDetail;
-import com.example.minicommerce.order.model.OrderItemSnapshot;
+import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
@@ -14,6 +15,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 订单聚合的最小 JDBC 持久化端口。 */
 @Repository
@@ -24,17 +27,27 @@ public class OrderRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public Long insertOrder(Long customerId, OrderStatus status, BigDecimal totalAmount, LocalDateTime createdAt) {
+    /** 在调用方事务内新增订单及明细；回填订单 ID 和明细的订单关联，明细自增 ID 不回填。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Long insert(Order order, List<OrderItem> items) {
+        Long orderId = insertOrder(order);
+        order.setId(orderId);
+        items.forEach(item -> item.setOrderId(orderId));
+        insertItems(items);
+        return orderId;
+    }
+
+    private Long insertOrder(Order order) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
                 "insert into commerce_order(customer_id, status, total_amount, created_at) values (?, ?, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS
             );
-            statement.setLong(1, customerId);
-            statement.setString(2, status.name());
-            statement.setBigDecimal(3, totalAmount);
-            statement.setTimestamp(4, Timestamp.valueOf(createdAt));
+            statement.setLong(1, order.getCustomerId());
+            statement.setString(2, order.getStatus().name());
+            statement.setBigDecimal(3, order.getTotalAmount());
+            statement.setTimestamp(4, Timestamp.valueOf(order.getCreatedAt()));
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -44,19 +57,19 @@ public class OrderRepository {
         return key.longValue();
     }
 
-    public void insertItems(Long orderId, List<OrderItemSnapshot> items) {
+    private void insertItems(List<OrderItem> items) {
         jdbcTemplate.batchUpdate(
             "insert into commerce_order_item(order_id, product_id, product_name, unit_price, quantity, line_amount) "
                 + "values (?, ?, ?, ?, ?, ?)",
             items,
             items.size(),
             (statement, item) -> {
-                statement.setLong(1, orderId);
-                statement.setLong(2, item.productId());
-                statement.setString(3, item.productName());
-                statement.setBigDecimal(4, item.unitPrice());
-                statement.setInt(5, item.quantity());
-                statement.setBigDecimal(6, item.lineAmount());
+                statement.setLong(1, item.getOrderId());
+                statement.setLong(2, item.getProductId());
+                statement.setString(3, item.getProductName());
+                statement.setBigDecimal(4, item.getUnitPrice());
+                statement.setInt(5, item.getQuantity());
+                statement.setBigDecimal(6, item.getLineAmount());
             }
         );
     }
