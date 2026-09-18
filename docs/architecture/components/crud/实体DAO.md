@@ -3,6 +3,7 @@
 > 状态：In Progress（D0-D4.3 主键 CRUD 闭环及 D4.1 数据库类型矩阵已完成；D5 待后续）<br>
 > 最近核验：2026-09-18
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
+> 自定义方法目标：[实体 DAO 自定义方法](./实体DAO自定义方法.md)
 
 当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。Starter 默认命令链对所有显式主键实体使用 DAO，单条、批量和 save-or-update 均不再调用旧主键 SQL；批量由 Handler 逐项复用 DAO，未扩张 DAO 公共合同。数据库生成主键等当前 DAO 不支持的实体由专用回退处理器承接。空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据、JDBC 安全执行器和 Factory 齐备时装配默认命令链，不注册裸 DAO。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE、触发器和字符串排序规则，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。字符串范围列必须采用 `_bin` 二进制排序规则，避免数据库把 Java 中不同的范围值判为相等；数据库默认值可以存在，但 DAO insert 始终显式绑定最终范围值。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度、范围字段类型转换和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收，未覆盖的时间类型和数据库生成策略仍按实施清单推进。
 
@@ -67,9 +68,8 @@ public EntityDaoScopeResolver entityDaoScopeResolver() {
 启动时不会解析请求范围；缺少解析器、未注册实体、主键泛型不匹配、未确定泛型或不支持的抽象方法都会使启动失败。
 范围返回 `null` 时在调用工厂前拒绝执行，不自动退回全量范围。动作授权仍由 Service 等可信调用层负责。
 
-接口可声明 `default` 方法组合基础 CRUD；内部每次 CRUD 调用仍经过代理和范围解析。
-首期不支持方法名推导查询、SQL 注解或自定义抽象查询方法，复杂 SQL 继续放在专用 Repository。
-扫描、FactoryBean 和代理位于 Starter；Core 只增加框架无关的范围解析合同。
+接口可声明 `default` 方法组合基础 CRUD；内部每次 CRUD 调用仍经过代理和范围解析。自定义抽象方法必须声明 `@EntQuery` / `@EntCommand`，由 JDBC 执行链统一完成命名参数绑定、结果映射、范围和逻辑删除治理。方法名推导 SQL 不纳入目标合同，跨聚合事务和特殊数据库能力继续使用专用 Repository。
+扫描、FactoryBean 和代理位于 Starter；Core 只保留框架无关的合同，JDBC SQL 解析与执行能力位于 JDBC 实现。
 
 ## 按访问范围获取 DAO
 

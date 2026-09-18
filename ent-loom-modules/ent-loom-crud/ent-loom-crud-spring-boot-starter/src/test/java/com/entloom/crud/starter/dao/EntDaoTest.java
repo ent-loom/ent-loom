@@ -9,6 +9,8 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.annotations.EntCommand;
+import com.entloom.crud.annotations.EntQuery;
 import com.entloom.crud.starter.config.EntDaoAutoConfiguration;
 import com.entloom.crud.starter.daofixture.TestCustomerDao;
 import java.util.Optional;
@@ -133,6 +135,18 @@ class EntDaoTest {
     }
 
     @Test
+    void dispatches_annotated_custom_methods_through_factory() {
+        direct(CustomDao.class).run(context -> {
+            CustomDao dao = context.getBean(CustomDao.class);
+            when(factory.invokeCustom(any(), any(), any(), any())).thenReturn("查询结果");
+            assertThat(dao.findByName("客户")).isEqualTo("查询结果");
+            verify(factory).validateCustomMethod(any(), argThat(method -> method.getName().equals("findByName")));
+            verify(factory).invokeCustom(any(), argThat(scope -> scope.getRowConstraint().isUnrestricted()),
+                argThat(method -> method.getName().equals("findByName")), any());
+        });
+    }
+
+    @Test
     void null_scope_fails_before_factory_access() {
         direct(TestCustomerDao.class).run(context -> {
             when(resolver.resolve(any())).thenReturn(null);
@@ -193,6 +207,13 @@ class EntDaoTest {
     interface WrongIdDao extends EntityDao<String, Integer> {}
     interface RawDao extends EntityDao {}
     interface UnsupportedDao extends EntityDao<String, Long> { String findByName(String name); }
+    interface CustomDao extends EntityDao<String, Long> {
+        @EntQuery("select * from customer where name = :name")
+        String findByName(String name);
+
+        @EntCommand("update customer set name = :name where id = :id")
+        int updateName(Long id, String name);
+    }
     interface GenericDao<T> extends EntityDao<T, Long> {}
     interface InheritedDao extends GenericDao<String> {}
 }

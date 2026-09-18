@@ -17,6 +17,11 @@
         </dependency>
         <dependency>
             <groupId>io.github.ent-loom</groupId>
+            <artifactId>ent-loom-crud-annotations</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.ent-loom</groupId>
             <artifactId>ent-loom-meta-enums</artifactId>
             <version>${project.version}</version>
         </dependency>

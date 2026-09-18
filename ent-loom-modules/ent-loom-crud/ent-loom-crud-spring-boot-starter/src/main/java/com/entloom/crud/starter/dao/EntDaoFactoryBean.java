@@ -5,6 +5,8 @@ import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityDaoScopeResolver;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.annotations.EntCommand;
+import com.entloom.crud.annotations.EntQuery;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -42,12 +44,21 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
             throw new IllegalArgumentException("DAO 必须指定实体与主键类型: " + daoType.getName());
         }
         EntityType<?, ?> entityType = EntityType.of(type.getGeneric(0).resolve(), type.getGeneric(1).resolve());
+        EntityDaoFactory factory = beanFactory.getBean(EntityDaoFactory.class);
         for (var method : daoType.getMethods()) {
             if (!method.isDefault() && !Modifier.isStatic(method.getModifiers())) {
                 try {
                     EntityDao.class.getMethod(method.getName(), method.getParameterTypes());
                 } catch (NoSuchMethodException exception) {
-                    throw new IllegalArgumentException("DAO 暂不支持自定义抽象方法，请使用 default 方法: " + method, exception);
+                    boolean customQuery = method.isAnnotationPresent(EntQuery.class);
+                    boolean customCommand = method.isAnnotationPresent(EntCommand.class);
+                    if (customQuery == customCommand) {
+                        throw new IllegalArgumentException(
+                            "DAO 自定义抽象方法必须且只能声明 @EntQuery 或 @EntCommand: " + method,
+                            exception
+                        );
+                    }
+                    factory.validateCustomMethod(entityType, method);
                 }
             }
         }
@@ -60,7 +71,6 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
             || !ClassUtils.resolvePrimitiveIfNecessary(id.getJavaType()).equals(entityType.getIdClass())) {
             throw new IllegalArgumentException("DAO 主键类型与实体元数据不一致: " + daoType.getName());
         }
-        EntityDaoFactory factory = beanFactory.getBean(EntityDaoFactory.class);
         EntityDaoScopeResolver scopeResolver = beanFactory.getBean(EntityDaoScopeResolver.class);
         proxy = daoType.cast(Proxy.newProxyInstance(daoType.getClassLoader(), new Class<?>[]{daoType},
             (instance, method, args) -> {
@@ -77,6 +87,9 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
                 }
                 var scope = Objects.requireNonNull(scopeResolver.resolve(entityType), "DAO 范围解析结果不能为空");
                 try {
+                    if (method.isAnnotationPresent(EntQuery.class) || method.isAnnotationPresent(EntCommand.class)) {
+                        return factory.invokeCustom(entityType, scope, method, args);
+                    }
                     return EntityDao.class.getMethod(method.getName(), method.getParameterTypes())
                         .invoke(factory.scoped(entityType, scope), args);
                 } catch (InvocationTargetException exception) {

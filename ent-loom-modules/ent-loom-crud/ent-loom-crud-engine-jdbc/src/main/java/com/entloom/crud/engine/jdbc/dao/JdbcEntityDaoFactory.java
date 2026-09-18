@@ -17,6 +17,7 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
+import java.lang.reflect.Method;
 
 /**
  * JDBC 实体 DAO 工厂。
@@ -111,6 +112,46 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
 
     @Override
     public <T, ID> EntityDao<T, ID> scoped(EntityType<T, ID> entityType, EntityAccessScope scope) {
+        ScopedEntity scoped = resolveScopedEntity(entityType, scope);
+        return new JdbcEntityDao<T, ID>(
+            entityType,
+            scoped.meta,
+            scoped.scope,
+            guardedSqlExecutor,
+            new JdbcEntityPredicateCompiler(dialect, maxParameters),
+            dialect
+        );
+    }
+
+    @Override
+    public void validateCustomMethod(EntityType<?, ?> entityType, Method method) {
+        if (entityType == null || method == null) {
+            throw new ValidationException("DAO 自定义方法的实体类型和方法不能为空");
+        }
+        EntityMeta meta = metaRegistry.getEntityMeta(entityType.getEntityClass());
+        validateEntityType(entityType, meta);
+        validateDatabaseStructure(meta);
+        JdbcEntityDaoCustomMethodExecutor.validate(method, meta, dialect, maxParameters);
+    }
+
+    @Override
+    public Object invokeCustom(
+        EntityType<?, ?> entityType,
+        EntityAccessScope scope,
+        Method method,
+        Object[] args
+    ) {
+        ScopedEntity scoped = resolveScopedEntity(entityType, scope);
+        return new JdbcEntityDaoCustomMethodExecutor(
+            scoped.meta,
+            scoped.scope,
+            guardedSqlExecutor,
+            dialect,
+            maxParameters
+        ).invoke(method, args);
+    }
+
+    private ScopedEntity resolveScopedEntity(EntityType<?, ?> entityType, EntityAccessScope scope) {
         if (entityType == null || scope == null) {
             throw new ValidationException("EntityType 和 EntityAccessScope 不能为空");
         }
@@ -119,14 +160,17 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         validateDatabaseStructure(meta);
         RowConstraint normalizedScope = RowConstraintNormalizer.normalize(scope.getRowConstraint(), meta);
         validateScope(normalizedScope, meta);
-        return new JdbcEntityDao<T, ID>(
-            entityType,
-            meta,
-            normalizedScope,
-            guardedSqlExecutor,
-            new JdbcEntityPredicateCompiler(dialect, maxParameters),
-            dialect
-        );
+        return new ScopedEntity(meta, normalizedScope);
+    }
+
+    private static final class ScopedEntity {
+        private final EntityMeta meta;
+        private final RowConstraint scope;
+
+        private ScopedEntity(EntityMeta meta, RowConstraint scope) {
+            this.meta = meta;
+            this.scope = scope;
+        }
     }
 
     private void validateDatabaseStructure(EntityMeta meta) {

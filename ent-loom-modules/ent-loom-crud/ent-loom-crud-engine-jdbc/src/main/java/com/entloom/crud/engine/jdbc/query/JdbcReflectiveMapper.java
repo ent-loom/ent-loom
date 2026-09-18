@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * 查询结果的反射映射与关系绑定器。
  */
-class JdbcReflectiveMapper {
+public class JdbcReflectiveMapper {
     /** 值转换器。 */
     private final JdbcValueConverter valueConverter;
     /** 字段解析器。 */
@@ -24,7 +24,7 @@ class JdbcReflectiveMapper {
     /** 对象图遍历器。 */
     private final JdbcObjectGraphCollector objectGraphCollector;
 
-    JdbcReflectiveMapper() {
+    public JdbcReflectiveMapper() {
         this(new JdbcValueConverter(), false);
     }
 
@@ -47,7 +47,7 @@ class JdbcReflectiveMapper {
      * 将结果行映射为目标对象。
      */
     @SuppressWarnings("unchecked")
-    <R> R mapRow(Map<String, Object> row, Class<R> viewType) {
+    public <R> R mapRow(Map<String, Object> row, Class<R> viewType) {
         if (CrudRecord.class.isAssignableFrom(viewType)) {
             return (R) CrudRecord.copyOf(row);
         }
