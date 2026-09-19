@@ -34,11 +34,6 @@ public @interface EntEntity {
     String service() default "";
 
     /**
-     * 默认标签字段集合，用于拼接展示文本。
-     */
-    String[] defaultLabelFields() default {};
-
-    /**
      * 预估数据量，-1 表示未设置。
      */
     long plannedVolume() default -1L;
