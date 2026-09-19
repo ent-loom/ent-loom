@@ -47,7 +47,7 @@ public @interface EntField {
     TypedValueType createDefaultValueType() default TypedValueType.UNSET;
 
     /**
-     * 业务字段必填约束；UNSET 优先继承实体默认策略，并兼容从 Validation 默认组推断。
+     * 业务字段必填约束；UNSET 表示未显式声明，并兼容从 Validation 默认组推断。
      * 字段类型只决定校验方式，不决定是否必填；该属性不表达数据库非空或响应字段存在性。
      */
     OptionalBoolean required() default OptionalBoolean.UNSET;

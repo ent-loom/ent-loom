@@ -165,7 +165,7 @@ docker compose down -v
 
 ## 实体必填约定
 
-本示例采用 [实体必填约束与统一校验](../../docs/evolution/decisions/core/实体必填约束与统一校验.md)：Customer/Product 通过 `fieldsRequiredByDefault = TRUE` 启用普通字段默认必填，生成 ID 以字段 `FALSE` 声明创建输入例外。框架按类型检查字符串非空白、数组/集合/Map 非空、其他值非 null；0 和 false 合法，文案默认由 label 生成。
+本示例采用 [实体必填约束与统一校验](../../docs/evolution/decisions/core/实体必填约束与统一校验.md)：Customer/Product 将业务字段的必填约束直接声明在字段上，生成 ID 以字段 `FALSE` 声明创建输入例外。框架按类型检查字符串非空白、数组/集合/Map 非空、其他值非 null；0 和 false 合法，文案默认由 label 生成。
 
 默认值、系统赋值和必填约束独立，先在相应阶段赋值再校验；生成主键不要求客户端输入。局部更新区分未传与显式清空。Doc/UI 提示覆盖不能修改服务端规则，DDL 可空性单独声明。
 

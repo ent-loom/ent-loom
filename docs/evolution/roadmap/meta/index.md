@@ -13,7 +13,7 @@ Meta -> CRUD / DOC / DDL 的静态 Adapter 已形成当前闭环。这里仅跟�
 
 ### 实体必填约束闭环
 
-- [x] 将 required 升级为业务约束，补齐可启用的实体默认必填策略及字段三态裁决，保留来源；Validation 仅作可选补充。
+- [x] 将 required 升级为业务约束，采用字段级显式必填/可选声明并保留来源；Validation 仅作可选补充。
 - [x] 分离业务约束和输入提示，修正“默认值/只读/生成字段直接 required=false”的旧推断。
 - [x] 投影 required 和 label 到 CRUD Runtime Model，由公共校验器覆盖默认创建、强类型 Handler、DAO 命令创建及其批量 CREATE 子命令。
 - [ ] 建立业务默认值的统一赋值阶段，并补齐只读、应用生成字段在各阶段的处理。

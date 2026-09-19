@@ -15,8 +15,7 @@ import lombok.Setter;
     label = "客户",
     description = "商城客户主数据",
     service = "mini-commerce",
-    defaultLabelFields = {"displayName"},
-    fieldsRequiredByDefault = OptionalBoolean.TRUE
+    defaultLabelFields = {"displayName"}
 )
 @EntCrudEntity(name = "customer", table = "customer", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)
@@ -29,11 +28,11 @@ public class Customer {
     private Long id;
 
     /** 客户展示名称。 */
-    @EntField(label = "客户名称")
+    @EntField(label = "客户名称", required = OptionalBoolean.TRUE)
     private String displayName;
 
     /** 客户联系邮箱。 */
-    @EntField(label = "邮箱")
+    @EntField(label = "邮箱", required = OptionalBoolean.TRUE)
     private String email;
 
 }

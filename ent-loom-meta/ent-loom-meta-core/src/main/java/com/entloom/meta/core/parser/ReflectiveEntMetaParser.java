@@ -127,7 +127,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             EntField entField = findAnnotation(field, EntField.class);
             EntRelation relation = findAnnotation(field, EntRelation.class);
             if (shouldDescribeAsField(field, entField, relation)) {
-                fields.add(toFieldDescriptor(entityClass, entity, field, entField, diagnostics));
+                fields.add(toFieldDescriptor(entityClass, field, entField, diagnostics));
             }
             if (relation != null) {
                 relations.add(toRelationDescriptor(field, relation));
@@ -157,7 +157,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
 
     private EntFieldDescriptor toFieldDescriptor(
         Class<?> entityClass,
-        EntEntity entity,
         Field field,
         EntField entField,
         MetaDiagnosticCollector diagnostics
@@ -181,8 +180,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         }
         SourcedValue<Boolean> required = RequiredInference.resolve(
             field,
-            entField,
-            entity.fieldsRequiredByDefault()
+            entField
         );
         sources.put(MetaDescriptorProperties.REQUIRED, required);
         return new DefaultEntFieldDescriptor(

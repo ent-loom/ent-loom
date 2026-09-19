@@ -14,17 +14,10 @@ final class RequiredInference {
 
     static SourcedValue<Boolean> resolve(
         Field field,
-        EntField meta,
-        OptionalBoolean fieldsRequiredByDefault
+        EntField meta
     ) {
         if (meta != null && meta.required() != OptionalBoolean.UNSET) {
             return SourcedValue.metaExplicit(meta.required() == OptionalBoolean.TRUE);
-        }
-        if (fieldsRequiredByDefault == OptionalBoolean.TRUE) {
-            return SourcedValue.inferred(Boolean.TRUE);
-        }
-        if (fieldsRequiredByDefault == OptionalBoolean.FALSE) {
-            return SourcedValue.inferred(Boolean.FALSE);
         }
         if (hasRequiredConstraint(field.getAnnotations())) {
             return SourcedValue.inferred(Boolean.TRUE);

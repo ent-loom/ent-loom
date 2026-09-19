@@ -1,6 +1,5 @@
 package com.entloom.meta.annotations;
 
-import com.entloom.base.common.OptionalBoolean;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -43,10 +42,4 @@ public @interface EntEntity {
      * 预估数据量，-1 表示未设置。
      */
     long plannedVolume() default -1L;
-
-    /**
-     * 普通可写字段是否默认必填；UNSET 表示不启用实体级默认策略。
-     * 字段可通过 {@link EntField#required()} 显式覆盖。
-     */
-    OptionalBoolean fieldsRequiredByDefault() default OptionalBoolean.UNSET;
 }

@@ -19,7 +19,7 @@ class RequiredInferenceTest {
         assertRequired("amount", true, MetaValueSource.INFERRED);
         assertRequired("getterValue", true, MetaValueSource.INFERRED);
         assertRequired("defaultGroup", true, MetaValueSource.INFERRED);
-        assertRequired("groupOnly", true, MetaValueSource.INFERRED);
+        assertRequired("groupOnly", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
         assertRequired("optional", false, MetaValueSource.META_EXPLICIT);
         assertRequired("forced", true, MetaValueSource.META_EXPLICIT);
         assertRequired("defaulted", true, MetaValueSource.INFERRED);
@@ -44,7 +44,7 @@ class RequiredInferenceTest {
         ACTIVE
     }
 
-    @EntEntity(entity = "required_input", fieldsRequiredByDefault = OptionalBoolean.TRUE)
+    @EntEntity(entity = "required_input")
     public static class Input {
         /** 名称。 */
         @javax.validation.constraints.NotBlank

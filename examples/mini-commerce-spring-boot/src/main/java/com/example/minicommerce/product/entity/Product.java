@@ -16,8 +16,7 @@ import lombok.Setter;
     label = "商品",
     description = "商城商品主数据",
     service = "mini-commerce",
-    defaultLabelFields = {"name"},
-    fieldsRequiredByDefault = OptionalBoolean.TRUE
+    defaultLabelFields = {"name"}
 )
 @EntCrudEntity(name = "product", table = "product", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)
@@ -30,15 +29,15 @@ public class Product {
     private Long id;
 
     /** 商品名称。 */
-    @EntField(label = "商品名称")
+    @EntField(label = "商品名称", required = OptionalBoolean.TRUE)
     private String name;
 
     /** 当前销售价；下单时会复制为订单明细价格快照。 */
-    @EntField(label = "销售价")
+    @EntField(label = "销售价", required = OptionalBoolean.TRUE)
     private BigDecimal price;
 
     /** 商品是否允许下单。 */
-    @EntField(label = "启用状态")
+    @EntField(label = "启用状态", required = OptionalBoolean.TRUE)
     private Boolean active;
 
 }

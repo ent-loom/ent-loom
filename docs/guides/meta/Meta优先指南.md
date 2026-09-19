@@ -32,11 +32,10 @@ Runtime Model 是组件最终执行契约
 
 ```java
 @EntEntity(
-    entity = "student",
-    fieldsRequiredByDefault = OptionalBoolean.TRUE
+    entity = "student"
 )
 public class Student {
-    @EntField(label = "姓名")
+    @EntField(label = "姓名", required = OptionalBoolean.TRUE)
     private String studentName;
 
     @EntField(label = "备注", required = OptionalBoolean.FALSE)
@@ -44,7 +43,7 @@ public class Student {
 }
 ```
 
-`EntField.required` 表达业务字段必填约束，CRUD 创建链按字段类型统一校验，Doc/UI 继承展示；业务不必区分 `NotNull`、`NotBlank`、`NotEmpty`。可通过 `@EntEntity(fieldsRequiredByDefault = OptionalBoolean.TRUE)` 启用实体默认必填，字段 `FALSE` 表达可选例外，`UNSET` 继承策略。文案默认由 label 生成。
+`EntField.required` 表达业务字段必填约束，CRUD 创建链按字段类型统一校验，Doc/UI 继承展示；业务不必区分 `NotNull`、`NotBlank`、`NotEmpty`。必填与可选都直接声明在字段上，未声明时保持未知，或按 Validation 默认组提供补充推断。文案默认由 label 生成。
 
 当前创建最小闭环已实现，更新显式清空、统一默认值赋值和结构化错误仍在演进。类型映射、执行边界及兼容规则见 [实体必填约束与统一校验](../../evolution/decisions/core/实体必填约束与统一校验.md)。
 
