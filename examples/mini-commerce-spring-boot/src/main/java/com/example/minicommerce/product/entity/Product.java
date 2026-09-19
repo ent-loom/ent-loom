@@ -25,7 +25,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Product {
     /** 商品主键。 */
-    @EntField(label = "商品 ID", required = OptionalBoolean.FALSE)
+    @EntField(label = "商品 ID")
     private Long id;
 
     /** 商品名称。 */

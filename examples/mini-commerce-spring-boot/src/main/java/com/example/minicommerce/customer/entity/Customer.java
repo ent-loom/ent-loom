@@ -24,7 +24,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
-    @EntField(label = "客户 ID", required = OptionalBoolean.FALSE)
+    @EntField(label = "客户 ID")
     private Long id;
 
     /** 客户展示名称。 */
