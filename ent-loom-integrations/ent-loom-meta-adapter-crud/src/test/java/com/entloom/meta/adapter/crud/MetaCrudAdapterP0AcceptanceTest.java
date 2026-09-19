@@ -28,6 +28,21 @@ import org.junit.jupiter.api.Test;
 class MetaCrudAdapterP0AcceptanceTest {
 
     @Test
+    void 输入必填提示不改变Crud空值能力() {
+        CrudRuntimeEntityModel model = new MetaCrudAdapter(
+            Collections.<Class<?>>singletonList(InputHintEntity.class))
+            .runtimeModel().getEntity(InputHintEntity.class);
+        Assertions.assertTrue(model.getField("name").isNullable());
+    }
+
+    @EntEntity(entity = "input_hint_entity")
+    static class InputHintEntity {
+        /** 必填提示不构成服务端非空约束。 */
+        @EntField(required = com.entloom.base.common.OptionalBoolean.TRUE)
+        private String name;
+    }
+
+    @Test
     void p0_crud_acceptance_should_cover_meta_only_crud_only_override_and_relation_direction() {
         MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(
             MetaOnlyOrder.class,

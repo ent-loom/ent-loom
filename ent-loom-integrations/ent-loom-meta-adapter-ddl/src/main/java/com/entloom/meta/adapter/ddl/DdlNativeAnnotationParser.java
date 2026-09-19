@@ -10,6 +10,7 @@ import com.entloom.ddl.enums.IndexType;
 import com.entloom.ddl.enums.NamingStrategy;
 import com.entloom.ddl.enums.UniqueScope;
 import com.entloom.ddl.enums.SqlType;
+import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
@@ -28,7 +29,7 @@ import java.util.Map;
 final class DdlNativeAnnotationParser {
     DdlNativeEntityModel parse(Class<?> entityClass, MetaDiagnosticCollector diagnostics) {
         EntDdlEntity entity = entityClass.getAnnotation(EntDdlEntity.class);
-        if (entity == null) {
+        if (entity == null && entityClass.getAnnotation(EntEntity.class) == null) {
             return null;
         }
         Map<String, DdlNativeFieldModel> fields = new LinkedHashMap<String, DdlNativeFieldModel>();
@@ -49,18 +50,18 @@ final class DdlNativeAnnotationParser {
             }
         }
         return new DdlNativeEntityModel(
-            blankAsNull(entity.table()) == null
-                ? SourcedValue.inferred(entity.namingStrategy() == NamingStrategy.AS_IS
+            entity == null || blankAsNull(entity.table()) == null
+                ? SourcedValue.inferred(entity != null && entity.namingStrategy() == NamingStrategy.AS_IS
                     ? entityClass.getSimpleName()
                     : toSnake(entityClass.getSimpleName()))
                 : nativeValue(entity.table().trim()),
-            blankAsNull(entity.schema()) == null
+            entity == null || blankAsNull(entity.schema()) == null
                 ? SourcedValue.unknown(null)
                 : nativeValue(entity.schema().trim()),
-            blankAsNull(entity.comment()) == null
+            entity == null || blankAsNull(entity.comment()) == null
                 ? SourcedValue.unknown(null)
                 : nativeValue(entity.comment().trim()),
-            entity.size() == DdlTableSize.UNSET
+            entity == null || entity.size() == DdlTableSize.UNSET
                 ? SourcedValue.unknown(null)
                 : nativeValue(entity.size()),
             fields,
@@ -81,7 +82,7 @@ final class DdlNativeAnnotationParser {
         String column = annotation == null ? null : blankAsNull(annotation.column());
         String definition = annotation == null ? null : blankAsNull(annotation.columnDefinition());
         Boolean nullable = annotation == null || annotation.nullable() == OptionalBoolean.UNSET
-            ? Boolean.valueOf(!field.getType().isPrimitive())
+            ? Boolean.FALSE
             : Boolean.valueOf(annotation.nullable() == OptionalBoolean.TRUE);
         Boolean unique = annotation == null || annotation.unique() == OptionalBoolean.UNSET
             ? Boolean.FALSE

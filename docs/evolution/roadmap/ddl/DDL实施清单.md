@@ -223,7 +223,7 @@ E4 映射边界：
 | `description` | 实体 / 字段 `comment` | 仅作为通用说明投影；DDL 显式注释优先 |
 | `fieldName`、`javaType` | `fieldName`、`javaType` | 保留 Java 字段身份和类型，物理列名按 snake_case 推导 |
 | `EntFieldKind.ID` | `primaryKey` | ID 字段投影为主键；通用 `EntMetaId.AUTO` 不自动推导数据库生成策略，数据库自增必须由 DDL 原生属性显式声明 |
-| `required`、文本长度、数值精度 / 小数位约束 | `nullable`、`length`、`precision`、`scale` | 只投影可表达的通用结构约束；业务 `createDefaultValue` 不转成数据库 DEFAULT |
+| 文本长度、数值精度 / 小数位约束 | `length`、`precision`、`scale` | 输入提示 `required` 不投影为 `nullable`；DDL 默认非空，可空例外由 DDL 显式声明；业务 `createDefaultValue` 不转成数据库 DEFAULT |
 | `EntIndexDescriptor` | `DdlIndexMetadata` | Meta 字段名先转换为物理列名；唯一性和字段顺序保留 |
 | `EntRelationDescriptor` | 无直接 DDL 结构 | E4 只要求 source field 可作为字段投影，不生成外键、联表或跨服务结构 |
 | DDL `schema`、表规模、列定义、数据库默认值、重命名、生成策略、表达式索引 | DDL 专属属性 | Runtime Model 已支持的属性仅保留在 DDL 模型，不扩张通用 Meta Contract；暂未承接的显式属性发出 `CONSUMER_UNSUPPORTED_PROPERTY` 警告 |
@@ -234,7 +234,7 @@ E4 验收证据（2026-08-25）：
 
 - [x] 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-integrations/ent-loom-meta-adapter-ddl -am test`。
 - [x] 测试结果：`ent-loom-meta-adapter-ddl` 7 项、上游 `ent-loom-meta-core` 21 项、`ent-loom-ddl-core` 25 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
-- [x] 合同覆盖：Meta-only 的表名、主键、长度、精度、索引和不自动推导数据库生成策略；DDL-only 的 schema、注释、表规模、数据库默认值、重命名、显式生成策略和唯一索引；Meta + DDL override 的优先级及 `nullable` 显式冲突诊断；`AS_IS` 命名策略；未承接 DDL 属性的结构化警告；空输入、重复类去重和稳定排序。
+- [x] 合同覆盖：Meta-only 的表名、主键、长度、精度、索引和不自动推导数据库生成策略；DDL-only 的 schema、注释、表规模、数据库默认值、重命名、显式生成策略和唯一索引；Meta + DDL override 的优先级及输入必填与可空性解耦；`AS_IS` 命名策略；未承接 DDL 属性的结构化警告；空输入、重复类去重和稳定排序。
 - [x] 边界验证：适配器仅依赖 Meta Core、DDL Annotations / Core；实现和测试不引入 Spring、Servlet、Starter；测试只通过 `MetaDdlAdapter`、DDL API、Meta Annotations / Diagnostics 等公开 API 验证。
 - [x] 阶段门禁：Meta-first 实体的通用字段、主键、索引和类型参数可投影为与等价 DDL-native 声明一致的 DDL Runtime Model；DDL 专属属性不进入通用 Meta。
 

@@ -63,7 +63,8 @@ public @interface EntDdlField {
     OptionalBoolean persisted() default OptionalBoolean.UNSET;
 
     /**
-     * 是否允许为 null。UNSET 表示按类型和策略推导。
+     * 数据库列是否允许 NULL；UNSET 默认非空，可空例外显式设为 TRUE。
+     * 主键不可为空；与输入必填提示无关。
      */
     OptionalBoolean nullable() default OptionalBoolean.UNSET;
 

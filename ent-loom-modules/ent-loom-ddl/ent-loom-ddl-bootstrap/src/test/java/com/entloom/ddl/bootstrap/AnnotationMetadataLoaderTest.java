@@ -28,6 +28,7 @@ class AnnotationMetadataLoaderTest {
 
         assertTrue(id.primaryKey());
         assertFalse(id.nullable());
+        assertFalse(entities.get(0).fields().get(1).nullable());
     }
 
     @EntDdlEntity(table = "account")

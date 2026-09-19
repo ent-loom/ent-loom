@@ -47,7 +47,8 @@ public @interface EntField {
     TypedValueType createDefaultValueType() default TypedValueType.UNSET;
 
     /**
-     * 是否必填，UNSET 表示由类型推断或上层策略决定。
+     * 默认输入必填提示，供 Doc/UI 继承并覆盖；UNSET 表示未声明。
+     * 不表达数据库非空、响应字段存在性，也不触发服务端业务校验。
      */
     OptionalBoolean required() default OptionalBoolean.UNSET;
 

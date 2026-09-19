@@ -27,7 +27,7 @@ public @interface EntDocField {
     /** 示例值 */
     String example() default "";
 
-    /** 是否必填，UNSET 表示未显式设置。 */
+    /** 输入必填提示；UNSET 时可继承 Meta 提示，不保证响应字段存在，也不执行校验。 */
     OptionalBoolean required() default OptionalBoolean.UNSET;
 
     /** 最大长度（-1 表示未知或不限制） */

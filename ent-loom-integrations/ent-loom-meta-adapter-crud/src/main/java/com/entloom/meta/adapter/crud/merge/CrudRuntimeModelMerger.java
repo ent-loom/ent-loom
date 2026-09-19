@@ -113,9 +113,9 @@ public class CrudRuntimeModelMerger {
             if (column == null) {
                 column = SourcedValue.inferred(NamingUtils.camelToSnake(fieldName));
             }
-            SourcedValue<Boolean> nullable = metaField == null
-                ? nativeField == null ? SourcedValue.inferred(Boolean.TRUE) : nativeField.nullable()
-                : SourcedValue.metaExplicit(Boolean.valueOf(metaField.required() == null || !metaField.required().booleanValue()));
+            // 输入必填提示不参与 CRUD 空值能力裁决。
+            SourcedValue<Boolean> nullable = nativeField == null
+                ? SourcedValue.inferred(Boolean.valueOf(!javaType.isPrimitive())) : nativeField.nullable();
             SourcedValue<Boolean> writable = resolveWritable(entityClass, fieldName, metaField, nativeField, diagnostics);
             fields.add(new CrudFieldRuntimeModel(
                 fieldName,

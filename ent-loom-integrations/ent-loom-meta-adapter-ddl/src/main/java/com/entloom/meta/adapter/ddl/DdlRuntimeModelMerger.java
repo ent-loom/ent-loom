@@ -146,8 +146,7 @@ final class DdlRuntimeModelMerger {
         SourcedValue<Boolean> nullable = choose(
             "nullable", entityClass, fieldName,
             nativeField == null ? null : nativeField.nullable(),
-            metaNullable(metaField),
-            SourcedValue.inferred(Boolean.valueOf(!javaType.isPrimitive())),
+            SourcedValue.defaulted(Boolean.FALSE),
             diagnostics
         );
         SourcedValue<Boolean> unique = choose(
@@ -381,19 +380,6 @@ final class DdlRuntimeModelMerger {
             }
         }
         return result;
-    }
-
-    private SourcedValue<Boolean> metaNullable(EntFieldDescriptor field) {
-        if (field == null) {
-            return null;
-        }
-        if (field.required() != null) {
-            return sourced(field, MetaDescriptorProperties.REQUIRED, Boolean.valueOf(!field.required().booleanValue()));
-        }
-        if (isId(field)) {
-            return sourced(field, MetaDescriptorProperties.FIELD_KIND, Boolean.FALSE);
-        }
-        return SourcedValue.inferred(Boolean.valueOf(!field.javaType().isPrimitive()));
     }
 
     private SourcedValue<Boolean> metaPrimaryKey(EntFieldDescriptor field) {

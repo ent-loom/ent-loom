@@ -35,6 +35,9 @@ Runtime Model 是组件最终执行契约
 private String studentName;
 ```
 
+`EntField.required` 仅为默认输入必填提示：Doc 可继承并显式覆盖，未来 UI 按具体表单/场景覆盖；不保证响应字段存在，也不触发服务端业务校验。
+数据库可空性独立：DDL 默认非空，可空例外使用 `@EntDdlField(nullable = OptionalBoolean.TRUE)`，主键不可为空。默认值另行声明，不自动补零或空字符串。
+
 通用关系同样由 Meta 声明：
 
 ```java

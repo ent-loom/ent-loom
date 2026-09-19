@@ -89,7 +89,8 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertEquals("native_display", field(model, "displayName").columnName());
         Assertions.assertEquals(24, field(model, "displayName").length());
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "tableName"));
-        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "nullable"));
+        Assertions.assertTrue(field(model, "displayName").nullable());
+        Assertions.assertFalse(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "nullable"));
         Assertions.assertEquals(2, adapter.models().size());
     }
 
@@ -147,6 +148,28 @@ class MetaDdlAdapterP0AcceptanceTest {
             Assertions.assertEquals(metaField.generationStrategy(), nativeField.generationStrategy());
         }
         Assertions.assertEquals(metaModel.indexes(), nativeModel.indexes());
+    }
+
+    @Test
+    void 输入提示不影响存储且引用类型默认非空() {
+        DdlEntityMetadata model = new MetaDdlAdapter(
+            Collections.<Class<?>>singletonList(InputHintAccount.class)).models().get(0);
+        Assertions.assertFalse(field(model, "optionalInput").nullable());
+        Assertions.assertFalse(field(model, "unspecifiedInput").nullable());
+        Assertions.assertTrue(field(model, "requiredInput").nullable());
+    }
+
+    @EntEntity(entity = "input_hint_account")
+    static class InputHintAccount {
+        /** 输入可选，但存储默认非空。 */
+        @EntField(required = OptionalBoolean.FALSE)
+        private String optionalInput;
+        /** 包装类型不自动视为数据库可空。 */
+        private Long unspecifiedInput;
+        /** 输入提示与显式数据库可空可以并存。 */
+        @EntField(required = OptionalBoolean.TRUE)
+        @EntDdlField(nullable = OptionalBoolean.TRUE)
+        private String requiredInput;
     }
 
     private DdlFieldMetadata field(DdlEntityMetadata model, String fieldName) {

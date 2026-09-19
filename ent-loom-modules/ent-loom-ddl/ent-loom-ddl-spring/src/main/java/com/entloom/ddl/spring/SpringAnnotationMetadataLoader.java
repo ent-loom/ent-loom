@@ -105,9 +105,7 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             if (!primaryKey && "id".equals(field.getName())) {
                 primaryKey = true;
             }
-            boolean nullable = ann == null
-                    ? !field.getType().isPrimitive()
-                    : (ann.nullable() == OptionalBoolean.UNSET ? !field.getType().isPrimitive() : ann.nullable() == OptionalBoolean.TRUE);
+            boolean nullable = ann != null && ann.nullable() == OptionalBoolean.TRUE;
             if (primaryKey && (ann == null || ann.nullable() != OptionalBoolean.TRUE)) {
                 nullable = false;
             }
