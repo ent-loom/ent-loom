@@ -87,7 +87,9 @@ class MetaModuleBoundaryGuardTest {
                 "com.entloom:ent-loom-meta-annotations",
                 "com.entloom:ent-loom-meta-contract",
                 "org.junit.jupiter:junit-jupiter-api",
-                "com.tngtech.archunit:archunit"
+                "com.tngtech.archunit:archunit",
+                "javax.validation:validation-api",
+                "jakarta.validation:jakarta.validation-api"
             )),
             dependencies
         );
@@ -158,6 +160,10 @@ class MetaModuleBoundaryGuardTest {
         for (int i = 0; i < dependencies.getLength(); i++) {
             Node dependency = dependencies.item(i);
             String groupId = childText(dependency, "groupId");
+            if ("javax.validation".equals(groupId) || "jakarta.validation".equals(groupId)) {
+                Assertions.assertEquals("test", childText(dependency, "scope"),
+                    "Validation API 仅供推断回归测试，不得成为 Core 运行时依赖");
+            }
             String artifactId = childText(dependency, "artifactId");
             artifacts.add(resolveProjectGroup(groupId) + ":" + artifactId);
         }

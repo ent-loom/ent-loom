@@ -1,6 +1,5 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
@@ -20,31 +19,31 @@ import lombok.Setter;
 @NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
-    @EntField(label = "明细 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "明细 ID")
     private Long id;
 
     /** 所属订单主键，由订单聚合保存时填充。 */
-    @EntField(label = "订单 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "订单 ID")
     private Long orderId;
 
     /** 下单商品主键。 */
-    @EntField(label = "商品 ID", required = OptionalBoolean.TRUE)
+        @EntField(label = "商品 ID")
     private Long productId;
 
     /** 下单时的商品名称快照，不随商品主数据变化。 */
-    @EntField(label = "商品名称", required = OptionalBoolean.TRUE)
+    @EntField(label = "商品名称")
     private String productName;
 
     /** 下单时的商品单价快照。 */
-    @EntField(label = "成交单价", required = OptionalBoolean.TRUE)
+    @EntField(label = "成交单价")
     private BigDecimal unitPrice;
 
     /** 购买数量，业务层校验为正数。 */
-    @EntField(label = "购买数量", required = OptionalBoolean.TRUE)
+    @EntField(label = "购买数量")
     private Integer quantity;
 
     /** 成交单价乘以购买数量，由业务层计算。 */
-    @EntField(label = "明细金额", required = OptionalBoolean.TRUE)
+    @EntField(label = "明细金额")
     private BigDecimal lineAmount;
 
 }

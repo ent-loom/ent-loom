@@ -178,6 +178,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         if (conventionValues.readOnly != null || conventionValues.readOnlySource != null) {
             sources.put(MetaDescriptorProperties.READ_ONLY, conventionValues.readOnlySource);
         }
+        SourcedValue<Boolean> required = RequiredInference.resolve(field, entField, conventionValues.readOnly);
+        sources.put(MetaDescriptorProperties.REQUIRED, required);
         return new DefaultEntFieldDescriptor(
             field.getName(),
             field.getType(),
@@ -190,7 +192,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             defaultValue.valueType,
             defaultValue.typedValue,
             constraints,
-            entField == null ? null : toBoolean(entField.required()),
+            required.value(),
             conventionValues.readOnly,
             sources
         );

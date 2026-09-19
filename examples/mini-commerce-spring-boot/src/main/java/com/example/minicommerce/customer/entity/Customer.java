@@ -1,9 +1,9 @@
 package com.example.minicommerce.customer.entity;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,15 +22,17 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
-    @EntField(label = "客户 ID", required = OptionalBoolean.TRUE)
+    @EntField(label = "客户 ID")
     private Long id;
 
     /** 客户展示名称。 */
-    @EntField(label = "客户名称", required = OptionalBoolean.TRUE)
+    @EntField(label = "客户名称")
+    @NotBlank(message = "客户名称不能为空")
     private String displayName;
 
     /** 客户联系邮箱。 */
-    @EntField(label = "邮箱", required = OptionalBoolean.TRUE)
+    @EntField(label = "邮箱")
+    @NotBlank(message = "客户邮箱不能为空")
     private String email;
 
 }

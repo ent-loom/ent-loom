@@ -71,6 +71,35 @@ class DocNativeParserAndMergerTest {
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, DocRuntimeProperties.TARGET_FIELD));
     }
 
+    @Test
+    void requiredInferenceKeepsSourceAndAllowsNativeOverrideWithoutExplicitConflict() {
+        com.entloom.meta.contract.descriptor.EntEntityDescriptor meta =
+            new com.entloom.meta.core.parser.ReflectiveEntMetaParser().parse(RequiredDefaults.class);
+        com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger merger =
+            new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger();
+        DocEntityModel inferred = merger.merge(RequiredDefaults.class, meta, null,
+            com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults")).value();
+        Assertions.assertEquals(Boolean.FALSE, inferred.fields().get(0).required().value());
+        Assertions.assertEquals(MetaValueSource.INFERRED, inferred.fields().get(0).required().source());
+        DocEntityModel nativeModel = new DocNativeAnnotationParser(new SimpleDocMetaResolver(), null)
+            .parseWithDiagnostics(RequiredDefaults.class).value();
+        MetaDiagnosticResult<DocEntityModel> merged = merger.merge(RequiredDefaults.class, meta, nativeModel,
+            com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults"));
+        Assertions.assertEquals(Boolean.TRUE, merged.value().fields().get(0).required().value());
+        Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, merged.value().fields().get(0).required().source());
+        Assertions.assertFalse(hasDiagnostic(merged.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT,
+            DocRuntimeProperties.REQUIRED));
+    }
+
+    @EntEntity(entity = "required_defaults")
+    @EntDocEntity(name = "required_defaults")
+    private static final class RequiredDefaults {
+        /** 默认启用，文档场景显式要求确认。 */
+        @EntField(createDefaultValue = "true")
+        @EntDocField(required = OptionalBoolean.TRUE)
+        private Boolean active;
+    }
+
     private boolean hasDiagnostic(List<MetaDiagnostic> diagnostics, MetaDiagnosticCode code, String property) {
         for (MetaDiagnostic diagnostic : diagnostics) {
             if (diagnostic.code() == code && property.equals(diagnostic.property())) {

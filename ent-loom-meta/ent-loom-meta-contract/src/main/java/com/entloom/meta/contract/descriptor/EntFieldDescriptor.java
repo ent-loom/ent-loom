@@ -63,7 +63,7 @@ public interface EntFieldDescriptor extends SourcedDescriptor {
     List<? extends EntFieldConstraintDescriptor> constraints();
 
     /**
-     * 默认输入必填提示，null 表示未声明；不代表存储非空或服务端校验。
+     * 默认输入必填提示，null 表示既未声明也无推断依据；不代表存储非空或服务端校验。
      */
     Boolean required();
 

@@ -162,3 +162,16 @@ docker compose down -v
 ```
 
 第二条命令会删除本示例的 MySQL 数据卷。开发态主体、全量数据范围和日志审计配置只适合本地演示；生产项目应接入真实认证主体、权限服务、数据范围和审计存储，并使用正式数据库迁移工具替代 `schema.sql`。
+
+## 输入必填约定
+
+`@EntField.required` 默认走推断，显式 TRUE/FALSE 仅用于覆盖提示。推断顺序：
+
+1. 显式 `required` 优先。
+2. 只读、声明创建默认值、声明 ID 生成器或日期自动填充的字段推断为无需输入。
+3. 字段或公开 getter 上 javax/jakarta Validation 的 `@NotNull`、`@NotBlank`、`@NotEmpty` 在默认组生效时推断为必填。
+4. 其余保持未知，Doc 当前兜底为非必填。仅特定校验组、组合约束、容器元素约束不提升为全局必填。
+
+Boolean、枚举、数值（包括基本类型）不单凭类型判必填；`false`、`0` 和首个枚举不是通用业务默认值。需要默认值时显式声明 `createDefaultValue`，需要非空校验时使用 Validation 约束。推断不执行校验、不自动赋值，也不推断数据库 NOT NULL。
+
+客户和商品的真实输入使用校验注解；订单输入由 `PlaceOrderCommand/PlaceOrderItem` 校验。持久化实体中的订单状态、价格快照、计算金额和生成主键不声明输入必填。DTO 约束不会跨模型投射到实体，分组场景应由对应输入模型或 Doc/UI 场景覆盖表达。

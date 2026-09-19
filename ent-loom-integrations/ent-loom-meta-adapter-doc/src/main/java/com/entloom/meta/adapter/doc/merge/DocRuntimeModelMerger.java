@@ -119,7 +119,7 @@ public class DocRuntimeModelMerger {
                     : nativeField == null ? java.util.Collections.<String>emptyList() : nativeField.examples(),
                 choose(DocRuntimeProperties.REQUIRED, entityClass, fieldName, diagnostics,
                     nativeField == null ? null : nativeField.required(),
-                    metaField == null || metaField.required() == null ? null : SourcedValue.metaExplicit(metaField.required()),
+                    requiredSource(metaField),
                     SourcedValue.defaulted(Boolean.FALSE)),
                 choose("readOnly", entityClass, fieldName, diagnostics,
                     nativeField == null ? null : nativeField.readOnly(),
@@ -203,6 +203,15 @@ public class DocRuntimeModelMerger {
             ));
         }
         return relations;
+    }
+
+    private SourcedValue<Boolean> requiredSource(EntFieldDescriptor field) {
+        if (field == null || field.required() == null) {
+            return null;
+        }
+        SourcedValue<?> source = field.sourcedValue(MetaDescriptorProperties.REQUIRED);
+        return source == null ? SourcedValue.metaExplicit(field.required())
+            : SourcedValue.of(field.required(), source.source(), source.state(), source.explicit(), source.ruleId());
     }
 
     private List<DocIndexModel> mergeIndexes(EntEntityDescriptor meta, DocEntityModel nativeModel) {
