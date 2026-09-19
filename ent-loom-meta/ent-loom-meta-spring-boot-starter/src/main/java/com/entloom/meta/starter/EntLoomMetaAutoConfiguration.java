@@ -9,6 +9,7 @@ import com.entloom.meta.adapter.doc.MetaDocAdapter;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy;
 import com.entloom.meta.core.convention.MetaConvention;
+import com.entloom.meta.core.convention.RequiredInferenceFilter;
 import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import java.util.ArrayList;
@@ -37,10 +38,18 @@ public class EntLoomMetaAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public EntMetaParser entLoomMetaParser(ObjectProvider<MetaConvention> conventionProvider) {
+    public EntMetaParser entLoomMetaParser(
+        ObjectProvider<MetaConvention> conventionProvider,
+        ObjectProvider<RequiredInferenceFilter> requiredInferenceFilterProvider
+    ) {
         List<MetaConvention> conventions = new ArrayList<MetaConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
-        return new ReflectiveEntMetaParser(conventions);
+        List<RequiredInferenceFilter> filters = new ArrayList<RequiredInferenceFilter>();
+        requiredInferenceFilterProvider.orderedStream().forEach(filters::add);
+        if (filters.size() > 1) {
+            throw new IllegalStateException("RequiredInferenceFilter 只允许注册一个实例，实际注册了 " + filters.size() + " 个");
+        }
+        return new ReflectiveEntMetaParser(conventions, filters.isEmpty() ? null : filters.get(0));
     }
 
     @Bean

@@ -1,6 +1,5 @@
 package com.example.minicommerce.product.entity;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
@@ -28,15 +27,15 @@ public class Product {
     private Long id;
 
     /** 商品名称。 */
-    @EntField(value = "商品名称", required = OptionalBoolean.TRUE)
+    @EntField("商品名称")
     private String name;
 
     /** 当前销售价；下单时会复制为订单明细价格快照。 */
-    @EntField(value = "销售价", required = OptionalBoolean.TRUE)
+    @EntField("销售价")
     private BigDecimal price;
 
     /** 商品是否允许下单。 */
-    @EntField(value = "启用状态", required = OptionalBoolean.TRUE)
+    @EntField("启用状态")
     private Boolean active;
 
 }

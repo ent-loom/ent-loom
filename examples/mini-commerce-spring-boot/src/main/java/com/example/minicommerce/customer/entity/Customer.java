@@ -1,6 +1,5 @@
 package com.example.minicommerce.customer.entity;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
@@ -27,11 +26,11 @@ public class Customer {
     private Long id;
 
     /** 客户展示名称。 */
-    @EntField(value = "客户名称", required = OptionalBoolean.TRUE)
+    @EntField("客户名称")
     private String displayName;
 
     /** 客户联系邮箱。 */
-    @EntField(value = "邮箱", required = OptionalBoolean.TRUE)
+    @EntField("邮箱")
     private String email;
 
 }
