@@ -11,9 +11,10 @@ public final class SourcedValue<T> {
     private final MetaValueState state;
     private final boolean explicit;
     private final String ruleId;
+    private final String reason;
 
     private SourcedValue(T value, MetaValueSource source, MetaValueState state, boolean explicit) {
-        this(value, source, state, explicit, null);
+        this(value, source, state, explicit, null, null);
     }
 
     private SourcedValue(
@@ -23,11 +24,18 @@ public final class SourcedValue<T> {
         boolean explicit,
         String ruleId
     ) {
+        this(value, source, state, explicit, ruleId, null);
+    }
+
+    private SourcedValue(
+        T value, MetaValueSource source, MetaValueState state, boolean explicit, String ruleId, String reason
+    ) {
         this.value = value;
         this.source = source == null ? MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN : source;
         this.state = state == null ? MetaValueState.UNKNOWN : state;
         this.explicit = explicit;
         this.ruleId = trimToNull(ruleId);
+        this.reason = trimToNull(reason);
     }
 
     public static <T> SourcedValue<T> explicit(T value, MetaValueSource source) {
@@ -76,6 +84,12 @@ public final class SourcedValue<T> {
         return new SourcedValue<T>(value, source, state, explicit, ruleId);
     }
 
+    public static <T> SourcedValue<T> of(
+        T value, MetaValueSource source, MetaValueState state, boolean explicit, String ruleId, String reason
+    ) {
+        return new SourcedValue<T>(value, source, state, explicit, ruleId, reason);
+    }
+
     public T value() {
         return value;
     }
@@ -98,6 +112,10 @@ public final class SourcedValue<T> {
 
     public String ruleId() {
         return ruleId;
+    }
+
+    public String reason() {
+        return reason;
     }
 
     @Override
@@ -129,6 +147,7 @@ public final class SourcedValue<T> {
             + ", state=" + state
             + ", explicit=" + explicit
             + ", ruleId='" + ruleId + '\''
+            + ", reason='" + reason + '\''
             + '}';
     }
 

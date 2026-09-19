@@ -1,6 +1,6 @@
 # RequiredInferenceFilter 边界与实施清单
 
-> 状态：Proposed，作为“实体必填约束与统一校验”的项目级推断增量  
+> 状态：In progress，作为“实体必填约束与统一校验”的项目级推断增量
 > 范围：普通 CRUD 创建场景的项目级必填推断  
 > 实施策略：先完成单过滤器、静态元数据和模型诊断；复用已完成的创建校验闭环
 
@@ -75,14 +75,13 @@
 
 ### 首个闭环（必须完成）
 
-- [ ] 将过滤器归入 `Module Project Convention`，复用现有 Resolver 和 Runtime Model。
-- [ ] 固定 `CREATE` 场景，并纳入模型缓存键和诊断。
-- [ ] 定义三态贡献、`source`、`ruleId`、`reason` 及异常策略。
-- [ ] 明确显式 `required=true/false` 双向覆盖、`UNSET` 透传和最终未声明语义。
-- [ ] 保证过滤器无副作用、可重复执行，不读取动态上下文。
+- [x] 将过滤器归入 `Module Project Convention`，复用现有 Resolver 和 Runtime Model。
+- [x] 固定 `CREATE` 场景；模型缓存键和完整诊断待后续模型层接入。
+- [x] 定义三态贡献、`source`、`ruleId`、`reason` 及异常策略。
+- [x] 明确显式 `required=true/false` 双向覆盖、`UNSET` 透传和最终未声明语义。
+- [x] 保证过滤器无副作用、可重复执行，不读取动态上下文。
 - [ ] 限制为单过滤器注册，多个实例启动失败并可诊断。
-- [ ] 增加显式 true/false 覆盖、`UNSET`、来源原因诊断验证。
-- [ ] 增加模型级回归验证：显式 true/false 覆盖、`UNSET` 透传、来源和原因诊断。
+- [x] 增加模型级回归验证：显式 true/false 覆盖、`UNSET` 透传、来源和原因诊断。
 - [ ] 复用既有创建校验用例，验证推断必填时缺失值被拒绝、显式可选时允许缺失；不在过滤器中重复实现校验。
 
 ### 第二步（首个闭环稳定后）

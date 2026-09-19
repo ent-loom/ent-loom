@@ -16,6 +16,7 @@ public final class Contribution<T> {
     private final MetaValueSource source;
     private final RuleId ruleId;
     private final Priority priority;
+    private final String reason;
 
     private Contribution(Builder<T> builder) {
         this.target = normalize(builder.target);
@@ -26,6 +27,7 @@ public final class Contribution<T> {
         this.source = builder.source;
         this.ruleId = builder.ruleId;
         this.priority = builder.priority;
+        this.reason = normalize(builder.reason);
     }
 
     public static <T> Builder<T> builder() {
@@ -64,6 +66,10 @@ public final class Contribution<T> {
         return priority;
     }
 
+    public String reason() {
+        return reason;
+    }
+
     public String targetKey() {
         if (target != null) {
             return target;
@@ -96,6 +102,7 @@ public final class Contribution<T> {
         private MetaValueSource source;
         private RuleId ruleId;
         private Priority priority;
+        private String reason;
 
         public Builder<T> target(String target) {
             this.target = target;
@@ -139,6 +146,11 @@ public final class Contribution<T> {
 
         public Builder<T> priority(Priority priority) {
             this.priority = priority;
+            return this;
+        }
+
+        public Builder<T> reason(String reason) {
+            this.reason = reason;
             return this;
         }
 

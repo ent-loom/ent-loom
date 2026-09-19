@@ -7,11 +7,54 @@ import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.meta.core.convention.RequiredInferenceContribution;
+import com.entloom.meta.core.convention.RequiredInferenceContext;
+import com.entloom.meta.core.convention.RequiredInferenceFilter;
+import com.entloom.meta.core.convention.RequiredInferenceValue;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 输入必填推断的语义边界回归。 */
 class RequiredInferenceTest {
+    @Test
+    void projectFilterShouldUseResolverPriorityAndKeepRuleId() {
+        RequiredInferenceFilter filter = context -> new RequiredInferenceContribution(
+            context.field().getName().equals("groupOnly") ? RequiredInferenceValue.TRUE : RequiredInferenceValue.FALSE,
+            "project.required", "项目创建约定");
+        ReflectiveEntMetaParser parser = new ReflectiveEntMetaParser(Collections.emptyList(), filter);
+
+        EntFieldDescriptor explicit = field(parser, "optional");
+        EntFieldDescriptor project = field(parser, "groupOnly");
+        EntFieldDescriptor validation = field(parser, "name");
+
+        assertEquals(false, explicit.required());
+        assertEquals(MetaValueSource.META_EXPLICIT, explicit.sourcedValue(MetaDescriptorProperties.REQUIRED).source());
+        assertEquals(true, project.required());
+        assertEquals(MetaValueSource.MODULE_PROJECT_CONVENTION,
+            project.sourcedValue(MetaDescriptorProperties.REQUIRED).source());
+        assertEquals("project.required", project.sourcedValue(MetaDescriptorProperties.REQUIRED).ruleId());
+        assertEquals("项目创建约定", project.sourcedValue(MetaDescriptorProperties.REQUIRED).reason());
+        assertEquals(false, validation.required());
+    }
+
+    @Test
+    void unsetShouldPassThroughToValidationInference() {
+        RequiredInferenceFilter filter = context -> new RequiredInferenceContribution(
+            RequiredInferenceValue.UNSET, "project.unset", "不处理");
+        EntFieldDescriptor field = field(new ReflectiveEntMetaParser(Collections.emptyList(), filter), "name");
+        assertEquals(true, field.required());
+        assertEquals(MetaValueSource.INFERRED, field.sourcedValue(MetaDescriptorProperties.REQUIRED).source());
+    }
+
+    @Test
+    void contextShouldAlwaysBeCreate() {
+        RequiredInferenceFilter filter = context -> {
+            assertEquals(RequiredInferenceContext.Scenario.CREATE, context.scenario());
+            return new RequiredInferenceContribution(RequiredInferenceValue.UNSET, "scenario.create", "仅创建场景");
+        };
+        field(new ReflectiveEntMetaParser(Collections.emptyList(), filter), "name");
+    }
     @Test
     void inferOnlyFromDefaultGroupConstraintsAndRespectInputExclusions() {
         assertRequired("name", true, MetaValueSource.INFERRED);
@@ -32,10 +75,14 @@ class RequiredInferenceTest {
     }
 
     private void assertRequired(String name, Boolean expected, MetaValueSource source) {
-        EntFieldDescriptor field = new ReflectiveEntMetaParser().parse(Input.class).fields().stream()
-            .filter(f -> f.fieldName().equals(name)).findFirst().get();
+        EntFieldDescriptor field = field(new ReflectiveEntMetaParser(), name);
         assertEquals(expected, field.required(), name);
         assertEquals(source, field.sourcedValue(MetaDescriptorProperties.REQUIRED).source(), name);
+    }
+
+    private EntFieldDescriptor field(ReflectiveEntMetaParser parser, String name) {
+        return parser.parse(Input.class).fields().stream()
+            .filter(f -> f.fieldName().equals(name)).findFirst().get();
     }
 
     private interface Create { }
