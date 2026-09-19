@@ -4,12 +4,16 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
+import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 普通实体 CREATE 场景的强类型模板基类。
@@ -19,6 +23,8 @@ import java.util.Map;
  */
 public abstract class AbstractEntityCreateHandler<T, R>
     extends AbstractEntityCommandHandler<T, R> {
+    private final RequiredFieldValidator requiredFieldValidator = new RequiredFieldValidator();
+    private final CreateDefaultValueApplier createDefaultValueApplier = new CreateDefaultValueApplier();
 
     @Override
     public final CommandOperation operation() {
@@ -26,11 +32,51 @@ public abstract class AbstractEntityCreateHandler<T, R>
     }
 
     @Override
-    protected void beforeHandleEntity(T requested, CommandSpec<Object> spec, EntityMeta meta) {
-        enforceCreateScope(requested, spec, meta);
+    protected void beforeHandleEntity(
+        T requested,
+        CommandSpec<Object> spec,
+        EntityMeta meta,
+        Set<String> presentFields
+    ) {
+        Set<String> mutablePresentFields = presentFields == null
+            ? new LinkedHashSet<String>()
+            : presentFields;
+        createDefaultValueApplier.applyToEntity(requested, meta, mutablePresentFields);
+        enforceCreateScope(requested, spec, meta, mutablePresentFields);
+        beforeHandleEntity(requested, spec, meta);
+        prepareCreateEntity(requested, spec, meta, mutablePresentFields);
+        requiredFieldValidator.validateCreateEntity(requested, meta, mutablePresentFields);
     }
 
-    private void enforceCreateScope(T requested, CommandSpec<Object> spec, EntityMeta meta) {
+    /** 兼容旧版三参数扩展钩子；默认不执行额外逻辑。 */
+    @Override
+    protected void beforeHandleEntity(T requested, CommandSpec<Object> spec, EntityMeta meta) {
+    }
+
+    /**
+     * 在 CREATE 必填校验前准备业务计算字段、默认值或治理补充字段。
+     *
+     * <p>需要标记 primitive 字段已形成有效值时，可将字段名加入 presentFields。</p>
+     */
+    protected void prepareCreateEntity(
+        T requested,
+        CommandSpec<Object> spec,
+        EntityMeta meta,
+        Set<String> presentFields
+    ) {
+        prepareCreateEntity(requested, spec, meta);
+    }
+
+    /** 简化扩展钩子；默认不执行额外逻辑。 */
+    protected void prepareCreateEntity(T requested, CommandSpec<Object> spec, EntityMeta meta) {
+    }
+
+    private void enforceCreateScope(
+        T requested,
+        CommandSpec<Object> spec,
+        EntityMeta meta,
+        Set<String> presentFields
+    ) {
         CrudDataScope scope = spec == null ? null : spec.getGovernanceScope();
         if (requested == null || meta == null || scope == null || scope.isExplicitAll()) {
             return;
@@ -46,8 +92,12 @@ public abstract class AbstractEntityCreateHandler<T, R>
             }
             Object expected = entry.getValue();
             Object current = readFieldValue(requested, field);
-            if (current == null) {
+            boolean absentFromRequest = presentFields != null && !presentFields.contains(fieldName);
+            if (absentFromRequest || current == null) {
                 writeFieldValue(requested, field, injectCreateScopeValue(expected, fieldName));
+                if (presentFields != null) {
+                    presentFields.add(fieldName);
+                }
                 continue;
             }
             if (!matchesScopeValue(expected, current)) {

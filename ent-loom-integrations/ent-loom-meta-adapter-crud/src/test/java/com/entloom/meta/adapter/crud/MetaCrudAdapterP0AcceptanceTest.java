@@ -28,18 +28,40 @@ import org.junit.jupiter.api.Test;
 class MetaCrudAdapterP0AcceptanceTest {
 
     @Test
-    void 输入必填提示不改变Crud空值能力() {
+    void required应投影到Crud运行时且不改变数据库空值能力() {
         CrudRuntimeEntityModel model = new MetaCrudAdapter(
             Collections.<Class<?>>singletonList(InputHintEntity.class))
             .runtimeModel().getEntity(InputHintEntity.class);
         Assertions.assertTrue(model.getField("name").isNullable());
+        Assertions.assertTrue(model.getField("name").isRequired());
+        Assertions.assertEquals("名称", model.getField("name").getLabel());
+    }
+
+    @Test
+    void 默认值和客户端输入必填应投影到Crud运行时() {
+        CrudRuntimeEntityModel model = new MetaCrudAdapter(
+            Collections.<Class<?>>singletonList(DefaultValueEntity.class))
+            .runtimeModel().getEntity(DefaultValueEntity.class);
+
+        Assertions.assertEquals("ACTIVE", model.getField("status").getCreateDefaultValue());
+        Assertions.assertTrue(model.getField("status").isRequired());
+        Assertions.assertFalse(model.getField("status").isInputRequired());
     }
 
     @EntEntity(entity = "input_hint_entity")
     static class InputHintEntity {
-        /** 必填提示不构成服务端非空约束。 */
-        @EntField(required = com.entloom.base.common.OptionalBoolean.TRUE)
+        /** 业务必填约束不等同于数据库非空。 */
+        @EntField(label = "名称", required = com.entloom.base.common.OptionalBoolean.TRUE)
         private String name;
+    }
+
+    @EntEntity(entity = "default_value_entity")
+    static class DefaultValueEntity {
+        @EntField
+        private Long id;
+
+        @EntField(required = com.entloom.base.common.OptionalBoolean.TRUE, createDefaultValue = "ACTIVE")
+        private String status;
     }
 
     @Test

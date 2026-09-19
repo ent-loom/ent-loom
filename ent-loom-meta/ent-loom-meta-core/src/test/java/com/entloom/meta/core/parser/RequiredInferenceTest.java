@@ -19,16 +19,16 @@ class RequiredInferenceTest {
         assertRequired("amount", true, MetaValueSource.INFERRED);
         assertRequired("getterValue", true, MetaValueSource.INFERRED);
         assertRequired("defaultGroup", true, MetaValueSource.INFERRED);
-        assertRequired("groupOnly", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
+        assertRequired("groupOnly", true, MetaValueSource.INFERRED);
         assertRequired("optional", false, MetaValueSource.META_EXPLICIT);
         assertRequired("forced", true, MetaValueSource.META_EXPLICIT);
-        assertRequired("defaulted", false, MetaValueSource.INFERRED);
-        assertRequired("generated", false, MetaValueSource.INFERRED);
-        assertRequired("createdAt", false, MetaValueSource.INFERRED);
-        assertRequired("flag", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
-        assertRequired("primitive", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
-        assertRequired("status", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
-        assertRequired("number", null, MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN);
+        assertRequired("defaulted", true, MetaValueSource.INFERRED);
+        assertRequired("generated", true, MetaValueSource.INFERRED);
+        assertRequired("createdAt", true, MetaValueSource.INFERRED);
+        assertRequired("flag", false, MetaValueSource.META_EXPLICIT);
+        assertRequired("primitive", false, MetaValueSource.META_EXPLICIT);
+        assertRequired("status", false, MetaValueSource.META_EXPLICIT);
+        assertRequired("number", false, MetaValueSource.META_EXPLICIT);
     }
 
     private void assertRequired(String name, Boolean expected, MetaValueSource source) {
@@ -44,7 +44,7 @@ class RequiredInferenceTest {
         ACTIVE
     }
 
-    @EntEntity(entity = "required_input")
+    @EntEntity(entity = "required_input", fieldsRequiredByDefault = OptionalBoolean.TRUE)
     public static class Input {
         /** 名称。 */
         @javax.validation.constraints.NotBlank
@@ -84,13 +84,17 @@ class RequiredInferenceTest {
         /** 创建时间按既有只读约定排除。 */
         @javax.validation.constraints.NotNull
         private java.time.LocalDateTime createdAt;
-        /** 无约束布尔。 */
+        /** 无约束布尔，显式覆盖实体默认策略。 */
+        @EntField(required = OptionalBoolean.FALSE)
         private Boolean flag;
-        /** 基本类型的零值不代表请求中必须出现。 */
+        /** 基本类型的零值不代表请求中必须出现，显式覆盖实体默认策略。 */
+        @EntField(required = OptionalBoolean.FALSE)
         private int primitive;
         /** 状态，参见 {@link Status}。 */
+        @EntField(required = OptionalBoolean.FALSE)
         private Status status;
         /** 无约束数值。 */
+        @EntField(required = OptionalBoolean.FALSE)
         private Integer number;
     }
 }

@@ -9,6 +9,8 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -41,11 +43,15 @@ public abstract class AbstractEntityCommandHandler<T, R>
     public Object handle(CommandSpec<Object> spec, SceneDelegate<CommandSpec<Object>, Object> delegate) {
         Class<T> actualEntityType = requireEntityType();
         EntityMeta meta = requireEntityMetaRegistry().getEntityMeta(actualEntityType);
+        Map<String, Object> presentValues = requirePayloadBinder().bindFieldMap(spec.getPayload(), meta);
+        Set<String> presentFields = presentValues == null
+            ? new LinkedHashSet<String>()
+            : new LinkedHashSet<String>(presentValues.keySet());
         T requested = requirePayloadBinder().bindEntity(spec.getPayload(), actualEntityType, meta, additionalEntityFields());
         if (requested == null) {
             throw new ValidationException(entityRequiredMessage());
         }
-        beforeHandleEntity(requested, spec, meta);
+        beforeHandleEntity(requested, spec, meta, presentFields);
         return handleEntity(requested);
     }
 
@@ -63,5 +69,18 @@ public abstract class AbstractEntityCommandHandler<T, R>
     }
 
     protected void beforeHandleEntity(T requested, CommandSpec<Object> spec, EntityMeta meta) {
+    }
+
+    /**
+     * 在实体交给业务处理前执行准备工作，并保留请求中实际出现的字段集合。
+     * 旧的三参数钩子仍会被调用，兼容已有自定义处理器。
+     */
+    protected void beforeHandleEntity(
+        T requested,
+        CommandSpec<Object> spec,
+        EntityMeta meta,
+        Set<String> presentFields
+    ) {
+        beforeHandleEntity(requested, spec, meta);
     }
 }

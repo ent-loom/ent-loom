@@ -18,6 +18,10 @@ public final class CrudRuntimeFieldModel {
     private final boolean writable;
     private final boolean scopeField;
     private final boolean immutable;
+    private final String label;
+    private final boolean required;
+    private final boolean inputRequired;
+    private final Object createDefaultValue;
     private final Boolean exportable;
     private final Boolean exportDefaultVisible;
     private final String exportLabel;
@@ -53,6 +57,10 @@ public final class CrudRuntimeFieldModel {
             null,
             null,
             null,
+            null,
+            null,
+            false,
+            false,
             null
         );
     }
@@ -75,6 +83,58 @@ public final class CrudRuntimeFieldModel {
         String dictionaryCode,
         String displayField
     ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, null, false);
+    }
+
+    public CrudRuntimeFieldModel(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        Boolean exportable,
+        Boolean exportDefaultVisible,
+        String exportLabel,
+        String exportFormat,
+        String dictionaryCode,
+        String displayField,
+        String label,
+        boolean required
+    ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, label, required, required && writable, null);
+    }
+
+    public CrudRuntimeFieldModel(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        Boolean exportable,
+        Boolean exportDefaultVisible,
+        String exportLabel,
+        String exportFormat,
+        String dictionaryCode,
+        String displayField,
+        String label,
+        boolean required,
+        boolean inputRequired,
+        Object createDefaultValue
+    ) {
         this.fieldName = fieldName;
         this.javaType = javaType == null ? Object.class : javaType;
         this.columnName = columnName;
@@ -85,6 +145,10 @@ public final class CrudRuntimeFieldModel {
         this.writable = writable;
         this.scopeField = scopeField;
         this.immutable = immutable;
+        this.label = label;
+        this.required = required;
+        this.inputRequired = inputRequired;
+        this.createDefaultValue = createDefaultValue;
         this.exportable = exportable;
         this.exportDefaultVisible = exportDefaultVisible;
         this.exportLabel = exportLabel;
@@ -113,8 +177,20 @@ public final class CrudRuntimeFieldModel {
             fieldMeta.getExportLabel(),
             fieldMeta.getExportFormat(),
             fieldMeta.getDictionaryCode(),
-            fieldMeta.getDisplayField()
+            fieldMeta.getDisplayField(),
+            fieldMeta.getLabel(),
+            fieldMeta.isRequired(),
+            fieldMeta.isInputRequired(),
+            fieldMeta.getCreateDefaultValue()
         );
+    }
+
+    public boolean isInputRequired() {
+        return inputRequired;
+    }
+
+    public Object getCreateDefaultValue() {
+        return createDefaultValue;
     }
 
 }

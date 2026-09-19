@@ -72,7 +72,7 @@ class DocNativeParserAndMergerTest {
     }
 
     @Test
-    void requiredInferenceKeepsSourceAndAllowsNativeOverrideWithoutExplicitConflict() {
+    void unknownRequiredUsesDocDefaultAndAllowsNativeOverrideWithoutExplicitConflict() {
         com.entloom.meta.contract.descriptor.EntEntityDescriptor meta =
             new com.entloom.meta.core.parser.ReflectiveEntMetaParser().parse(RequiredDefaults.class);
         com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger merger =
@@ -80,7 +80,7 @@ class DocNativeParserAndMergerTest {
         DocEntityModel inferred = merger.merge(RequiredDefaults.class, meta, null,
             com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults")).value();
         Assertions.assertEquals(Boolean.FALSE, inferred.fields().get(0).required().value());
-        Assertions.assertEquals(MetaValueSource.INFERRED, inferred.fields().get(0).required().source());
+        Assertions.assertEquals(MetaValueSource.DEFAULT, inferred.fields().get(0).required().source());
         DocEntityModel nativeModel = new DocNativeAnnotationParser(new SimpleDocMetaResolver(), null)
             .parseWithDiagnostics(RequiredDefaults.class).value();
         MetaDiagnosticResult<DocEntityModel> merged = merger.merge(RequiredDefaults.class, meta, nativeModel,

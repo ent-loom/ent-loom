@@ -2,29 +2,28 @@ package com.entloom.meta.core.parser;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.meta.EntMetaDateTime;
-import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.contract.value.SourcedValue;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-/** 输入必填提示推断；不引入 Validation 运行时依赖，不执行校验或填充值。 */
+/** 业务必填约束解析；不引入 Validation 运行时依赖，不执行校验或填充值。 */
 final class RequiredInference {
     private RequiredInference() {
     }
 
-    static SourcedValue<Boolean> resolve(Field field, EntField meta, Boolean readOnly) {
+    static SourcedValue<Boolean> resolve(
+        Field field,
+        EntField meta,
+        OptionalBoolean fieldsRequiredByDefault
+    ) {
         if (meta != null && meta.required() != OptionalBoolean.UNSET) {
             return SourcedValue.metaExplicit(meta.required() == OptionalBoolean.TRUE);
         }
-        EntMetaId id = field.getAnnotation(EntMetaId.class);
-        EntMetaDateTime time = field.getAnnotation(EntMetaDateTime.class);
-        if (Boolean.TRUE.equals(readOnly)
-            || (meta != null && !meta.createDefaultValue().trim().isEmpty())
-            || (id != null && id.generator() != EntMetaId.IdGenerator.UNSET)
-            || (time != null && time.autoFill() != EntMetaDateTime.AutoFill.UNSET
-                && time.autoFill() != EntMetaDateTime.AutoFill.NONE)) {
+        if (fieldsRequiredByDefault == OptionalBoolean.TRUE) {
+            return SourcedValue.inferred(Boolean.TRUE);
+        }
+        if (fieldsRequiredByDefault == OptionalBoolean.FALSE) {
             return SourcedValue.inferred(Boolean.FALSE);
         }
         if (hasRequiredConstraint(field.getAnnotations())) {
@@ -45,7 +44,7 @@ final class RequiredInference {
                 // 没有公开 getter 时仅使用字段上的声明。
             }
         }
-        // Java 类型、字段名和数据库非空均不能证明输入必填。
+        // Java 类型、字段名和数据库非空均不能决定是否必填。
         return SourcedValue.unknown(null);
     }
 

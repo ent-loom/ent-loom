@@ -68,6 +68,44 @@ class JdbcCrudCommandHandlerTest {
     }
 
     @Test
+    void create_should_validate_required_field_with_label_before_sql() {
+        EntityMeta meta = testMeta(EntityIdPolicy.GENERATED, true);
+        RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>> handler =
+            new JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>>(
+                new SingleEntityMetaRegistry(meta), executor
+            );
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("name", "   ");
+
+        ValidationException exception = assertThrows(
+            ValidationException.class,
+            () -> handler.create(spec(CommandOperation.CREATE, payload, Map.class))
+        );
+
+        assertEquals("名称不能为空", exception.getMessage());
+        assertFalse(executor.insertCalled);
+        assertFalse(executor.updateCalled);
+    }
+
+    @Test
+    void create_should_apply_default_value_when_field_is_missing() {
+        EntityMeta meta = testMeta(EntityIdPolicy.GENERATED, false, false, "默认名称");
+        RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        executor.generatedKey = Long.valueOf(1006L);
+        JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>> handler =
+            new JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>>(
+                new SingleEntityMetaRegistry(meta), executor
+            );
+
+        Map<String, Object> result = handler.create(spec(CommandOperation.CREATE,
+            Collections.<String, Object>emptyMap(), Map.class));
+
+        assertEquals(Long.valueOf(1006L), result.get("id"));
+        assertTrue(executor.lastInsertArgs.contains("默认名称"));
+    }
+
+    @Test
     void create_should_reject_mismatched_write_command_id_and_payload_id() {
         EntityMeta meta = testMeta(EntityIdPolicy.EXPLICIT);
         RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
@@ -87,6 +125,26 @@ class JdbcCrudCommandHandlerTest {
 
         assertTrue(ex.getMessage().contains("主键字段不一致"));
         assertFalse(executor.updateCalled);
+    }
+
+    @Test
+    void create_should_validate_explicit_id_from_write_command_id() {
+        EntityMeta meta = testMeta(EntityIdPolicy.EXPLICIT, false, true);
+        RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        JdbcCrudCommandHandler<Object, Map<String, Object>> handler = new JdbcCrudCommandHandler<Object, Map<String, Object>>(
+            new SingleEntityMetaRegistry(meta),
+            executor
+        );
+
+        Map<String, Object> values = new LinkedHashMap<String, Object>();
+        values.put("name", "Alice");
+
+        Map<String, Object> result = handler.create(
+            objectSpec(CommandOperation.CREATE, new WriteCommand<Map<String, Object>>(CommandOperation.CREATE, 1005L, values), Map.class)
+        );
+
+        assertTrue(executor.updateCalled);
+        assertEquals(Long.valueOf(1005L), result.get("id"));
     }
 
     @Test
@@ -400,9 +458,31 @@ class JdbcCrudCommandHandlerTest {
     }
 
     private static EntityMeta testMeta(EntityIdPolicy idPolicy) {
+        return testMeta(idPolicy, false);
+    }
+
+    private static EntityMeta testMeta(EntityIdPolicy idPolicy, boolean nameRequired) {
+        return testMeta(idPolicy, nameRequired, false);
+    }
+
+    private static EntityMeta testMeta(EntityIdPolicy idPolicy, boolean nameRequired, boolean idRequired) {
+        return testMeta(idPolicy, nameRequired, idRequired, null);
+    }
+
+    private static EntityMeta testMeta(
+        EntityIdPolicy idPolicy,
+        boolean nameRequired,
+        boolean idRequired,
+        String nameDefault
+    ) {
         LinkedHashMap<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
-        fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
-        fields.put("name", new EntityFieldMeta("name", String.class, "name", true, false, true, true));
+        fields.put("id", idRequired
+            ? new EntityFieldMeta("id", Long.class, "id", false, false, true, true, true, false, false, "ID", true)
+            : new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
+        fields.put("name", new EntityFieldMeta(
+            "name", String.class, "name", true, false, true, true, true, false, false,
+            "名称", nameRequired, false, nameDefault
+        ));
         fields.put("createdAt", new EntityFieldMeta("createdAt", String.class, "created_at", true, false, true, true, false, false, false));
         fields.put("schoolId", new EntityFieldMeta("schoolId", Long.class, "school_id", false, false, true, true, false, true, false));
         fields.put("updateTime", new EntityFieldMeta("updateTime", String.class, "update_time", true, false, true, true, false, false, true));

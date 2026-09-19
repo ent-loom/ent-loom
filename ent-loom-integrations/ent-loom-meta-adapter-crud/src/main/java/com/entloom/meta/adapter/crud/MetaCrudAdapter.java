@@ -162,6 +162,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
 
     private EntityMeta toEntityMeta(CrudEntityRuntimeModel model) {
         Class<?> entityClass = model.entityClass();
+        String idField = model.idField().value();
+        EntityIdPolicy idPolicy = resolveIdPolicy(entityClass, idField);
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         for (CrudFieldRuntimeModel field : model.fields()) {
             Class<?> javaType = field.javaType() == null ? Object.class : field.javaType();
@@ -177,7 +179,11 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     field.sortable(),
                     field.writable(),
                     field.scopeField(),
-                    field.immutable()
+                    field.immutable(),
+                    field.label(),
+                    field.required(),
+                    field.inputRequired() && !(field.fieldName().equals(idField) && idPolicy == EntityIdPolicy.GENERATED),
+                    field.createDefaultValue()
                 )
             );
         }
@@ -185,8 +191,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             entityClass,
             new ResourceDescriptor(entityClass, model.resourceCode().value(), model.ownerService().value(), aliases(entityClass)),
             model.table().value(),
-            model.idField().value(),
-            resolveIdPolicy(entityClass, model.idField().value()),
+            idField,
+            idPolicy,
             model.logicDeleteField().value(),
             resolveLogicDeleteValue(model.logicDeleteNotDeletedValue().value(), model.logicDeleteField().value(), fieldMetas),
             resolveLogicDeleteValue(model.logicDeleteDeletedValue().value(), model.logicDeleteField().value(), fieldMetas),

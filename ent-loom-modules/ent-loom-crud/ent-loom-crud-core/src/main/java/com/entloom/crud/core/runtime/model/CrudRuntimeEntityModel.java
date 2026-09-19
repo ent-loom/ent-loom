@@ -122,7 +122,11 @@ public final class CrudRuntimeEntityModel {
                     field.getExportLabel(),
                     field.getExportFormat(),
                     field.getDictionaryCode(),
-                    field.getDisplayField()
+                    field.getDisplayField(),
+                    field.getLabel(),
+                    field.isRequired(),
+                    field.isInputRequired(),
+                    field.getCreateDefaultValue()
                 )
             );
         }

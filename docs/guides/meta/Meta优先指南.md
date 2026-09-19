@@ -31,11 +31,23 @@ Runtime Model 是组件最终执行契约
 只表达通用语义时，仅使用 Meta 注解：
 
 ```java
-@EntField(label = "姓名", required = OptionalBoolean.TRUE)
-private String studentName;
+@EntEntity(
+    entity = "student",
+    fieldsRequiredByDefault = OptionalBoolean.TRUE
+)
+public class Student {
+    @EntField(label = "姓名")
+    private String studentName;
+
+    @EntField(label = "备注", required = OptionalBoolean.FALSE)
+    private String remark;
+}
 ```
 
-`EntField.required` 仅为默认输入必填提示：Doc 可继承并显式覆盖，未来 UI 按具体表单/场景覆盖；不保证响应字段存在，也不触发服务端业务校验。
+`EntField.required` 表达业务字段必填约束，CRUD 创建链按字段类型统一校验，Doc/UI 继承展示；业务不必区分 `NotNull`、`NotBlank`、`NotEmpty`。可通过 `@EntEntity(fieldsRequiredByDefault = OptionalBoolean.TRUE)` 启用实体默认必填，字段 `FALSE` 表达可选例外，`UNSET` 继承策略。文案默认由 label 生成。
+
+当前创建最小闭环已实现，更新显式清空、统一默认值赋值和结构化错误仍在演进。类型映射、执行边界及兼容规则见 [实体必填约束与统一校验](../../evolution/decisions/core/实体必填约束与统一校验.md)。
+
 数据库可空性独立：DDL 默认非空，可空例外使用 `@EntDdlField(nullable = OptionalBoolean.TRUE)`，主键不可为空。默认值另行声明，不自动补零或空字符串。
 
 通用关系同样由 Meta 声明：

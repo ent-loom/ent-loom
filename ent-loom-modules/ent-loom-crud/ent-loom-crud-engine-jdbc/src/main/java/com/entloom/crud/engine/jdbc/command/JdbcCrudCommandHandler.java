@@ -14,6 +14,8 @@ import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
+import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
@@ -51,6 +53,10 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     private final JdbcCrudCommandOptions options;
     /** 数据库方言，用于引用元数据标识符。 */
     private final JdbcDialect dialect;
+    /** 业务必填字段校验器。 */
+    private final RequiredFieldValidator requiredFieldValidator = new RequiredFieldValidator();
+    /** 创建默认值补齐器。 */
+    private final CreateDefaultValueApplier createDefaultValueApplier = new CreateDefaultValueApplier();
 
     public JdbcCrudCommandHandler(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
         this(metaRegistry, guardedSqlExecutor, StandardJdbcDialect.GENERIC);
@@ -181,7 +187,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         WriteCommand<Map<String, Object>> command = resolveWriteCommand(meta, spec, CommandOperation.CREATE);
         Map<String, Object> payload = new LinkedHashMap<String, Object>(command.getValues());
+        createDefaultValueApplier.applyToValues(payload, meta);
         enforceCreateScope(meta, payload, spec);
+        requiredFieldValidator.validateCreateValues(payload, meta, command.getId());
 
         List<String> fields = validateCreateFields(meta, payload, spec);
         IdentityInsertPlan identityPlan = resolveCreateIdentity(meta, command);

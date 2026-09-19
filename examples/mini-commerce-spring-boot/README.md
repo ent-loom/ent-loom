@@ -163,15 +163,12 @@ docker compose down -v
 
 第二条命令会删除本示例的 MySQL 数据卷。开发态主体、全量数据范围和日志审计配置只适合本地演示；生产项目应接入真实认证主体、权限服务、数据范围和审计存储，并使用正式数据库迁移工具替代 `schema.sql`。
 
-## 输入必填约定
+## 实体必填约定
 
-`@EntField.required` 默认走推断，显式 TRUE/FALSE 仅用于覆盖提示。推断顺序：
+本示例采用 [实体必填约束与统一校验](../../docs/evolution/decisions/core/实体必填约束与统一校验.md)：Customer/Product 通过 `fieldsRequiredByDefault = TRUE` 启用普通字段默认必填，生成 ID 以字段 `FALSE` 声明创建输入例外。框架按类型检查字符串非空白、数组/集合/Map 非空、其他值非 null；0 和 false 合法，文案默认由 label 生成。
 
-1. 显式 `required` 优先。
-2. 只读、声明创建默认值、声明 ID 生成器或日期自动填充的字段推断为无需输入。
-3. 字段或公开 getter 上 javax/jakarta Validation 的 `@NotNull`、`@NotBlank`、`@NotEmpty` 在默认组生效时推断为必填。
-4. 其余保持未知，Doc 当前兜底为非必填。仅特定校验组、组合约束、容器元素约束不提升为全局必填。
+默认值、系统赋值和必填约束独立，先在相应阶段赋值再校验；生成主键不要求客户端输入。局部更新区分未传与显式清空。Doc/UI 提示覆盖不能修改服务端规则，DDL 可空性单独声明。
 
-Boolean、枚举、数值（包括基本类型）不单凭类型判必填；`false`、`0` 和首个枚举不是通用业务默认值。需要默认值时显式声明 `createDefaultValue`，需要非空校验时使用 Validation 约束。推断不执行校验、不自动赋值，也不推断数据库 NOT NULL。
+当前创建最小闭环已完成：Meta 约束投影到 CRUD Runtime Model，强类型 Handler 和默认 JDBC 创建统一校验，批量创建复用 CREATE 子命令；Customer/Product 已移除重复的 `NotNull/NotBlank`。更新显式清空、业务默认值统一赋值和结构化错误仍按路线图演进。
 
-客户和商品的真实输入使用校验注解；订单输入由 `PlaceOrderCommand/PlaceOrderItem` 校验。持久化实体中的订单状态、价格快照、计算金额和生成主键不声明输入必填。DTO 约束不会跨模型投射到实体，分组场景应由对应输入模型或 Doc/UI 场景覆盖表达。
+`PlaceOrderCommand/PlaceOrderItem` 属于业务输入 DTO，可继续使用 Validation；订单状态、快照及计算金额在对应业务赋值阶段保证有效，不要求客户填写。实施进度见 [Meta 路线图](../../docs/evolution/roadmap/meta/index.md)。

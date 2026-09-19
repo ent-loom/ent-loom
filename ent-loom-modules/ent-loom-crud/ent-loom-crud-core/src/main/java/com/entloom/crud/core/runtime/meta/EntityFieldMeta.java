@@ -27,6 +27,14 @@ public class EntityFieldMeta {
     private final boolean scopeField;
     /** 是否为不可变字段。 */
     private final boolean immutable;
+    /** 业务展示名称。 */
+    private final String label;
+    /** 是否为业务必填字段。 */
+    private final boolean required;
+    /** 是否要求客户端创建时显式输入。 */
+    private final boolean inputRequired;
+    /** 创建时默认值；null 表示未配置。 */
+    private final Object createDefaultValue;
     /** 是否允许导出；null 表示未配置，按默认规则降级。 */
     private final Boolean exportable;
     /** 默认导出时是否展示；null 表示未配置，按默认规则降级。 */
@@ -80,8 +88,52 @@ public class EntityFieldMeta {
             null,
             null,
             null,
+            null,
+            null,
+            false,
+            false,
             null
         );
+    }
+
+    public EntityFieldMeta(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        String label,
+        boolean required
+    ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, null, null, null, null, null, null, label, required,
+            required && writable, null);
+    }
+
+    public EntityFieldMeta(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        String label,
+        boolean required,
+        boolean inputRequired,
+        Object createDefaultValue
+    ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, null, null, null, null, null, null, label, required,
+            inputRequired, createDefaultValue);
     }
 
     public EntityFieldMeta(
@@ -115,7 +167,11 @@ public class EntityFieldMeta {
             exportLabel,
             exportFormat,
             dictionaryCode,
-            displayField
+            displayField,
+            null,
+            false,
+            false,
+            null
         );
     }
 
@@ -137,6 +193,58 @@ public class EntityFieldMeta {
         String dictionaryCode,
         String displayField
     ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, null, false);
+    }
+
+    public EntityFieldMeta(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        Boolean exportable,
+        Boolean exportDefaultVisible,
+        String exportLabel,
+        String exportFormat,
+        String dictionaryCode,
+        String displayField,
+        String label,
+        boolean required
+    ) {
+        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
+            scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, label, required, required && writable, null);
+    }
+
+    public EntityFieldMeta(
+        String fieldName,
+        Class<?> javaType,
+        String columnName,
+        boolean nullable,
+        boolean relation,
+        boolean filterable,
+        boolean sortable,
+        boolean writable,
+        boolean scopeField,
+        boolean immutable,
+        Boolean exportable,
+        Boolean exportDefaultVisible,
+        String exportLabel,
+        String exportFormat,
+        String dictionaryCode,
+        String displayField,
+        String label,
+        boolean required,
+        boolean inputRequired,
+        Object createDefaultValue
+    ) {
         this.fieldName = fieldName;
         this.javaType = javaType;
         this.columnName = columnName;
@@ -147,6 +255,10 @@ public class EntityFieldMeta {
         this.writable = writable;
         this.scopeField = scopeField;
         this.immutable = immutable;
+        this.label = trimToNull(label);
+        this.required = required;
+        this.inputRequired = inputRequired;
+        this.createDefaultValue = createDefaultValue;
         this.exportable = exportable;
         this.exportDefaultVisible = exportDefaultVisible;
         this.exportLabel = trimToNull(exportLabel);

@@ -117,6 +117,11 @@ public class CrudRuntimeModelMerger {
             SourcedValue<Boolean> nullable = nativeField == null
                 ? SourcedValue.inferred(Boolean.valueOf(!javaType.isPrimitive())) : nativeField.nullable();
             SourcedValue<Boolean> writable = resolveWritable(entityClass, fieldName, metaField, nativeField, diagnostics);
+            boolean required = metaField != null && Boolean.TRUE.equals(metaField.required());
+            Object createDefaultValue = metaField == null ? null : metaField.typedCreateDefaultValue();
+            boolean inputRequired = required
+                && (writable.value() == null || writable.value().booleanValue())
+                && createDefaultValue == null;
             fields.add(new CrudFieldRuntimeModel(
                 fieldName,
                 javaType,
@@ -127,7 +132,11 @@ public class CrudRuntimeModelMerger {
                 true,
                 writable.value() == null || writable.value().booleanValue(),
                 false,
-                false
+                false,
+                metaField == null ? fieldName : metaField.label(),
+                required,
+                inputRequired,
+                createDefaultValue
             ));
         }
         return fields;

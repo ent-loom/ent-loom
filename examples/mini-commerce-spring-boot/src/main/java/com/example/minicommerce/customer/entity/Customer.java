@@ -1,9 +1,10 @@
 package com.example.minicommerce.customer.entity;
 
+import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,25 +15,25 @@ import lombok.Setter;
     label = "客户",
     description = "商城客户主数据",
     service = "mini-commerce",
-    defaultLabelFields = {"displayName"}
+    defaultLabelFields = {"displayName"},
+    fieldsRequiredByDefault = OptionalBoolean.TRUE
 )
-@EntCrudEntity(name = "customer", table = "customer", ownerService = "mini-commerce")
+@EntCrudEntity(name = "customer", table = "customer", ownerService = "mini-commerce",
+    idPolicy = CrudIdPolicy.GENERATED)
 @Getter
 @Setter
 @NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
-    @EntField(label = "客户 ID")
+    @EntField(label = "客户 ID", required = OptionalBoolean.FALSE)
     private Long id;
 
     /** 客户展示名称。 */
     @EntField(label = "客户名称")
-    @NotBlank(message = "客户名称不能为空")
     private String displayName;
 
     /** 客户联系邮箱。 */
     @EntField(label = "邮箱")
-    @NotBlank(message = "客户邮箱不能为空")
     private String email;
 
 }

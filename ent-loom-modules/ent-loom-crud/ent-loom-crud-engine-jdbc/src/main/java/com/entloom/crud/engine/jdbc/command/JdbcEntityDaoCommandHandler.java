@@ -20,6 +20,8 @@ import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
+import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
+import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -37,6 +39,8 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
     private final EntityDaoFactory daoFactory;
     private final CrudCommandHandler<P, R> fallback;
     private final DefaultCommandPayloadBinder payloadBinder;
+    private final RequiredFieldValidator requiredFieldValidator;
+    private final CreateDefaultValueApplier createDefaultValueApplier;
 
     public JdbcEntityDaoCommandHandler(
         EntityMetaRegistry metaRegistry,
@@ -50,6 +54,8 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         this.daoFactory = daoFactory;
         this.fallback = fallback;
         this.payloadBinder = new DefaultCommandPayloadBinder();
+        this.requiredFieldValidator = new RequiredFieldValidator();
+        this.createDefaultValueApplier = new CreateDefaultValueApplier();
     }
 
     @Override
@@ -90,8 +96,10 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         rejectVersion(spec);
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
+        createDefaultValueApplier.applyToValues(values, meta);
         Object id = resolveId(values, meta);
         values.put(meta.getIdField(), id);
+        requiredFieldValidator.validateCreateValues(values, meta, id);
         Object entity = payloadBinder.bindEntity(values, spec.getRootType(), meta);
         Object insertedId = dao(meta, scope(spec)).insert(entity);
         return result(spec, 1, insertedId);

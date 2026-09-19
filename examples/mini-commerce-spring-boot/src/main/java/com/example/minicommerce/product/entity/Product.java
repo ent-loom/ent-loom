@@ -1,11 +1,11 @@
 package com.example.minicommerce.product.entity;
 
+import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,30 +16,29 @@ import lombok.Setter;
     label = "商品",
     description = "商城商品主数据",
     service = "mini-commerce",
-    defaultLabelFields = {"name"}
+    defaultLabelFields = {"name"},
+    fieldsRequiredByDefault = OptionalBoolean.TRUE
 )
-@EntCrudEntity(name = "product", table = "product", ownerService = "mini-commerce")
+@EntCrudEntity(name = "product", table = "product", ownerService = "mini-commerce",
+    idPolicy = CrudIdPolicy.GENERATED)
 @Getter
 @Setter
 @NoArgsConstructor
 public class Product {
     /** 商品主键。 */
-    @EntField(label = "商品 ID")
+    @EntField(label = "商品 ID", required = OptionalBoolean.FALSE)
     private Long id;
 
     /** 商品名称。 */
     @EntField(label = "商品名称")
-    @NotBlank(message = "商品名称不能为空")
     private String name;
 
     /** 当前销售价；下单时会复制为订单明细价格快照。 */
     @EntField(label = "销售价")
-    @NotNull(message = "销售价不能为空")
     private BigDecimal price;
 
     /** 商品是否允许下单。 */
     @EntField(label = "启用状态")
-    @NotNull(message = "启用状态不能为空")
     private Boolean active;
 
 }
