@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
         service = "account-center",
         label = "推断账号",
         description = "根据字段名和字段类型自动推断语义",
-        defaultLabelFields = {"nickname", "mobile"},
         plannedVolume = 300000
 )
 public class DemoEntInferredAccount {

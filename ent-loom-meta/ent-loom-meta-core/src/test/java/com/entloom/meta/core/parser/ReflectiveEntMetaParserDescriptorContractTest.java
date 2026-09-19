@@ -46,7 +46,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         Assertions.assertEquals("contract-service", descriptor.serviceName());
         Assertions.assertEquals("Contract Entity", descriptor.label());
         Assertions.assertEquals("Contract descriptor fixture", descriptor.description());
-        Assertions.assertEquals("name", descriptor.defaultLabelFields().get(0));
         Assertions.assertEquals(Long.valueOf(1000L), descriptor.plannedVolume());
         assertSource(descriptor.sourcedValue(MetaDescriptorProperties.ENTITY_NAME), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
         assertSource(descriptor.sourcedValue(MetaDescriptorProperties.ENTITY_CLASS), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
@@ -188,7 +187,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         service = "contract-service",
         label = "Contract Entity",
         description = "Contract descriptor fixture",
-        defaultLabelFields = {"name"},
         plannedVolume = 1000L
     )
     @EntIndex(name = "uk_contract_entity_name", fields = {"name"}, unique = true)

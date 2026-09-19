@@ -32,11 +32,6 @@ public interface EntEntityDescriptor extends SourcedDescriptor {
     String description();
 
     /**
-     * 默认标签字段集合。
-     */
-    List<String> defaultLabelFields();
-
-    /**
      * 预估数据量，null 表示未设置。
      */
     Long plannedVolume();

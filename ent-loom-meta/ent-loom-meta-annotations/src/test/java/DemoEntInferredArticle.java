@@ -10,7 +10,6 @@ import java.time.LocalDate;
         service = "content-center",
         label = "推断文章",
         description = "字段类型 + 字段名基线推断",
-        defaultLabelFields = {"title"},
         plannedVolume = 500000
 )
 public class DemoEntInferredArticle {

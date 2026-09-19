@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
         service = "account-center",
         label = "账号",
         description = "平台账号基础信息",
-        defaultLabelFields = {"nickname", "mobile"},
         plannedVolume = 300000
 )
 @EntIndex(name = "uk_account_mobile", fields = {"mobile"}, unique = true)

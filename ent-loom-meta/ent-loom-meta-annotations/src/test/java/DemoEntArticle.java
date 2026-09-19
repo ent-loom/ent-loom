@@ -24,7 +24,6 @@ import com.entloom.meta.enums.role.TextRole;
         service = "content-center",
         label = "文章",
         description = "内容文章语义模型",
-        defaultLabelFields = {"title"},
         plannedVolume = 500000
 )
 @EntIndex(name = "idx_content_article_creator", fields = {"creatorId"})

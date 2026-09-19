@@ -15,8 +15,7 @@ import lombok.Setter;
     entity = "product",
     label = "商品",
     description = "商城商品主数据",
-    service = "mini-commerce",
-    defaultLabelFields = {"name"}
+    service = "mini-commerce"
 )
 @EntCrudEntity(name = "product", table = "product", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)

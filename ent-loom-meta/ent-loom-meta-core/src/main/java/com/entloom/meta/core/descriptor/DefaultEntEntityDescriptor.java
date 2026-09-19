@@ -20,7 +20,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
     private final String serviceName;
     private final String label;
     private final String description;
-    private final List<String> defaultLabelFields;
     private final Long plannedVolume;
     private final List<? extends EntFieldDescriptor> fields;
     private final List<? extends EntRelationDescriptor> relations;
@@ -33,7 +32,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
         String serviceName,
         String label,
         String description,
-        List<String> defaultLabelFields,
         Long plannedVolume,
         List<? extends EntFieldDescriptor> fields,
         List<? extends EntRelationDescriptor> relations,
@@ -45,7 +43,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
             serviceName,
             label,
             description,
-            defaultLabelFields,
             plannedVolume,
             fields,
             relations,
@@ -60,7 +57,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
         String serviceName,
         String label,
         String description,
-        List<String> defaultLabelFields,
         Long plannedVolume,
         List<? extends EntFieldDescriptor> fields,
         List<? extends EntRelationDescriptor> relations,
@@ -72,7 +68,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
         this.serviceName = serviceName;
         this.label = label;
         this.description = description;
-        this.defaultLabelFields = immutableCopy(defaultLabelFields);
         this.plannedVolume = plannedVolume;
         this.fields = immutableCopy(fields);
         this.relations = immutableCopy(relations);
@@ -103,11 +98,6 @@ public final class DefaultEntEntityDescriptor implements EntEntityDescriptor {
     @Override
     public String description() {
         return description;
-    }
-
-    @Override
-    public List<String> defaultLabelFields() {
-        return defaultLabelFields;
     }
 
     @Override

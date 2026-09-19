@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
         service = "trade-center",
         label = "推断订单",
         description = "通过字段命名约定推断 EntField 语义",
-        defaultLabelFields = {"orderNo"},
         plannedVolume = 2000000
 )
 public class DemoEntInferredOrder {

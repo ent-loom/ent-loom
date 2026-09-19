@@ -145,7 +145,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             emptyToNull(entity.service()),
             emptyToNull(entity.label()),
             emptyToNull(entity.description()),
-            Arrays.asList(entity.defaultLabelFields()),
             entity.plannedVolume() < 0L ? null : Long.valueOf(entity.plannedVolume()),
             fields,
             relations,
@@ -898,11 +897,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         sources.put(MetaDescriptorProperties.SERVICE_NAME, stringSource(emptyToNull(entity.service())));
         sources.put(MetaDescriptorProperties.LABEL, stringSource(emptyToNull(entity.label())));
         sources.put(MetaDescriptorProperties.DESCRIPTION, stringSource(emptyToNull(entity.description())));
-        List<String> defaultLabelFields = Arrays.asList(entity.defaultLabelFields());
-        sources.put(
-            MetaDescriptorProperties.DEFAULT_LABEL_FIELDS,
-            defaultLabelFields.isEmpty() ? SourcedValue.unknown(defaultLabelFields) : SourcedValue.metaExplicit(defaultLabelFields)
-        );
         Long plannedVolume = entity.plannedVolume() < 0L ? null : Long.valueOf(entity.plannedVolume());
         sources.put(
             MetaDescriptorProperties.PLANNED_VOLUME,

@@ -140,7 +140,7 @@ class E5EntityRuntimeStaticAcceptanceTest {
         Map<String, UiFieldContract> uiFields = indexUiFields(ui.fields());
 
         Assertions.assertEquals(meta.entityName(), ui.entityCode());
-        Assertions.assertEquals(meta.defaultLabelFields().get(0), ui.titleFieldName());
+        Assertions.assertEquals("displayName", ui.titleFieldName());
         Assertions.assertEquals(5, uiFields.size());
         Assertions.assertEquals(fieldNames(meta), uiFields.keySet());
         Assertions.assertEquals(fieldNames(meta), crudEntity.getFields().keySet());
@@ -194,12 +194,7 @@ class E5EntityRuntimeStaticAcceptanceTest {
                 !identity
             ));
         }
-        return new UiEntityContract(meta.entityName(), titleFieldName(meta), uiFields);
-    }
-
-    private static String titleFieldName(EntEntityDescriptor meta) {
-        Assertions.assertFalse(meta.defaultLabelFields().isEmpty(), "Meta 实体必须提供默认标签字段");
-        return meta.defaultLabelFields().get(0);
+        return new UiEntityContract(meta.entityName(), "displayName", uiFields);
     }
 
     private static UiFieldContract.UiComponentType uiComponentType(String fieldKind) {

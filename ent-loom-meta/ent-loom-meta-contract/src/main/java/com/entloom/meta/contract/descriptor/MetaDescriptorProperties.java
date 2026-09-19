@@ -9,7 +9,6 @@ public final class MetaDescriptorProperties {
     public static final String SERVICE_NAME = "serviceName";
     public static final String LABEL = "label";
     public static final String DESCRIPTION = "description";
-    public static final String DEFAULT_LABEL_FIELDS = "defaultLabelFields";
     public static final String PLANNED_VOLUME = "plannedVolume";
     public static final String FIELD_NAME = "fieldName";
     public static final String JAVA_TYPE = "javaType";

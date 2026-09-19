@@ -29,7 +29,6 @@ import java.time.LocalDateTime;
         service = "trade-center",
         label = "交易订单",
         description = "订单业务语义模型",
-        defaultLabelFields = {"orderNo"},
         plannedVolume = 2000000
 )
 @EntIndex(name = "idx_trade_order_owner", fields = {"ownerId"})

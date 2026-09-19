@@ -28,8 +28,7 @@ import java.time.LocalDateTime;
     entity = "customer_profile",
     label = "客户档案",
     description = "客户档案",
-    service = "customer-service",
-    defaultLabelFields = {"displayName"}
+    service = "customer-service"
 )
 @EntIndex(name = "uk_customer_profile_display_name", fields = {"displayName"}, unique = true)
 @EntDdlEntity(table = "customer_profile", comment = "客户档案")

@@ -13,7 +13,7 @@ import lombok.Setter;
 
 /** 订单持久化实体，由订单业务服务经 OrderDao 保存。 */
 @EntEntity(entity = "order", label = "订单", description = "商城订单",
-    service = "mini-commerce", defaultLabelFields = {"id"})
+    service = "mini-commerce")
 @EntCrudEntity(name = "order", table = "commerce_order", ownerService = "mini-commerce",
     idPolicy = CrudIdPolicy.GENERATED)
 @Getter

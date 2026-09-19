@@ -34,7 +34,6 @@
 //        service = "userService",
 //        label = "用户",
 //        description = "平台用户",
-//        defaultLabelFields = {"name", "mobile"},
 //        plannedVolume = 20000
 //)
 //public class EntParserEntity {
