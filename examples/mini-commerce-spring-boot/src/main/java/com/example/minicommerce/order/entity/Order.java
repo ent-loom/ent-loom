@@ -21,23 +21,23 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Order {
     /** 订单主键，由数据库自增生成。 */
-    @EntField(label = "订单 ID")
+    @EntField("订单 ID")
     private Long id;
 
     /** 下单客户主键。 */
-    @EntField(label = "客户 ID")
+    @EntField("客户 ID")
     private Long customerId;
 
     /** 订单生命周期状态，参见 {@link OrderStatus}。 */
-    @EntField(label = "订单状态")
+    @EntField("订单状态")
     private OrderStatus status;
 
     /** 下单时各明细金额的合计。 */
-    @EntField(label = "订单总金额")
+    @EntField("订单总金额")
     private BigDecimal totalAmount;
 
     /** 订单创建时间，使用应用配置的本地时间。 */
-    @EntField(label = "创建时间")
+    @EntField("创建时间")
     private LocalDateTime createdAt;
 
 }

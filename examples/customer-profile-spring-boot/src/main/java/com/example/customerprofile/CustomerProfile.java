@@ -19,13 +19,13 @@ import com.entloom.meta.annotations.EntField;
     ownerService = "customer-profile"
 )
 public class CustomerProfile {
-    @EntField(label = "ID")
+    @EntField("ID")
     private Long id;
 
-    @EntField(label = "Display name", required = OptionalBoolean.TRUE)
+    @EntField(value = "Display name", required = OptionalBoolean.TRUE)
     private String displayName;
 
-    @EntField(label = "Email", required = OptionalBoolean.TRUE)
+    @EntField(value = "Email", required = OptionalBoolean.TRUE)
     private String email;
 
     public Long getId() {

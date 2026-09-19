@@ -344,7 +344,7 @@ class EntLoomMetaAutoConfigurationTest {
         @EntField(required = OptionalBoolean.TRUE)
         private Long id;
 
-        @EntField(label = "Order No", required = OptionalBoolean.TRUE)
+        @EntField(value = "Order No", required = OptionalBoolean.TRUE)
         private String orderNo;
 
         @EntField

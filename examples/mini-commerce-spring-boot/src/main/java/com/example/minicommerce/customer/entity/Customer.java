@@ -24,15 +24,15 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Customer {
     /** 客户主键。 */
-    @EntField(label = "客户 ID")
+    @EntField("客户 ID")
     private Long id;
 
     /** 客户展示名称。 */
-    @EntField(label = "客户名称", required = OptionalBoolean.TRUE)
+    @EntField(value = "客户名称", required = OptionalBoolean.TRUE)
     private String displayName;
 
     /** 客户联系邮箱。 */
-    @EntField(label = "邮箱", required = OptionalBoolean.TRUE)
+    @EntField(value = "邮箱", required = OptionalBoolean.TRUE)
     private String email;
 
 }

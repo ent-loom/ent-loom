@@ -10,21 +10,21 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记字段在属性系统中的基础类型。
+ * 声明字段在属性系统中的展示名称、基础类型及约束。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface EntField {
     /**
-     * 属性类型枚举。
-     */
-    EntFieldKind value() default EntFieldKind.AUTO;
-
-    /**
      * 字段展示名称，空字符串表示使用默认命名策略。
      */
-    String label() default "";
+    String value() default "";
+
+    /**
+     * 属性类型枚举，AUTO 表示按字段类型和命名约定推断。
+     */
+    EntFieldKind kind() default EntFieldKind.AUTO;
 
     /**
      * 字段说明文本，用于文档或 UI 提示。

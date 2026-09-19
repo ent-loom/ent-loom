@@ -88,7 +88,7 @@ class MetaConventionTest {
     private static final class ConventionEntity {
         private LocalDateTime createdAt;
 
-        @EntField(label = "更新时间", readOnly = OptionalBoolean.FALSE)
+        @EntField(value = "更新时间", readOnly = OptionalBoolean.FALSE)
         @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
         private LocalDateTime createTime;
     }

@@ -202,7 +202,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         private Long ownerId;
 
         @EntField(
-            label = "Name",
+            value = "Name",
             description = "Displayed name",
             examples = {"Alice"},
             createDefaultValue = "new-user",

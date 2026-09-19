@@ -47,7 +47,7 @@ import java.time.LocalDateTime;
 @EntDocEntity(name = "客户档案", description = "客户档案")
 public final class CustomerProfile {
     /** 数据库主键。 */
-    @EntField(label = "标识", description = "主键", required = OptionalBoolean.TRUE)
+    @EntField(value = "标识", description = "主键", required = OptionalBoolean.TRUE)
     @EntDdlField(
         column = "id",
         nullable = OptionalBoolean.FALSE,
@@ -60,7 +60,7 @@ public final class CustomerProfile {
 
     /** 客户展示名称。 */
     @EntField(
-        label = "显示名称",
+        value = "显示名称",
         description = "客户展示名称",
         examples = {"张三"},
         required = OptionalBoolean.TRUE
@@ -78,7 +78,7 @@ public final class CustomerProfile {
 
     /** 客户信用额度。 */
     @EntField(
-        label = "信用额度",
+        value = "信用额度",
         description = "客户信用额度",
         examples = {"1000.00"},
         required = OptionalBoolean.TRUE
@@ -95,7 +95,7 @@ public final class CustomerProfile {
 
     /** 客户注册时间。 */
     @EntField(
-        label = "注册时间",
+        value = "注册时间",
         description = "客户注册时间",
         required = OptionalBoolean.TRUE
     )
@@ -106,8 +106,8 @@ public final class CustomerProfile {
 
     /** 客户头像地址，作为 UI 图片字段验收样本。 */
     @EntField(
-        value = EntFieldKind.MEDIA,
-        label = "头像",
+        kind = EntFieldKind.MEDIA,
+        value = "头像",
         description = "客户头像地址",
         required = OptionalBoolean.FALSE
     )

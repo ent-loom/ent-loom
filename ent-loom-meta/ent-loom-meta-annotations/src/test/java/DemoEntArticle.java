@@ -43,11 +43,11 @@ public class DemoEntArticle {
     @EntMetaText(TextRole.GENERIC)
     private String title;
 
-    @EntField(EntFieldKind.MEDIA)
+    @EntField(kind = EntFieldKind.MEDIA)
     @EntMetaMedia(MediaRole.IMAGE)
     private String coverImageUrl;
 
-    @EntField(EntFieldKind.RICH_CONTENT)
+    @EntField(kind = EntFieldKind.RICH_CONTENT)
     private String bodyContent;
 
     @EntField
@@ -58,7 +58,7 @@ public class DemoEntArticle {
     @EntMetaNumber(NumberRole.GENERIC)
     private Integer qualityScore;
 
-    @EntField(EntFieldKind.DATETIME)
+    @EntField(kind = EntFieldKind.DATETIME)
     @EntMetaDateTime(value = DateTimeRole.GENERIC, encoding = EntMetaDateTime.TimeEncoding.EPOCH_SECONDS)
     private Long publishAtEpochSeconds;
 

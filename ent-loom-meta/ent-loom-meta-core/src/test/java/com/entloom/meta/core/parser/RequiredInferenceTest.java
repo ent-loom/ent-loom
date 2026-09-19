@@ -77,7 +77,7 @@ class RequiredInferenceTest {
         @javax.validation.constraints.NotNull
         private Boolean defaulted;
         /** 自动生成主键。 */
-        @EntField(com.entloom.meta.enums.EntFieldKind.ID)
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.ID)
         @EntMetaId(generator = EntMetaId.IdGenerator.UUID)
         @javax.validation.constraints.NotNull
         private String generated;

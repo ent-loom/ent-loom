@@ -64,7 +64,7 @@
 //    @EntMetaFlag(FlagRole.SOFT_DELETE)
 //    private Boolean deleted;
 //
-//    @EntField(EntFieldKind.DATETIME)
+//    @EntField(kind = EntFieldKind.DATETIME)
 //    @EntMetaDateTime(value = DateTimeRole.CREATED_TIME, encoding = EntMetaDateTime.TimeEncoding.EPOCH_MILLIS)
 //    private Long createdAtEpoch;
 //
@@ -78,18 +78,18 @@
 //    @JtsColumn(sqlType = EnumJtsSqlType.VARCHAR, length = 64)
 //    private String title;
 //
-//    @EntField(EntFieldKind.MEDIA)
+//    @EntField(kind = EntFieldKind.MEDIA)
 //    @EntMetaMedia(MediaRole.IMAGE)
 //    private String materialImageUrl;
 //
-//    @EntField(EntFieldKind.MEDIA)
+//    @EntField(kind = EntFieldKind.MEDIA)
 //    @EntMetaMedia(MediaRole.IMAGE)
 //    private String carouselImageUrls;
 //
-//    @EntField(EntFieldKind.RICH_CONTENT)
+//    @EntField(kind = EntFieldKind.RICH_CONTENT)
 //    private String goodsDesc;
 //
-//    @EntField(EntFieldKind.JSON_DOC)
+//    @EntField(kind = EntFieldKind.JSON_DOC)
 //    @EntMetaJson(JsonRole.GENERIC)
 //    private String catSuggestionResponseJson;
 //

@@ -51,7 +51,7 @@ class MetaCrudAdapterP0AcceptanceTest {
     @EntEntity(entity = "input_hint_entity")
     static class InputHintEntity {
         /** 业务必填约束不等同于数据库非空。 */
-        @EntField(label = "名称", required = com.entloom.base.common.OptionalBoolean.TRUE)
+        @EntField(value = "名称", required = com.entloom.base.common.OptionalBoolean.TRUE)
         private String name;
     }
 

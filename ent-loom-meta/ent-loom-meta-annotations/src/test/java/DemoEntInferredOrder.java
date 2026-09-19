@@ -23,7 +23,7 @@ public class DemoEntInferredOrder {
 
     private String orderNo;
 
-    @EntField(label = "订单状态")
+    @EntField("订单状态")
     private OrderStatus orderStatus;
 
     private String orderType;

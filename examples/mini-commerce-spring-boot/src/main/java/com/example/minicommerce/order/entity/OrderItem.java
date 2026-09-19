@@ -19,31 +19,31 @@ import lombok.Setter;
 @NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
-    @EntField(label = "明细 ID")
+    @EntField("明细 ID")
     private Long id;
 
     /** 所属订单主键，由订单聚合保存时填充。 */
-    @EntField(label = "订单 ID")
+    @EntField("订单 ID")
     private Long orderId;
 
     /** 下单商品主键。 */
-        @EntField(label = "商品 ID")
+    @EntField("商品 ID")
     private Long productId;
 
     /** 下单时的商品名称快照，不随商品主数据变化。 */
-    @EntField(label = "商品名称")
+    @EntField("商品名称")
     private String productName;
 
     /** 下单时的商品单价快照。 */
-    @EntField(label = "成交单价")
+    @EntField("成交单价")
     private BigDecimal unitPrice;
 
     /** 购买数量，业务层校验为正数。 */
-    @EntField(label = "购买数量")
+    @EntField("购买数量")
     private Integer quantity;
 
     /** 成交单价乘以购买数量，由业务层计算。 */
-    @EntField(label = "明细金额")
+    @EntField("明细金额")
     private BigDecimal lineAmount;
 
 }

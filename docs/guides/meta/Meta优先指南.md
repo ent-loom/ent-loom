@@ -35,10 +35,10 @@ Runtime Model 是组件最终执行契约
     entity = "student"
 )
 public class Student {
-    @EntField(label = "姓名", required = OptionalBoolean.TRUE)
+    @EntField(value = "姓名", required = OptionalBoolean.TRUE)
     private String studentName;
 
-    @EntField(label = "备注", required = OptionalBoolean.FALSE)
+    @EntField(value = "备注", required = OptionalBoolean.FALSE)
     private String remark;
 }
 ```
@@ -52,7 +52,7 @@ public class Student {
 通用关系同样由 Meta 声明：
 
 ```java
-@EntField(label = "班级")
+@EntField("班级")
 @EntRelation(
     targetEntity = "class",
     sourceField = "classId",
@@ -69,7 +69,7 @@ private Long classId;
 只有出现组件专属行为时才增加组件注解。例如 CRUD 需要目标类型或加载策略：
 
 ```java
-@EntField(label = "班级")
+@EntField("班级")
 @EntRelation(targetEntity = "class", targetField = "id")
 @EntCrudField(
     targetClass = SchoolClass.class,

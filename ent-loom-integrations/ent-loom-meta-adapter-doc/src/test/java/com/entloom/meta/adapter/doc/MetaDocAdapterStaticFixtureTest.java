@@ -144,7 +144,7 @@ class MetaDocAdapterStaticFixtureTest {
         @EntField
         private Long id;
 
-        @EntField(label = "订单号", required = OptionalBoolean.TRUE)
+        @EntField(value = "订单号", required = OptionalBoolean.TRUE)
         @EntDocField(name = "订单号文档覆盖", example = "SO-001")
         private String orderNo;
 

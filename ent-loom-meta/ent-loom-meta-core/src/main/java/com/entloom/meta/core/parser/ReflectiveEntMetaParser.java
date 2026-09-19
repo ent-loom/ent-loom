@@ -162,7 +162,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         MetaDiagnosticCollector diagnostics
     ) {
         EntFieldKind kind = fieldKind(field, entField);
-        boolean explicitField = entField != null && entField.value() != EntFieldKind.AUTO;
+        boolean explicitField = entField != null && entField.kind() != EntFieldKind.AUTO;
         TypedDefaultValue defaultValue = typedDefaultValue(field, entField, diagnostics);
         SourcedValue<String> role = fieldRole(field, kind);
         List<EntFieldConstraintDescriptor> constraints = constraints(field);
@@ -216,8 +216,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
                 contributions,
                 target,
                 MetaDescriptorProperties.LABEL,
-                emptyToNull(entField.label()),
-                emptyToNull(entField.label()) == null ? null : MetaValueSource.META_EXPLICIT
+                emptyToNull(entField.value()),
+                emptyToNull(entField.value()) == null ? null : MetaValueSource.META_EXPLICIT
             );
             addCandidate(
                 contributions,
@@ -628,8 +628,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
     }
 
     private EntFieldKind fieldKind(Field field, EntField entField) {
-        if (entField != null && entField.value() != EntFieldKind.AUTO) {
-            return entField.value();
+        if (entField != null && entField.kind() != EntFieldKind.AUTO) {
+            return entField.kind();
         }
         return inferFieldKind(field);
     }
@@ -928,7 +928,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             explicitField ? SourcedValue.metaExplicit(kind.name()) : SourcedValue.inferred(kind.name())
         );
         sources.put(MetaDescriptorProperties.ROLE, role);
-        sources.put(MetaDescriptorProperties.LABEL, stringSource(entField == null ? null : emptyToNull(entField.label())));
+        sources.put(MetaDescriptorProperties.LABEL, stringSource(entField == null ? null : emptyToNull(entField.value())));
         sources.put(MetaDescriptorProperties.DESCRIPTION, stringSource(entField == null ? null : emptyToNull(entField.description())));
         List<String> examples = entField == null ? java.util.Collections.<String>emptyList() : Arrays.asList(entField.examples());
         sources.put(MetaDescriptorProperties.EXAMPLES, examples.isEmpty() ? SourcedValue.unknown(examples) : SourcedValue.metaExplicit(examples));

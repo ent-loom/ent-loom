@@ -163,7 +163,7 @@ class ReflectiveEntMetaParserFixtureTest {
         private String name;
         private InferredStatus status;
         private Boolean enabled;
-        @EntField(label = "创建时间")
+        @EntField("创建时间")
         private LocalDateTime createdAt;
         private String profileJson;
         private String coverImageUrl;
@@ -175,7 +175,7 @@ class ReflectiveEntMetaParserFixtureTest {
     private static final class SemanticallyBrokenEntity {
         private Long id;
 
-        @EntField(EntFieldKind.TEXT)
+        @EntField(kind = EntFieldKind.TEXT)
         @EntMetaNumber(precision = 4, scale = 6, min = "9", max = "1")
         private BigDecimal amount;
 

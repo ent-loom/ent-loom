@@ -60,7 +60,7 @@ public class DemoEntOrder {
     @EntMetaNumber(NumberRole.MONEY)
     private BigDecimal payAmount;
 
-    @EntField(EntFieldKind.JSON_DOC)
+    @EntField(kind = EntFieldKind.JSON_DOC)
     @EntMetaJson(JsonRole.GENERIC)
     private String extensionJson;
 
