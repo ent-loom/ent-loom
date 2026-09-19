@@ -1,6 +1,6 @@
 package com.entloom.ddl.bootstrap;
 
-import com.entloom.ddl.annotations.EntDbEntity;
+import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.MetadataLoadRequest;
@@ -30,7 +30,7 @@ class AnnotationMetadataLoaderTest {
         assertFalse(id.nullable());
     }
 
-    @EntDbEntity(table = "account")
+    @EntDdlEntity(table = "account")
     private static final class AccountEntity {
         private Long id;
         private String nickname;

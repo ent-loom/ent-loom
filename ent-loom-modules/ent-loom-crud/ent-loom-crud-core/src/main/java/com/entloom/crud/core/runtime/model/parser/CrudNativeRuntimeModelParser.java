@@ -334,7 +334,7 @@ public class CrudNativeRuntimeModelParser {
     }
 
     private boolean isDdlGeneratedIdAnnotation(Annotation annotation) {
-        if (!"com.entloom.ddl.annotations.EntDbField".equals(annotation.annotationType().getName())) {
+        if (!"com.entloom.ddl.annotations.EntDdlField".equals(annotation.annotationType().getName())) {
             return false;
         }
         String strategy = enumAttributeName(annotation, "generationStrategy");

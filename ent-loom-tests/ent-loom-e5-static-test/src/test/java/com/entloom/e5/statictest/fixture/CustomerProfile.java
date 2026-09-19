@@ -3,9 +3,9 @@ package com.entloom.e5.statictest.fixture;
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
-import com.entloom.ddl.annotations.EntDbIndex;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
@@ -32,8 +32,8 @@ import java.time.LocalDateTime;
     defaultLabelFields = {"displayName"}
 )
 @EntIndex(name = "uk_customer_profile_display_name", fields = {"displayName"}, unique = true)
-@EntDbEntity(table = "customer_profile", comment = "客户档案")
-@EntDbIndex(
+@EntDdlEntity(table = "customer_profile", comment = "客户档案")
+@EntDdlIndex(
     name = "uk_customer_profile_display_name",
     fields = {"display_name"},
     unique = OptionalBoolean.TRUE
@@ -48,7 +48,7 @@ import java.time.LocalDateTime;
 public final class CustomerProfile {
     /** 数据库主键。 */
     @EntField(label = "标识", description = "主键", required = OptionalBoolean.TRUE)
-    @EntDbField(
+    @EntDdlField(
         column = "id",
         nullable = OptionalBoolean.FALSE,
         primaryKey = OptionalBoolean.TRUE,
@@ -66,7 +66,7 @@ public final class CustomerProfile {
         required = OptionalBoolean.TRUE
     )
     @EntMetaText(maxLength = 64)
-    @EntDbField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE, comment = "客户展示名称")
+    @EntDdlField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE, comment = "客户展示名称")
     @EntDocField(
         name = "显示名称",
         description = "客户展示名称",
@@ -84,7 +84,7 @@ public final class CustomerProfile {
         required = OptionalBoolean.TRUE
     )
     @EntMetaNumber(value = NumberRole.MONEY, precision = 10, scale = 2)
-    @EntDbField(column = "credit_limit", precision = 10, scale = 2, nullable = OptionalBoolean.FALSE, comment = "客户信用额度")
+    @EntDdlField(column = "credit_limit", precision = 10, scale = 2, nullable = OptionalBoolean.FALSE, comment = "客户信用额度")
     @EntDocField(
         name = "信用额度",
         description = "客户信用额度",
@@ -100,7 +100,7 @@ public final class CustomerProfile {
         required = OptionalBoolean.TRUE
     )
     @EntMetaDateTime(value = DateTimeRole.CREATED_TIME, encoding = EntMetaDateTime.TimeEncoding.ISO_LOCAL)
-    @EntDbField(column = "registered_at", nullable = OptionalBoolean.FALSE, comment = "客户注册时间")
+    @EntDdlField(column = "registered_at", nullable = OptionalBoolean.FALSE, comment = "客户注册时间")
     @EntDocField(name = "注册时间", description = "客户注册时间", required = OptionalBoolean.TRUE)
     private LocalDateTime registeredAt;
 
@@ -112,7 +112,7 @@ public final class CustomerProfile {
         required = OptionalBoolean.FALSE
     )
     @EntMetaMedia(value = MediaRole.IMAGE, pathMode = EntMetaMedia.PathMode.ABSOLUTE_URL, accept = {"image/png", "image/jpeg"})
-    @EntDbField(column = "avatar_url", length = 255, nullable = OptionalBoolean.TRUE, comment = "客户头像地址")
+    @EntDdlField(column = "avatar_url", length = 255, nullable = OptionalBoolean.TRUE, comment = "客户头像地址")
     @EntDocField(name = "头像", description = "客户头像地址", required = OptionalBoolean.FALSE)
     private String avatarUrl;
 }

@@ -1,6 +1,6 @@
 package com.entloom.ddl.spring;
 
-import com.entloom.ddl.annotations.EntDbEntity;
+import com.entloom.ddl.annotations.EntDdlEntity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -32,7 +32,7 @@ public final class SpringPackageEntityClassResolver {
         Map<String, Class<?>> classes = new LinkedHashMap<String, Class<?>>();
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter(new AnnotationTypeFilter(EntDbEntity.class));
+        scanner.addIncludeFilter(new AnnotationTypeFilter(EntDdlEntity.class));
         for (String basePackage : packages) {
             try {
                 for (BeanDefinition candidate : scanner.findCandidateComponents(basePackage)) {

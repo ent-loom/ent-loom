@@ -11,12 +11,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 字段的数据库列映射定义。
+ * 字段的 DDL 列定义。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface EntDbField {
+public @interface EntDdlField {
     /**
      * 物理列名。空值表示按命名策略推导。
      */

@@ -252,7 +252,7 @@ class MetaCrudAdapterP0AcceptanceTest {
 
     @EntCrudEntity(name = "ddl_identity_order")
     private static final class DdlIdentityOrder {
-        @com.entloom.ddl.annotations.EntDbField(
+        @com.entloom.ddl.annotations.EntDdlField(
             generationStrategy = com.entloom.ddl.enums.GenerationStrategy.IDENTITY
         )
         private Long id;
@@ -260,7 +260,7 @@ class MetaCrudAdapterP0AcceptanceTest {
 
     @EntCrudEntity(name = "ddl_auto_increment_order")
     private static final class DdlAutoIncrementOrder {
-        @com.entloom.ddl.annotations.EntDbField(
+        @com.entloom.ddl.annotations.EntDdlField(
             generationStrategy = com.entloom.ddl.enums.GenerationStrategy.AUTO_INCREMENT
         )
         private Long id;

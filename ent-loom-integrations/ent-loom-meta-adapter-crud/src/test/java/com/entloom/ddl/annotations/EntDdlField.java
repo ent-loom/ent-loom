@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface EntDbField {
+public @interface EntDdlField {
     GenerationStrategy generationStrategy() default GenerationStrategy.UNSET;
 }

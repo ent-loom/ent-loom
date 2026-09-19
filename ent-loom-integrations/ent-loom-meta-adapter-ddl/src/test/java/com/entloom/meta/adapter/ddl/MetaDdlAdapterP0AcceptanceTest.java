@@ -1,9 +1,9 @@
 package com.entloom.meta.adapter.ddl;
 
 import com.entloom.base.common.OptionalBoolean;
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
-import com.entloom.ddl.annotations.EntDbIndex;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
@@ -198,59 +198,59 @@ class MetaDdlAdapterP0AcceptanceTest {
         private Long tenantId;
     }
 
-    @EntDbEntity(table = "native_account", schema = "account_schema", comment = "Native account", size = DdlTableSize.MEDIUM)
-    @EntDbIndex(name = "uk_native_account_code", fields = {"code"}, unique = OptionalBoolean.TRUE)
+    @EntDdlEntity(table = "native_account", schema = "account_schema", comment = "Native account", size = DdlTableSize.MEDIUM)
+    @EntDdlIndex(name = "uk_native_account_code", fields = {"code"}, unique = OptionalBoolean.TRUE)
     private static final class DdlOnlyAccount {
-        @EntDbField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
+        @EntDdlField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.AUTO_INCREMENT)
         private Long id;
 
-        @EntDbField(length = 32, nullable = OptionalBoolean.FALSE, defaultValue = "'new'", renameFrom = "old_code")
+        @EntDdlField(length = 32, nullable = OptionalBoolean.FALSE, defaultValue = "'new'", renameFrom = "old_code")
         private String code;
 
         private transient String ignored;
     }
 
     @EntEntity(entity = "meta_override_account", description = "Meta description")
-    @EntDbEntity(table = "native_override_account")
+    @EntDdlEntity(table = "native_override_account")
     private static final class OverrideAccount {
         @EntField
-        @EntDbField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
+        @EntDdlField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
         private Long id;
 
         @EntField(required = OptionalBoolean.TRUE)
         @EntMetaText(maxLength = 80)
-        @EntDbField(column = "native_display", length = 24, nullable = OptionalBoolean.TRUE)
+        @EntDdlField(column = "native_display", length = 24, nullable = OptionalBoolean.TRUE)
         private String displayName;
     }
 
-    @EntDbEntity(table = "meta_only_account")
-    @EntDbIndex(name = "uk_meta_account_display_name", fields = {"display_name"}, unique = OptionalBoolean.TRUE)
+    @EntDdlEntity(table = "meta_only_account")
+    @EntDdlIndex(name = "uk_meta_account_display_name", fields = {"display_name"}, unique = OptionalBoolean.TRUE)
     private static final class EquivalentDdlAccount {
-        @EntDbField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
+        @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
         private Long id;
 
-        @EntDbField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE)
+        @EntDdlField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE)
         private String displayName;
 
-        @EntDbField(precision = 10, scale = 2)
+        @EntDdlField(precision = 10, scale = 2)
         private BigDecimal amount;
 
         private Long tenantId;
     }
 
-    @EntDbEntity(namingStrategy = NamingStrategy.AS_IS)
+    @EntDdlEntity(namingStrategy = NamingStrategy.AS_IS)
     private static final class AsIsAccount {
         private Long id;
     }
 
-    @EntDbEntity
-    @EntDbIndex(name = "idx_unsupported_payload", fields = {"payload"},
+    @EntDdlEntity
+    @EntDdlIndex(name = "idx_unsupported_payload", fields = {"payload"},
         uniqueScope = UniqueScope.ACTIVE_ONLY, type = IndexType.FULLTEXT)
     private static final class UnsupportedDdlProperties {
         private Long id;
 
-        @EntDbField(sqlType = SqlType.JSON, collation = "utf8mb4_bin", dialectOptions = "VISIBLE",
+        @EntDdlField(sqlType = SqlType.JSON, collation = "utf8mb4_bin", dialectOptions = "VISIBLE",
             defaultValueHint = com.entloom.base.util.value.TypedValueType.STRING)
         private String payload;
     }

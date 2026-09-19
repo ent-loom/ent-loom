@@ -9,12 +9,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 实体的数据库映射定义。
+ * 实体的 DDL 表定义。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface EntDbEntity {
+public @interface EntDdlEntity {
     /**
      * 物理表名。空值表示按命名策略推导。
      */

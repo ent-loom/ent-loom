@@ -1,8 +1,8 @@
 package com.entloom.ddl.spring;
 
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
-import com.entloom.ddl.annotations.EntDbIndex;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
@@ -98,20 +98,20 @@ class SpringEntityDiscoveryContractTest {
                 entities.stream().map(DdlEntityMetadata::entityClassName).collect(Collectors.toList()));
     }
 
-    @EntDbEntity(table = "ddl_order", schema = "biz", comment = "订单实体",
+    @EntDdlEntity(table = "ddl_order", schema = "biz", comment = "订单实体",
             size = DdlTableSize.MEDIUM, namingStrategy = NamingStrategy.SNAKE_CASE)
-    @EntDbIndex(name = "uk_order_no", fields = {"order_no"}, unique = com.entloom.base.common.OptionalBoolean.TRUE)
+    @EntDdlIndex(name = "uk_order_no", fields = {"order_no"}, unique = com.entloom.base.common.OptionalBoolean.TRUE)
     private static final class OrderEntity {
         /**
          * 订单主键。
          */
-        @EntDbField(generationStrategy = GenerationStrategy.AUTO_INCREMENT)
+        @EntDdlField(generationStrategy = GenerationStrategy.AUTO_INCREMENT)
         private Long id;
 
         /**
          * 订单号。
          */
-        @EntDbField(column = "order_no", nullable = com.entloom.base.common.OptionalBoolean.FALSE,
+        @EntDdlField(column = "order_no", nullable = com.entloom.base.common.OptionalBoolean.FALSE,
                 unique = com.entloom.base.common.OptionalBoolean.TRUE, length = 32,
                 comment = "订单号", renameFrom = "old_order_no")
         private String orderNumber;
@@ -119,14 +119,14 @@ class SpringEntityDiscoveryContractTest {
         /**
          * 订单金额。
          */
-        @EntDbField(precision = 18, scale = 2, defaultValue = "0")
-        @EntDbIndex(name = "idx_amount")
+        @EntDdlField(precision = 18, scale = 2, defaultValue = "0")
+        @EntDdlIndex(name = "idx_amount")
         private java.math.BigDecimal amount;
 
         /**
          * 仅用于验证不持久化字段。
          */
-        @EntDbField(persisted = com.entloom.base.common.OptionalBoolean.FALSE)
+        @EntDdlField(persisted = com.entloom.base.common.OptionalBoolean.FALSE)
         private String transientLabel;
     }
 }

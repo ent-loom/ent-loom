@@ -7,11 +7,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * {@link EntDbIndex} 的重复注解容器。
+ * {@link EntDdlIndex} 的重复注解容器。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.FIELD})
-public @interface EntDbIndexes {
-    EntDbIndex[] value();
+public @interface EntDdlIndexes {
+    EntDdlIndex[] value();
 }

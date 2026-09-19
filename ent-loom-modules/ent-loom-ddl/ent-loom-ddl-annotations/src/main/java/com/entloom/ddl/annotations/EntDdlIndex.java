@@ -11,13 +11,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 实体数据库索引定义。
+ * 实体的 DDL 索引定义。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.FIELD})
-@Repeatable(EntDbIndexes.class)
-public @interface EntDbIndex {
+@Repeatable(EntDdlIndexes.class)
+public @interface EntDdlIndex {
     /**
      * 索引名。空值表示生成器推导。
      */

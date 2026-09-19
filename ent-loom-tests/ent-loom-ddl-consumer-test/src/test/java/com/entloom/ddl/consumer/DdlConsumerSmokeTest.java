@@ -1,7 +1,7 @@
 package com.entloom.ddl.consumer;
 
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.api.DdlExecutionMode;
 import com.entloom.ddl.api.DdlExecutionResult;
 import com.entloom.ddl.api.SqlExecutor;
@@ -54,12 +54,12 @@ class DdlConsumerSmokeTest {
     }
 
     /** 业务侧实体只依赖 DDL 注解，不继承框架实现类。 */
-    @EntDbEntity(table = "consumer_account", comment = "消费者冒烟实体")
+    @EntDdlEntity(table = "consumer_account", comment = "消费者冒烟实体")
     static final class ConsumerAccount {
-        @EntDbField(comment = "主键")
+        @EntDdlField(comment = "主键")
         private Long id;
 
-        @EntDbField(length = 64, comment = "展示名称")
+        @EntDdlField(length = 64, comment = "展示名称")
         private String displayName;
     }
 }

@@ -1,9 +1,9 @@
 package com.entloom.ddl.bootstrap;
 
 import com.entloom.base.common.OptionalBoolean;
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
-import com.entloom.ddl.annotations.EntDbIndex;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
@@ -46,7 +46,7 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
             if (candidate == null) {
                 continue;
             }
-            EntDbEntity entityAnn = candidate.getAnnotation(EntDbEntity.class);
+            EntDdlEntity entityAnn = candidate.getAnnotation(EntDdlEntity.class);
             if (entityAnn == null) {
                 continue;
             }
@@ -78,7 +78,7 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
         }
     }
 
-    private DdlEntityMetadata buildEntity(Class<?> entityClass, EntDbEntity entityAnn) {
+    private DdlEntityMetadata buildEntity(Class<?> entityClass, EntDdlEntity entityAnn) {
         String tableName = trim(entityAnn.table()).isEmpty()
                 ? toTableName(entityClass.getSimpleName(), entityAnn.namingStrategy())
                 : entityAnn.table().trim();
@@ -101,7 +101,7 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
             if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())) {
                 continue;
             }
-            EntDbField ann = field.getAnnotation(EntDbField.class);
+            EntDdlField ann = field.getAnnotation(EntDdlField.class);
             boolean persisted = ann == null || ann.persisted() != OptionalBoolean.FALSE;
             String columnName = ann == null || trim(ann.column()).isEmpty() ? toSnake(field.getName()) : ann.column().trim();
             boolean primaryKey = ann != null && ann.primaryKey() == OptionalBoolean.TRUE;
@@ -138,8 +138,8 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
 
     private List<DdlIndexMetadata> resolveIndexes(Class<?> entityClass, List<DdlFieldMetadata> fields) {
         List<DdlIndexMetadata> indexes = new ArrayList<DdlIndexMetadata>();
-        EntDbIndex[] classIndexes = entityClass.getAnnotationsByType(EntDbIndex.class);
-        for (EntDbIndex classIndex : classIndexes) {
+        EntDdlIndex[] classIndexes = entityClass.getAnnotationsByType(EntDdlIndex.class);
+        for (EntDdlIndex classIndex : classIndexes) {
             indexes.add(new DdlIndexMetadata(classIndex.name(),
                     toList(classIndex.fields()),
                     classIndex.unique() == OptionalBoolean.TRUE,
@@ -151,14 +151,14 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
             fieldToColumn.put(field.fieldName(), field.columnName());
         }
         for (Field field : collectDeclaredFields(entityClass)) {
-            EntDbIndex[] fieldIndexes = field.getAnnotationsByType(EntDbIndex.class);
+            EntDdlIndex[] fieldIndexes = field.getAnnotationsByType(EntDdlIndex.class);
             if (fieldIndexes.length == 0) {
                 continue;
             }
             String defaultColumn = fieldToColumn.containsKey(field.getName())
                     ? fieldToColumn.get(field.getName())
                     : toSnake(field.getName());
-            for (EntDbIndex fieldIndex : fieldIndexes) {
+            for (EntDdlIndex fieldIndex : fieldIndexes) {
                 List<String> indexFields = toList(fieldIndex.fields());
                 if (indexFields.isEmpty()) {
                     indexFields.add(defaultColumn);

@@ -14,7 +14,7 @@
 
 ```mermaid
 flowchart TB
-    declare["实体声明\n@EntDbEntity / @EntDbField"]
+declare["实体声明\n@EntDdlEntity / @EntDdlField"]
     discover["实体发现\n显式类 / 包扫描"]
     runtime["DDL Runtime Model\nDdlEntityMetadata"]
     plan["Schema Plan\n创建 / 差异"]
@@ -170,7 +170,7 @@ E2.4 验收证据（2026-08-25）：
 
 - 测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./mvnw -pl ent-loom-tests/ent-loom-ddl-consumer-test -am test`。
 - 测试结果：`ent-loom-ddl-core` 共 17 项、`ent-loom-ddl-bootstrap` 共 5 项、`ent-loom-ddl-consumer-test` 共 1 项测试通过，0 失败、0 错误；JDK 21 Enforcer 通过。
-- 合同覆盖：独立消费者实体只使用 `@EntDbEntity` / `@EntDbField`；通过公开 `DdlBootstrap` 和 `DdlBootstrapRequest` 完成显式实体接入；公开 `QueryStrategy` / `SqlExecutor` fake 观察 generated / executed SQL 和最小建表字段。
+- 合同覆盖：独立消费者实体只使用 `@EntDdlEntity` / `@EntDdlField`；通过公开 `DdlBootstrap` 和 `DdlBootstrapRequest` 完成显式实体接入；公开 `QueryStrategy` / `SqlExecutor` fake 观察 generated / executed SQL 和最小建表字段。
 - 边界验证：消费者测试没有导入 `com.entloom.ddl.core`、Spring、Servlet、Starter 或 Meta Core 包；测试构件仅声明 Annotations、API、Bootstrap 和 JUnit 依赖；本次未引入 MySQL 驱动或 Testcontainers。
 - 未完成工作（记录时）：E2.5 MySQL 8 / Testcontainers；E3 字段 / 索引差异；E4 Meta -> DDL Adapter；E5 实体全链路验收。
 - [x] **E2.5 MySQL 8 证据**：使用专用 profile 完成一次真实建库 / 建表验证，检查关键字段、主键和索引。
@@ -219,7 +219,7 @@ E4 映射边界：
 
 | Meta Descriptor | DDL Runtime Model | 规则 |
 |---|---|---|
-| `entityName` | `tableName` | Meta-only 使用实体名；未提供时按 Java 类名推导 snake_case；DDL `@EntDbEntity.table` 显式覆盖 |
+| `entityName` | `tableName` | Meta-only 使用实体名；未提供时按 Java 类名推导 snake_case；DDL `@EntDdlEntity.table` 显式覆盖 |
 | `description` | 实体 / 字段 `comment` | 仅作为通用说明投影；DDL 显式注释优先 |
 | `fieldName`、`javaType` | `fieldName`、`javaType` | 保留 Java 字段身份和类型，物理列名按 snake_case 推导 |
 | `EntFieldKind.ID` | `primaryKey` | ID 字段投影为主键；通用 `EntMetaId.AUTO` 不自动推导数据库生成策略，数据库自增必须由 DDL 原生属性显式声明 |
@@ -269,7 +269,7 @@ E5.2 验收证据（2026-08-26）：
 - 测试结果：`ent-loom-e5-static-test` 共 3 项测试通过，0 失败、0 错误、0 跳过；上游 Reactor 构件测试通过；JDK 21 Enforcer 通过。
 - DDL 合同：`E5MysqlDdlAcceptanceTest` 通过 `EntDdlAutoConfiguration` 的显式实体入口创建 `customer_profile`，验证 `BIGINT` 主键自增、`VARCHAR(64)`、`DECIMAL(10,2)`、`DATETIME`、`VARCHAR(255)` 与唯一索引 `uk_customer_profile_display_name`，并以公开 `QueryStrategy` 读取表快照。
 - CRUD HTTP 合同：`E5CrudMvcAcceptanceTest` 使用 H2 与 MockMvc，不启动真实 HTTP 服务；依次验证 `create`、`detail`、`update`、`delete` 的成功响应、请求标识和实际 JDBC 影响行数。
-- 边界验证：继续复用无关系的 `CustomerProfile`，只新增等价 `@EntDbIndex` 以让 DDL Starter 读取唯一索引；不引入 Testcontainers、复杂关系、业务权限或生产依赖。
+- 边界验证：继续复用无关系的 `CustomerProfile`，只新增等价 `@EntDdlIndex` 以让 DDL Starter 读取唯一索引；不引入 Testcontainers、复杂关系、业务权限或生产依赖。
 
 E5.3 阶段门禁（已完成）：使用者可从同一实体的声明理解 Meta、DDL、CRUD、DOC、UI 的验收投影，并可用 JDK 21 Maven Wrapper 复现静态、MockMvc 与 MySQL 8 测试。
 

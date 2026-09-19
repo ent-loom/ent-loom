@@ -54,9 +54,9 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 
 当前已具备（可直接复用）：
 
-1. `@EntDbEntity`：`table`、`schema`、`comment`、命名策略
-2. `@EntDbField`：类型、长度、nullable、unique、default、comment、持久化开关、生成策略
-3. `@EntDbIndex/@EntDbIndexes`：索引名、字段、唯一、索引类型
+1. `@EntDdlEntity`：`table`、`schema`、`comment`、命名策略
+2. `@EntDdlField`：类型、长度、nullable、unique、default、comment、持久化开关、生成策略
+3. `@EntDdlIndex/@EntDdlIndexes`：索引名、字段、唯一、索引类型
 
 建议补充（支撑 R3/R4/R5/R9 的关键缺口）：
 

@@ -1,9 +1,9 @@
 package com.entloom.meta.adapter.ddl;
 
 import com.entloom.base.common.OptionalBoolean;
-import com.entloom.ddl.annotations.EntDbEntity;
-import com.entloom.ddl.annotations.EntDbField;
-import com.entloom.ddl.annotations.EntDbIndex;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.ddl.enums.IndexType;
@@ -27,7 +27,7 @@ import java.util.Map;
  */
 final class DdlNativeAnnotationParser {
     DdlNativeEntityModel parse(Class<?> entityClass, MetaDiagnosticCollector diagnostics) {
-        EntDbEntity entity = entityClass.getAnnotation(EntDbEntity.class);
+        EntDdlEntity entity = entityClass.getAnnotation(EntDdlEntity.class);
         if (entity == null) {
             return null;
         }
@@ -40,11 +40,11 @@ final class DdlNativeAnnotationParser {
             fields.put(field.getName(), toField(entityClass, field, diagnostics));
         }
         List<DdlNativeIndexModel> indexes = new ArrayList<DdlNativeIndexModel>();
-        for (EntDbIndex index : entityClass.getAnnotationsByType(EntDbIndex.class)) {
+        for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
             indexes.add(toIndex(entityClass, index, fields, null, diagnostics));
         }
         for (Field field : allFields(entityClass)) {
-            for (EntDbIndex index : field.getAnnotationsByType(EntDbIndex.class)) {
+            for (EntDdlIndex index : field.getAnnotationsByType(EntDdlIndex.class)) {
                 indexes.add(toIndex(entityClass, index, fields, field.getName(), diagnostics));
             }
         }
@@ -69,7 +69,7 @@ final class DdlNativeAnnotationParser {
     }
 
     private DdlNativeFieldModel toField(Class<?> entityClass, Field field, MetaDiagnosticCollector diagnostics) {
-        EntDbField annotation = field.getAnnotation(EntDbField.class);
+        EntDdlField annotation = field.getAnnotation(EntDdlField.class);
         if (annotation != null) {
             warnUnsupported(entityClass, field.getName(), "sqlType", annotation.sqlType() != SqlType.AUTO, diagnostics);
             warnUnsupported(entityClass, field.getName(), "collation", blankAsNull(annotation.collation()) != null, diagnostics);
@@ -131,7 +131,7 @@ final class DdlNativeAnnotationParser {
     }
 
     private DdlNativeIndexModel toIndex(Class<?> entityClass,
-                                        EntDbIndex annotation,
+                                        EntDdlIndex annotation,
                                         Map<String, DdlNativeFieldModel> fields,
                                         String fieldName,
                                         MetaDiagnosticCollector diagnostics) {

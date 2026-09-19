@@ -1,6 +1,6 @@
 package com.entloom.ddl.bootstrap;
 
-import com.entloom.ddl.annotations.EntDbEntity;
+import com.entloom.ddl.annotations.EntDdlEntity;
 import java.io.IOException;
 import java.net.JarURLConnection;
 import java.net.URI;
@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 /**
  * 基于 JDK 类路径的实体类包扫描器。
  *
- * <p>扫描只负责发现带有 {@link EntDbEntity} 的可加载类。目录、Jar、包名、类名
+ * <p>扫描只负责发现带有 {@link EntDdlEntity} 的可加载类。目录、Jar、包名、类名
  * 和最终结果均按稳定顺序处理；重复类只保留一份。类文件无法加载时跳过该类，
  * 不影响同一包中其他实体继续发现。</p>
  */
@@ -145,7 +145,7 @@ public final class ClasspathEntityClassResolver implements EntityClassResolver {
         String className = basePackage + "." + simpleClassName;
         try {
             Class<?> candidate = Class.forName(className, false, classLoader);
-            if (candidate.getAnnotation(EntDbEntity.class) != null) {
+            if (candidate.getAnnotation(EntDdlEntity.class) != null) {
                 entities.putIfAbsent(candidate.getName(), candidate);
             }
         } catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
