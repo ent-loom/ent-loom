@@ -17,7 +17,6 @@ import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
-import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
 import java.lang.annotation.Annotation;
@@ -65,7 +64,7 @@ public class CrudNativeRuntimeModelParser {
 
     private ParsedEntity parseEntity(Class<?> entityClass) {
         EntCrudEntity entity = entityClass.getAnnotation(EntCrudEntity.class);
-        if (entity == null && entityClass.getAnnotation(EntEntity.class) == null) {
+        if (entity == null && !hasMetaEntity(entityClass)) {
             throw new ValidationException("缺少 @EntCrudEntity 注解: " + entityClass.getName());
         }
         com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<CrudNativeEntityModel> nativeResult =
@@ -391,6 +390,15 @@ public class CrudNativeRuntimeModelParser {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean hasMetaEntity(Class<?> entityClass) {
+        for (Annotation annotation : entityClass.getAnnotations()) {
+            if ("com.entloom.meta.annotations.EntEntity".equals(annotation.annotationType().getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class ParsedEntity {

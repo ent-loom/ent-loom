@@ -17,7 +17,8 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
-import com.entloom.meta.annotations.EntEntity;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -56,17 +57,17 @@ public class CrudNativeAnnotationParser {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
         EntCrudEntity entity = entityClass.getAnnotation(EntCrudEntity.class);
-        EntEntity metaEntity = entityClass.getAnnotation(EntEntity.class);
+        Annotation metaEntity = findMetaEntity(entityClass);
         if (entity == null && metaEntity == null) {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
-        String name = entity == null ? metaEntity.entity() : entity.name();
-        String table = entity == null ? metaEntity.table() : entity.table();
+        String name = entity == null ? annotationString(metaEntity, "entity", entityClass.getSimpleName()) : entity.name();
+        String table = entity == null ? annotationString(metaEntity, "table", "") : entity.table();
         String idField = entity == null ? "id" : entity.idField();
         String logicDeleteField = entity == null ? "" : entity.logicDeleteField();
         String notDeleted = entity == null ? "" : entity.logicDeleteNotDeletedValue();
         String deleted = entity == null ? "" : entity.logicDeleteDeletedValue();
-        String ownerService = entity == null ? metaEntity.service() : entity.ownerService();
+        String ownerService = entity == null ? annotationString(metaEntity, "service", "") : entity.ownerService();
         List<CrudNativeFieldModel> fields = new ArrayList<CrudNativeFieldModel>();
         List<CrudNativeRelationModel> relations = new ArrayList<CrudNativeRelationModel>();
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
@@ -223,5 +224,27 @@ public class CrudNativeAnnotationParser {
 
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private Annotation findMetaEntity(Class<?> entityClass) {
+        for (Annotation annotation : entityClass.getAnnotations()) {
+            if ("com.entloom.meta.annotations.EntEntity".equals(annotation.annotationType().getName())) {
+                return annotation;
+            }
+        }
+        return null;
+    }
+
+    private String annotationString(Annotation annotation, String attribute, String fallback) {
+        if (annotation == null) {
+            return fallback;
+        }
+        try {
+            Method method = annotation.annotationType().getMethod(attribute);
+            Object value = method.invoke(annotation);
+            return value == null ? fallback : value.toString();
+        } catch (ReflectiveOperationException ex) {
+            return fallback;
+        }
     }
 }
