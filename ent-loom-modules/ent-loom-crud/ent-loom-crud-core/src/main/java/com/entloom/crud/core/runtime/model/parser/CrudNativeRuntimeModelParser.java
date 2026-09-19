@@ -17,6 +17,7 @@ import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
+import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Field;
 import java.lang.annotation.Annotation;
@@ -64,7 +65,7 @@ public class CrudNativeRuntimeModelParser {
 
     private ParsedEntity parseEntity(Class<?> entityClass) {
         EntCrudEntity entity = entityClass.getAnnotation(EntCrudEntity.class);
-        if (entity == null) {
+        if (entity == null && entityClass.getAnnotation(EntEntity.class) == null) {
             throw new ValidationException("缺少 @EntCrudEntity 注解: " + entityClass.getName());
         }
         com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<CrudNativeEntityModel> nativeResult =
@@ -74,7 +75,8 @@ public class CrudNativeRuntimeModelParser {
 
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
-        String idField = trimToDefault(entity.idField(), "id");
+        String idField = nativeModel.idField().value();
+        String[] scopeFields = entity == null ? new String[0] : entity.scopeFields();
         Set<String> declaredFieldNames = new LinkedHashSet<String>();
         for (Field field : getAllFields(entityClass)) {
             if (Modifier.isStatic(field.getModifiers())
@@ -93,26 +95,26 @@ public class CrudNativeRuntimeModelParser {
             if (isPersistentField(field)) {
                 fieldMetas.put(
                     field.getName(),
-                    toFieldMeta(field, findFieldModel(nativeModel, field.getName()), contains(entity.scopeFields(), field.getName()))
+                    toFieldMeta(field, findFieldModel(nativeModel, field.getName()), contains(scopeFields, field.getName()))
                 );
             }
         }
 
         ResourceDescriptor descriptor = new ResourceDescriptor(
             entityClass,
-            trimToDefault(entity.name(), entityClass.getSimpleName()),
-            trimToNull(entity.ownerService()),
+            nativeModel.resourceCode().value(),
+            nativeModel.ownerService().value(),
             resourceAliases(entityClass)
         );
         EntityMeta entityMeta = new EntityMeta(
             entityClass,
             descriptor,
-            trimToDefault(entity.table(), defaultTable(entityClass)),
+            nativeModel.table().value(),
             idField,
             resolveIdPolicy(entityClass, entity, idField),
-            trimToNull(entity.logicDeleteField()),
-            resolveLogicDeleteValue(nativeModel, entity.logicDeleteField(), entity.logicDeleteNotDeletedValue()),
-            resolveLogicDeleteValue(nativeModel, entity.logicDeleteField(), entity.logicDeleteDeletedValue()),
+            nativeModel.logicDeleteField().value(),
+            resolveLogicDeleteValue(nativeModel, nativeModel.logicDeleteField().value(), nativeModel.logicDeleteNotDeletedValue().value()),
+            resolveLogicDeleteValue(nativeModel, nativeModel.logicDeleteField().value(), nativeModel.logicDeleteDeletedValue().value()),
             fieldMetas
         );
         return new ParsedEntity(entityMeta, relationEdges);
@@ -268,7 +270,7 @@ public class CrudNativeRuntimeModelParser {
     }
 
     private EntityIdPolicy resolveIdPolicy(Class<?> entityClass, EntCrudEntity entity, String idField) {
-        CrudIdPolicy configured = entity.idPolicy();
+        CrudIdPolicy configured = entity == null ? CrudIdPolicy.UNSET : entity.idPolicy();
         if (configured != null && configured != CrudIdPolicy.UNSET) {
             return toEntityIdPolicy(configured);
         }
@@ -294,7 +296,7 @@ public class CrudNativeRuntimeModelParser {
                 }
             }
         }
-        return EntityIdPolicy.EXPLICIT;
+        return EntityIdPolicy.GENERATED;
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {

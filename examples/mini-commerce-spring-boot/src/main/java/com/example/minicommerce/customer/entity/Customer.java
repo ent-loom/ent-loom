@@ -1,7 +1,5 @@
 package com.example.minicommerce.customer.entity;
 
-import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;
@@ -15,8 +13,6 @@ import lombok.Setter;
     description = "商城客户主数据",
     service = "mini-commerce"
 )
-@EntCrudEntity(name = "customer", table = "customer", ownerService = "mini-commerce",
-    idPolicy = CrudIdPolicy.GENERATED)
 @Getter
 @Setter
 @NoArgsConstructor

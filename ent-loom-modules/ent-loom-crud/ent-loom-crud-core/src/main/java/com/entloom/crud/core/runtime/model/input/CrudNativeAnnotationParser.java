@@ -17,6 +17,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.annotations.EntEntity;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -55,9 +56,17 @@ public class CrudNativeAnnotationParser {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
         EntCrudEntity entity = entityClass.getAnnotation(EntCrudEntity.class);
-        if (entity == null) {
+        EntEntity metaEntity = entityClass.getAnnotation(EntEntity.class);
+        if (entity == null && metaEntity == null) {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
+        String name = entity == null ? metaEntity.entity() : entity.name();
+        String table = entity == null ? metaEntity.table() : entity.table();
+        String idField = entity == null ? "id" : entity.idField();
+        String logicDeleteField = entity == null ? "" : entity.logicDeleteField();
+        String notDeleted = entity == null ? "" : entity.logicDeleteNotDeletedValue();
+        String deleted = entity == null ? "" : entity.logicDeleteDeletedValue();
+        String ownerService = entity == null ? metaEntity.service() : entity.ownerService();
         List<CrudNativeFieldModel> fields = new ArrayList<CrudNativeFieldModel>();
         List<CrudNativeRelationModel> relations = new ArrayList<CrudNativeRelationModel>();
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
@@ -82,13 +91,13 @@ public class CrudNativeAnnotationParser {
         return MetaDiagnosticResult.of(
             new CrudNativeEntityModel(
                 entityClass,
-                stringExplicitOrInferred(entity.name(), entityClass.getSimpleName()),
-                stringExplicitOrInferred(entity.table(), defaultTable(entityClass)),
-                "id".equals(entity.idField()) ? SourcedValue.unknown("id") : SourcedValue.nativeExplicit(entity.idField()),
-                stringExplicitOrUnknown(entity.logicDeleteField()),
-                stringExplicitOrUnknown(entity.logicDeleteNotDeletedValue()),
-                stringExplicitOrUnknown(entity.logicDeleteDeletedValue()),
-                stringExplicitOrUnknown(entity.ownerService()),
+                stringExplicitOrInferred(name, entityClass.getSimpleName()),
+                stringExplicitOrInferred(table, defaultTable(entityClass)),
+                "id".equals(idField) ? SourcedValue.unknown("id") : SourcedValue.nativeExplicit(idField),
+                stringExplicitOrUnknown(logicDeleteField),
+                stringExplicitOrUnknown(notDeleted),
+                stringExplicitOrUnknown(deleted),
+                stringExplicitOrUnknown(ownerService),
                 fields,
                 relations
             ),

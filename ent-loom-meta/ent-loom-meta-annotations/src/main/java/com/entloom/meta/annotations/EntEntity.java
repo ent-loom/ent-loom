@@ -33,6 +33,9 @@ public @interface EntEntity {
      */
     String service() default "";
 
+    /** 对应数据库表名；为空时按实体类名推断。 */
+    String table() default "";
+
     /**
      * 预估数据量，-1 表示未设置。
      */

@@ -1,7 +1,5 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.example.minicommerce.order.enums.OrderStatus;
@@ -13,9 +11,7 @@ import lombok.Setter;
 
 /** 订单持久化实体，由订单业务服务经 OrderDao 保存。 */
 @EntEntity(entity = "order", label = "订单", description = "商城订单",
-    service = "mini-commerce")
-@EntCrudEntity(name = "order", table = "commerce_order", ownerService = "mini-commerce",
-    idPolicy = CrudIdPolicy.GENERATED)
+    service = "mini-commerce", table = "commerce_order")
 @Getter
 @Setter
 @NoArgsConstructor

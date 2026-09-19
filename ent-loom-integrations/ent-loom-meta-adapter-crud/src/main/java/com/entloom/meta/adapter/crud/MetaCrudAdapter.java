@@ -226,7 +226,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             return metaPolicy;
         }
         EntityIdPolicy persistencePolicy = resolvePersistenceIdPolicy(field);
-        return persistencePolicy == null ? EntityIdPolicy.EXPLICIT : persistencePolicy;
+        return persistencePolicy == null ? EntityIdPolicy.GENERATED : persistencePolicy;
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {
