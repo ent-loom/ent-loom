@@ -48,7 +48,7 @@ com.example.minicommerce/
 
 调用方向为 `controller -> service -> 业务 DAO / 专用 Repository`，业务 DAO 内部使用 scoped EntityDao，服务先经 `security` 授权，再执行业务校验和数据访问。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
 
-`Customer`、`Product` 是框架管理的实体，主数据维护仍由通用 CRUD 承担。业务 DAO 只需声明 `@EntDao public interface CustomerDao extends EntityDao<Customer, Long> {}`；`ProductDao.findForOrder` 以 `@EntQuery` 读取下单所需投影，下单服务构造器直接注入并调用它，再负责商品状态校验。Starter 默认扫描应用包，也可用 `@EntDaoScan(basePackageClasses = CustomerDao.class)` 指定扫描范围。接口继承基础 CRUD，可通过 `default` 方法组合调用；不支持的方法声明会在启动时失败。
+`Customer`、`Product` 是框架管理的实体，主数据维护仍由通用 CRUD 承担。业务 DAO 只需声明 `@EntDao public interface CustomerDao extends EntityDao<Customer, Long> {}`；下单服务通过 `ProductDao.findAllById` 批量读取商品，再负责商品状态校验。Starter 默认扫描应用包，也可用 `@EntDaoScan(basePackageClasses = CustomerDao.class)` 指定扫描范围。接口继承基础 CRUD，可通过 `default` 方法组合调用；不支持的方法声明会在启动时失败。
 
 `DaoConfiguration` 提供必需的 `EntityDaoScopeResolver`，本示例显式使用全量主数据范围。代理每次 CRUD 调用解析范围并创建 scoped EntityDao，单例不缓存请求范围；生产项目须接入可信租户或组织上下文，不能从 HTTP 参数直接接受访问范围。缺少解析器、实体元数据或主键类型不匹配时启动失败。
 

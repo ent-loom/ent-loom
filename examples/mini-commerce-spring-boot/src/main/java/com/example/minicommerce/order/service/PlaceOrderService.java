@@ -18,8 +18,10 @@ import com.example.minicommerce.product.entity.Product;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,15 +47,24 @@ public class PlaceOrderService {
         }
         Customer customer = customerDao.findById(command.getCustomerId())
             .orElseThrow(() -> new OrderValidationException("CUSTOMER_NOT_FOUND", "客户不存在"));
-        Set<Long> productIds = new HashSet<>();
-        List<OrderItem> items = new ArrayList<>();
-        BigDecimal totalAmount = BigDecimal.ZERO;
+        Set<Long> productIds = new LinkedHashSet<>();
         for (PlaceOrderItem requestItem : command.getItems()) {
             if (!productIds.add(requestItem.getProductId())) {
                 throw new OrderValidationException("DUPLICATE_PRODUCT", "同一订单不能重复提交商品");
             }
-            Product product = productDao.findForOrder(requestItem.getProductId())
-                .orElseThrow(() -> new OrderValidationException("PRODUCT_NOT_FOUND", "商品不存在"));
+        }
+        Map<Long, Product> productsById = new HashMap<>();
+        for (Product product : productDao.findAllById(productIds)) {
+            productsById.put(product.getId(), product);
+        }
+
+        List<OrderItem> items = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (PlaceOrderItem requestItem : command.getItems()) {
+            Product product = productsById.get(requestItem.getProductId());
+            if (product == null) {
+                throw new OrderValidationException("PRODUCT_NOT_FOUND", "商品不存在");
+            }
             if (!Boolean.TRUE.equals(product.getActive())) {
                 throw new OrderValidationException("PRODUCT_INACTIVE", "商品当前不可下单");
             }
@@ -79,8 +90,8 @@ public class PlaceOrderService {
         Long orderId = orderDao.insert(order);
         for (OrderItem item : items) {
             item.setOrderId(orderId);
-            orderItemDao.insert(item);
         }
+        orderItemDao.insertAll(items);
         return new PlaceOrderResult(orderId, totalAmount);
     }
 }

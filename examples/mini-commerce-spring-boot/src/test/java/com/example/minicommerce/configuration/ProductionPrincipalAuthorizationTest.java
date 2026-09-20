@@ -19,6 +19,7 @@ import com.entloom.crud.core.governance.permission.CrudPermissionRule;
 import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -35,6 +36,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.anyCollection;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -58,7 +60,7 @@ class ProductionPrincipalAuthorizationTest {
         product.setPrice(new BigDecimal("19.90"));
         product.setActive(true);
         when(customers.findById(2001L)).thenReturn(Optional.of(customer));
-        when(products.findForOrder(1001L)).thenReturn(Optional.of(product));
+        when(products.findAllById(anyCollection())).thenReturn(List.of(product));
         when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> {
             invocation.getArgument(0, Order.class).setId(3001L);
             return 3001L;
@@ -94,9 +96,9 @@ class ProductionPrincipalAuthorizationTest {
         assertEquals(OrderStatus.CREATED, order.getStatus());
         assertEquals(new BigDecimal("39.80"), order.getTotalAmount());
         assertNotNull(order.getCreatedAt());
-        ArgumentCaptor<OrderItem> itemCaptor = ArgumentCaptor.forClass(OrderItem.class);
-        verify(orderItems).insert(itemCaptor.capture());
-        OrderItem item = itemCaptor.getValue();
+        ArgumentCaptor<Collection<OrderItem>> itemCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(orderItems).insertAll(itemCaptor.capture());
+        OrderItem item = itemCaptor.getValue().iterator().next();
         assertEquals(3001L, item.getOrderId());
         assertEquals(1001L, item.getProductId());
         assertEquals("Entity Book", item.getProductName());
