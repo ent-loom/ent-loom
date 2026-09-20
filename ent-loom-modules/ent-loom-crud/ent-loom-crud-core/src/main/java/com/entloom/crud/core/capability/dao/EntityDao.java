@@ -3,6 +3,7 @@ package com.entloom.crud.core.capability.dao;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -17,6 +18,9 @@ public interface EntityDao<T, ID> {
 
     /** 按输入 ID 首次出现的顺序查询；未命中的 ID 省略。 */
     List<T> findAllById(Collection<ID> ids);
+
+    /** 以实体主键为键批量查询；按输入 ID 首次出现的顺序迭代，未命中项省略，空集合返回空 Map。 */
+    Map<ID, T> findAllByIdAsMap(Collection<ID> ids);
 
     /** 新增实体；显式主键直接写入，数据库生成主键则回填到实体后返回。 */
     ID insert(T entity);

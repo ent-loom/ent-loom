@@ -182,6 +182,16 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
     }
 
     @Override
+    public Map<ID, T> findAllByIdAsMap(java.util.Collection<ID> ids) {
+        Map<ID, T> result = new LinkedHashMap<ID, T>();
+        for (T entity : findAllById(ids)) {
+            ID id = entityType.getIdClass().cast(normalizeId(readField(entity, meta.getIdField())));
+            result.put(id, entity);
+        }
+        return result;
+    }
+
+    @Override
     public ID insert(T entity) {
         if (entity == null || !entityType.getEntityClass().isInstance(entity)) {
             throw new ValidationException("insert 实体类型不一致: " + meta.getEntityName());

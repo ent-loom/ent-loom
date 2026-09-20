@@ -21,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,7 +61,7 @@ class ProductionPrincipalAuthorizationTest {
         product.setPrice(new BigDecimal("19.90"));
         product.setActive(true);
         when(customers.findById(2001L)).thenReturn(Optional.of(customer));
-        when(products.findAllById(anyCollection())).thenReturn(List.of(product));
+        when(products.findAllByIdAsMap(anyCollection())).thenReturn(Map.of(product.getId(), product));
         when(orders.insert(org.mockito.ArgumentMatchers.any(Order.class))).thenAnswer(invocation -> {
             invocation.getArgument(0, Order.class).setId(3001L);
             return 3001L;

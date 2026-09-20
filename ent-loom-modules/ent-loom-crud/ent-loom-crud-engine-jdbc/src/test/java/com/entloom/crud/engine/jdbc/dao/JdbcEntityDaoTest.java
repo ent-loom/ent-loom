@@ -374,6 +374,17 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
             ids(dao.findAllById(Arrays.asList(11002L, 99999L, 11001L, 11002L)))
         );
 
+        Map<Long, OrderTestEntity> byId = dao.findAllByIdAsMap(
+            Arrays.asList(11002L, 99999L, 11001L, 11002L)
+        );
+        Assertions.assertEquals(Arrays.asList(11002L, 11001L), new ArrayList<Long>(byId.keySet()));
+        Assertions.assertEquals("ORD-BATCH-2", byId.get(11002L).getOrderNo());
+        Assertions.assertTrue(dao.findAllByIdAsMap(Collections.<Long>emptyList()).isEmpty());
+        EntityDao<OrderTestEntity, Long> otherScope = entityDaoFactory.scoped(
+            ORDER_TYPE, EntityAccessScope.of(RowConstraint.eq("schoolId", 199L))
+        );
+        Assertions.assertTrue(otherScope.findAllByIdAsMap(inserted).isEmpty());
+
         entities.get(0).setOrderNo("ORD-BATCH-1-UPDATED");
         entities.get(1).setOrderNo("ORD-BATCH-2-UPDATED");
         Assertions.assertEquals(2, dao.updateAll(entities));
@@ -383,6 +394,7 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         );
 
         Assertions.assertEquals(2, dao.deleteAll(entities));
+        Assertions.assertTrue(dao.findAllByIdAsMap(inserted).isEmpty());
         Assertions.assertEquals(0, dao.deleteById(11001L));
         Assertions.assertFalse(dao.findById(11001L).isPresent());
     }

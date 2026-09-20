@@ -18,7 +18,6 @@ import com.example.minicommerce.product.entity.Product;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -53,10 +52,7 @@ public class PlaceOrderService {
                 throw new OrderValidationException("DUPLICATE_PRODUCT", "同一订单不能重复提交商品");
             }
         }
-        Map<Long, Product> productsById = new HashMap<>();
-        for (Product product : productDao.findAllById(productIds)) {
-            productsById.put(product.getId(), product);
-        }
+        Map<Long, Product> productsById = productDao.findAllByIdAsMap(productIds);
 
         List<OrderItem> items = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
