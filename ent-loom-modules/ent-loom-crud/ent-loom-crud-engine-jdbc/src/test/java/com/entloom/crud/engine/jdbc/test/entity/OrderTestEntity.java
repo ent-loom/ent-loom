@@ -2,6 +2,7 @@ package com.entloom.crud.engine.jdbc.test.entity;
 
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.enums.RelationScope;
 import com.entloom.meta.enums.RelationCardinality;
 import java.util.List;
@@ -14,6 +15,7 @@ import lombok.Setter;
 @EntCrudEntity(
     table = "t_order",
     idField = "id",
+    idPolicy = CrudIdPolicy.EXPLICIT,
     logicDeleteField = "isDeleted",
     logicDeleteNotDeletedValue = "0",
     logicDeleteDeletedValue = "1",

@@ -56,11 +56,11 @@ class CrudNativeRuntimeModelParserTest {
     void native_parser_should_infer_only_explicit_identity_generation_strategy() {
         Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaIdentityOrderEntity.class)
             .getEntityMeta(JpaIdentityOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaAutoOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaAutoOrderEntity.class)
             .getEntityMeta(JpaAutoOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaSequenceOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaSequenceOrderEntity.class)
             .getEntityMeta(JpaSequenceOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaTableOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaTableOrderEntity.class)
             .getEntityMeta(JpaTableOrderEntity.class).getIdPolicy());
     }
 

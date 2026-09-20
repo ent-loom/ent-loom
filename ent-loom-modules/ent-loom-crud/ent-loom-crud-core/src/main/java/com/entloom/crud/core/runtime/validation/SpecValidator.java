@@ -21,6 +21,8 @@ public class SpecValidator {
     public static final int DEFAULT_LIST_LIMIT = 200;
     /** 默认最大分页大小。 */
     public static final int DEFAULT_MAX_LIMIT = 1000;
+    /** 默认最大分页偏移；超过后应改用专用查询。 */
+    public static final long DEFAULT_MAX_OFFSET = 1000000L;
     /** 幂等策略。 */
     private final IdempotencyPolicy idempotencyPolicy;
     /** 查询校验器。 */

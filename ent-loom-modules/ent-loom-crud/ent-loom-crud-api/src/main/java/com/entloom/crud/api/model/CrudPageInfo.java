@@ -11,7 +11,8 @@ import lombok.Setter;
 public class CrudPageInfo {
     private int page;
     private int limit;
-    private long total;
+    /** 总记录数；未执行计数时为 null。 */
+    private Long total;
     private boolean totalKnown;
     private Boolean hasNext;
     private long totalPages;

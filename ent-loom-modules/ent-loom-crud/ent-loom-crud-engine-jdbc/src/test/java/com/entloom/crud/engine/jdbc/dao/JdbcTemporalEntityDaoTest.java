@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
@@ -124,7 +125,12 @@ class JdbcTemporalEntityDaoTest extends EngineJdbcTestSupport {
     /**
      * 使用无时区 Java 时间类型的测试实体。
      */
-    @EntCrudEntity(table = "t_temporal", idField = "id", scopeFields = {"tenantId", "businessDate"})
+    @EntCrudEntity(
+        table = "t_temporal",
+        idField = "id",
+        idPolicy = CrudIdPolicy.EXPLICIT,
+        scopeFields = {"tenantId", "businessDate"}
+    )
     public static class TemporalEntity {
         /** 数据库主键。 */
         private Long id;

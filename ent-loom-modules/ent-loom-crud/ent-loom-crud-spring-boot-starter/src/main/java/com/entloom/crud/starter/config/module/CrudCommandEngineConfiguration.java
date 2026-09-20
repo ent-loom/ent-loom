@@ -2,6 +2,7 @@ package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
@@ -15,6 +16,7 @@ import com.entloom.crud.starter.config.CrudProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -34,7 +36,8 @@ public class CrudCommandEngineConfiguration {
         GuardedSqlExecutor guardedSqlExecutor,
         EntityDaoFactory entityDaoFactory,
         CrudProperties properties,
-        JdbcDialect jdbcDialect
+        JdbcDialect jdbcDialect,
+        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
     ) {
         JdbcCrudCommandOptions options = new JdbcCrudCommandOptions();
         options.setIgnoreUnchangedNonWritableUpdateFields(
@@ -50,7 +53,12 @@ public class CrudCommandEngineConfiguration {
             jdbcDialect,
             options
         );
-        registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<>(metaRegistry, entityDaoFactory, fallback));
+        registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<>(
+            metaRegistry,
+            entityDaoFactory,
+            fallback,
+            transactionExecutorProvider.getIfAvailable()
+        ));
         return registry;
     }
 

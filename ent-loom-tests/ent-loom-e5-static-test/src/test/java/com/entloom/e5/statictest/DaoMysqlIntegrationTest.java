@@ -206,7 +206,7 @@ class DaoMysqlIntegrationTest {
             );
             assertEquals(1, dao.deleteById(1L));
             assertFalse(dao.findById(1L).isPresent());
-            assertThrows(EntityDaoWriteMissException.class, () -> dao.deleteById(1L));
+            assertEquals(0, dao.deleteById(1L));
 
             EntityMetaRegistry orderMetaRegistry = new CrudRuntimeModelBackedEntityMetaRegistry(
                 new CrudNativeRuntimeModelParser().parse(

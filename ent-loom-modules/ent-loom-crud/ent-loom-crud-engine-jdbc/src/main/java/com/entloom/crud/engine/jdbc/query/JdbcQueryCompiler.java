@@ -20,7 +20,9 @@ import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -291,13 +293,21 @@ public class JdbcQueryCompiler implements QueryCompiler {
      */
     private String buildOrderBy(QueryPlan plan, EntityMeta rootMeta) {
         List<QuerySort> sorts = plan.getSpec().getSorts();
+        String idField = rootMeta.getIdField();
         if (sorts == null || sorts.isEmpty()) {
             String pkCol = rootMeta.resolveColumn(rootMeta.getIdField());
             return " order by " + qualified("t", pkCol) + " asc";
         }
 
         List<String> clauses = new ArrayList<>();
+        Set<String> sortedFields = new LinkedHashSet<String>();
         for (QuerySort sort : sorts) {
+            if (sort == null) {
+                throw new ValidationException("排序条件不能为空");
+            }
+            if (sort.getField() == null || sort.getField().trim().isEmpty()) {
+                throw new ValidationException("排序字段不能为空");
+            }
             if (sort.getField().contains(".")) {
                 throw new ValidationException("MVP-1 默认编译器不支持关联排序");
             }
@@ -310,6 +320,10 @@ public class JdbcQueryCompiler implements QueryCompiler {
                 throw new ValidationException("字段不允许排序: " + sort.getField());
             }
             clauses.add(qualified("t", col) + " " + sort.getDirection().name());
+            sortedFields.add(sort.getField());
+        }
+        if (!sortedFields.contains(idField)) {
+            clauses.add(qualified("t", rootMeta.resolveColumn(idField)) + " asc");
         }
         return " order by " + String.join(",", clauses);
     }

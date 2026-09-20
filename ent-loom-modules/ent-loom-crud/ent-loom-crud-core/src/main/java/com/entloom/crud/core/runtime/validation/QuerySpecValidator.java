@@ -43,6 +43,12 @@ public class QuerySpecValidator {
                 if (pageLimit > SpecValidator.DEFAULT_MAX_LIMIT) {
                     throw new ValidationException("返回条数超过最大限制 " + SpecValidator.DEFAULT_MAX_LIMIT);
                 }
+                long offset = ((long) pageNo - 1L) * pageLimit;
+                if (offset > SpecValidator.DEFAULT_MAX_OFFSET) {
+                    throw new ValidationException(
+                        "分页偏移超过最大限制 " + SpecValidator.DEFAULT_MAX_OFFSET + "，请使用专用查询"
+                    );
+                }
                 builder.page(new PageRequest(pageNo, pageLimit));
                 break;
             case LIST:

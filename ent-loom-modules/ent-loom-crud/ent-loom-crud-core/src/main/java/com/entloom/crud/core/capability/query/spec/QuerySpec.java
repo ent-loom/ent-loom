@@ -1,9 +1,11 @@
 package com.entloom.crud.core.capability.query.spec;
 
 import com.entloom.crud.api.enums.PageCountMode;
+import com.entloom.crud.api.enums.CountMode;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.PageRequest;
+import com.entloom.crud.api.model.PageQuery;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.api.model.QueryTimeRange;
@@ -275,6 +277,20 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
 
         public B page(PageRequest page) {
             this.page = copyPage(page);
+            return self();
+        }
+
+        /** 接入文档定义的分页参数，并同步其排序和计数策略。 */
+        public B pageQuery(PageQuery pageQuery) {
+            if (pageQuery == null) {
+                this.page = null;
+                return self();
+            }
+            this.page = new PageRequest(pageQuery.getPageNumber(), pageQuery.getPageSize());
+            this.sorts = copySorts(pageQuery.getSorts());
+            this.countMode = pageQuery.getCountMode() == CountMode.ALWAYS
+                ? PageCountMode.EXACT
+                : PageCountMode.NONE;
             return self();
         }
 

@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
@@ -8,6 +9,7 @@ import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,13 +28,15 @@ public class CrudEntityDaoConfiguration {
         EntityMetaRegistry metaRegistry,
         GuardedSqlExecutor guardedSqlExecutor,
         JdbcDialect jdbcDialect,
-        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
+        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
     ) {
         return new JdbcEntityDaoFactory(
             metaRegistry,
             guardedSqlExecutor,
             jdbcDialect,
-            insertScopeDatabaseValidator
+            insertScopeDatabaseValidator,
+            transactionExecutorProvider.getIfAvailable()
         );
     }
 }

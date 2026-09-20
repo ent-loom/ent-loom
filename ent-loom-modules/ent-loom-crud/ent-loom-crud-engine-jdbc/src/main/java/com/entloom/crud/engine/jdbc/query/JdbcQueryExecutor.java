@@ -184,10 +184,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
         }
         expandRelations(query, items);
 
-        PageResult<R> result = new PageResult<>(items, 0L, page, limit);
-        result.setTotalKnown(false);
-        result.setHasNext(hasNext);
-        return result;
+        return PageResult.withoutTotal(items, page, limit, hasNext);
     }
 
     private <R> List<R> executeMainRows(CompiledQuery query, Class<R> viewType) {

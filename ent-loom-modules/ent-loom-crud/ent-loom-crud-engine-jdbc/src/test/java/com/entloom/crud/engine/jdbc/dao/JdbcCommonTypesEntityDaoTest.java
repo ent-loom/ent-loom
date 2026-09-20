@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
@@ -129,7 +130,12 @@ class JdbcCommonTypesEntityDaoTest extends EngineJdbcTestSupport {
     }
 
     /** 常用 JDBC 类型测试实体。 */
-    @EntCrudEntity(table = "t_common_types", idField = "id", scopeFields = {"tenantId"})
+    @EntCrudEntity(
+        table = "t_common_types",
+        idField = "id",
+        idPolicy = CrudIdPolicy.EXPLICIT,
+        scopeFields = {"tenantId"}
+    )
     public static class CommonTypesEntity {
         /** 数据库主键。 */
         private Long id;

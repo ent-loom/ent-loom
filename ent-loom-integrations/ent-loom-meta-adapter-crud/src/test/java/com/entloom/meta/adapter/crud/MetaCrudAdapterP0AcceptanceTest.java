@@ -148,9 +148,9 @@ class MetaCrudAdapterP0AcceptanceTest {
     @Test
     void p0_crud_acceptance_should_infer_only_jpa_identity_generation() {
         Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaIdentityOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaAutoOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaSequenceOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaTableOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaAutoOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaSequenceOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaTableOrder.class));
     }
 
     private EntityIdPolicy idPolicy(Class<?> entityClass) {

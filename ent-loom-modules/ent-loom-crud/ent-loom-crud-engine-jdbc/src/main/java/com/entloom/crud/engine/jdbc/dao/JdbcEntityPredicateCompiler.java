@@ -51,6 +51,33 @@ final class JdbcEntityPredicateCompiler {
         return new CompiledWhere(String.join(" and ", predicates), args);
     }
 
+    CompiledWhere byIds(
+        EntityMeta meta,
+        String idField,
+        List<Object> ids,
+        RowConstraint scope
+    ) {
+        if (ids == null || ids.isEmpty()) {
+            throw new ValidationException("批量查询主键不能为空");
+        }
+        String column = dialect.quoteIdentifier(meta.resolveColumn(idField));
+        if (column == null) {
+            throw new ValidationException("DAO 主键字段未映射为列: " + idField);
+        }
+        List<String> predicates = new ArrayList<String>();
+        List<Object> args = new ArrayList<Object>();
+        List<String> placeholders = new ArrayList<String>();
+        for (Object id : ids) {
+            placeholders.add("?");
+            args.add(JdbcEntityValueBinder.normalize(meta.resolveFieldMeta(idField), id));
+        }
+        predicates.add(column + " in (" + String.join(",", placeholders) + ")");
+        appendScope(meta, scope, predicates, args);
+        appendNotDeleted(meta, predicates, args);
+        validateParameterCount(args.size());
+        return new CompiledWhere(String.join(" and ", predicates), args);
+    }
+
     void validateParameterCount(int count) {
         if (count > maxParameters) {
             throw new ValidationException("DAO SQL 参数数量超过上限: " + maxParameters);

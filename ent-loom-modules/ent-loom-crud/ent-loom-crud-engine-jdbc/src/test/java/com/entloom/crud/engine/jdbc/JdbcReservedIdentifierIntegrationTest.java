@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc;
 
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.QueryFilter;
@@ -127,7 +128,7 @@ class JdbcReservedIdentifierIntegrationTest {
         );
     }
 
-    @EntCrudEntity(table = "order", idField = "id")
+    @EntCrudEntity(table = "order", idField = "id", idPolicy = CrudIdPolicy.EXPLICIT)
     public static class ReservedIdentifierEntity {
         /** 主键。 */
         private Long id;

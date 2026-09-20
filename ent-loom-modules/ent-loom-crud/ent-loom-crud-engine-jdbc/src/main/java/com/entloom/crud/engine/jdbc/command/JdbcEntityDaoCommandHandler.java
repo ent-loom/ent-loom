@@ -16,12 +16,17 @@ import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
 import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
+import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -41,11 +46,21 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
     private final DefaultCommandPayloadBinder payloadBinder;
     private final RequiredFieldValidator requiredFieldValidator;
     private final CreateDefaultValueApplier createDefaultValueApplier;
+    private final CrudWriteTransactionExecutor transactionExecutor;
 
     public JdbcEntityDaoCommandHandler(
         EntityMetaRegistry metaRegistry,
         EntityDaoFactory daoFactory,
         CrudCommandHandler<P, R> fallback
+    ) {
+        this(metaRegistry, daoFactory, fallback, resolveTransactionExecutor(daoFactory));
+    }
+
+    public JdbcEntityDaoCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        EntityDaoFactory daoFactory,
+        CrudCommandHandler<P, R> fallback,
+        CrudWriteTransactionExecutor transactionExecutor
     ) {
         if (metaRegistry == null || daoFactory == null || fallback == null) {
             throw new ValidationException("DAO 命令处理器依赖不能为空");
@@ -56,6 +71,9 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         this.payloadBinder = new DefaultCommandPayloadBinder();
         this.requiredFieldValidator = new RequiredFieldValidator();
         this.createDefaultValueApplier = new CreateDefaultValueApplier();
+        this.transactionExecutor = transactionExecutor == null
+            ? resolveTransactionExecutor(daoFactory)
+            : transactionExecutor;
     }
 
     @Override
@@ -107,9 +125,9 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
 
     @Override
     public R update(CommandSpec<P> spec) {
-        rejectVersion(spec);
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
+        applyExpectedVersion(values, spec, meta);
         Object id = resolveId(values, meta);
         values.put(meta.getIdField(), id);
         UpdatePatch<Object> patch = payloadBinder.bindUpdatePatch(values, entityClass(spec), meta);
@@ -119,24 +137,50 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
 
     @Override
     public R delete(CommandSpec<P> spec) {
-        rejectVersion(spec);
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
         Object id = resolveId(values, meta);
-        int rows = dao(meta, scope(spec)).deleteById(id);
+        EntityDao<Object, Object> entityDao = dao(meta, scope(spec));
+        int rows = spec.getExpectedVersion() == null
+            ? entityDao.deleteById(id)
+            : entityDao.deleteById(id, spec.getExpectedVersion().longValue());
+        if (rows == 0) {
+            throw new EntityDaoWriteMissException("目标不存在或不可写: " + meta.getEntityName());
+        }
         return result(spec, rows, id);
     }
 
     @Override
     public R batch(CommandSpec<P> spec) {
-        rejectVersion(spec);
         if (!(spec.getPayload() instanceof BatchCommand<?>)) {
             throw new ValidationException("批量载荷必须是 BatchCommand");
         }
         List<? extends WriteCommand<?>> items = ((BatchCommand<?>) spec.getPayload()).getItems();
-        if (items.isEmpty()) {
+        if (items == null || items.isEmpty()) {
             throw new ValidationException("批量命令 items 不能为空");
         }
+        if (items.size() > JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE) {
+            throw new ValidationException(
+                "批量命令数量超过上限 " + JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE
+            );
+        }
+        if (transactionExecutor == null) {
+            throw new ValidationException(
+                "JDBC DAO 批量命令必须配置 CrudWriteTransactionExecutor，避免部分提交"
+            );
+        }
+        return transactionExecutor.execute(
+            CrudWriteTransactionPolicy.SINGLE_TRANSACTION,
+            new CrudWriteTransactionCallback<R>() {
+                @Override
+                public R execute() {
+                    return executeBatchItems(spec, items);
+                }
+            }
+        );
+    }
+
+    private R executeBatchItems(CommandSpec<P> spec, List<? extends WriteCommand<?>> items) {
         int rows = 0;
         List<Map<String, Object>> itemResults = new ArrayList<Map<String, Object>>();
         for (int index = 0; index < items.size(); index++) {
@@ -153,8 +197,14 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         return batchResult(spec, rows, itemResults);
     }
 
+    private static CrudWriteTransactionExecutor resolveTransactionExecutor(EntityDaoFactory daoFactory) {
+        if (daoFactory instanceof JdbcEntityDaoFactory) {
+            return ((JdbcEntityDaoFactory) daoFactory).getTransactionExecutor();
+        }
+        return null;
+    }
+
     private R saveOrUpdate(CommandSpec<P> spec) {
-        rejectVersion(spec);
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
         Object id = resolveId(values, meta);
@@ -363,6 +413,21 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         if (spec.getExpectedVersion() != null) {
             throw new ValidationException("DAO 首期不支持 expectedVersion");
         }
+    }
+
+    private void applyExpectedVersion(Map<String, Object> values, CommandSpec<P> spec, EntityMeta meta) {
+        Long expectedVersion = spec.getExpectedVersion();
+        if (expectedVersion == null) {
+            return;
+        }
+        Object payloadVersion = values.get("version");
+        if (payloadVersion != null && !sameValue(payloadVersion, expectedVersion)) {
+            throw new ValidationException("命令 expectedVersion 与载荷 version 不一致");
+        }
+        if (!meta.getAllowedFields().contains("version")) {
+            throw new ValidationException("实体未启用 version，不能携带 expectedVersion: " + meta.getEntityName());
+        }
+        values.put("version", expectedVersion);
     }
 
     private boolean sameValue(Object left, Object right) {

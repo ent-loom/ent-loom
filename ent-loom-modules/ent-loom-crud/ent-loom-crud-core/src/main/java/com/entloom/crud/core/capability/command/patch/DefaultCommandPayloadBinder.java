@@ -66,10 +66,12 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
                 valuesForDelegate.put(field, entry.getValue());
             }
         }
+        Long expectedVersion = expectedVersion(fieldValues, meta);
         return new DefaultUpdatePatch<T>(
             entityType,
             entity,
             id,
+            expectedVersion,
             presentFields,
             persistableFields,
             fieldValues,
@@ -326,8 +328,23 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
         if (meta == null || field == null || !meta.getAllowedFields().contains(field) || isIdField(meta, field)) {
             return false;
         }
+        if ("version".equals(field)) {
+            return false;
+        }
         EntityFieldMeta fieldMeta = meta.resolveFieldMeta(field);
         return fieldMeta == null || !fieldMeta.isRelation();
+    }
+
+    private Long expectedVersion(Map<String, Object> fieldValues, EntityMeta meta) {
+        if (meta == null || !meta.getAllowedFields().contains("version")
+            || !fieldValues.containsKey("version")) {
+            return null;
+        }
+        Object value = fieldValues.get("version");
+        if (value == null) {
+            return null;
+        }
+        return convert("version", value, Long.class);
     }
 
     private boolean isIdField(EntityMeta meta, String field) {

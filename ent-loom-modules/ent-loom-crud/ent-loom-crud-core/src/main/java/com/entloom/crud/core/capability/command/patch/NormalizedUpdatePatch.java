@@ -56,7 +56,7 @@ public final class NormalizedUpdatePatch {
 
     private static void validateWritableField(EntityMeta meta, String field) {
         if (field == null || field.equals(meta.getIdField()) || field.equals(meta.getLogicDeleteField())
-            || meta.getAllowedFields().contains(field) == false) {
+            || "version".equals(field) || meta.getAllowedFields().contains(field) == false) {
             throw new ValidationException("不允许更新字段: " + field);
         }
         EntityFieldMeta fieldMeta = meta.resolveFieldMeta(field);

@@ -1,9 +1,14 @@
 package com.entloom.crud.core.runtime.validation;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CountMode;
+import com.entloom.crud.api.enums.PageCountMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.PageRequest;
+import com.entloom.crud.api.model.PageQuery;
+import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.exception.IdempotencyKeyRequiredException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
@@ -27,6 +32,31 @@ class SpecValidatorTest {
         Assertions.assertEquals(10, validated.getPage().getLimit());
         Assertions.assertEquals(0, spec.getPage().getPage());
         Assertions.assertEquals(0, spec.getPage().getLimit());
+    }
+
+    @Test
+    void should_accept_page_query_and_reject_deep_offset() {
+        QuerySpec<Object> spec = baseQuery(QueryOperation.PAGE)
+            .pageQuery(new PageQuery(
+                2,
+                20,
+                Collections.singletonList(new QuerySort("id", SortDirection.DESC)),
+                CountMode.NONE
+            ))
+            .build();
+
+        QuerySpec<Object> validated = new SpecValidator().validateQuerySpec(spec);
+
+        Assertions.assertEquals(2, validated.getPage().getPage());
+        Assertions.assertEquals(20, validated.getPage().getLimit());
+        Assertions.assertEquals(PageCountMode.NONE, validated.getCountMode());
+        Assertions.assertEquals(SortDirection.DESC, validated.getSorts().get(0).getDirection());
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> new SpecValidator().validateQuerySpec(
+                baseQuery(QueryOperation.PAGE).page(new PageRequest(100002, 10)).build()
+            )
+        );
     }
 
     @Test

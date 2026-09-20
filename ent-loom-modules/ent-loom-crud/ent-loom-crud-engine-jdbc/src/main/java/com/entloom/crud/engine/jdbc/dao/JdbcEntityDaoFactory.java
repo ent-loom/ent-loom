@@ -8,6 +8,7 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -17,17 +18,22 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
+import com.entloom.crud.engine.jdbc.transaction.JdbcCrudWriteTransactionExecutor;
 import java.lang.reflect.Method;
 
 /**
  * JDBC 实体 DAO 工厂。
  */
 public final class JdbcEntityDaoFactory implements EntityDaoFactory {
+    /** JDBC DAO 和 Command 批量写入的默认数量上限。 */
+    public static final int DEFAULT_MAX_BATCH_SIZE = 500;
     private final EntityMetaRegistry metaRegistry;
     private final GuardedSqlExecutor guardedSqlExecutor;
     private final int maxParameters;
     private final JdbcDialect dialect;
     private final JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator;
+    private final CrudWriteTransactionExecutor transactionExecutor;
+    private final int maxBatchSize;
 
     public JdbcEntityDaoFactory(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
         this(
@@ -82,6 +88,25 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         );
     }
 
+    /** 创建使用默认参数和批量上限、可加入 Spring 事务的 Factory。 */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
+        CrudWriteTransactionExecutor transactionExecutor
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            dialect,
+            JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS,
+            insertScopeDatabaseValidator,
+            transactionExecutor,
+            DEFAULT_MAX_BATCH_SIZE
+        );
+    }
+
     /**
      * 创建 JDBC DAO Factory，并绑定数据库结构安全校验器。
      *
@@ -95,11 +120,39 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         int maxParameters,
         JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator
     ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            dialect,
+            maxParameters,
+            insertScopeDatabaseValidator,
+            null,
+            DEFAULT_MAX_BATCH_SIZE
+        );
+    }
+
+    /**
+     * 创建带批量事务执行器的 JDBC DAO 工厂。
+     *
+     * <p>未显式传入事务执行器时，标准 JDBC 执行器会自动绑定其数据源；自定义执行器需显式提供事务能力。</p>
+     */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
+        CrudWriteTransactionExecutor transactionExecutor,
+        int maxBatchSize
+    ) {
         if (metaRegistry == null || guardedSqlExecutor == null) {
             throw new ValidationException("EntityMetaRegistry 和 GuardedSqlExecutor 不能为空");
         }
         if (maxParameters <= 0) {
             throw new ValidationException("DAO SQL 参数上限必须大于 0");
+        }
+        if (maxBatchSize <= 0) {
+            throw new ValidationException("DAO 批量数量上限必须大于 0");
         }
         this.metaRegistry = metaRegistry;
         this.guardedSqlExecutor = guardedSqlExecutor;
@@ -108,6 +161,10 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         this.insertScopeDatabaseValidator = insertScopeDatabaseValidator == null
             ? resolveInsertScopeValidator(metaRegistry, guardedSqlExecutor)
             : insertScopeDatabaseValidator;
+        this.transactionExecutor = transactionExecutor == null
+            ? resolveTransactionExecutor(guardedSqlExecutor)
+            : transactionExecutor;
+        this.maxBatchSize = maxBatchSize;
     }
 
     @Override
@@ -119,8 +176,19 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             scoped.scope,
             guardedSqlExecutor,
             new JdbcEntityPredicateCompiler(dialect, maxParameters),
-            dialect
+            dialect,
+            transactionExecutor,
+            maxBatchSize
         );
+    }
+
+    /**
+     * 返回当前 Factory 使用的批量事务执行器，供同一 JDBC Command 入口复用。
+     *
+     * @return 事务执行器；自定义且无法识别数据源的执行器可能为空
+     */
+    public CrudWriteTransactionExecutor getTransactionExecutor() {
+        return transactionExecutor;
     }
 
     @Override
@@ -207,6 +275,14 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         }
         javax.sql.DataSource dataSource = ((JdbcGuardedSqlExecutor) executor).getDataSource();
         return dataSource == null ? null : new JdbcInsertScopeDatabaseValidator(dataSource, registry);
+    }
+
+    private CrudWriteTransactionExecutor resolveTransactionExecutor(GuardedSqlExecutor executor) {
+        if (!(executor instanceof JdbcGuardedSqlExecutor)) {
+            return null;
+        }
+        javax.sql.DataSource dataSource = ((JdbcGuardedSqlExecutor) executor).getDataSource();
+        return dataSource == null ? null : new JdbcCrudWriteTransactionExecutor(dataSource);
     }
 
     private <T, ID> void validateEntityType(EntityType<T, ID> entityType, EntityMeta meta) {

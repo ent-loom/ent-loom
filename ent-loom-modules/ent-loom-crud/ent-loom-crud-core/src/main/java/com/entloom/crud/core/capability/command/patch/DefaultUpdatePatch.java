@@ -16,6 +16,7 @@ public class DefaultUpdatePatch<T> implements UpdatePatch<T> {
     private final Class<T> entityType;
     private final T entity;
     private final Object id;
+    private final Long expectedVersion;
     private final Set<String> presentFields;
     private final Set<String> persistableFields;
     private final Map<String, Object> fieldValues;
@@ -32,9 +33,34 @@ public class DefaultUpdatePatch<T> implements UpdatePatch<T> {
         Map<String, Object> valuesForDelegate,
         ValueConverter valueConverter
     ) {
+        this(
+            entityType,
+            entity,
+            id,
+            null,
+            presentFields,
+            persistableFields,
+            fieldValues,
+            valuesForDelegate,
+            valueConverter
+        );
+    }
+
+    public DefaultUpdatePatch(
+        Class<T> entityType,
+        T entity,
+        Object id,
+        Long expectedVersion,
+        Set<String> presentFields,
+        Set<String> persistableFields,
+        Map<String, Object> fieldValues,
+        Map<String, Object> valuesForDelegate,
+        ValueConverter valueConverter
+    ) {
         this.entityType = entityType;
         this.entity = entity;
         this.id = id;
+        this.expectedVersion = expectedVersion;
         this.presentFields = unmodifiableSet(presentFields);
         this.persistableFields = unmodifiableSet(persistableFields);
         this.fieldValues = unmodifiableMap(fieldValues);
@@ -55,6 +81,11 @@ public class DefaultUpdatePatch<T> implements UpdatePatch<T> {
     @Override
     public Object getId() {
         return id;
+    }
+
+    @Override
+    public Long getExpectedVersion() {
+        return expectedVersion;
     }
 
     @Override

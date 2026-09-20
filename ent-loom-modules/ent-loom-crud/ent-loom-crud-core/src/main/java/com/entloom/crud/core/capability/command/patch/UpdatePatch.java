@@ -15,6 +15,11 @@ public interface UpdatePatch<T> {
 
     Object getId();
 
+    /** 可选的预期版本；实体存在 version 字段时由 DAO 强制要求。 */
+    default Long getExpectedVersion() {
+        return null;
+    }
+
     /**
      * 数字主键的 Long 便捷视图。
      */
@@ -39,6 +44,10 @@ public interface UpdatePatch<T> {
 
     default Object id() {
         return getId();
+    }
+
+    default Long expectedVersion() {
+        return getExpectedVersion();
     }
 
     default Set<String> presentFields() {

@@ -9,6 +9,8 @@ import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.EntityDaoConstraintException;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.api.enums.CrudIdPolicy;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.runtime.context.CrudExecutionContext;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -31,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -353,6 +356,122 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         );
     }
 
+    @Test
+    void batch_read_update_and_delete_should_preserve_input_contract() {
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scoped(
+            ORDER_TYPE,
+            EntityAccessScope.of(RowConstraint.eq("schoolId", 198L))
+        );
+        List<OrderTestEntity> entities = Arrays.asList(
+            order(11001L, "ORD-BATCH-1"),
+            order(11002L, "ORD-BATCH-2")
+        );
+        List<Long> inserted = dao.insertAll(entities);
+
+        Assertions.assertEquals(Arrays.asList(11001L, 11002L), inserted);
+        Assertions.assertEquals(
+            Arrays.asList(11002L, 11001L),
+            ids(dao.findAllById(Arrays.asList(11002L, 99999L, 11001L, 11002L)))
+        );
+
+        entities.get(0).setOrderNo("ORD-BATCH-1-UPDATED");
+        entities.get(1).setOrderNo("ORD-BATCH-2-UPDATED");
+        Assertions.assertEquals(2, dao.updateAll(entities));
+        Assertions.assertEquals(
+            "ORD-BATCH-1-UPDATED",
+            dao.findById(11001L).get().getOrderNo()
+        );
+
+        Assertions.assertEquals(2, dao.deleteAll(entities));
+        Assertions.assertEquals(0, dao.deleteById(11001L));
+        Assertions.assertFalse(dao.findById(11001L).isPresent());
+    }
+
+    @Test
+    void dao_batch_should_rollback_when_a_later_insert_fails() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, is_deleted) values (?,?,?)",
+            12002L,
+            "ORD-BATCH-EXISTING",
+            0
+        );
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scoped(
+            ORDER_TYPE,
+            EntityAccessScope.unrestricted()
+        );
+
+        Assertions.assertThrows(
+            EntityDaoConstraintException.class,
+            () -> dao.insertAll(Arrays.asList(
+                order(12001L, "ORD-BATCH-FIRST"),
+                order(12002L, "ORD-BATCH-CONFLICT")
+            ))
+        );
+
+        Assertions.assertEquals(0, countById(12001L));
+        Assertions.assertEquals(1, countById(12002L));
+    }
+
+    @Test
+    void versioned_entity_should_require_and_advance_expected_version() {
+        jdbcTemplate.execute("drop table if exists t_versioned_order");
+        jdbcTemplate.execute(
+            "create table t_versioned_order(" +
+                "id bigint primary key, name varchar(64), tenant_id varchar(64) not null, version bigint not null)"
+        );
+        EntityMetaRegistry registry = versionedRegistry();
+        EntityDao<VersionedEntity, Long> dao = versionedDao(registry);
+
+        VersionedEntity entity = new VersionedEntity();
+        entity.id = 1L;
+        entity.name = "初始";
+        Assertions.assertEquals(Long.valueOf(1L), dao.insert(entity));
+        Assertions.assertEquals(Long.valueOf(0L), entity.version);
+
+        entity.name = "第一次更新";
+        Assertions.assertEquals(1, dao.update(entity));
+        Assertions.assertEquals(Long.valueOf(1L), entity.version);
+
+        VersionedEntity stale = new VersionedEntity();
+        stale.id = 1L;
+        stale.name = "过期更新";
+        stale.version = 0L;
+        Assertions.assertThrows(EntityDaoWriteMissException.class, () -> dao.update(stale));
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1L);
+        payload.put("name", "Patch 更新");
+        payload.put("version", 1L);
+        UpdatePatch<VersionedEntity> patch = new DefaultCommandPayloadBinder().bindUpdatePatch(
+            payload, VersionedEntity.class, registry.getEntityMeta(VersionedEntity.class)
+        );
+        Assertions.assertEquals(Long.valueOf(1L), patch.getExpectedVersion());
+        Assertions.assertEquals(1, dao.updateById(1L, patch));
+        Assertions.assertEquals(Long.valueOf(2L), patch.getEntity().version);
+
+        Assertions.assertThrows(ValidationException.class, () -> dao.deleteById(1L));
+        Assertions.assertThrows(EntityDaoWriteMissException.class, () -> dao.deleteById(1L, 1L));
+        Assertions.assertEquals(1, dao.deleteById(1L, 2L));
+    }
+
+    @Test
+    void versioned_entity_should_reject_missing_version_on_entity_update() {
+        jdbcTemplate.execute("drop table if exists t_versioned_order");
+        jdbcTemplate.execute(
+            "create table t_versioned_order(" +
+                "id bigint primary key, name varchar(64), tenant_id varchar(64) not null, version bigint not null)"
+        );
+        EntityMetaRegistry registry = versionedRegistry();
+        EntityDao<VersionedEntity, Long> dao = versionedDao(registry);
+
+        VersionedEntity entity = new VersionedEntity();
+        entity.id = 2L;
+        entity.name = "缺失版本";
+        dao.insert(entity);
+        entity.version = null;
+        Assertions.assertThrows(ValidationException.class, () -> dao.update(entity));
+    }
+
     private OrderTestEntity order(Long id, String orderNo) {
         OrderTestEntity order = new OrderTestEntity();
         order.setId(id);
@@ -366,6 +485,44 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         payload.put("orderNo", orderNo);
         return new DefaultCommandPayloadBinder().bindUpdatePatch(
             payload, OrderTestEntity.class, metaRegistry.getEntityMeta(OrderTestEntity.class)
+        );
+    }
+
+    private List<Long> ids(List<OrderTestEntity> entities) {
+        List<Long> result = new ArrayList<Long>();
+        for (OrderTestEntity entity : entities) {
+            result.add(entity.getId());
+        }
+        return result;
+    }
+
+    private int countById(Long id) {
+        return jdbcTemplate.queryForObject(
+            "select count(*) from t_order where id=?",
+            Integer.class,
+            id
+        );
+    }
+
+    private EntityMetaRegistry versionedRegistry() {
+        EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
+            new com.entloom.crud.core.runtime.model.parser.CrudNativeRuntimeModelParser()
+                .parse(Collections.<Class<?>>singletonList(VersionedEntity.class))
+        );
+        registry.validateOrThrow();
+        return registry;
+    }
+
+    private EntityDao<VersionedEntity, Long> versionedDao(EntityMetaRegistry registry) {
+        SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
+            new SqlIdentifierAllowlistValidator(registry),
+            new SqlParameterLimiter()
+        );
+        JdbcGuardedSqlExecutor executor = new JdbcGuardedSqlExecutor(
+            jdbcTemplate, safetyGuard, new SqlExecutionLogger()
+        );
+        return new JdbcEntityDaoFactory(registry, executor).scoped(
+            EntityType.of(VersionedEntity.class, Long.class), EntityAccessScope.of(RowConstraint.eq("tenantId", "tenant-a"))
         );
     }
 
@@ -442,6 +599,24 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
             this.sql = sql;
             return generatedKey;
         }
+    }
+
+    /** 启用乐观锁的显式主键测试实体。 */
+    @EntCrudEntity(
+        table = "t_versioned_order",
+        idField = "id",
+        idPolicy = CrudIdPolicy.EXPLICIT,
+        scopeFields = {"tenantId"}
+    )
+    public static class VersionedEntity {
+        /** 主键。 */
+        private Long id;
+        /** 业务名称。 */
+        private String name;
+        /** 租户范围。 */
+        private String tenantId;
+        /** 乐观锁版本。 */
+        private Long version;
     }
 
     private JdbcEntityDaoFactory newFactory(EntityMetaRegistry registry) {

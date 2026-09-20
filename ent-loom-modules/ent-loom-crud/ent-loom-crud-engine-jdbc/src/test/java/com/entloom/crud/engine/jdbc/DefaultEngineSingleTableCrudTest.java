@@ -26,6 +26,7 @@ import com.entloom.crud.core.governance.audit.CrudGovernanceAuditReasonCode;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -498,6 +499,57 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
         );
         Assertions.assertTrue(updateError.getMessage().contains("目标不存在"));
         Assertions.assertEquals(0, countById(2504L));
+    }
+
+    @Test
+    void dao_command_batch_should_rollback_when_a_later_create_fails() {
+        jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 2602L, "ORD-EXISTING", 0);
+
+        Map<String, Object> firstPayload = new LinkedHashMap<String, Object>();
+        firstPayload.put("orderNo", "ORD-FIRST");
+        firstPayload.put("isDeleted", 0);
+        Map<String, Object> conflictPayload = new LinkedHashMap<String, Object>();
+        conflictPayload.put("orderNo", "ORD-CONFLICT");
+        conflictPayload.put("isDeleted", 0);
+        BatchCommand<Object> batchCommand = BatchCommand.of(Arrays.<WriteCommand<Object>>asList(
+            new WriteCommand<Object>(CommandOperation.CREATE, 2601L, firstPayload),
+            new WriteCommand<Object>(CommandOperation.CREATE, 2602L, conflictPayload)
+        ));
+
+        Assertions.assertThrows(
+            RuntimeException.class,
+            () -> commandGateway.action(commandSpec(
+                CommandOperation.CREATE_BATCH,
+                "create-batch-rollback",
+                batchCommand
+            ))
+        );
+
+        Assertions.assertEquals(0, countById(2601L));
+        Assertions.assertEquals(1, countById(2602L));
+    }
+
+    @Test
+    void dao_command_batch_should_reject_more_than_500_items_before_writing() {
+        List<WriteCommand<Object>> items = new ArrayList<WriteCommand<Object>>();
+        for (int i = 0; i < 501; i++) {
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("orderNo", "ORD-LIMIT-" + i);
+            payload.put("isDeleted", 0);
+            items.add(new WriteCommand<Object>(CommandOperation.CREATE, 27000L + i, payload));
+        }
+
+        ValidationException exception = Assertions.assertThrows(
+            ValidationException.class,
+            () -> commandGateway.action(commandSpec(
+                CommandOperation.CREATE_BATCH,
+                "create-batch-limit",
+                BatchCommand.of(items)
+            ))
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("500"));
+        Assertions.assertEquals(0, countById(27000L));
     }
 
     private CommandSpec<Object> commandSpec(CommandOperation operation, String idempotencyKey, Object payload) {

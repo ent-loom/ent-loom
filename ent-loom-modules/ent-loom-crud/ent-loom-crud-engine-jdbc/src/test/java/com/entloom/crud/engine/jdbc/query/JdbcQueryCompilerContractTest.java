@@ -59,7 +59,7 @@ class JdbcQueryCompilerContractTest {
         CompiledQuery compiled = compiler.compile(plan(spec));
 
         Assertions.assertEquals(
-            "select t.id as id,t.order_no as orderNo from t_order t where t.is_deleted = ? and t.school_id = ? order by t.order_no DESC limit ?",
+            "select t.id as id,t.order_no as orderNo from t_order t where t.is_deleted = ? and t.school_id = ? order by t.order_no DESC,t.id asc limit ?",
             compiled.getDataSql()
         );
         Assertions.assertEquals(Arrays.<Object>asList(0, 10L, 20), compiled.getDataArgs());
