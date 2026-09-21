@@ -1,6 +1,6 @@
 # 实体 DAO 自定义方法
 
-> 状态：Current（单表自定义 SQL、安全修复、页码分页与 JavaBean 对象参数路径已实现）<br />
+> 状态：Current（单表自定义 SQL、安全修复、页码分页、JavaBean 对象参数路径与受限单行 INSERT 已实现）<br />
 > 决策日期：2026-09-18<br />
 > 最近核验：2026-09-21<br />
 > 关联文档：[实体 DAO](./实体DAO.md)
@@ -62,7 +62,7 @@ flowchart LR
 
 - `EntityDao<T, ID>`：保留标准主键 CRUD。
 - `@EntQuery`：只允许读取，首期支持单对象、可选对象、列表和 DTO。
-- `@EntCommand`：统一承载自定义更新、删除；插入待范围归属规则明确后再加入。
+- `@EntCommand`：统一承载自定义更新、删除和受限单行 INSERT；复杂写入继续交给专用 Repository。
 - 专用 Repository：只承载跨聚合事务、复杂批量编排或数据库特有能力，不作为普通自定义查询的默认去处。
 - 不提供方法名推导 SQL，查询和命令必须显式表达 SQL。
 
@@ -88,7 +88,7 @@ flowchart LR
 flowchart TD
     method["扫描 @EntDao 方法"] --> kind{"方法注解"}
     kind -->|"@EntQuery"| queryCheck["校验只读 SQL<br/>解析 T / Optional / List / PageResult"]
-    kind -->|"@EntCommand"| commandCheck["校验写 SQL<br/>校验 int / long 返回值"]
+    kind -->|"@EntCommand"| commandCheck["校验 UPDATE / DELETE / 受限 INSERT<br/>校验 int / long 返回值"]
     queryCheck --> scope["合并不可放宽的数据范围<br/>与逻辑删除谓词"]
     commandCheck --> scope
     scope --> bind["命名参数绑定"]
@@ -100,13 +100,15 @@ flowchart TD
 
 | 规则 | `@EntQuery` | `@EntCommand` |
 |---|---|---|
-| 允许 SQL | `SELECT` | `UPDATE`、`DELETE` |
+| 允许 SQL | `SELECT` | `UPDATE`、`DELETE`、受限单行 `INSERT` |
 | 实体或 DTO 映射 | 支持 | 不支持 |
 | 分页 | 支持单表页码分页与可选计数 | 不支持 |
 | 影响行数 | 不适用 | `int` / `long` |
 | 只读事务提示 | 可应用 | 不应用 |
 
-首期不增加 `@EntInsert`、`@EntUpdate`、`@EntDelete`。框架根据 SQL 语句类型校验 `@EntCommand`；出现必须显式区分命令类型的真实需求后，再考虑增加枚举属性。
+`@EntCommand` 中的 `INSERT` 只支持单表、显式列、单行 `VALUES`，每个值必须是命名参数；只支持 `EntityIdPolicy.EXPLICIT`，主键必须显式绑定且不能为空。范围字段必须显式列出并通过可信范围注入或校验，逻辑删除字段必须绑定未删除初值；常量、函数、批量 `VALUES`、`INSERT SELECT`、upsert、生成主键和联合主键均拒绝。INSERT 返回影响行数，且必须恰好影响一行。
+
+首期不增加 `@EntInsert`、`@EntUpdate`、`@EntDelete`。框架根据 SQL 语句类型校验 `@EntCommand`；出现必须显式区分命令类型的真实需求后，再考虑增加枚举属性。INSERT 的范围校验独立于 UPDATE/DELETE 的 WHERE 追加，不能用 SQL 条件替代新增归属校验。
 
 ## 当前参数绑定合同
 
@@ -152,7 +154,7 @@ flowchart TD
 
 ## 实施范围
 
-采用较小闭环：首期支持静态显式 SQL、命名参数、JavaBean 对象属性路径、实体/DTO/列表/可选对象/分页返回、可确定唯一治理实体的单表查询与更新删除、范围治理和 JDBC 执行。插入范围策略、Map/record 参数、构造器/record 投影和复杂 SQL 改写继续暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
+采用较小闭环：首期支持静态显式 SQL、命名参数、JavaBean 对象属性路径、实体/DTO/列表/可选对象/分页返回、可确定唯一治理实体的单表查询、更新删除和受限单行 INSERT、范围治理和 JDBC 执行。生成主键、批量 INSERT、upsert、Map/record 参数、构造器/record 投影和复杂 SQL 改写继续暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
 
 首期不追求通用 SQL 兼容性。若暂不引入成熟 SQL Parser，则只实现能够覆盖上述语法子集的受限词法和 AST；解析失败、语法超出白名单或治理位置不明确时，启动失败，不继续增加字符串解析特例。
 
@@ -161,7 +163,7 @@ flowchart TD
 ## 实现与验证入口
 
 - `JdbcEntityDaoCustomMethodExecutor`：受限 SQL 解析、参数绑定、治理与执行。
-- `JdbcEntityDaoCustomMethodExecutorTest`：查询与 DTO、写命令、OR 治理、安全拒绝、单对象基数、枚举时间及集合、分页与可选计数。
+- `JdbcEntityDaoCustomMethodExecutorTest`：查询与 DTO、写命令、受限 INSERT、OR 治理、安全拒绝、单对象基数、枚举时间及集合、分页与可选计数。
 - `EntDaoTest`：Starter 扫描、声明校验及代理执行。
 - `EntDaoPaginationIntegrationTest`：Spring DAO 分页集成验证。
 
@@ -169,4 +171,4 @@ flowchart TD
 
 ## 后续实施入口
 
-新增能力、依赖顺序、待办与验收标准统一维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。自定义 INSERT、Map/record 参数、构造器/record 投影是待实施或待决策项，不能据路线图认定当前已支持。JOIN、子查询及复杂 SQL 继续遵守本文限制。
+新增能力、依赖顺序、待办与验收标准统一维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。Map/record 参数与构造器/record 投影仍待实施或待决策；生成主键、批量 INSERT、upsert、JOIN、子查询及复杂 SQL 继续遵守本文限制。

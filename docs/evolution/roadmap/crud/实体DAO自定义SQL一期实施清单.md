@@ -1,6 +1,6 @@
 # 实体 DAO 自定义 SQL 一期实施清单
 
-> 状态：P1 JavaBean 对象路径已实现；Map/record、INSERT 与构造器投影 Remaining<br />
+> 状态：P1 JavaBean 对象路径、P2 受限单行 INSERT 已实现；Map/record 与构造器投影待后续实施<br />
 > 核验日期：2026-09-21<br />
 > 当前合同：[实体 DAO 自定义方法](../../../architecture/components/crud/实体DAO自定义方法.md)<br />
 > 关联：[实体 DAO 实施清单](实体DAO实施清单.md)、[统一读写与分页设计](../../../architecture/components/crud/实体DAO统一读写与分页设计.md)
@@ -11,13 +11,13 @@
 
 按“先较小闭环，再较佳实践”推进：先完成对象参数绑定及必要的内部模型拆分，再确定 INSERT 的范围归属和主键合同，最后完善投影与业务验收。JOIN 等复杂查询只做边界评估，不作为一期上线条件。
 
-每项只有在实现、针对性测试、当前合同文档及验收记录同步完成后才可打钩。评估项打钩只代表决策完成，不代表功能已经支持。本文已有能力表来自源码和现存测试核对，本次文档整理未重新运行 Java 测试。
+每项只有在实现、针对性测试、当前合同文档及验收记录同步完成后才可打钩。评估项打钩只代表决策完成，不代表功能已经支持。本文已有能力表来自源码和现存测试核对，阶段验收记录保留实际测试命令与结果。
 
 ## 当前基线
 
 | 能力 | 当前状态 | 证据入口 |
 |---|---|---|
-| 单表 SELECT、UPDATE、DELETE | 已实现 | `JdbcEntityDaoCustomMethodExecutor` |
+| 单表 SELECT、UPDATE、DELETE、受限 INSERT | 已实现 | `JdbcEntityDaoCustomMethodExecutor` |
 | 方法参数名绑定、IN 集合、枚举和时间规范化 | 已实现；依赖 `-parameters` | `validateParameters`、`bind`、`JdbcEntityValueBinder` |
 | 实体、明确 DTO、List、Optional | 已实现；不等同于任意构造器或 record 映射 | `JdbcEntityDaoCustomMethodExecutorTest` |
 | 单表 PageQuery / PageResult、可选 count | 已实现 | `EntDaoPaginationIntegrationTest`、分页设计文档 |
@@ -25,7 +25,7 @@
 | Starter 扫描、声明校验、代理执行 | 已实现 | `EntDaoTest` |
 | JavaBean 对象属性路径 | 已实现；显式路径，不自动展开 | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
 | Map、record 参数路径 | 未实现 | 当前阶段只支持 JavaBean 可读属性 |
-| 自定义 INSERT | 未实现 | 当前命令只接受 UPDATE / DELETE |
+| 自定义 INSERT | 已实现；仅受限单表、显式主键、单行命名参数 VALUES | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
 | JOIN、子查询、CTE、UNION、任意动态 SQL | 当前禁止 | 受限 SQL 解析合同 |
 
 源码与测试位置：
@@ -102,7 +102,7 @@ List<Customer> findByFilter(CustomerFilter filter);
 
 业务目标：确有自定义插入需求时，允许通过相同 DAO 声明单行写入，保持与基础新增一致的范围和事务边界。
 
-目标 API（待合同决策及实现；假设实体采用显式主键）：
+当前 API（仅实体采用显式主键时可用）：
 
 ```java
 @EntCommand("insert into customer (id, name) values (:customer.id, :customer.name)")
@@ -111,19 +111,21 @@ int insertCustomer(Customer customer);
 
 此示例省略范围字段，不表示当前已支持自动注入。必须先证明如何从可信范围确定新增归属；不能从任意 OR、IN 或区间谓词猜测租户或组织值。
 
+当前合同：只支持单表、显式列、单行 `VALUES`；每个值必须是命名参数，支持已实现的 JavaBean 属性路径。只支持 `EntityIdPolicy.EXPLICIT`，主键必须显式绑定且不能为空；生成主键、应用生成主键和联合主键暂缓。范围字段必须显式列出，并通过 `InsertConstraintValueBinder` 按可信等值或单元素 `IN` 注入/校验；多元素 `IN` 必须由调用参数提供并校验。逻辑删除字段必须显式列出，最终值固定为未删除初值。普通不可写字段、关系字段、常量、函数、批量 `VALUES`、`INSERT SELECT`、upsert 均拒绝。返回值仍为 `int` / `long` 影响行数，INSERT 必须恰好影响一行。
+
 | 编号 | 待办 | 实现位置 | 验收标准 |
 |---|---|---|---|
 | P2.1 | 明确新增归属与范围字段规则 | DAO 范围合同、现有 insert 校验链、设计决策 | 区分可信等值、冲突、多值及不可推导范围；定义注入还是校验策略；不可证明归属时拒绝执行 |
 | P2.2 | 明确主键、默认值与返回合同 | `EntCommand` 合同、DAO 主键策略 | 优先使用影响行数；明确生成主键是否暂缓；不得让 long 同时表示主键和影响行数 |
 | P2.3 | 实现单表、显式列、单行 VALUES | JDBC 受限解析器与执行器 | 列值数量、重复列、未知列、受保护字段检查通过；拒绝 INSERT SELECT、批量 VALUES、upsert |
-| P2.4 | 复用对象参数、归属校验和事务执行 | JDBC 绑定与守卫执行器 | 正常写入、越权拒绝、逻辑删除初值、默认列值、外层回滚在测试中验证 |
+| P2.4 | 复用对象参数、归属校验和事务执行 | JDBC 绑定与守卫执行器 | 正常写入、越权拒绝、逻辑删除初值、未列出普通列遵循数据库默认/可空规则、外层回滚在测试中验证 |
 
-- [ ] P2.1 范围归属决策完成。
-- [ ] P2.2 主键和返回合同决策完成。
-- [ ] P2.3 受限单行 INSERT 完成。
-- [ ] P2.4 治理、参数和事务验收完成。
+- [x] P2.1 范围归属决策完成：可信等值或单元素 `IN` 可注入，多元素 `IN` 只校验显式字段，冲突或无法证明时拒绝；范围字段缺失时拒绝。
+- [x] P2.2 主键和返回合同决策完成：只支持显式主键；返回影响行数，INSERT 必须恰好影响一行；生成主键暂缓。
+- [x] P2.3 受限单行 INSERT 完成。
+- [x] P2.4 治理、参数和事务验收完成：复用 JavaBean 参数路径、JDBC 类型规范化、逻辑删除初值和受守卫执行器。
 
-P2.1/P2.2 未确定前不实现 INSERT。P2.3/P2.4 还必须保证“最终写入值”与范围校验值一致：先按受限 `VALUES` 列表形成待写入字段快照，再执行范围字段注入或冲突校验，最终绑定只能来自该快照；数据库默认值不能被当作已验证的范围归属。若暂缓，记录原因和重新进入条件；其他已完成阶段可以独立交付，不得宣称 INSERT 已完成。
+P2.3/P2.4 保证“最终写入值”与范围校验值一致：先按受限 `VALUES` 列表形成待写入字段快照，再执行范围字段注入或冲突校验，最终绑定只能来自该快照。未列出的普通字段仍由数据库默认值或可空规则处理，但不能把数据库默认值当作已验证的范围归属。生成主键、批量 INSERT、upsert 和复杂范围表达式在有真实需求前继续暂缓。
 
 ## P3：查询投影完善
 
@@ -165,4 +167,6 @@ JOIN 涉及多表，不能称为“单表 JOIN”。复杂跨聚合写、数据�
 
 | 阶段/编号 | 实现或提交 | 测试命令与环境 | 结果 | 当前合同更新 | 暂缓项与原因 |
 |---|---|---|---|---|---|
-| P1.1-P1.6 | `JdbcEntityDaoCustomMethodExecutor` 对象路径绑定与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，8 tests，0 failures，0 errors | 已更新 JavaBean 路径合同；Map/record 暂缓 | 无；INSERT、构造器/record 投影和真实示例工程接入留待后续阶段 |
+| P1.1-P1.6 | `JdbcEntityDaoCustomMethodExecutor` 对象路径绑定与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，8 tests，0 failures，0 errors | 已更新 JavaBean 路径合同；Map/record 暂缓 | 无；构造器/record 投影和真实示例工程接入留待后续阶段 |
+| P2.1-P2.4 | `JdbcEntityDaoCustomMethodExecutor` 受限 INSERT 与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，10 tests，0 failures，0 errors | 已更新 INSERT 合同；生成主键、批量 VALUES、upsert、复杂范围表达式暂缓 | 尚未完成 MySQL 8 profile 验证；Starter 代理层仍待 P4 验收 |
+| P2 回归 | JDBC 引擎及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`；JDK 21、H2 | 通过，依赖模块 254 tests、JDBC 引擎 119 tests，0 failures，0 errors | 基础 CRUD、范围治理、逻辑删除和自定义 SQL 回归通过 | MySQL 8 profile 与 Starter 代理层仍待 P4 验收 |

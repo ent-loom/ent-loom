@@ -19,6 +19,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -91,6 +93,8 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "updateLogicDelete"));
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "incompleteUpdate"));
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "unknownProperty"));
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "insertWithLiteral"));
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "insertSelect"));
     }
 
     @Test
@@ -178,6 +182,54 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         assertThrows(ValidationException.class, () -> invoke(
             EntityAccessScope.unrestricted(), "findByFilter", (Object) null
         ));
+    }
+
+    @Test
+    void should_execute_explicit_single_row_insert_inside_scope() throws Exception {
+        validate(CustomDao.class, "insertByCommand");
+        OrderInsertCommand command = new OrderInsertCommand(
+            20013L, "ORD-INSERT", 198L, "tenant-a", 0
+        );
+        assertEquals(1, ((Integer) invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "insertByCommand", command
+        )).intValue());
+        assertEquals("ORD-INSERT", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id = ?", String.class, 20013L
+        ));
+
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "insertByCommand", new OrderInsertCommand(20014L, "ORD-SCOPE-CONFLICT", 199L, "tenant-a", 0)
+        ));
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "insertByCommand", new OrderInsertCommand(20015L, "ORD-DELETE", 198L, "tenant-a", 1)
+        ));
+        validate(CustomDao.class, "insertWithoutScopeField");
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "insertWithoutScopeField", new OrderInsertCommand(20016L, "ORD-MISSING-SCOPE", 198L, "tenant-a", 0)
+        ));
+    }
+
+    @Test
+    void should_join_caller_transaction_and_rollback_custom_insert() {
+        TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        assertThrows(IllegalStateException.class, () -> transaction.execute(status -> {
+            try {
+                invoke(
+                    EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+                    "insertByCommand", new OrderInsertCommand(20017L, "ORD-ROLLBACK", 198L, "tenant-a", 0)
+                );
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+            throw new IllegalStateException("测试外层事务回滚");
+        }));
+        assertEquals(0, jdbcTemplate.queryForObject(
+            "select count(1) from t_order where id = ?", Integer.class, 20017L
+        ).intValue());
     }
 
     @Test
@@ -333,6 +385,14 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntCommand("update t_order set order_no = :command.orderNo where id = :command.id")
         int updateByCommand(OrderCommand command);
+
+        @EntCommand("insert into t_order (id, order_no, school_id, tenant_id, is_deleted) "
+            + "values (:command.id, :command.orderNo, :command.schoolId, :command.tenantId, :command.deleted)")
+        int insertByCommand(OrderInsertCommand command);
+
+        @EntCommand("insert into t_order (id, order_no, tenant_id, is_deleted) "
+            + "values (:command.id, :command.orderNo, :command.tenantId, :command.deleted)")
+        int insertWithoutScopeField(OrderInsertCommand command);
     }
 
     interface InvalidDao {
@@ -386,6 +446,13 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntQuery("select * from t_order where id = :filter.unknown")
         List<OrderTestEntity> unknownProperty(OrderFilter filter);
+
+        @EntCommand("insert into t_order (id, order_no, school_id, tenant_id, is_deleted) "
+            + "values (:command.id, :command.orderNo, :command.schoolId, :command.tenantId, '0')")
+        int insertWithLiteral(OrderInsertCommand command);
+
+        @EntCommand("insert into t_order (id, order_no) select :command.id, :command.orderNo")
+        int insertSelect(OrderInsertCommand command);
     }
 
     public static class OrderFilter {
@@ -433,6 +500,42 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         public String getOrderNo() {
             return orderNo;
+        }
+    }
+
+    public static class OrderInsertCommand {
+        private Long id;
+        private String orderNo;
+        private Long schoolId;
+        private String tenantId;
+        private Integer deleted;
+
+        public OrderInsertCommand(Long id, String orderNo, Long schoolId, String tenantId, Integer deleted) {
+            this.id = id;
+            this.orderNo = orderNo;
+            this.schoolId = schoolId;
+            this.tenantId = tenantId;
+            this.deleted = deleted;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public String getOrderNo() {
+            return orderNo;
+        }
+
+        public Long getSchoolId() {
+            return schoolId;
+        }
+
+        public String getTenantId() {
+            return tenantId;
+        }
+
+        public Integer getDeleted() {
+            return deleted;
         }
     }
 

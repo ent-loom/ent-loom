@@ -9,13 +9,17 @@ import com.entloom.crud.api.model.PageQuery;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
+import com.entloom.crud.core.capability.dao.InsertConstraintValueBinder;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
+import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
+import com.entloom.crud.core.exception.EntityDaoPersistenceException;
 import com.entloom.crud.core.exception.NotFoundException;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.query.JdbcReflectiveMapper;
@@ -44,7 +48,7 @@ import java.util.regex.Pattern;
 /**
  * JDBC 实体 DAO 自定义方法执行器。
  *
- * <p>首期只接受能够解析为单表 SELECT、UPDATE 或 DELETE 的静态 SQL；解析后的
+ * <p>首期只接受能够解析为单表 SELECT、UPDATE、DELETE 或受限 INSERT 的静态 SQL；解析后的
  * 治理谓词通过结构化位置追加，不允许调用方关闭范围或逻辑删除约束。</p>
  */
 public final class JdbcEntityDaoCustomMethodExecutor {
@@ -64,7 +68,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         Collections.addAll(SQL_KEYWORDS,
             "select", "from", "where", "and", "or", "not", "in", "is", "null", "true", "false",
             "update", "delete", "set", "as", "order", "by", "asc", "desc", "like", "between",
-            "distinct", "case", "when", "then", "else", "end"
+            "insert", "into", "values", "distinct", "case", "when", "then", "else", "end"
         );
         Collections.addAll(ALLOWED_FUNCTIONS,
             "abs", "ceil", "ceiling", "coalesce", "concat", "concat_ws", "date", "ifnull",
@@ -163,6 +167,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         DefaultExecutionContext context = context(method, "main");
         if (!isQuery(annotation)) {
             int rows = executor.update(bound.sql, bound.args, context);
+            if (parsed.insert != null && rows != 1) {
+                throw new EntityDaoPersistenceException("自定义 INSERT 影响行数不是 1: " + rows);
+            }
             if (method.getReturnType() == Long.TYPE || method.getReturnType() == Long.class) {
                 return Long.valueOf(rows);
             }
@@ -366,9 +373,10 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         if (query && !"select".equals(command)) {
             throw new ValidationException("@EntQuery 只允许 SELECT SQL: " + method);
         }
-        if (!query && !("update".equals(command) || "delete".equals(command))) {
-            throw new ValidationException("@EntCommand 只允许 UPDATE 或 DELETE SQL: " + method);
+        if (!query && !("update".equals(command) || "delete".equals(command) || "insert".equals(command))) {
+            throw new ValidationException("@EntCommand 只允许 UPDATE、DELETE 或受限 INSERT SQL: " + method);
         }
+        boolean insert = !query && "insert".equals(command);
         rejectNestedStatements(tokens, method);
         if (query) {
             rejectUnsupportedQueryConstructs(tokens, method);
@@ -376,15 +384,36 @@ public final class JdbcEntityDaoCustomMethodExecutor {
                 throw unsupportedSql(method, "自定义分页");
             }
         }
+        InsertSqlStructure insertStructure = insert ? parseInsertStructure(tokens, sql, meta, method) : null;
         TablePart table = query ? parseSelectTable(tokens, sql, meta, dialect, method)
-            : parseWriteTable(tokens, sql, meta, dialect, method);
-        rejectAdditionalTables(tokens, table, method);
-        if (!query) {
+            : insert ? insertStructure.table : parseWriteTable(tokens, sql, meta, dialect, method);
+        if (!insert) {
+            rejectAdditionalTables(tokens, table, method);
+        }
+        if (!query && !insert) {
             rejectUnsupportedWriteClauses(tokens, method);
         }
-        validateIdentifiers(tokens, table, meta, method);
+        if (!insert) {
+            validateIdentifiers(tokens, table, meta, method);
+        }
         if (!query && "update".equals(command)) {
             validateUpdateAssignments(tokens, table, meta, method);
+        }
+        if (insert) {
+            List<String> parameterNames = namedParameterNames(sql, method);
+            Map<String, ParameterBinding> parameterBindings = insertParameterBindings(
+                insertStructure, meta, method
+            );
+            return new ParsedSql(
+                sql,
+                parameterNames,
+                parameterBindings,
+                false,
+                table,
+                false,
+                null,
+                insertStructure
+            );
         }
         ClausePosition where = keyword(tokens, "where", 0);
         if (where != null && where.depth != 0) {
@@ -436,8 +465,125 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             query,
             table,
             keyword(tokens, "distinct", 0) != null,
-            select
+            select,
+            null
         );
+    }
+
+    private static InsertSqlStructure parseInsertStructure(
+        List<Token> tokens,
+        String sql,
+        EntityMeta meta,
+        Method method
+    ) {
+        if (meta.getIdPolicy() != EntityIdPolicy.EXPLICIT) {
+            throw unsupportedSql(method, "非 EXPLICIT 主键策略的自定义 INSERT");
+        }
+        if (tokens.size() < 5 || !"into".equals(tokens.get(1).lower)) {
+            throw new ValidationException("INSERT 必须使用 INTO 目标表: " + method);
+        }
+        Token tableToken = tokens.get(2);
+        if (!SIMPLE_IDENTIFIER.matcher(tableToken.text).matches()
+            || !sameIdentifier(tableToken.text, meta.getTable())) {
+            throw new ValidationException("DAO 自定义 INSERT 目标表与实体不一致: " + tableToken.text + ", " + method);
+        }
+        ClausePosition values = keyword(tokens, "values", 0);
+        if (values == null || values.index <= 3) {
+            throw new ValidationException("自定义 INSERT 必须包含单行 VALUES: " + method);
+        }
+        List<String> fields = new ArrayList<String>();
+        Set<String> fieldSet = new HashSet<String>();
+        for (int i = 3; i < values.index; i++) {
+            Token token = tokens.get(i);
+            if (token.depth != 1) {
+                throw unsupportedSql(method, "INSERT 列表之外的语法");
+            }
+            if (",".equals(token.text)) {
+                continue;
+            }
+            if (!SIMPLE_IDENTIFIER.matcher(token.text).matches()) {
+                throw new ValidationException("自定义 INSERT 列名不合法: " + token.text + ": " + method);
+            }
+            String fieldName = resolveField(meta, null, token.text);
+            EntityFieldMeta field = fieldName == null ? null : meta.resolveFieldMeta(fieldName);
+            boolean controlledWrite = field != null
+                && (fieldName.equals(meta.getIdField())
+                    || field.isScopeField()
+                    || fieldName.equals(meta.getLogicDeleteField()));
+            if (field == null || field.isRelation() || (!field.isWritable() && !controlledWrite)) {
+                throw new ValidationException("自定义 INSERT 字段不可写或未注册: " + token.text + ": " + method);
+            }
+            if (!fieldSet.add(fieldName)) {
+                throw new ValidationException("自定义 INSERT 不能重复写入字段: " + fieldName + ": " + method);
+            }
+            fields.add(fieldName);
+        }
+        if (fields.isEmpty()) {
+            throw new ValidationException("自定义 INSERT 列列表不能为空: " + method);
+        }
+        if (!fieldSet.contains(meta.getIdField())) {
+            throw new ValidationException("显式主键自定义 INSERT 必须包含主键字段: " + meta.getIdField() + ": " + method);
+        }
+        if (meta.getLogicDeleteField() != null && !meta.getLogicDeleteField().trim().isEmpty()
+            && !fieldSet.contains(meta.getLogicDeleteField())) {
+            throw new ValidationException("自定义 INSERT 必须显式绑定逻辑删除初始字段: "
+                + meta.getLogicDeleteField() + ": " + method);
+        }
+
+        List<String> parameters = new ArrayList<String>();
+        boolean expectValue = true;
+        for (int i = values.index + 1; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            if (token.depth != 1) {
+                throw unsupportedSql(method, "批量 VALUES、INSERT SELECT 或其他 INSERT 子句");
+            }
+            if (",".equals(token.text)) {
+                if (expectValue) {
+                    throw new ValidationException("自定义 INSERT VALUES 赋值不能为空: " + method);
+                }
+                expectValue = true;
+                continue;
+            }
+            if (!expectValue || !token.text.startsWith(":")
+                || !validParameterPath(token.text.substring(1))) {
+                throw unsupportedSql(method, "INSERT VALUES 中的常量、函数或复杂表达式");
+            }
+            parameters.add(token.text.substring(1));
+            expectValue = false;
+        }
+        if (expectValue || parameters.size() != fields.size()) {
+            throw new ValidationException("自定义 INSERT 列和值数量不一致: " + method);
+        }
+        return new InsertSqlStructure(
+            new TablePart(tableToken.text, null, 3),
+            fields,
+            parameters
+        );
+    }
+
+    private static Map<String, ParameterBinding> insertParameterBindings(
+        InsertSqlStructure insert,
+        EntityMeta meta,
+        Method method
+    ) {
+        Map<String, ParameterBinding> result = new LinkedHashMap<String, ParameterBinding>();
+        for (int i = 0; i < insert.fields.size(); i++) {
+            String name = insert.parameters.get(i);
+            EntityFieldMeta field = meta.resolveFieldMeta(insert.fields.get(i));
+            Parameter parameter = parameter(method, name);
+            ParameterBinding binding = createParameterBinding(name, parameter, field, false, method);
+            if (binding.collectionParameter) {
+                throw new ValidationException("自定义 INSERT 不支持集合参数: " + name + ": " + method);
+            }
+            ParameterBinding previous = result.get(name);
+            if (previous != null && !previous.field.getFieldName().equals(field.getFieldName())) {
+                throw new ValidationException("DAO SQL 参数不能绑定多个 INSERT 字段: " + name + ": " + method);
+            }
+            if (previous == null) {
+                result.put(name, binding);
+            }
+        }
+        return result;
     }
 
     private static TablePart parseSelectTable(
@@ -953,7 +1099,11 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             }
             values.put(binding.name, normalizeParameterValue(binding, binding.read(actual, method), method));
         }
-        appendScopeValues(scope, values, new int[] {0});
+        if (parsed.insert == null) {
+            appendScopeValues(scope, values, new int[] {0});
+        } else {
+            applyInsertGovernance(parsed, values, method);
+        }
         EntityFieldMeta logicDeleteField = meta.getLogicDeleteField() == null
             ? null : meta.resolveFieldMeta(meta.getLogicDeleteField());
         values.put(RESERVED_PARAMETER_PREFIX + "logic_delete",
@@ -977,6 +1127,55 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             );
         }
         return new BoundSql(whole.sql, whole.args, select);
+    }
+
+    private void applyInsertGovernance(ParsedSql parsed, Map<String, Object> values, Method method) {
+        InsertSqlStructure insert = parsed.insert;
+        Map<String, Object> row = new LinkedHashMap<String, Object>();
+        for (int i = 0; i < insert.fields.size(); i++) {
+            String fieldName = insert.fields.get(i);
+            String parameterName = insert.parameters.get(i);
+            EntityFieldMeta field = meta.resolveFieldMeta(fieldName);
+            if (!values.containsKey(parameterName) || field == null) {
+                throw new ValidationException("自定义 INSERT 参数未绑定: " + parameterName + ": " + method);
+            }
+            row.put(fieldName, RowConstraintNormalizer.normalizeValue(field, values.get(parameterName)));
+        }
+        Map<String, Object> scoped = InsertConstraintValueBinder.bind(scope, meta, row);
+        for (String fieldName : scoped.keySet()) {
+            if (!insert.fields.contains(fieldName)) {
+                EntityFieldMeta field = meta.resolveFieldMeta(fieldName);
+                if (field != null && field.isScopeField()) {
+                    throw new ValidationException("自定义 INSERT 必须显式包含范围字段: " + fieldName + ": " + method);
+                }
+            }
+        }
+        for (int i = 0; i < insert.fields.size(); i++) {
+            String fieldName = insert.fields.get(i);
+            String parameterName = insert.parameters.get(i);
+            EntityFieldMeta field = meta.resolveFieldMeta(fieldName);
+            Object value = scoped.containsKey(fieldName) ? scoped.get(fieldName) : row.get(fieldName);
+            values.put(parameterName, JdbcEntityValueBinder.normalize(field, value));
+        }
+        String logicDeleteField = meta.getLogicDeleteField();
+        if (logicDeleteField != null && !logicDeleteField.trim().isEmpty()) {
+            int index = insert.fields.indexOf(logicDeleteField);
+            EntityFieldMeta field = meta.resolveFieldMeta(logicDeleteField);
+            Object expected = JdbcEntityValueBinder.normalize(
+                field,
+                JdbcLogicDeleteValues.notDeleted(meta)
+            );
+            String parameterName = insert.parameters.get(index);
+            Object actual = values.get(parameterName);
+            if (actual != null && !expected.equals(actual)) {
+                throw new ValidationException("自定义 INSERT 不能覆盖逻辑删除初始值: " + logicDeleteField + ": " + method);
+            }
+            values.put(parameterName, expected);
+        }
+        Object id = values.get(insert.parameters.get(insert.fields.indexOf(meta.getIdField())));
+        if (id == null) {
+            throw new ValidationException("显式主键自定义 INSERT 主键值不能为空: " + meta.getIdField() + ": " + method);
+        }
     }
 
     private static BoundTemplate bindTemplate(
@@ -1862,6 +2061,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         private final TablePart table;
         private final boolean distinct;
         private final SelectSqlStructure select;
+        private final InsertSqlStructure insert;
 
         private ParsedSql(
             String sql,
@@ -1870,7 +2070,8 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             boolean query,
             TablePart table,
             boolean distinct,
-            SelectSqlStructure select
+            SelectSqlStructure select,
+            InsertSqlStructure insert
         ) {
             this.sql = sql;
             this.parameterNames = Collections.unmodifiableList(new ArrayList<String>(parameterNames));
@@ -1881,6 +2082,20 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             this.table = table;
             this.distinct = distinct;
             this.select = select;
+            this.insert = insert;
+        }
+    }
+
+    /** 受限单表 INSERT 的列和值路径计划。 */
+    private static final class InsertSqlStructure {
+        private final TablePart table;
+        private final List<String> fields;
+        private final List<String> parameters;
+
+        private InsertSqlStructure(TablePart table, List<String> fields, List<String> parameters) {
+            this.table = table;
+            this.fields = Collections.unmodifiableList(new ArrayList<String>(fields));
+            this.parameters = Collections.unmodifiableList(new ArrayList<String>(parameters));
         }
     }
 
