@@ -147,16 +147,34 @@ def verify(repository=None, skip_build=False):
             "id": 2001, "displayName": "Ada Lovelace", "email": "ada@example.com",
         }, project + "-customer")
 
-        status, place = request(base_url + "/orders", {
-            "customerId": customer_id,
-            "items": [{"productId": product_id, "quantity": 2}],
+        status, saleable = request(base_url + "/api/ent-crud/product/page/saleable", {
+            "options": {"page": 1, "limit": 1, "sorts": [{"field": "price", "direction": "ASC"}]},
+        })
+        check(status == 200 and saleable.get("data", {}).get("page", {}).get("total") == 1
+              and saleable["data"]["items"][0]["id"] == product_id,
+              f"可售商品场景未命中或分页结果错误：{saleable}")
+        status, excluded = request(base_url + "/api/ent-crud/product/page/saleable", {
+            "options": {"filter": {"active": False}},
+        })
+        check(status == 200 and excluded.get("data", {}).get("page", {}).get("total") == 0,
+              f"可售商品场景未与调用方条件取交集：{excluded}")
+        status, all_products = request(base_url + "/api/ent-crud/product/page", {})
+        check(status == 200 and all_products.get("data", {}).get("page", {}).get("total") == 2,
+              f"默认商品分页不应排除停用商品：{all_products}")
+
+        status, place = request(base_url + "/api/ent-crud/order/action/place", {
+            "payload": {"customerId": customer_id,
+                        "items": [{"productId": product_id, "quantity": 2}]},
         })
         (logs / "place-order.json").write_text(json.dumps(place, ensure_ascii=False, indent=2))
-        check(status == 201 and "orderId" in place, f"下单失败：{place}")
-        order_id = int(place["orderId"])
-        check(Decimal(str(place["totalAmount"])) == Decimal("39.80"), "订单总额不匹配")
+        check(status == 200 and "orderId" in place.get("data", {}), f"下单失败：{place}")
+        order_id = int(place["data"]["orderId"])
+        check(Decimal(str(place["data"]["totalAmount"])) == Decimal("39.80"), "订单总额不匹配")
 
-        status, detail = request(base_url + f"/orders/{order_id}")
+        status, detail_response = request(base_url + "/api/ent-crud/order/detail/detail", {
+            "options": {"filter": {"id": order_id}},
+        })
+        detail = detail_response.get("data", {}).get("item", {})
         (logs / "order-detail.json").write_text(json.dumps(detail, ensure_ascii=False, indent=2))
         check(status == 200, f"订单详情失败：{detail}")
         item = detail["items"][0]
@@ -171,7 +189,10 @@ def verify(repository=None, skip_build=False):
               "订单详情明细不匹配")
 
         crud_update(base_url, "product", {"id": product_id, "price": 21.00}, project + "-price-update")
-        status, after_price_change = request(base_url + f"/orders/{order_id}")
+        status, after_response = request(base_url + "/api/ent-crud/order/detail/detail", {
+            "options": {"filter": {"id": order_id}},
+        })
+        after_price_change = after_response.get("data", {}).get("item", {})
         check(status == 200 and Decimal(str(after_price_change["items"][0]["unitPrice"])) == Decimal("19.90")
               and Decimal(str(after_price_change["totalAmount"])) == Decimal("39.80")
               and Decimal(str(after_price_change["items"][0]["lineAmount"])) == Decimal("39.80"),
@@ -184,8 +205,9 @@ def verify(repository=None, skip_build=False):
             ("missing-product", customer_id, 9999, "PRODUCT_NOT_FOUND"),
             ("missing-customer", 9999, product_id, "CUSTOMER_NOT_FOUND"),
         ]:
-            status, error = request(base_url + "/orders", {
-                "customerId": customer, "items": [{"productId": product, "quantity": 1}],
+            status, error = request(base_url + "/api/ent-crud/order/action/place", {
+                "payload": {"customerId": customer,
+                            "items": [{"productId": product, "quantity": 1}]},
             })
             (logs / f"failure-{label}.json").write_text(json.dumps(error, ensure_ascii=False, indent=2))
             check(status == 400 and error.get("code") == expected_code,
@@ -198,8 +220,9 @@ def verify(repository=None, skip_build=False):
         sql_query(compose, env, "alter table commerce_order_item add constraint verify_quantity_failure "
                                "check (quantity <> 3)")
         try:
-            status, error = request(base_url + "/orders", {
-                "customerId": customer_id, "items": [{"productId": product_id, "quantity": 3}],
+            status, error = request(base_url + "/api/ent-crud/order/action/place", {
+                "payload": {"customerId": customer_id,
+                            "items": [{"productId": product_id, "quantity": 3}]},
             })
             check(status == 500, f"明细写入故障未按预期发生：{status} {error}")
             after_failure = sql_query(compose, env, counts_sql)

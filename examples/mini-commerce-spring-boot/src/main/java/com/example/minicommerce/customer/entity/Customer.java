@@ -1,6 +1,8 @@
 package com.example.minicommerce.customer.entity;
 
 import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,6 +15,8 @@ import lombok.Setter;
     description = "商城客户主数据",
     service = "mini-commerce"
 )
+// 主数据由请求指定 ID，与示例表的非自增主键保持一致。
+@EntCrudEntity(idPolicy = CrudIdPolicy.EXPLICIT)
 @Getter
 @Setter
 @NoArgsConstructor

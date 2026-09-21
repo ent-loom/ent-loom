@@ -1,5 +1,14 @@
-package com.example.minicommerce.order.service;
+package com.example.minicommerce.order.handler;
 
+import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudOperationKey;
+import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.core.capability.command.handler.CommandActionContract;
+import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
+import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.runtime.router.CrudRouteKey;
+import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.dao.OrderDao;
@@ -12,8 +21,6 @@ import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderError;
 import com.example.minicommerce.order.enums.OrderStatus;
 import com.example.minicommerce.order.exception.OrderValidationException;
-import com.example.minicommerce.order.security.OrderAccessPolicy;
-import com.example.minicommerce.order.security.OrderAction;
 import com.example.minicommerce.product.dao.ProductDao;
 import com.example.minicommerce.product.entity.Product;
 import java.math.BigDecimal;
@@ -23,23 +30,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 承载下单事务和业务不变量的应用服务。 */
-@Service
+/** 下单场景：统一管线授权后，在一个事务内保存订单与价格快照。 */
+@Component
 @RequiredArgsConstructor
-public class PlaceOrderService {
+@EntCrudCommandAction(
+    entityClass = Order.class,
+    scene = PlaceOrderHandler.SCENE,
+    requestType = PlaceOrderCommand.class,
+    responseType = PlaceOrderResult.class
+)
+public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
+    public static final String SCENE = "place";
+
     private final CustomerDao customerDao;
     private final ProductDao productDao;
     private final OrderDao orderDao;
     private final OrderItemDao orderItemDao;
-    private final OrderAccessPolicy accessPolicy;
 
-    /** 校验客户和商品，锁定当前价格快照，再一次性写入订单聚合。 */
+    @Override
+    public Set<CrudRouteKey> routeKeys() {
+        return Set.of(new CrudRouteKey(List.of(Order.class.getName()), CrudOperationKey.of(CommandOperation.ACTION), SCENE));
+    }
+
+    @Override
+    public CommandActionContract contract() {
+        return new CommandActionContract(PlaceOrderCommand.class, PlaceOrderResult.class);
+    }
+
+    /** 校验客户和商品，保存当前价格快照，再一次性写入订单聚合。 */
+    @Override
     @Transactional
-    public PlaceOrderResult handle(PlaceOrderCommand command) {
-        accessPolicy.require(OrderAction.PLACE);
+    public CommandResult<PlaceOrderResult> handle(CommandSpec<PlaceOrderCommand> spec,
+        SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
+        PlaceOrderCommand command = spec.getPayload();
         validateCommand(command);
         Customer customer = customerDao.findById(command.customerId())
             .orElseThrow(() -> new OrderValidationException(OrderError.CUSTOMER_NOT_FOUND));
@@ -63,10 +89,10 @@ public class PlaceOrderService {
             item.setOrderId(orderId);
         }
         orderItemDao.insertAll(items);
-        return new PlaceOrderResult(orderId, totalAmount);
+        return CommandResult.success(new PlaceOrderResult(orderId, totalAmount));
     }
 
-    /** 服务入口也执行请求结构校验，避免绕过 Controller 时产生空指针或半成品订单。 */
+    /** Handler 也执行请求结构校验，避免绕过 Controller 时产生空指针或半成品订单。 */
     private void validateCommand(PlaceOrderCommand command) {
         if (command == null) {
             throw new OrderValidationException(OrderError.REQUEST_REQUIRED);

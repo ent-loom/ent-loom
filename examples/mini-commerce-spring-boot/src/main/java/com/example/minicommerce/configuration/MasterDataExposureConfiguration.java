@@ -1,6 +1,7 @@
 package com.example.minicommerce.configuration;
 
 import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.product.entity.Product;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -20,16 +21,17 @@ import org.springframework.context.annotation.Profile;
 @Configuration(proxyBeanMethods = false)
 @Profile("example")
 public class MasterDataExposureConfiguration {
-    private static final Set<Class<?>> EXPOSED_ENTITIES = Set.of(Product.class, Customer.class);
+    private static final Set<Class<?>> HTTP_ROUTE_ENTITIES = Set.of(Product.class, Customer.class, Order.class);
+    private static final Set<Class<?>> DOCUMENTED_ENTITIES = Set.of(Product.class, Customer.class);
     private static final Map<Class<?>, Set<String>> EXPOSED_FIELDS = Map.of(
         Product.class, Set.of("id", "name", "price", "active"),
         Customer.class, Set.of("id", "displayName", "email")
     );
 
     @Bean
-    ExposedEntityRegistry masterDataExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
+    ExposedEntityRegistry entityRouteRegistry(EntityMetaRegistry entityMetaRegistry) {
         ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
-        EXPOSED_ENTITIES.forEach(registry::expose);
+        HTTP_ROUTE_ENTITIES.forEach(registry::expose);
         return registry;
     }
 
@@ -42,12 +44,12 @@ public class MasterDataExposureConfiguration {
             return new EntityDocumentationExposurePolicy() {
                 @Override
                 public boolean isEntityExposed(DocEntityModel entity) {
-                    return allowed && entity != null && EXPOSED_ENTITIES.contains(entity.entityClass());
+                    return allowed && entity != null && DOCUMENTED_ENTITIES.contains(entity.entityClass());
                 }
 
                 @Override
                 public boolean isFieldExposed(DocEntityModel entity, DocFieldModel field) {
-                    return allowed && entity != null && EXPOSED_ENTITIES.contains(entity.entityClass())
+                    return allowed && entity != null && DOCUMENTED_ENTITIES.contains(entity.entityClass())
                         && field != null && EXPOSED_FIELDS.getOrDefault(entity.entityClass(), Set.of())
                             .contains(field.property());
                 }

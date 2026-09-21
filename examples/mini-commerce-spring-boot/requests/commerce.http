@@ -33,16 +33,52 @@ Content-Type: application/json
   }
 }
 
-### 下单：业务 Handler
-POST {{baseUrl}}/orders
+### 下单：内置 Command Controller 路由到业务 Handler
+POST {{baseUrl}}/api/ent-crud/order/action/place
 Content-Type: application/json
 
 {
-  "customerId": {{customerId}},
-  "items": [
-    {"productId": {{productId}}, "quantity": 2}
-  ]
+  "payload": {
+    "customerId": {{customerId}},
+    "items": [
+      {"productId": {{productId}}, "quantity": 2}
+    ]
+  }
 }
 
-### 查询订单及明细
-GET {{baseUrl}}/orders/1
+### 查询订单及明细：内置 Query Controller 路由到业务 Handler
+POST {{baseUrl}}/api/ent-crud/order/detail/detail
+Content-Type: application/json
+
+{"options": {"filter": {"id": 1}}}
+
+### 默认订单创建未授权，预期 403
+POST {{baseUrl}}/api/ent-crud/order/create
+Content-Type: application/json
+
+{"payload": {"customerId": {{customerId}}}}
+
+
+### 可售商品分页：场景补充 active=true，默认引擎执行过滤、排序和分页
+POST {{baseUrl}}/api/ent-crud/product/page/saleable
+Content-Type: application/json
+
+{
+  "options": {
+    "page": 1,
+    "limit": 10,
+    "sorts": [{"field": "price", "direction": "ASC"}]
+  }
+}
+
+### 条件取交集：不能用 active=false 绕过可售场景，预期空页
+POST {{baseUrl}}/api/ent-crud/product/page/saleable
+Content-Type: application/json
+
+{"options": {"filter": {"active": false}}}
+
+### 普通管理分页：包含停用商品
+POST {{baseUrl}}/api/ent-crud/product/page
+Content-Type: application/json
+
+{"options": {"page": 1, "limit": 10}}

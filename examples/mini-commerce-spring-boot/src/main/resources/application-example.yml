@@ -4,6 +4,8 @@ ent:
       entity-class-names:
         - com.example.minicommerce.product.entity.Product
         - com.example.minicommerce.customer.entity.Customer
+        - com.example.minicommerce.order.entity.Order
+        - com.example.minicommerce.order.entity.OrderItem
       crud:
         enabled: true
       doc:
@@ -35,14 +37,14 @@ entloom:
     governance:
       permission-rules:
         - resource: order
-          action: PLACE
-          scene: default
+          action: COMMAND:ACTION
+          scene: place
           decision: ALLOW
           subject-ids:
             - local-developer
         - resource: order
-          action: DETAIL
-          scene: default
+          action: QUERY:DETAIL
+          scene: detail
           decision: ALLOW
           subject-ids:
             - local-developer

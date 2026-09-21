@@ -65,22 +65,31 @@ class VerificationLifecycleTest(unittest.TestCase):
                     return 200, {"success": True, "data": {"id": payload["id"]}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
-                if url.endswith("/orders"):
-                    if body["items"][0]["quantity"] == 3:
+                if url.endswith("/product/page/saleable"):
+                    excluded = body.get("options", {}).get("filter", {}).get("active") is False
+                    return 200, {"data": {"page": {"total": 0 if excluded else 1},
+                                          "items": [] if excluded else [{"id": 1001}]}}
+                if url.endswith("/product/page"):
+                    return 200, {"data": {"page": {"total": 2}, "items": [{"id": 1001}, {"id": 1002}]}}
+                if url.endswith("/order/action/place"):
+                    payload = body["payload"]
+                    if payload["items"][0]["quantity"] == 3:
                         return 500, {"error": "Internal Server Error"}
-                    if body["customerId"] == 9999:
+                    if payload["customerId"] == 9999:
                         return 400, {"code": "CUSTOMER_NOT_FOUND"}
-                    if body["items"][0]["productId"] == 1002:
+                    if payload["items"][0]["productId"] == 1002:
                         return 400, {"code": "PRODUCT_INACTIVE"}
-                    if body["items"][0]["productId"] == 9999:
+                    if payload["items"][0]["productId"] == 9999:
                         return 400, {"code": "PRODUCT_NOT_FOUND"}
-                    return 201, {"orderId": 123, "totalAmount": "39.80"}
-                return 200, {"id": 123, "customerId": 2001, "status": "CREATED",
-                             "totalAmount": "39.80", "items": [{
-                                 "productId": 1001, "productName": "Entity Book",
-                                 "unitPrice": "19.90" if not fail_detail else "21.00",
-                                 "quantity": 2, "lineAmount": "39.80",
-                             }]}
+                    return 200, {"data": {"orderId": 123, "totalAmount": "39.80"}}
+                return 200, {"data": {"item": {
+                    "id": 123, "customerId": 2001, "status": "CREATED",
+                    "totalAmount": "39.80", "items": [{
+                        "productId": 1001, "productName": "Entity Book",
+                        "unitPrice": "19.90" if not fail_detail else "21.00",
+                        "quantity": 2, "lineAmount": "39.80",
+                    }]
+                }}}
 
             with patch.object(verify, "EXAMPLE", example), \
                     patch.object(verify, "run", side_effect=run), \
