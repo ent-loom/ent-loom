@@ -108,8 +108,8 @@ public enum CountMode {
 
 ## 8. `@EntQuery` 页码分页实施方案
 
-> 状态：已实施（单表页码分页与可选计数）；决策日期：2026-09-21。<br>
-> 实现入口：`JdbcEntityDaoCustomMethodExecutor`；`EntityDao` 仍只保留基础 CRUD。<br>
+> 状态：已实施（单表页码分页与可选计数）；决策日期：2026-09-21。<br />
+> 实现入口：`JdbcEntityDaoCustomMethodExecutor`；`EntityDao` 仍只保留基础 CRUD。<br />
 > 关联文档：[实体 DAO 自定义方法](./实体DAO自定义方法.md)。
 
 ### 8.1 实现思路

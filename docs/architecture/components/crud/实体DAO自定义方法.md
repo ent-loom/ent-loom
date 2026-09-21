@@ -1,7 +1,8 @@
 # 实体 DAO 自定义方法
 
-> 状态：Proposal（首期实现、安全修复与单表分页已完成）<br>
-> 决策日期：2026-09-18<br>
+> 状态：Current（单表自定义 SQL、安全修复与页码分页已实现）<br />
+> 决策日期：2026-09-18<br />
+> 最近核验：2026-09-21<br />
 > 关联文档：[实体 DAO](./实体DAO.md)
 
 ## 目标
@@ -107,6 +108,13 @@ flowchart TD
 
 首期不增加 `@EntInsert`、`@EntUpdate`、`@EntDelete`。框架根据 SQL 语句类型校验 `@EntCommand`；出现必须显式区分命令类型的真实需求后，再考虑增加枚举属性。
 
+## 当前参数绑定合同
+
+- 普通 SQL 值按方法参数名绑定，例如 `:id` 对应 `Long id`，编译时须保留 `-parameters`。
+- 当前不读取对象属性路径：`:customer.id`、`:customer.name` 尚不支持；单对象参数也不会自动展开为 `:id`、`:name`。
+- 集合只允许用于 IN 参数位置，值统一按 SQL 对应实体字段进行 JDBC 类型规范化。
+- `PageQuery` 是专用分页控制参数，不作为普通 SQL 值引用。
+
 ## 治理规则
 
 自定义方法必须继承 `EntityDao` 的安全边界，不能成为绕过范围治理的旁路：
@@ -149,64 +157,15 @@ flowchart TD
 
 框架尚未发布，该能力直接按目标合同重构：删除被替代的“自定义抽象方法一律失败”路径及测试，不保留旧代理、适配层、兼容开关或新旧双轨。
 
-## 较小闭环修复方案
+## 实现与验证入口
 
-### 第一阶段：先恢复安全边界
+- `JdbcEntityDaoCustomMethodExecutor`：受限 SQL 解析、参数绑定、治理与执行。
+- `JdbcEntityDaoCustomMethodExecutorTest`：查询与 DTO、写命令、OR 治理、安全拒绝、单对象基数、枚举时间及集合、分页与可选计数。
+- `EntDaoTest`：Starter 扫描、声明校验及代理执行。
+- `EntDaoPaginationIntegrationTest`：Spring DAO 分页集成验证。
 
-- [x] 用表达式 AST 生成 `WHERE (业务条件) AND (范围条件 AND 逻辑删除条件)`，覆盖查询、更新和物理删除；逻辑删除转换也必须复用同一表达式节点。
-- [x] 解析阶段统一识别并拒绝 SQL 注释、顶层逗号多表、多表写入、分号和未闭合引号/括号。
-- [x] 明确表解析结果只能包含一张实体表和一个可选别名；别名之后只能出现合法语句子句。
-- [x] Starter 扫描时先处理自定义注解；禁止注解覆盖 `EntityDao` 基础方法，禁止注解 `default` 方法，确保所有自定义方法启动期校验。
+这些为源码及现存测试入口；本次文档核验未重新运行测试。分页实施与既有验收记录继续维护在[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)。
 
-### 第二阶段：统一执行合同
+## 后续实施入口
 
-- [x] `T` / `Optional<T>` 查询按方言追加最多两行限制，并在两行时抛出不唯一异常。
-- [x] 参数绑定记录参数对应字段，统一复用 `JdbcEntityValueBinder`；集合参数只允许出现在 `IN` 参数位置。
-- [x] 无法推断字段类型、返回类型或治理锚点时，统一以启动期 `ValidationException` 拒绝。
-
-### 第三阶段：最小回归验证
-
-- [x] 增加 `OR` 条件下范围和逻辑删除不可绕过的查询、更新、物理删除测试。
-- [x] 增加 SQL 注释、顶层逗号多表、多表更新和基础方法重写的启动失败测试。
-- [x] 增加单对象查询最多读取两行的验证，以及枚举、`LocalDate`、`LocalDateTime` 参数绑定测试。
-
-## 实施清单
-
-### 首期闭环
-
-- [x] 定义 `@EntDao` 自定义方法扫描与启动期校验流程。
-- [x] 支持 `@EntQuery` 静态显式 SQL、命名参数和单表 `SELECT`。
-- [x] 支持 `@EntCommand` 静态显式 SQL、命名参数和单表 `UPDATE` / `DELETE`。
-- [x] 首期限制为可确定唯一治理实体的单表 SQL；遇到 JOIN、子查询、CTE、复杂聚合等无法安全改写的语句时启动失败，并提示改用专用 Repository。
-- [x] 支持实体、明确 DTO、`List<T>`、`Optional<T>`、`PageResult<T>` 返回类型。
-- [x] 支持 `int` / `long` 写命令影响行数返回；自定义命令默认返回驱动报告的影响行数，单行成功/未命中语义另按方法合同声明。
-- [x] 实现命名参数绑定、结果映射和基础异常处理。
-- [x] 将查询、更新、删除统一纳入已解析的数据范围与逻辑删除治理。
-- [x] 校验调用参数只能收窄数据范围，不能关闭或覆盖治理条件。
-- [x] 统一参与调用方事务；授权和跨聚合事务继续由 Service 负责。
-- [x] 对 SQL 类型、返回类型、参数绑定和治理改写失败执行启动期校验。
-- [x] 补充单表查询、更新、删除、范围治理和非法声明的最小验证用例。
-
-### 首期边界确认
-
-- [x] 明确专用 Repository 的使用条件：跨聚合事务、复杂批量或数据库特有能力。
-- [x] 明确 SQL 解析失败、返回类型不匹配和治理无法证明安全时的错误信息。
-- [x] 用商城 `ProductDao.findForOrder` 真实业务样例验证接口合同；下单事务仍由 `PlaceOrderService` 编排，自定义 DAO 查询下单所需投影并参与调用方事务。
-
-### 已实施：页码分页
-
-- [x] 按[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)实现 `@EntQuery` 单表页码分页与可选计数；`EntityDao` 保留基础 CRUD。
-- [x] 在 `JdbcEntityDaoFactory` 中集中注入分页策略；默认上限可通过 `entloom.crud.dao.pagination.max-page-size` 和
-  `entloom.crud.dao.pagination.max-offset` 配置，非法值在 Spring 启动时失败。
-- [x] 分页 SQL 和 count SQL 使用解析阶段的结构化 SELECT 片段，避免执行阶段依赖绑定后 SQL 的字符串截取。
-- [x] 补充 Spring DAO 代理 H2 验收与 MySQL 8 integration profile 验收。
-
-### 暂缓项目
-
-- [ ] 暂缓 `INSERT` 自定义命令及新增数据的自动范围字段策略，待范围归属规则明确后再实现。
-- [ ] 暂缓游标分页、复杂分页 SQL 和任意 SQL 自动计数；`DISTINCT`、聚合和 JOIN 分页改用专用 Repository。
-- [ ] 暂缓 JOIN、子查询、CTE、复杂聚合等复杂 SQL 的结构化改写支持。
-- [ ] 暂缓方法名推导 SQL、XML Mapper 和任意动态 SQL。
-- [ ] 暂缓 `@EntInsert`、`@EntUpdate`、`@EntDelete` 等更细粒度注解。
-- [ ] 暂缓 ORM Session、脏检查、懒加载和自动关系导航。
-- [ ] 暂缓原始容器、方法级动态泛型和复杂嵌套泛型返回值。
+新增能力、依赖顺序、待办与验收标准统一维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。对象属性绑定、自定义 INSERT、构造器/record 投影是待实施或待决策项，不能据路线图认定当前已支持。JOIN、子查询及复杂 SQL 继续遵守本文限制。

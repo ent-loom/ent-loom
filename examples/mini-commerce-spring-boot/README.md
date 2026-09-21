@@ -21,7 +21,8 @@
 - `Product`、`Customer`：实体文档契约和通用 CRUD，分别对应 `/api/ent-crud/product/*` 和 `/api/ent-crud/customer/*`。
 - `POST /orders`：接收 `PlaceOrderCommand`，由 `PlaceOrderService` 在一个事务中读取客户和商品、校验商品有效性、复制价格快照并写入 `commerce_order` 与 `commerce_order_item`。
 - `GET /orders/{id}`：经 `OrderQueryService` 查询订单头和明细；订单不进入通用 CRUD 白名单。
-- 下单和详情共用 `OrderAccessPolicy`，使用当前主体与 `order` 资源的 `PLACE`、`DETAIL` 权限规则；未匹配或明确拒绝时返回 `403 ORDER_ACCESS_DENIED`。订单权限独立于商品、客户 CRUD 权限，授予 `PLACE` 即允许业务流程读取下单所需主数据。
+- 通用 CRUD 与订单业务动作复用同一个 `CrudSubjectResolver` 和 `CrudPermissionService`，不是两套鉴权体系。商品、客户 CRUD 由框架治理管线自动接入；下单和详情由 Service 显式调用 `OrderAccessPolicy`，分别检查 `order` 资源的 `PLACE`、`DETAIL` 动作。未匹配或明确拒绝时返回 `403 ORDER_ACCESS_DENIED`。
+- 各资源的权限规则彼此独立：订单的 `PLACE` 权限不等于商品、客户的 CRUD 权限；但订单服务在已获 `PLACE` 授权后，可以读取完成该业务用例所需的主数据。
 - 示例只演示动作授权；开发者可查看全部示例订单，不演示订单归属、租户隔离或行级数据权限。生产项目使用自有 JDBC 查询时须显式落实这些限制，不能认为 CRUD 数据范围会自动应用。
 - 明确排除登录、支付、库存扣减、优惠券、搜索、消息队列和前端管理台。
 
@@ -46,7 +47,9 @@ com.example.minicommerce/
     └── security/           # 订单动作及主体权限检查
 ```
 
-调用方向为 `controller -> service -> 业务 DAO / 专用 Repository`，业务 DAO 内部使用 scoped EntityDao，服务先经 `security` 授权，再执行业务校验和数据访问。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
+调用方向为 `controller -> service -> 业务 DAO / 专用 Repository`，业务 DAO 内部使用 scoped EntityDao。Service 是业务用例边界，先经 `security` 授权，再执行业务校验和数据访问；Controller 只负责 HTTP 适配，避免其他调用入口绕过授权。`PlaceOrderService` 负责下单事务，`OrderQueryService` 负责详情查询。Repository 不依赖 Controller；用例 DTO 直接作为 HTTP 输入输出，暂不增加重复的 Request/Response、转换层或 Repository 接口。
+
+鉴权采用一个授权内核、两个接入点：标准 CRUD 由 `DefaultCrudGovernanceService` 在统一管线中自动检查；订单等业务动作由对应的 AccessPolicy 适配后在 Service 中显式检查。当前没有引入权限注解或 AOP；只有当多个业务模块出现稳定、重复的入口检查模式时，再考虑抽取统一注解接入。
 
 `Customer`、`Product` 是框架管理的实体，主数据维护仍由通用 CRUD 承担。业务 DAO 只需声明 `@EntDao public interface CustomerDao extends EntityDao<Customer, Long> {}`；下单服务通过 `ProductDao.findAllByIdAsMap` 批量读取商品，得到以商品主键为键的 Map，再负责商品状态校验。Starter 默认扫描应用包，也可用 `@EntDaoScan(basePackageClasses = CustomerDao.class)` 指定扫描范围。接口继承基础 CRUD，可通过 `default` 方法组合调用；不支持的方法声明会在启动时失败。
 

@@ -1,6 +1,6 @@
 # 实体 DAO
 
-> 状态：In Progress（D0-D4.3 主键 CRUD 闭环及 D4.1 数据库类型矩阵已完成；D5 待后续）<br>
+> 状态：In Progress（D0-D4.3 主键 CRUD 闭环及 D4.1 数据库类型矩阵已完成；D5 待后续）<br />
 > 最近核验：2026-09-18
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 > 自定义方法目标：[实体 DAO 自定义方法](./实体DAO自定义方法.md)
@@ -428,3 +428,7 @@ flowchart TB
 8. 首个真实分片项目出现后，再设计路由合同并验证单分片闭环；只有需要 SQL 改写时才引入 ShardingSphere-JDBC 适配。
 
 当前仓库已提供首期 `EntityDao` Core 合同和 JDBC 实现；后续以本文及实施清单作为列表、批量、版本和分片能力的演进边界。
+
+## 自定义 SQL 演进入口
+
+当前支持范围见[实体 DAO 自定义方法](实体DAO自定义方法.md)；对象参数、INSERT 与投影增强的待办和验收统一见[一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。本文不重复维护其实施状态。

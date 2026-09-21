@@ -133,9 +133,9 @@ flowchart LR
 
 验收：所有允许进入 insert 的行约束都能在写 SQL 前确定判定，不支持的表达式 fail-closed。
 
-验收日期：2026-09-17<br>
-关键实现：`RowConstraint`、`RowConstraintNormalizer`、`InsertConstraintValueBinder`。<br>
-关键测试：`InsertConstraintValueBinderTest` 4 项、`JdbcInsertScopeDatabaseValidatorTest` 8 项通过。<br>
+验收日期：2026-09-17<br />
+关键实现：`RowConstraint`、`RowConstraintNormalizer`、`InsertConstraintValueBinder`。<br />
+关键测试：`InsertConstraintValueBinderTest` 4 项、`JdbcInsertScopeDatabaseValidatorTest` 8 项通过。<br />
 边界确认：`JdbcInsertScopeDatabaseValidator` 针对 MySQL 8 已存在表检查范围列的生成列、AUTO_INCREMENT、ON UPDATE、触发器及字符串排序规则；同时确认当前账号具备触发器元数据可见性。字符串范围列只接受 `_bin` 二进制排序规则。表不存在交由 DDL/迁移阶段处理，Starter 在容器刷新最低优先级再次复验，非 MySQL 继续由行为测试验证。
 
 数据库语义矩阵补充验收（2026-09-18）：`JdbcInsertScopeDatabaseValidatorTest` 10 项通过；`DaoMysqlIntegrationTest` 在 MySQL 8.0.45 验证 `utf8mb4_0900_ai_ci` 会把 `tenant-a` 与 `TENANT-A` 判为相等并由校验器拒绝，切换到 `utf8mb4_bin` 后通过。范围列配置数据库默认值时，DAO insert 仍显式写入 `tenant-a` 与规范化后的 `BIGINT 7`（输入为字符串 `007`），数据库最终值未采用默认值；随机 schema 清理完成。
@@ -250,11 +250,11 @@ flowchart LR
 - [x] DAO 本身不创建跨调用事务，事务编排仍由 Service / Gateway 负责。
 - [x] 已选样板实体完成 Factory -> DAO -> H2 的主键读写闭环，且使用与选定执行链测试入口相同的元数据与范围模型。
 
-验收日期：2026-09-17<br>
-测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`<br>
-测试结果：Core 244 项、JDBC 79 项通过，0 失败、0 错误。<br>
-关键测试：`InsertConstraintValueBinderTest`、`JdbcEntityPredicateCompilerTest`、`JdbcMatchedRowsStartupValidatorTest`、`JdbcEntityDaoTest`、`DefaultEngineSingleTableCrudTest`、`DefaultEngineDaoScopeGatewayTest`。<br>
-边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。显式主键实体的 CommandGateway 单条、批量和 save-or-update 已统一切换到 DAO；EntityDao 直接支持数据库生成主键，但默认 Command Handler 仍使用专用回退处理器。<br>
+验收日期：2026-09-17<br />
+测试命令：`JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`<br />
+测试结果：Core 244 项、JDBC 79 项通过，0 失败、0 错误。<br />
+关键测试：`InsertConstraintValueBinderTest`、`JdbcEntityPredicateCompilerTest`、`JdbcMatchedRowsStartupValidatorTest`、`JdbcEntityDaoTest`、`DefaultEngineSingleTableCrudTest`、`DefaultEngineDaoScopeGatewayTest`。<br />
+边界确认：DAO 谓词编译、参数上限、H2 行为、范围并发和启动配置校验已完成；实际 MySQL 8 证据已由 D4.1/D4.3 补齐。显式主键实体的 CommandGateway 单条、批量和 save-or-update 已统一切换到 DAO；EntityDao 直接支持数据库生成主键，但默认 Command Handler 仍使用专用回退处理器。<br />
 遗留事项：D4.1 的 MySQL 8 实例验收和 D4.2 的 Starter 装配验收已补齐；DAO 原生批量公共合同仍按 D5 真实需求门禁管理。
 
 ## D3：以 DAO 重构一个真实执行链测试入口
