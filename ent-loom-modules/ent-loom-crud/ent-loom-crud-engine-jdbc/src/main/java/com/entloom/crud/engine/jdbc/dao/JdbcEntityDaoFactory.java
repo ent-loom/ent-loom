@@ -27,6 +27,8 @@ import java.lang.reflect.Method;
 public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     /** JDBC DAO 和 Command 批量写入的默认数量上限。 */
     public static final int DEFAULT_MAX_BATCH_SIZE = 500;
+    /** JDBC DAO 自定义 SQL 的默认参数数量上限。 */
+    public static final int DEFAULT_MAX_PARAMETERS = JdbcEntityPredicateCompiler.DEFAULT_MAX_PARAMETERS;
     private final EntityMetaRegistry metaRegistry;
     private final GuardedSqlExecutor guardedSqlExecutor;
     private final int maxParameters;
@@ -34,6 +36,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     private final JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator;
     private final CrudWriteTransactionExecutor transactionExecutor;
     private final int maxBatchSize;
+    private final JdbcPaginationPolicy paginationPolicy;
 
     public JdbcEntityDaoFactory(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
         this(
@@ -145,6 +148,29 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         CrudWriteTransactionExecutor transactionExecutor,
         int maxBatchSize
     ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            dialect,
+            maxParameters,
+            insertScopeDatabaseValidator,
+            transactionExecutor,
+            maxBatchSize,
+            new JdbcPaginationPolicy()
+        );
+    }
+
+    /** 创建带分页保护策略的 JDBC DAO 工厂。 */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
+        CrudWriteTransactionExecutor transactionExecutor,
+        int maxBatchSize,
+        JdbcPaginationPolicy paginationPolicy
+    ) {
         if (metaRegistry == null || guardedSqlExecutor == null) {
             throw new ValidationException("EntityMetaRegistry 和 GuardedSqlExecutor 不能为空");
         }
@@ -165,6 +191,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             ? resolveTransactionExecutor(guardedSqlExecutor)
             : transactionExecutor;
         this.maxBatchSize = maxBatchSize;
+        this.paginationPolicy = paginationPolicy == null ? new JdbcPaginationPolicy() : paginationPolicy;
     }
 
     @Override
@@ -191,6 +218,11 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         return transactionExecutor;
     }
 
+    /** 返回当前 Factory 的分页保护策略。 */
+    public JdbcPaginationPolicy getPaginationPolicy() {
+        return paginationPolicy;
+    }
+
     @Override
     public void validateCustomMethod(EntityType<?, ?> entityType, Method method) {
         if (entityType == null || method == null) {
@@ -199,7 +231,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         EntityMeta meta = metaRegistry.getEntityMeta(entityType.getEntityClass());
         validateEntityType(entityType, meta);
         validateDatabaseStructure(meta);
-        JdbcEntityDaoCustomMethodExecutor.validate(method, meta, dialect, maxParameters);
+        JdbcEntityDaoCustomMethodExecutor.validate(method, meta, dialect, maxParameters, paginationPolicy);
     }
 
     @Override
@@ -215,7 +247,8 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             scoped.scope,
             guardedSqlExecutor,
             dialect,
-            maxParameters
+            maxParameters,
+            paginationPolicy
         ).invoke(method, args);
     }
 

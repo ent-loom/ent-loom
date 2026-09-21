@@ -2,6 +2,12 @@ package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.annotations.EntCommand;
 import com.entloom.crud.annotations.EntQuery;
+import com.entloom.crud.api.enums.CountMode;
+import com.entloom.crud.api.enums.SortDirection;
+import com.entloom.crud.api.enums.SortTarget;
+import com.entloom.crud.api.model.PageQuery;
+import com.entloom.crud.api.model.PageResult;
+import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
@@ -39,6 +45,10 @@ import java.util.regex.Pattern;
  * 治理谓词通过结构化位置追加，不允许调用方关闭范围或逻辑删除约束。</p>
  */
 public final class JdbcEntityDaoCustomMethodExecutor {
+    /** 默认自定义查询允许的最大页大小，保留旧常量作为兼容入口。 */
+    public static final int DEFAULT_MAX_PAGE_SIZE = JdbcPaginationPolicy.DEFAULT_MAX_PAGE_SIZE;
+    /** 默认自定义查询允许的最大偏移，保留旧常量作为兼容入口。 */
+    public static final int DEFAULT_MAX_OFFSET = (int) JdbcPaginationPolicy.DEFAULT_MAX_OFFSET;
     private static final String RESERVED_PARAMETER_PREFIX = "__ent_";
     private static final Pattern SIMPLE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*");
     private static final Pattern NUMBER_LITERAL = Pattern.compile("[0-9]+(?:\\.[0-9]+)?");
@@ -64,6 +74,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private final GuardedSqlExecutor executor;
     private final JdbcDialect dialect;
     private final int maxParameters;
+    private final JdbcPaginationPolicy paginationPolicy;
 
     public JdbcEntityDaoCustomMethodExecutor(
         EntityMeta meta,
@@ -71,6 +82,17 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         GuardedSqlExecutor executor,
         JdbcDialect dialect,
         int maxParameters
+    ) {
+        this(meta, scope, executor, dialect, maxParameters, new JdbcPaginationPolicy());
+    }
+
+    public JdbcEntityDaoCustomMethodExecutor(
+        EntityMeta meta,
+        RowConstraint scope,
+        GuardedSqlExecutor executor,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcPaginationPolicy paginationPolicy
     ) {
         if (meta == null || scope == null || executor == null) {
             throw new ValidationException("DAO 自定义方法执行上下文不能为空");
@@ -83,10 +105,22 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         this.executor = executor;
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.maxParameters = maxParameters;
+        this.paginationPolicy = paginationPolicy == null ? new JdbcPaginationPolicy() : paginationPolicy;
     }
 
     /** 启动期校验方法的注解、SQL、参数和返回类型。 */
     public static void validate(Method method, EntityMeta meta, JdbcDialect dialect, int maxParameters) {
+        validate(method, meta, dialect, maxParameters, new JdbcPaginationPolicy());
+    }
+
+    /** 启动期校验方法的注解、SQL、参数和返回类型。 */
+    public static void validate(
+        Method method,
+        EntityMeta meta,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcPaginationPolicy paginationPolicy
+    ) {
         Annotation annotation = annotation(method);
         if (annotation == null) {
             throw new ValidationException("DAO 自定义方法必须声明 @EntQuery 或 @EntCommand: " + method);
@@ -98,8 +132,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             dialect,
             EntityAccessScope.unrestricted().getRowConstraint()
         );
-        validateReturnType(method, isQuery(annotation), parsed);
-        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, false);
+        QueryReturn queryReturn = validateReturnType(method, isQuery(annotation), parsed);
+        String pageParameter = validatePageContract(method, queryReturn, parsed);
+        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, false, pageParameter);
         if (parsed.parameterNames.size() > maxParameters) {
             throw new ValidationException("DAO 自定义方法参数数量超过上限: " + maxParameters + ": " + method);
         }
@@ -112,18 +147,17 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         QueryReturn queryReturn = isQuery(annotation)
             ? validateReturnType(method, true, parsed)
             : null;
-        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, true);
-        BoundSql bound = bind(parsed, method, args);
+        String pageParameter = validatePageContract(method, queryReturn, parsed);
+        PageQuery pageQuery = pageParameter == null ? null : pageQueryArgument(method, args, pageParameter);
+        if (queryReturn != null && queryReturn.kind == QueryKind.PAGE) {
+            validatePageQuery(pageQuery, method);
+        }
+        validateParameters(method, parsed.parameterNames, parsed.parameterBindings, true, pageParameter);
+        BoundSql bound = bind(parsed, method, args, pageParameter);
         if (bound.args.size() > maxParameters) {
             throw new ValidationException("DAO 自定义方法参数数量超过上限: " + maxParameters + ": " + method);
         }
-        DefaultExecutionContext context = new DefaultExecutionContext(
-            meta.getEntityName() + "|DAO|" + method.getName(),
-            null
-        );
-        context.getAttributes().put("operationDomain", "ENTITY_DAO");
-        context.getAttributes().put("operation", method.getName());
-        context.getAttributes().put("phase", "main");
+        DefaultExecutionContext context = context(method, "main");
         if (!isQuery(annotation)) {
             int rows = executor.update(bound.sql, bound.args, context);
             if (method.getReturnType() == Long.TYPE || method.getReturnType() == Long.class) {
@@ -132,10 +166,13 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             return Integer.valueOf(rows);
         }
 
+        if (queryReturn != null && queryReturn.kind == QueryKind.PAGE) {
+            return executePage(bound, queryReturn, pageQuery, method);
+        }
         if (queryReturn != null && queryReturn.kind != QueryKind.LIST) {
             StringBuilder limitedSql = new StringBuilder(bound.sql);
             dialect.appendFindOneClause(limitedSql, bound.args);
-            bound = new BoundSql(limitedSql.toString(), bound.args);
+            bound = new BoundSql(limitedSql.toString(), bound.args, bound.select);
         }
         List<Map<String, Object>> rows = executor.queryForList(bound.sql, bound.args, context);
         if (queryReturn.kind == QueryKind.LIST) {
@@ -157,6 +194,123 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             throw new NotFoundException("DAO 自定义查询未命中记录: " + method);
         }
         return new JdbcReflectiveMapper().mapRow(rows.get(0), queryReturn.elementType);
+    }
+
+    private PageResult<?> executePage(
+        BoundSql bound,
+        QueryReturn queryReturn,
+        PageQuery pageQuery,
+        Method method
+    ) {
+        if (bound.select == null) {
+            throw new ValidationException("分页查询缺少结构化 SELECT 片段: " + method);
+        }
+        String dataSql = pageSql(bound.select, pageQuery, method);
+        List<Object> dataArgs = new ArrayList<Object>(bound.select.dataArgs);
+        if (pageQuery.getSorts().isEmpty()) {
+            dataArgs.addAll(bound.select.existingOrderArgs);
+        }
+        StringBuilder paged = new StringBuilder(dataSql);
+        dialect.appendPageClause(
+            paged,
+            pageQuery.getPageSize() + (pageQuery.getCountMode() == CountMode.NONE ? 1 : 0),
+            pageOffset(pageQuery, method),
+            dataArgs
+        );
+        DefaultExecutionContext dataContext = context(method, "main");
+        List<Map<String, Object>> rows = executor.queryForList(paged.toString(), dataArgs, dataContext);
+        boolean hasNext = rows.size() > pageQuery.getPageSize();
+        if (hasNext) {
+            rows = new ArrayList<Map<String, Object>>(rows.subList(0, pageQuery.getPageSize()));
+        }
+        List<Object> items = new ArrayList<Object>(rows.size());
+        JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
+        for (Map<String, Object> row : rows) {
+            items.add(mapper.mapRow(row, queryReturn.elementType));
+        }
+        Long total = null;
+        if (pageQuery.getCountMode() == CountMode.ALWAYS) {
+            Object count = executor.queryForObject(
+                bound.select.countSql,
+                new ArrayList<Object>(bound.select.countArgs),
+                context(method, "count")
+            );
+            total = Long.valueOf(count == null ? 0L : ((Number) count).longValue());
+            hasNext = total.longValue() > (long) pageOffset(pageQuery, method) + pageQuery.getPageSize();
+        }
+        if (total == null) {
+            return PageResult.withoutTotal(
+                items, pageQuery.getPageNumber(), pageQuery.getPageSize(), hasNext
+            );
+        }
+        PageResult<Object> result = new PageResult<Object>(
+            items, total.longValue(), pageQuery.getPageNumber(), pageQuery.getPageSize()
+        );
+        result.setHasNext(Boolean.valueOf(hasNext));
+        return result;
+    }
+
+    private DefaultExecutionContext context(Method method, String phase) {
+        DefaultExecutionContext context = new DefaultExecutionContext(
+            meta.getEntityName() + "|DAO|" + method.getName(), null
+        );
+        context.getAttributes().put("operationDomain", "ENTITY_DAO");
+        context.getAttributes().put("operation", method.getName());
+        context.getAttributes().put("phase", phase);
+        return context;
+    }
+
+    /** 生成分页数据 SQL：请求排序覆盖声明排序，并始终补充主键稳定排序。 */
+    private String pageSql(BoundSelectSql boundSelect, PageQuery pageQuery, Method method) {
+        String orderBy = renderPageOrder(boundSelect, pageQuery, method);
+        return boundSelect.dataSql + " order by " + orderBy;
+    }
+
+    private String renderPageOrder(
+        BoundSelectSql boundSelect,
+        PageQuery pageQuery,
+        Method method
+    ) {
+        SelectSqlStructure structure = boundSelect.structure;
+        List<String> expressions = new ArrayList<String>();
+        Set<String> sortedFields = new HashSet<String>();
+        List<QuerySort> requested = pageQuery.getSorts();
+        if (requested != null && !requested.isEmpty()) {
+            for (QuerySort sort : requested) {
+                if (sort == null || sort.getField() == null || !SIMPLE_IDENTIFIER.matcher(sort.getField()).matches()) {
+                    throw new ValidationException("分页排序字段不合法: " + method);
+                }
+                if (sort.getTarget() != null && sort.getTarget() != SortTarget.AUTO
+                    && sort.getTarget() != SortTarget.FIELD) {
+                    throw new ValidationException("分页首轮只支持实体字段排序: " + method);
+                }
+                EntityFieldMeta field = meta.resolveFieldMeta(sort.getField());
+                if (field == null || field.isRelation() || !field.isSortable()) {
+                    throw new ValidationException("分页排序字段未列入实体白名单: " + sort.getField() + ": " + method);
+                }
+                SortDirection direction = sort.getDirection();
+                if (direction == null) {
+                    throw new ValidationException("分页排序方向不能为空: " + method);
+                }
+                expressions.add(qualifiedColumn(structure.tableAlias, field.getColumnName()) + " "
+                    + direction.name().toLowerCase(java.util.Locale.ROOT));
+                sortedFields.add(field.getFieldName().toLowerCase());
+            }
+        } else if (!boundSelect.existingOrderSql.isEmpty()) {
+            expressions.add(boundSelect.existingOrderSql);
+            if (structure.existingOrderContainsId) {
+                sortedFields.add(meta.getIdField().toLowerCase());
+            }
+        }
+        if (!sortedFields.contains(meta.getIdField().toLowerCase())) {
+            String idColumn = meta.resolveColumn(meta.getIdField());
+            expressions.add(qualifiedColumn(structure.tableAlias, idColumn) + " asc");
+        }
+        return String.join(", ", expressions);
+    }
+
+    private String qualifiedColumn(String alias, String column) {
+        return (alias == null ? "" : alias + ".") + dialect.quoteIdentifier(column);
     }
 
     private static Annotation annotation(Method method) {
@@ -269,7 +423,18 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         }
         List<String> parameterNames = namedParameterNames(rewritten, method);
         Map<String, ParameterBinding> parameterBindings = parameterBindings(tokens, table, meta, method);
-        return new ParsedSql(rewritten, parameterNames, parameterBindings, query, table);
+        SelectSqlStructure select = query
+            ? SelectSqlStructure.parse(rewritten, table, meta, method)
+            : null;
+        return new ParsedSql(
+            rewritten,
+            parameterNames,
+            parameterBindings,
+            query,
+            table,
+            keyword(tokens, "distinct", 0) != null,
+            select
+        );
     }
 
     private static TablePart parseSelectTable(
@@ -605,11 +770,87 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         return QueryReturn.resolve(method.getGenericReturnType(), method);
     }
 
+    /** 校验分页方法必须有且仅有一个 PageQuery 参数。 */
+    private static String validatePageContract(Method method, QueryReturn queryReturn, ParsedSql parsed) {
+        int pageCount = 0;
+        String pageParameter = null;
+        for (Parameter parameter : method.getParameters()) {
+            if (PageQuery.class.equals(parameter.getType())) {
+                pageCount++;
+                pageParameter = parameter.getName();
+            }
+        }
+        if (queryReturn != null && queryReturn.kind == QueryKind.PAGE) {
+            if (parsed.distinct) {
+                throw unsupportedSql(method, "分页查询中的 DISTINCT");
+            }
+            if (pageCount != 1) {
+                throw new ValidationException("@EntQuery PageResult<T> 必须声明唯一的 PageQuery 参数: " + method);
+            }
+            if (parsed.parameterNames.contains(pageParameter)) {
+                throw new ValidationException("PageQuery 参数不能作为 SQL 命名参数绑定: " + method);
+            }
+            return pageParameter;
+        }
+        if (pageCount > 0) {
+            throw new ValidationException("只有返回 PageResult<T> 的 @EntQuery 才能声明 PageQuery 参数: " + method);
+        }
+        return null;
+    }
+
+    private static PageQuery pageQueryArgument(Method method, Object[] args, String parameterName) {
+        Parameter[] parameters = method.getParameters();
+        Object[] actual = args == null ? new Object[0] : args;
+        if (parameters.length != actual.length) {
+            throw new ValidationException("DAO 方法参数数量不匹配: " + method);
+        }
+        for (int i = 0; i < parameters.length; i++) {
+            if (parameters[i].getName().equals(parameterName)) {
+                if (!(actual[i] instanceof PageQuery)) {
+                    throw new ValidationException("PageQuery 参数不能为空且类型必须正确: " + method);
+                }
+                return (PageQuery) actual[i];
+            }
+        }
+        throw new ValidationException("DAO 方法缺少 PageQuery 参数: " + method);
+    }
+
+    private void validatePageQuery(PageQuery pageQuery, Method method) {
+        if (pageQuery == null) {
+            throw new ValidationException("PageQuery 参数不能为空: " + method);
+        }
+        if (pageQuery.getPageNumber() < 1 || pageQuery.getPageSize() < 1) {
+            throw new ValidationException("分页页码必须从 1 开始且页大小必须大于 0: " + method);
+        }
+        if (pageQuery.getPageSize() > paginationPolicy.getMaxPageSize()) {
+            throw new ValidationException("分页页大小超过上限 " + paginationPolicy.getMaxPageSize() + ": " + method);
+        }
+        long offset = pageOffset(pageQuery, method);
+        if (offset > paginationPolicy.getMaxOffset()) {
+            throw new ValidationException("分页偏移超过上限 " + paginationPolicy.getMaxOffset() + ": " + method);
+        }
+        if (pageQuery.getSorts() == null) {
+            throw new ValidationException("分页排序参数不能为空: " + method);
+        }
+        if (pageQuery.getCountMode() == null) {
+            throw new ValidationException("分页计数模式不能为空: " + method);
+        }
+    }
+
+    private static int pageOffset(PageQuery pageQuery, Method method) {
+        long offset = (pageQuery.getPageNumber() - 1L) * pageQuery.getPageSize();
+        if (offset > Integer.MAX_VALUE) {
+            throw new ValidationException("分页偏移超出数据库方言支持范围: " + method);
+        }
+        return (int) offset;
+    }
+
     private static void validateParameters(
         Method method,
         List<String> names,
         Map<String, ParameterBinding> parameterBindings,
-        boolean allowScopeFramework
+        boolean allowScopeFramework,
+        String ignoredParameter
     ) {
         Set<String> declared = new HashSet<String>();
         for (Parameter parameter : method.getParameters()) {
@@ -640,6 +881,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             }
         }
         for (Parameter parameter : method.getParameters()) {
+            if (parameter.getName().equals(ignoredParameter)) {
+                continue;
+            }
             if (!names.contains(parameter.getName())) {
                 throw new ValidationException("DAO 方法参数未在 SQL 中使用: " + parameter.getName() + ": " + method);
             }
@@ -663,7 +907,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         for (Token token : tokens) {
             if ("group".equals(token.lower) || "having".equals(token.lower) || "over".equals(token.lower)
                 || "for".equals(token.lower)) {
-                throw unsupportedSql(method, "复杂聚合或窗口函数");
+                throw unsupportedSql(method, "复杂聚合、去重或窗口函数");
             }
             if ("count".equals(token.lower) || "sum".equals(token.lower) || "avg".equals(token.lower)
                 || "min".equals(token.lower) || "max".equals(token.lower)) {
@@ -672,7 +916,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         }
     }
 
-    private BoundSql bind(ParsedSql parsed, Method method, Object[] args) {
+    private BoundSql bind(ParsedSql parsed, Method method, Object[] args, String ignoredParameter) {
         String sql = parsed.sql;
         Map<String, Object> values = new LinkedHashMap<String, Object>();
         Parameter[] parameters = method.getParameters();
@@ -682,6 +926,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         }
         for (int i = 0; i < parameters.length; i++) {
             String name = parameters[i].getName();
+            if (name.equals(ignoredParameter)) {
+                continue;
+            }
             ParameterBinding binding = parsed.parameterBindings.get(name);
             if (binding == null) {
                 throw new ValidationException("DAO 方法参数无法绑定到实体字段: " + name + ": " + method);
@@ -695,6 +942,30 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             JdbcEntityValueBinder.normalize(logicDeleteField, JdbcLogicDeleteValues.notDeleted(meta)));
         values.put(RESERVED_PARAMETER_PREFIX + "logic_deleted",
             JdbcEntityValueBinder.normalize(logicDeleteField, JdbcLogicDeleteValues.deleted(meta)));
+        BoundTemplate whole = bindTemplate(parsed.sql, values, method);
+        BoundSelectSql select = null;
+        if (parsed.select != null) {
+            BoundTemplate data = bindTemplate(parsed.select.dataBaseSql, values, method);
+            BoundTemplate count = bindTemplate(parsed.select.countBaseSql, values, method);
+            BoundTemplate order = bindTemplate(parsed.select.existingOrderSql, values, method);
+            select = new BoundSelectSql(
+                parsed.select,
+                data.sql,
+                data.args,
+                count.sql,
+                count.args,
+                order.sql,
+                order.args
+            );
+        }
+        return new BoundSql(whole.sql, whole.args, select);
+    }
+
+    private static BoundTemplate bindTemplate(
+        String sql,
+        Map<String, Object> values,
+        Method method
+    ) {
         StringBuilder result = new StringBuilder();
         List<Object> boundArgs = new ArrayList<Object>();
         int[] last = new int[] {0};
@@ -725,7 +996,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             last[0] = end;
         });
         result.append(sql, last[0], sql.length());
-        return new BoundSql(result.toString(), boundArgs);
+        return new BoundTemplate(result.toString(), boundArgs);
     }
 
     private static Object normalizeParameterValue(ParameterBinding binding, Object value, Method method) {
@@ -1399,25 +1670,99 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         }
     }
 
+    /**
+     * 受限单表 SELECT 的结构化片段。
+     *
+     * <p>解析阶段一次确定 SELECT/FROM/WHERE 和 ORDER BY 的边界，执行阶段只组合已确认的片段，
+     * 不再从已绑定 SQL 中重新猜测子句位置。</p>
+     */
+    private static final class SelectSqlStructure {
+        private final String dataBaseSql;
+        private final String countBaseSql;
+        private final String existingOrderSql;
+        private final String tableAlias;
+        private final boolean existingOrderContainsId;
+
+        private SelectSqlStructure(
+            String dataBaseSql,
+            String countBaseSql,
+            String existingOrderSql,
+            String tableAlias,
+            boolean existingOrderContainsId
+        ) {
+            this.dataBaseSql = dataBaseSql;
+            this.countBaseSql = countBaseSql;
+            this.existingOrderSql = existingOrderSql;
+            this.tableAlias = tableAlias;
+            this.existingOrderContainsId = existingOrderContainsId;
+        }
+
+        private static SelectSqlStructure parse(
+            String source,
+            TablePart table,
+            EntityMeta meta,
+            Method method
+        ) {
+            List<Token> sqlTokens = tokens(source);
+            ClausePosition from = requiredKeyword(sqlTokens, "from", method);
+            ClausePosition order = keyword(sqlTokens, "order", 0);
+            int end = order == null ? source.length() : order.start;
+            String dataBaseSql = source.substring(0, end).trim();
+            String countBaseSql = "select count(1) " + source.substring(from.start, end).trim();
+            String existingOrderSql = "";
+            boolean existingOrderContainsId = false;
+            if (order != null) {
+                if (order.index + 1 >= sqlTokens.size()
+                    || !"by".equals(sqlTokens.get(order.index + 1).lower)) {
+                    throw new ValidationException("ORDER BY 语法不完整: " + method);
+                }
+                int orderStart = sqlTokens.get(order.index + 1).start + 2;
+                existingOrderSql = source.substring(orderStart).trim();
+                String idColumn = meta.resolveColumn(meta.getIdField());
+                for (int i = order.index + 2; i < sqlTokens.size(); i++) {
+                    String token = sqlTokens.get(i).text;
+                    if (meta.getIdField().equalsIgnoreCase(token)
+                        || (idColumn != null && idColumn.equalsIgnoreCase(token))) {
+                        existingOrderContainsId = true;
+                        break;
+                    }
+                }
+            }
+            return new SelectSqlStructure(
+                dataBaseSql,
+                countBaseSql,
+                existingOrderSql,
+                table.alias,
+                existingOrderContainsId
+            );
+        }
+    }
+
     private static final class ParsedSql {
         private final String sql;
         private final List<String> parameterNames;
         private final Map<String, ParameterBinding> parameterBindings;
         private final boolean query;
         private final TablePart table;
+        private final boolean distinct;
+        private final SelectSqlStructure select;
 
         private ParsedSql(
             String sql,
             List<String> parameterNames,
             Map<String, ParameterBinding> parameterBindings,
             boolean query,
-            TablePart table
+            TablePart table,
+            boolean distinct,
+            SelectSqlStructure select
         ) {
             this.sql = sql;
             this.parameterNames = parameterNames;
             this.parameterBindings = parameterBindings;
             this.query = query;
             this.table = table;
+            this.distinct = distinct;
+            this.select = select;
         }
     }
 
@@ -1443,8 +1788,48 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private static final class BoundSql {
         private final String sql;
         private final List<Object> args;
+        private final BoundSelectSql select;
 
-        private BoundSql(String sql, List<Object> args) {
+        private BoundSql(String sql, List<Object> args, BoundSelectSql select) {
+            this.sql = sql;
+            this.args = args;
+            this.select = select;
+        }
+    }
+
+    private static final class BoundSelectSql {
+        private final SelectSqlStructure structure;
+        private final String dataSql;
+        private final List<Object> dataArgs;
+        private final String countSql;
+        private final List<Object> countArgs;
+        private final String existingOrderSql;
+        private final List<Object> existingOrderArgs;
+
+        private BoundSelectSql(
+            SelectSqlStructure structure,
+            String dataSql,
+            List<Object> dataArgs,
+            String countSql,
+            List<Object> countArgs,
+            String existingOrderSql,
+            List<Object> existingOrderArgs
+        ) {
+            this.structure = structure;
+            this.dataSql = dataSql;
+            this.dataArgs = dataArgs;
+            this.countSql = countSql;
+            this.countArgs = countArgs;
+            this.existingOrderSql = existingOrderSql;
+            this.existingOrderArgs = existingOrderArgs;
+        }
+    }
+
+    private static final class BoundTemplate {
+        private final String sql;
+        private final List<Object> args;
+
+        private BoundTemplate(String sql, List<Object> args) {
             this.sql = sql;
             this.args = args;
         }
@@ -1453,7 +1838,8 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     private enum QueryKind {
         SINGLE,
         OPTIONAL,
-        LIST
+        LIST,
+        PAGE
     }
 
     private static final class QueryReturn {
@@ -1469,6 +1855,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             if (type instanceof Class<?>) {
                 Class<?> result = (Class<?>) type;
                 if (result == void.class || result.isPrimitive() || result == Object.class
+                    || result == PageResult.class
                     || result.isArray() || result.isInterface()) {
                     throw new ValidationException("@EntQuery 返回类型必须是实体或 DTO: " + method);
                 }
@@ -1497,7 +1884,10 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             if (raw == List.class) {
                 return new QueryReturn(QueryKind.LIST, element);
             }
-            throw new ValidationException("@EntQuery 只支持实体、Optional<T> 或 List<T>: " + method);
+            if (raw == PageResult.class) {
+                return new QueryReturn(QueryKind.PAGE, element);
+            }
+            throw new ValidationException("@EntQuery 只支持实体、Optional<T>、List<T> 或 PageResult<T>: " + method);
         }
     }
 }

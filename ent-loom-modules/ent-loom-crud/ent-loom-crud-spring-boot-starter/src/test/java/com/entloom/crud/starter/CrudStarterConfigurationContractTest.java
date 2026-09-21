@@ -69,6 +69,8 @@ class CrudStarterConfigurationContractTest {
         values.put("entloom.crud.import-export.retention-hours", "12");
         values.put("entloom.crud.import-export.max-file-bytes", "1048576");
         values.put("entloom.crud.idempotency.mode", "REQUIRED");
+        values.put("entloom.crud.dao.pagination.max-page-size", "80");
+        values.put("entloom.crud.dao.pagination.max-offset", "9000");
 
         CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
             .bind("entloom.crud", Bindable.of(CrudProperties.class))
@@ -90,6 +92,8 @@ class CrudStarterConfigurationContractTest {
         Assertions.assertEquals(12L, properties.getImportExport().getRetentionHours());
         Assertions.assertEquals(1048576L, properties.getImportExport().getMaxFileBytes());
         Assertions.assertEquals(IdempotencyPolicy.Mode.REQUIRED, properties.getIdempotency().getMode());
+        Assertions.assertEquals(80, properties.getDao().getPagination().getMaxPageSize());
+        Assertions.assertEquals(9000L, properties.getDao().getPagination().getMaxOffset());
     }
 
     @Test
@@ -100,6 +104,27 @@ class CrudStarterConfigurationContractTest {
             assertThat(context).hasSingleBean(JdbcInsertScopeDatabaseStartupValidator.class);
             assertThat(context).doesNotHaveBean(EntityDao.class);
         });
+    }
+
+    @Test
+    void starter_should_apply_dao_pagination_limits() {
+        contextRunner
+            .withPropertyValues(
+                "entloom.crud.dao.pagination.max-page-size=80",
+                "entloom.crud.dao.pagination.max-offset=9000"
+            )
+            .run(context -> {
+                JdbcEntityDaoFactory factory = context.getBean(JdbcEntityDaoFactory.class);
+                assertThat(factory.getPaginationPolicy().getMaxPageSize()).isEqualTo(80);
+                assertThat(factory.getPaginationPolicy().getMaxOffset()).isEqualTo(9000L);
+            });
+    }
+
+    @Test
+    void starter_should_reject_invalid_dao_pagination_limits() {
+        contextRunner
+            .withPropertyValues("entloom.crud.dao.pagination.max-page-size=0")
+            .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

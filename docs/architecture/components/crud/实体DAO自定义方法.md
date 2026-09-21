@@ -1,12 +1,12 @@
 # 实体 DAO 自定义方法
 
-> 状态：Proposal（首期实现与安全修复已完成）<br>
+> 状态：Proposal（首期实现、安全修复与单表分页已完成）<br>
 > 决策日期：2026-09-18<br>
 > 关联文档：[实体 DAO](./实体DAO.md)
 
 ## 目标
 
-`@EntDao` 不只提供主键 CRUD，还应允许业务以面向对象的方法扩展单实体 DAO。业务 Service 只依赖一个 DAO 接口；框架统一处理 SQL 参数绑定、返回值映射、逻辑删除和数据范围。分页暂不属于首期闭环。
+`@EntDao` 不只提供主键 CRUD，还应允许业务以面向对象的方法扩展单实体 DAO。业务 Service 只依赖一个 DAO 接口；框架统一处理 SQL 参数绑定、返回值映射、逻辑删除、数据范围和单表页码分页。分页实现与边界见[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)。
 
 ```java
 @EntDao
@@ -74,18 +74,19 @@ flowchart LR
 | `T` | 必须返回一条记录 |
 | `Optional<T>` | 返回零或一条记录 |
 | `List<T>` | 返回多条记录 |
+| `PageResult<T>` | 返回单表分页记录与 `hasNext` / 可选 `total` |
 | `int` / `long` | 写命令影响行数 |
 
 `T` 可以是实体或明确的 DTO。首期不支持原始容器、方法级动态泛型和复杂嵌套泛型，例如原始 `List`、`<T> List<T>`、`Map<String, List<T>>`；声明不合法时启动失败。
 
-首期不定义 `Page<T>`、`PageRequest` 或自动 count SQL 合同。
+分页查询使用 `PageQuery` 与 `PageResult<T>`。方法必须声明唯一 `PageQuery` 参数；默认 `CountMode.NONE` 通过多取一条返回 `hasNext`，`CountMode.ALWAYS` 返回精确 `total`。分页只支持单表实体或明确 DTO，业务 SQL 不得自带 `LIMIT/OFFSET`。
 
 ## 查询与命令
 
 ```mermaid
 flowchart TD
     method["扫描 @EntDao 方法"] --> kind{"方法注解"}
-    kind -->|"@EntQuery"| queryCheck["校验只读 SQL<br/>解析 T / Optional / List"]
+    kind -->|"@EntQuery"| queryCheck["校验只读 SQL<br/>解析 T / Optional / List / PageResult"]
     kind -->|"@EntCommand"| commandCheck["校验写 SQL<br/>校验 int / long 返回值"]
     queryCheck --> scope["合并不可放宽的数据范围<br/>与逻辑删除谓词"]
     commandCheck --> scope
@@ -100,7 +101,7 @@ flowchart TD
 |---|---|---|
 | 允许 SQL | `SELECT` | `UPDATE`、`DELETE` |
 | 实体或 DTO 映射 | 支持 | 不支持 |
-| 分页 | 首期不支持 | 不支持 |
+| 分页 | 支持单表页码分页与可选计数 | 不支持 |
 | 影响行数 | 不适用 | `int` / `long` |
 | 只读事务提示 | 可应用 | 不应用 |
 
@@ -112,7 +113,7 @@ flowchart TD
 
 - SQL 值只能通过命名参数绑定，禁止拼接外部输入。
 - 查询、更新和删除默认自动合并已解析的数据范围与逻辑删除谓词；调用参数只能继续收窄，不能覆盖或关闭治理约束。
-- SQL 必须先解析为受限 SQL AST，再生成治理条件和最终 SQL，禁止对原始 SQL 直接查找、截取和拼接治理条件。首期要求能够确定唯一治理实体、写入目标和安全追加位置；无法证明时启动失败。
+- SQL 必须先解析为受限 SQL 结构，再生成治理条件和最终 SQL；分页数据片段与计数片段在解析阶段固定，执行期不得对已绑定 SQL 重新查找、截取子句。首期要求能够确定唯一治理实体、写入目标和安全追加位置；无法证明时启动失败。
 - 普通业务方法不提供 `scope = NONE` 一类的逃生参数；确需全量维护时使用职责明确的专用 Repository。
 - `@EntQuery` 中出现写语句、`@EntCommand` 中出现读语句或返回类型不匹配时，应用启动失败。
 - DAO 自动参与调用方事务，但动作授权和跨聚合事务仍由 Service 负责。
@@ -142,7 +143,7 @@ flowchart TD
 
 ## 实施范围
 
-采用较小闭环：首期先支持静态显式 SQL、命名参数、实体/DTO/列表/可选对象返回、可确定唯一治理实体的单表查询与更新删除、范围治理和 JDBC 执行。分页、插入范围策略和复杂 SQL 改写暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
+采用较小闭环：首期支持静态显式 SQL、命名参数、实体/DTO/列表/可选对象/分页返回、可确定唯一治理实体的单表查询与更新删除、范围治理和 JDBC 执行。插入范围策略和复杂 SQL 改写继续暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
 
 首期不追求通用 SQL 兼容性。若暂不引入成熟 SQL Parser，则只实现能够覆盖上述语法子集的受限词法和 AST；解析失败、语法超出白名单或治理位置不明确时，启动失败，不继续增加字符串解析特例。
 
@@ -177,7 +178,7 @@ flowchart TD
 - [x] 支持 `@EntQuery` 静态显式 SQL、命名参数和单表 `SELECT`。
 - [x] 支持 `@EntCommand` 静态显式 SQL、命名参数和单表 `UPDATE` / `DELETE`。
 - [x] 首期限制为可确定唯一治理实体的单表 SQL；遇到 JOIN、子查询、CTE、复杂聚合等无法安全改写的语句时启动失败，并提示改用专用 Repository。
-- [x] 支持实体、明确 DTO、`List<T>`、`Optional<T>` 返回类型。
+- [x] 支持实体、明确 DTO、`List<T>`、`Optional<T>`、`PageResult<T>` 返回类型。
 - [x] 支持 `int` / `long` 写命令影响行数返回；自定义命令默认返回驱动报告的影响行数，单行成功/未命中语义另按方法合同声明。
 - [x] 实现命名参数绑定、结果映射和基础异常处理。
 - [x] 将查询、更新、删除统一纳入已解析的数据范围与逻辑删除治理。
@@ -192,10 +193,18 @@ flowchart TD
 - [x] 明确 SQL 解析失败、返回类型不匹配和治理无法证明安全时的错误信息。
 - [x] 用商城 `ProductDao.findForOrder` 真实业务样例验证接口合同；下单事务仍由 `PlaceOrderService` 编排，自定义 DAO 查询下单所需投影并参与调用方事务。
 
+### 已实施：页码分页
+
+- [x] 按[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)实现 `@EntQuery` 单表页码分页与可选计数；`EntityDao` 保留基础 CRUD。
+- [x] 在 `JdbcEntityDaoFactory` 中集中注入分页策略；默认上限可通过 `entloom.crud.dao.pagination.max-page-size` 和
+  `entloom.crud.dao.pagination.max-offset` 配置，非法值在 Spring 启动时失败。
+- [x] 分页 SQL 和 count SQL 使用解析阶段的结构化 SELECT 片段，避免执行阶段依赖绑定后 SQL 的字符串截取。
+- [x] 补充 Spring DAO 代理 H2 验收与 MySQL 8 integration profile 验收。
+
 ### 暂缓项目
 
 - [ ] 暂缓 `INSERT` 自定义命令及新增数据的自动范围字段策略，待范围归属规则明确后再实现。
-- [ ] 暂缓 `Page<T>`、自动总数查询和复杂分页 SQL，待分页合同与 count SQL 规则稳定后再实现。
+- [ ] 暂缓游标分页、复杂分页 SQL 和任意 SQL 自动计数；`DISTINCT`、聚合和 JOIN 分页改用专用 Repository。
 - [ ] 暂缓 JOIN、子查询、CTE、复杂聚合等复杂 SQL 的结构化改写支持。
 - [ ] 暂缓方法名推导 SQL、XML Mapper 和任意动态 SQL。
 - [ ] 暂缓 `@EntInsert`、`@EntUpdate`、`@EntDelete` 等更细粒度注解。

@@ -1,7 +1,13 @@
 package com.entloom.e5.statictest;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CountMode;
+import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.api.model.PageQuery;
+import com.entloom.crud.api.model.PageResult;
+import com.entloom.crud.api.model.QuerySort;
+import com.entloom.crud.annotations.EntQuery;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
@@ -61,6 +67,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.lang.reflect.Method;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -168,10 +175,11 @@ class DaoMysqlIntegrationTest {
                 new SqlIdentifierAllowlistValidator(metaRegistry),
                 new SqlParameterLimiter()
             );
-            EntityDao<DaoOrder, Long> dao = new JdbcEntityDaoFactory(
+            JdbcEntityDaoFactory daoFactory = new JdbcEntityDaoFactory(
                 metaRegistry,
                 new JdbcGuardedSqlExecutor(jdbcTemplate, securityGuard, new SqlExecutionLogger())
-            ).scoped(ORDER_TYPE, scoped("tenant-a", "007"));
+            );
+            EntityDao<DaoOrder, Long> dao = daoFactory.scoped(ORDER_TYPE, scoped("tenant-a", "007"));
 
             DaoOrder order = new DaoOrder();
             order.id = 1L;
@@ -185,6 +193,40 @@ class DaoMysqlIntegrationTest {
             assertFalse("DEFAULT-TENANT".equals(stored.get("tenant_id")));
             assertEquals(Integer.valueOf(0), ((Number) stored.get("is_deleted")).intValue());
             assertEquals("DAO-MYSQL-1", dao.findById(1L).get().orderNo);
+
+            jdbcTemplate.update(
+                "insert into dao_order(id, order_no, school_id, tenant_id, is_deleted) values (?, ?, ?, ?, ?)",
+                101L, "DAO-MYSQL-PAGE-1", 7L, "tenant-a", 0
+            );
+            jdbcTemplate.update(
+                "insert into dao_order(id, order_no, school_id, tenant_id, is_deleted) values (?, ?, ?, ?, ?)",
+                102L, "DAO-MYSQL-PAGE-2", 7L, "tenant-a", 0
+            );
+            jdbcTemplate.update(
+                "insert into dao_order(id, order_no, school_id, tenant_id, is_deleted) values (?, ?, ?, ?, ?)",
+                103L, "DAO-MYSQL-PAGE-3", 7L, "tenant-a", 0
+            );
+            Method pageMethod = MysqlPageDao.class.getMethod("findPage", String.class, PageQuery.class);
+            daoFactory.validateCustomMethod(ORDER_TYPE, pageMethod);
+            @SuppressWarnings("unchecked")
+            PageResult<DaoOrder> page = (PageResult<DaoOrder>) daoFactory.invokeCustom(
+                ORDER_TYPE,
+                scoped("tenant-a", "007"),
+                pageMethod,
+                new Object[] {
+                    "DAO-MYSQL-PAGE-%",
+                    new PageQuery(
+                        1,
+                        2,
+                        Collections.singletonList(new QuerySort("id", SortDirection.DESC)),
+                        CountMode.ALWAYS
+                    )
+                }
+            );
+            assertEquals(Long.valueOf(3L), page.getTotal());
+            assertEquals(2, page.getItems().size());
+            assertEquals(Long.valueOf(103L), page.getItems().get(0).id);
+            assertTrue(page.getHasNext());
 
             UpdatePatch<DaoOrder> unchanged = patch(metaRegistry, 1L, "DAO-MYSQL-1");
             assertEquals(1, dao.updateById(1L, unchanged));
@@ -482,6 +524,11 @@ class DaoMysqlIntegrationTest {
             this.daoFactory = daoFactory;
             this.auditRecorder = auditRecorder;
         }
+    }
+
+    interface MysqlPageDao {
+        @EntQuery("select * from dao_order where order_no like :orderNo")
+        PageResult<DaoOrder> findPage(String orderNo, PageQuery pageQuery);
     }
 
     private static final class RecordingAuditRecorder implements CrudGovernanceAuditRecorder {

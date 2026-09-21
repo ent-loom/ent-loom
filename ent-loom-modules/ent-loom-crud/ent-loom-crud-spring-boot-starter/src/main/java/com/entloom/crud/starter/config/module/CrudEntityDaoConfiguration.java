@@ -4,7 +4,9 @@ import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -29,14 +31,19 @@ public class CrudEntityDaoConfiguration {
         GuardedSqlExecutor guardedSqlExecutor,
         JdbcDialect jdbcDialect,
         JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
-        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
+        ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider,
+        CrudProperties properties
     ) {
+        JdbcPaginationPolicy paginationPolicy = properties.getDao().getPagination().toPolicy();
         return new JdbcEntityDaoFactory(
             metaRegistry,
             guardedSqlExecutor,
             jdbcDialect,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
             insertScopeDatabaseValidator,
-            transactionExecutorProvider.getIfAvailable()
+            transactionExecutorProvider.getIfAvailable(),
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            paginationPolicy
         );
     }
 }

@@ -8,6 +8,7 @@ import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
+import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -51,6 +52,8 @@ public class CrudProperties {
     private Governance governance = new Governance();
     /** Import / Export 配置。 */
     private ImportExport importExport = new ImportExport();
+    /** 实体 DAO 配置。 */
+    private Dao dao = new Dao();
 
     public void setRelation(Relation relation) {
         this.relation = getOrDefault(relation, Relation::new);
@@ -86,6 +89,10 @@ public class CrudProperties {
 
     public void setImportExport(ImportExport importExport) {
         this.importExport = getOrDefault(importExport, ImportExport::new);
+    }
+
+    public void setDao(Dao dao) {
+        this.dao = getOrDefault(dao, Dao::new);
     }
 
     private static <T> T getOrDefault(T value, Supplier<T> defaultSupplier) {
@@ -137,6 +144,33 @@ public class CrudProperties {
 
     private static <E extends Enum<E>> Set<E> copyEnumSet(Set<E> values, Class<E> enumType) {
         return values == null || values.isEmpty() ? EnumSet.noneOf(enumType) : EnumSet.copyOf(values);
+    }
+
+    /** 实体 DAO 配置。 */
+    @Getter
+    @Setter
+    public static class Dao {
+        /** DAO 分页保护配置。 */
+        private Pagination pagination = new Pagination();
+
+        public void setPagination(Pagination pagination) {
+            this.pagination = getOrDefault(pagination, Pagination::new);
+        }
+    }
+
+    /** 自定义 DAO 分页保护配置。 */
+    @Getter
+    @Setter
+    public static class Pagination {
+        /** 单页最大返回条数。 */
+        private int maxPageSize = JdbcPaginationPolicy.DEFAULT_MAX_PAGE_SIZE;
+        /** 最大分页偏移。 */
+        private long maxOffset = JdbcPaginationPolicy.DEFAULT_MAX_OFFSET;
+
+        /** 转换为 JDBC 执行器使用的不可变策略。 */
+        public JdbcPaginationPolicy toPolicy() {
+            return new JdbcPaginationPolicy(maxPageSize, maxOffset);
+        }
     }
 
     /**

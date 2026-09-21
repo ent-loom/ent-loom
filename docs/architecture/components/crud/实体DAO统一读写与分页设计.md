@@ -69,7 +69,7 @@ public interface EntityDao<T, ID> {
 
 ## 5. 首轮分页合同
 
-分页由显式查询方法承接，例如 `PageResult<OrderSummary> findPage(OrderPageQuery query)`；业务查询 DTO 组合分页参数和强类型筛选条件。
+分页由 `@EntQuery` 显式业务查询方法承接，业务声明筛选条件与返回类型，框架统一处理分页。`EntityDao` 保留基础 CRUD，不新增通用分页方法，也不提前抽取 `EntityQueryDao`。首轮使用独立 `PageQuery` 参数与业务筛选参数组合，实施方案见第 8 节。
 
 | 对象 | 字段 |
 | --- | --- |
@@ -104,3 +104,48 @@ public enum CountMode {
 4. 重点验证清空字段、受保护字段、版本缺失/冲突、范围隔离、逻辑删除、分页上限及 Java 兼容边界。
 
 暂不纳入：通用 Upsert、游标分页、关系导航、脏检查、级联写入、任意动态 SQL、跨实体 JOIN/复杂聚合。后续扩展必须由真实业务场景驱动，并先定义语义再扩充 API。
+
+
+## 8. `@EntQuery` 页码分页实施方案
+
+> 状态：已实施（单表页码分页与可选计数）；决策日期：2026-09-21。<br>
+> 实现入口：`JdbcEntityDaoCustomMethodExecutor`；`EntityDao` 仍只保留基础 CRUD。<br>
+> 关联文档：[实体 DAO 自定义方法](./实体DAO自定义方法.md)。
+
+### 8.1 实现思路
+
+较小闭环以一个真实单表业务列表为验收入口：业务定义查询，框架复用分页和治理机制。
+
+```java
+public interface OrderDao extends EntityDao<Order, Long> {
+    /** 按订单状态分页查询。 */
+    @EntQuery("SELECT * FROM t_order WHERE status = :status")
+    PageResult<Order> findByStatus(OrderStatus status, PageQuery pageQuery);
+}
+```
+
+- 复用现有自定义查询的受限 SQL 解析、命名参数绑定、结果映射及治理执行链，不另建分页执行旁路。
+- 首轮只支持现有受限语法内的单表实体或明确 DTO 查询；业务不编写 `LIMIT/OFFSET` 或计数 SQL。
+- 复用现有 `PageQuery`、`PageResult<T>` 与 `CountMode` 模型；`CountMode.NONE` 默认不计数，`ALWAYS` 查询精确总数。
+- Core 公共模型保持 Java 8 兼容，完整构建使用 JDK 21。
+- 默认分页页大小上限为 200、偏移上限为 1,000,000，可通过 `entloom.crud.dao.pagination.max-page-size` 和
+  `entloom.crud.dao.pagination.max-offset` 配置；后续由连续加载或深分页需求驱动独立游标合同。
+- 通用动态筛选入口、`DISTINCT`、复杂 JOIN、聚合和任意 SQL 自动计数不纳入本轮。
+
+### 8.2 实施清单
+
+- [x] **启动期合同校验**：识别 `PageResult<T>` 与唯一 `PageQuery` 参数；分页参数不作为普通 SQL 命名参数绑定；拒绝不匹配的方法签名及业务 SQL 自带分页子句。
+- [x] **分页模型**：落实页码从 1 开始、页大小、排序、计数模式，以及数据、页码、页大小、`hasNext`、可空总数的返回语义。
+- [x] **分页限制**：调用期校验分页参数非空、合法页码、页大小上限与最大偏移；使用 long 计算偏移，避免整数溢出。
+- [x] **排序规则**：请求排序覆盖 SQL 中的排序；请求字段使用实体可排序字段白名单；无请求排序时保留 SQL 排序，无排序时默认主键升序，未包含主键时追加主键。实体和 DTO 投影均复用该校验。
+- [x] **查询执行**：解析阶段生成单表 SELECT 的数据片段、计数片段和排序片段，治理条件生效后由框架按方言生成分页 SQL；多取一条判断 `hasNext`，返回时移除额外记录。
+- [x] **可选计数**：`CountMode.NONE` 默认不查询总数；`ALWAYS` 使用相同筛选、参数与治理条件生成结构化计数 SQL，移除排序和分页；不承诺数据与总数快照一致。
+- [x] **业务示例**：在 JDBC 自定义 DAO 测试中提供带筛选条件的 `@EntQuery` 分页方法与实体列表调用。
+- [x] **必要测试**：覆盖首末页、越界空页、可选计数、稳定排序、非法参数与声明、范围隔离、逻辑删除、实体映射，以及原有非分页查询回归。
+- [x] **集成验证**：补充 Spring `EntDao` 代理真实分页调用，并在既有 MySQL 8 integration profile 中验证 `LIMIT/OFFSET`、计数和治理条件。
+- [x] **构建验证**：使用 JDK 21 运行 JDBC 模块测试及相关检查。
+- [x] **文档同步**：本文与《实体 DAO 自定义方法》已同步分页能力状态与边界。
+
+### 8.3 验收标准
+
+业务只需声明单表查询并传入分页参数，即可获得受统一治理约束的分页结果，无须自行编写分页和计数 SQL；原有非分页自定义查询正常工作。`DISTINCT`、聚合、JOIN、游标和任意动态 SQL 仍需使用专用 Repository。

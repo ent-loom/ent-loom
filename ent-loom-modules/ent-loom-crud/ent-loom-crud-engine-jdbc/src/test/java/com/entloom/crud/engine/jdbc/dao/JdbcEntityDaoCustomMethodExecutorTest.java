@@ -2,6 +2,11 @@ package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.annotations.EntCommand;
 import com.entloom.crud.annotations.EntQuery;
+import com.entloom.crud.api.enums.CountMode;
+import com.entloom.crud.api.enums.SortDirection;
+import com.entloom.crud.api.model.PageQuery;
+import com.entloom.crud.api.model.PageResult;
+import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
@@ -143,6 +148,71 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
             JdbcEntityValueBinder.normalize(dateTimeField, "2026-09-18 10:20:30"));
     }
 
+    @Test
+    void should_page_custom_query_with_stable_sort_and_optional_count() throws Exception {
+        insertRow(20009L, "ORD-PAGE-1", 198L, "tenant-a", 0);
+        insertRow(20010L, "ORD-PAGE-2", 198L, "tenant-a", 0);
+        insertRow(20011L, "ORD-PAGE-3", 198L, "tenant-a", 0);
+        validate(CustomDao.class, "findPage");
+        validate(CustomDao.class, "findSummaryPage");
+
+        PageResult<OrderTestEntity> first = invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "findPage", 198L, new PageQuery(1, 2, java.util.Collections.singletonList(
+                new QuerySort("id", SortDirection.DESC)
+            ), CountMode.NONE)
+        );
+        assertEquals(2, first.getItems().size());
+        assertEquals(Long.valueOf(20011L), first.getItems().get(0).getId());
+        assertEquals(Long.valueOf(20010L), first.getItems().get(1).getId());
+        assertTrue(first.getHasNext());
+        assertEquals(null, first.getTotal());
+
+        PageResult<OrderSummary> summary = invoke(
+            EntityAccessScope.unrestricted(), "findSummaryPage", 198L, new PageQuery(1, 1)
+        );
+        assertEquals(1, summary.getItems().size());
+        assertEquals(Long.valueOf(20009L), summary.getItems().get(0).id);
+
+        PageResult<OrderTestEntity> exact = invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "findPage", 198L, new PageQuery(2, 2, java.util.Collections.singletonList(
+                new QuerySort("id", SortDirection.DESC)
+            ), CountMode.ALWAYS)
+        );
+        assertEquals(3L, exact.getTotal().longValue());
+        assertEquals(1, exact.getItems().size());
+        assertFalse(exact.getHasNext());
+
+        validate(CustomDao.class, "findPageWithOrderParameter");
+        PageResult<OrderTestEntity> preferred = invoke(
+            EntityAccessScope.unrestricted(),
+            "findPageWithOrderParameter",
+            198L,
+            "ORD-PAGE-2",
+            new PageQuery(1, 1)
+        );
+        assertEquals(Long.valueOf(20010L), preferred.getItems().get(0).getId());
+        assertTrue(preferred.getHasNext());
+    }
+
+    @Test
+    void should_reject_page_query_with_unsafe_sort_or_distinct() throws Exception {
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "distinctQuery"));
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "rawPage"));
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "pageParameterUsed"));
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.unrestricted(), "findPage", 198L, new PageQuery(1, 1,
+                java.util.Collections.singletonList(new QuerySort("unknown", SortDirection.ASC)), CountMode.NONE)
+        ));
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.unrestricted(), "findPage", 198L, new PageQuery(1, 201)
+        ));
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.unrestricted(), "findPage", 198L, new PageQuery(5002, 200)
+        ));
+    }
+
     private void insertRow(Long id, String orderNo, Long schoolId, String tenantId, Integer deleted) {
         jdbcTemplate.update(
             "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?, ?, ?, ?, ?)",
@@ -212,6 +282,18 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntQuery("select * from t_order where id in (:ids)")
         List<OrderTestEntity> findByIds(List<Long> ids);
+
+        @EntQuery("select * from t_order where school_id = :schoolId order by id desc")
+        PageResult<OrderTestEntity> findPage(Long schoolId, PageQuery pageQuery);
+
+        @EntQuery("select * from t_order where school_id = :schoolId "
+            + "order by case when order_no = :preferredOrderNo then 0 else 1 end, id desc")
+        PageResult<OrderTestEntity> findPageWithOrderParameter(
+            Long schoolId, String preferredOrderNo, PageQuery pageQuery
+        );
+
+        @EntQuery("select id, order_no from t_order where school_id = :schoolId")
+        PageResult<OrderSummary> findSummaryPage(Long schoolId, PageQuery pageQuery);
     }
 
     interface InvalidDao {
@@ -241,6 +323,15 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntQuery("select * from t_order where dangerous(order_no) = 'x'")
         List<OrderTestEntity> unsupportedFunction();
+
+        @EntQuery("select distinct school_id from t_order")
+        PageResult<OrderTestEntity> distinctQuery(PageQuery pageQuery);
+
+        @EntQuery("select * from t_order")
+        PageResult rawPage(PageQuery pageQuery);
+
+        @EntQuery("select * from t_order where order_no = :pageQuery")
+        PageResult<OrderTestEntity> pageParameterUsed(PageQuery pageQuery);
 
         @EntCommand("delete from t_order where id = :id order by id limit 1")
         long deleteWithLimit(Long id);
