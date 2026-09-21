@@ -1,6 +1,7 @@
 package com.example.minicommerce.order.controller;
 
 import com.example.minicommerce.order.exception.OrderValidationException;
+import com.example.minicommerce.order.enums.OrderError;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -27,7 +28,7 @@ public class OrderExceptionHandler {
 
     @ExceptionHandler(OrderValidationException.class)
     public ResponseEntity<ErrorResponse> handle(OrderValidationException exception) {
-        HttpStatus status = "ORDER_NOT_FOUND".equals(exception.getCode())
+        HttpStatus status = exception.getError() == OrderError.ORDER_NOT_FOUND
             ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(new ErrorResponse(exception.getCode(), exception.getMessage()));
     }

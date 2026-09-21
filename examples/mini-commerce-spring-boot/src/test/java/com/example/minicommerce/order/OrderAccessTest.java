@@ -10,6 +10,9 @@ import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import com.example.minicommerce.order.controller.OrderController;
 import com.example.minicommerce.order.controller.OrderExceptionHandler;
+import com.example.minicommerce.order.dto.PlaceOrderCommand;
+import com.example.minicommerce.order.dto.PlaceOrderItem;
+import com.example.minicommerce.order.exception.OrderValidationException;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.PermissionDeniedException;
@@ -87,6 +90,16 @@ class OrderAccessTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("REQUEST_INVALID"))
             .andExpect(jsonPath("$.message").value("购买数量必须大于零"));
+        verifyNoInteractions(customers, products, orders, orderItems);
+    }
+
+    @Test
+    void directServiceCallAlsoRejectsInvalidCommandBeforePersistence() {
+        OrderAccessPolicy placePolicy = policy("local-developer", List.of(rule("PLACE", AccessDecision.ALLOW)));
+        PlaceOrderService service = new PlaceOrderService(customers, products, orders, orderItems, placePolicy);
+
+        assertThrows(OrderValidationException.class,
+            () -> service.handle(new PlaceOrderCommand(2001L, List.of(new PlaceOrderItem(1001L, 0)))));
         verifyNoInteractions(customers, products, orders, orderItems);
     }
 

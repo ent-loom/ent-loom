@@ -41,7 +41,7 @@ com.example.minicommerce/
     ├── service/            # 下单、查询服务，负责业务校验与事务编排
     ├── dto/                # 命令、结果和详情
     ├── entity/             # Order、OrderItem，分别映射订单表和明细表
-    ├── repository/         # 订单聚合的专用 SQL Repository
+    ├── dao/                # 订单聚合的专用 DAO 与明细查询
     ├── enums/              # 订单生命周期状态
     ├── exception/          # 订单业务异常
     └── security/           # 订单动作及主体权限检查
@@ -174,4 +174,4 @@ docker compose down -v
 
 当前创建最小闭环已完成：Meta 约束投影到 CRUD Runtime Model，强类型 Handler 和默认 JDBC 创建统一校验，批量创建复用 CREATE 子命令；Customer/Product 已移除重复的 `NotNull/NotBlank`。更新显式清空、业务默认值统一赋值和结构化错误仍按路线图演进。
 
-`PlaceOrderCommand/PlaceOrderItem` 属于业务输入 DTO，可继续使用 Validation；订单状态、快照及计算金额在对应业务赋值阶段保证有效，不要求客户填写。实施进度见 [Meta 路线图](../../docs/evolution/roadmap/meta/index.md)。
+`PlaceOrderCommand/PlaceOrderItem` 是不可变业务输入 record，Controller 使用 Validation，Service 入口再次校验结构和业务不变量；订单状态、快照及计算金额在对应业务赋值阶段保证有效，不要求客户填写。实施进度见 [Meta 路线图](../../docs/evolution/roadmap/meta/index.md)。

@@ -7,6 +7,7 @@ import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.OrderDetail;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
+import com.example.minicommerce.order.enums.OrderError;
 import com.example.minicommerce.order.security.OrderAccessPolicy;
 import com.example.minicommerce.order.security.OrderAction;
 import lombok.RequiredArgsConstructor;
@@ -27,10 +28,10 @@ public class OrderQueryService {
     public OrderDetail findDetail(Long id) {
         accessPolicy.require(OrderAction.DETAIL);
         Order order = orderDao.findById(id)
-            .orElseThrow(() -> new OrderValidationException("ORDER_NOT_FOUND", "订单不存在"));
+            .orElseThrow(() -> new OrderValidationException(OrderError.ORDER_NOT_FOUND));
         String customerName = customerDao.findById(order.getCustomerId())
             .map(customer -> customer.getDisplayName())
-            .orElseThrow(() -> new OrderValidationException("ORDER_NOT_FOUND", "订单不存在"));
+            .orElseThrow(() -> new OrderValidationException(OrderError.ORDER_NOT_FOUND));
         List<OrderDetail.Item> items = orderItemDao.findByOrderId(id).stream()
             .map(this::toDetailItem)
             .toList();

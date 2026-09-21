@@ -102,16 +102,10 @@ class OrderDaoIntegrationTest {
     }
 
     private PlaceOrderCommand command() {
-        PlaceOrderCommand command = new PlaceOrderCommand();
-        command.setCustomerId(1L);
-        PlaceOrderItem first = new PlaceOrderItem();
-        first.setProductId(10L);
-        first.setQuantity(1);
-        PlaceOrderItem second = new PlaceOrderItem();
-        second.setProductId(20L);
-        second.setQuantity(1);
-        command.setItems(List.of(first, second));
-        return command;
+        return new PlaceOrderCommand(1L, List.of(
+            new PlaceOrderItem(10L, 1),
+            new PlaceOrderItem(20L, 1)
+        ));
     }
 
     @Configuration(proxyBeanMethods = false)
