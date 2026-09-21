@@ -22,6 +22,9 @@ import com.entloom.crud.engine.jdbc.query.JdbcReflectiveMapper;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -873,8 +876,9 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             if (name.startsWith(RESERVED_PARAMETER_PREFIX)) {
                 throw new ValidationException("DAO 方法参数不能使用保留前缀 " + RESERVED_PARAMETER_PREFIX + ": " + name);
             }
-            if (!declared.contains(name)) {
-                throw new ValidationException("DAO SQL 命名参数未声明: " + name + ": " + method);
+            String rootName = parameterRoot(name, method);
+            if (!declared.contains(rootName)) {
+                throw new ValidationException("DAO SQL 命名参数根未声明: " + name + ": " + method);
             }
             if (!parameterBindings.containsKey(name)) {
                 throw new ValidationException("DAO SQL 参数无法推断实体字段类型: " + name + ": " + method);
@@ -884,10 +888,29 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             if (parameter.getName().equals(ignoredParameter)) {
                 continue;
             }
-            if (!names.contains(parameter.getName())) {
+            if (!containsParameterRoot(names, parameter.getName())) {
                 throw new ValidationException("DAO 方法参数未在 SQL 中使用: " + parameter.getName() + ": " + method);
             }
         }
+    }
+
+    private static String parameterRoot(String path, Method method) {
+        int separator = path.indexOf('.');
+        String root = separator < 0 ? path : path.substring(0, separator);
+        if (root.isEmpty()) {
+            throw new ValidationException("DAO SQL 对象参数路径缺少根参数: " + path
+                + (method == null ? "" : ": " + method));
+        }
+        return root;
+    }
+
+    private static boolean containsParameterRoot(List<String> names, String root) {
+        for (String name : names) {
+            if (root.equals(parameterRoot(name, null))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isGeneratedScopeParameter(String name) {
@@ -924,16 +947,11 @@ public final class JdbcEntityDaoCustomMethodExecutor {
         if (parameters.length != actual.length) {
             throw new ValidationException("DAO 方法参数数量不匹配: " + method);
         }
-        for (int i = 0; i < parameters.length; i++) {
-            String name = parameters[i].getName();
-            if (name.equals(ignoredParameter)) {
+        for (ParameterBinding binding : parsed.parameterBindings.values()) {
+            if (binding.rootName.equals(ignoredParameter)) {
                 continue;
             }
-            ParameterBinding binding = parsed.parameterBindings.get(name);
-            if (binding == null) {
-                throw new ValidationException("DAO 方法参数无法绑定到实体字段: " + name + ": " + method);
-            }
-            values.put(name, normalizeParameterValue(binding, actual[i], method));
+            values.put(binding.name, normalizeParameterValue(binding, binding.read(actual, method), method));
         }
         appendScopeValues(scope, values, new int[] {0});
         EntityFieldMeta logicDeleteField = meta.getLogicDeleteField() == null
@@ -1069,7 +1087,7 @@ public final class JdbcEntityDaoCustomMethodExecutor {
                 continue;
             }
             String name = token.text.substring(1);
-            if (!SIMPLE_IDENTIFIER.matcher(name).matches()) {
+            if (!validParameterPath(name)) {
                 throw new ValidationException("DAO SQL 命名参数不合法: " + token.text + ": " + method);
             }
             if (name.startsWith(RESERVED_PARAMETER_PREFIX)) {
@@ -1081,8 +1099,8 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             }
             boolean collectionAllowed = isInParameter(tokens, i);
             Parameter parameter = parameter(method, name);
-            boolean collectionParameter = parameter != null
-                && Collection.class.isAssignableFrom(parameter.getType());
+            ParameterBinding pathBinding = createParameterBinding(name, parameter, field, collectionAllowed, method);
+            boolean collectionParameter = pathBinding.collectionParameter;
             if (collectionParameter && !collectionAllowed) {
                 throw new ValidationException("DAO 集合参数只允许出现在 IN 条件中: " + name + ": " + method);
             }
@@ -1092,19 +1110,106 @@ public final class JdbcEntityDaoCustomMethodExecutor {
                 throw new ValidationException("DAO SQL 参数不能绑定多个字段或混用集合条件: " + name + ": " + method);
             }
             if (previous == null) {
-                result.put(name, new ParameterBinding(name, field, collectionAllowed, collectionParameter));
+                result.put(name, pathBinding);
             }
         }
         return result;
     }
 
     private static Parameter parameter(Method method, String name) {
+        String rootName = parameterRoot(name, method);
         for (Parameter parameter : method.getParameters()) {
-            if (parameter.isNamePresent() && parameter.getName().equals(name)) {
+            if (parameter.isNamePresent() && parameter.getName().equals(rootName)) {
                 return parameter;
             }
         }
         return null;
+    }
+
+    private static ParameterBinding createParameterBinding(
+        String name,
+        Parameter parameter,
+        EntityFieldMeta field,
+        boolean collectionAllowed,
+        Method method
+    ) {
+        String rootName = parameterRoot(name, method);
+        if (parameter == null) {
+            return new ParameterBinding(name, rootName, field, collectionAllowed, false, -1,
+                Collections.<Method>emptyList());
+        }
+        int parameterIndex = parameterIndex(method, rootName);
+        List<Method> accessors = new ArrayList<Method>();
+        Class<?> valueType = parameter.getType();
+        String[] segments = name.split("\\.");
+        if (segments.length > 1) {
+            for (int i = 1; i < segments.length; i++) {
+                PropertyDescriptor descriptor = propertyDescriptor(valueType, segments[i], name, method);
+                Method readMethod = descriptor.getReadMethod();
+                if (readMethod == null) {
+                    throw new ValidationException("DAO SQL 对象属性不可读: " + name + ": " + method);
+                }
+                accessors.add(readMethod);
+                valueType = descriptor.getPropertyType();
+                if (valueType == null) {
+                    throw new ValidationException("DAO SQL 对象属性类型无法确定: " + name + ": " + method);
+                }
+            }
+        }
+        boolean collectionParameter = Collection.class.isAssignableFrom(valueType);
+        return new ParameterBinding(
+            name,
+            rootName,
+            field,
+            collectionAllowed,
+            collectionParameter,
+            parameterIndex,
+            accessors
+        );
+    }
+
+    private static int parameterIndex(Method method, String name) {
+        Parameter[] parameters = method.getParameters();
+        for (int i = 0; i < parameters.length; i++) {
+            if (parameters[i].isNamePresent() && parameters[i].getName().equals(name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static PropertyDescriptor propertyDescriptor(
+        Class<?> beanType,
+        String property,
+        String path,
+        Method method
+    ) {
+        if ("class".equals(property)) {
+            throw new ValidationException("DAO SQL 对象属性不可读: " + path + ": " + method);
+        }
+        try {
+            for (PropertyDescriptor descriptor : Introspector.getBeanInfo(beanType).getPropertyDescriptors()) {
+                if (descriptor.getName().equals(property)) {
+                    return descriptor;
+                }
+            }
+        } catch (IntrospectionException ex) {
+            throw new ValidationException("DAO SQL 对象参数类型无法解析: " + path + ": " + method);
+        }
+        throw new ValidationException("DAO SQL 对象属性不存在: " + path + ": " + method);
+    }
+
+    private static boolean validParameterPath(String value) {
+        String[] segments = value.split("\\.", -1);
+        if (segments.length == 0) {
+            return false;
+        }
+        for (String segment : segments) {
+            if (!SIMPLE_IDENTIFIER.matcher(segment).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static EntityFieldMeta parameterField(
@@ -1266,7 +1371,6 @@ public final class JdbcEntityDaoCustomMethodExecutor {
     }
 
     private static void scanNamedParameters(String sql, NamedParameterConsumer consumer) {
-        int last = 0;
         boolean singleQuote = false;
         boolean doubleQuote = false;
         boolean backtick = false;
@@ -1296,12 +1400,24 @@ public final class JdbcEntityDaoCustomMethodExecutor {
                 && (Character.isLetterOrDigit(sql.charAt(end)) || sql.charAt(end) == '_')) {
                 end++;
             }
+            while (end < sql.length() && sql.charAt(end) == '.') {
+                int segmentStart = end + 1;
+                int segmentEnd = segmentStart;
+                while (segmentEnd < sql.length()
+                    && (Character.isLetterOrDigit(sql.charAt(segmentEnd)) || sql.charAt(segmentEnd) == '_')) {
+                    segmentEnd++;
+                }
+                if (segmentEnd == segmentStart) {
+                    end++;
+                    break;
+                }
+                end = segmentEnd;
+            }
             if (end == i + 1) {
                 continue;
             }
             consumer.accept(sql.substring(i + 1, end), i, end);
             i = end - 1;
-            last = end;
         }
     }
 
@@ -1757,8 +1873,10 @@ public final class JdbcEntityDaoCustomMethodExecutor {
             SelectSqlStructure select
         ) {
             this.sql = sql;
-            this.parameterNames = parameterNames;
-            this.parameterBindings = parameterBindings;
+            this.parameterNames = Collections.unmodifiableList(new ArrayList<String>(parameterNames));
+            this.parameterBindings = Collections.unmodifiableMap(
+                new LinkedHashMap<String, ParameterBinding>(parameterBindings)
+            );
             this.query = query;
             this.table = table;
             this.distinct = distinct;
@@ -1768,20 +1886,50 @@ public final class JdbcEntityDaoCustomMethodExecutor {
 
     private static final class ParameterBinding {
         private final String name;
+        private final String rootName;
         private final EntityFieldMeta field;
         private final boolean collectionAllowed;
         private final boolean collectionParameter;
+        private final int parameterIndex;
+        private final List<Method> accessors;
 
         private ParameterBinding(
             String name,
+            String rootName,
             EntityFieldMeta field,
             boolean collectionAllowed,
-            boolean collectionParameter
+            boolean collectionParameter,
+            int parameterIndex,
+            List<Method> accessors
         ) {
             this.name = name;
+            this.rootName = rootName;
             this.field = field;
             this.collectionAllowed = collectionAllowed;
             this.collectionParameter = collectionParameter;
+            this.parameterIndex = parameterIndex;
+            this.accessors = Collections.unmodifiableList(new ArrayList<Method>(accessors));
+        }
+
+        private Object read(Object[] args, Method method) {
+            if (parameterIndex < 0 || parameterIndex >= args.length) {
+                throw new ValidationException("DAO 方法参数数量不匹配: " + method);
+            }
+            Object value = args[parameterIndex];
+            if (accessors.isEmpty()) {
+                return value;
+            }
+            for (Method accessor : accessors) {
+                if (value == null) {
+                    throw new ValidationException("DAO 对象参数路径不能为空: " + name + ": " + method);
+                }
+                try {
+                    value = accessor.invoke(value);
+                } catch (ReflectiveOperationException ex) {
+                    throw new ValidationException("DAO 对象参数路径读取失败: " + name + ": " + method);
+                }
+            }
+            return value;
         }
     }
 

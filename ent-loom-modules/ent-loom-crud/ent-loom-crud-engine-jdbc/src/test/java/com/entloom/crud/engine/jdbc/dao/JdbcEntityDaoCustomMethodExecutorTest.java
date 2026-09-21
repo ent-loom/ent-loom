@@ -90,6 +90,7 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "updateScope"));
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "updateLogicDelete"));
         assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "incompleteUpdate"));
+        assertThrows(ValidationException.class, () -> validate(InvalidDao.class, "unknownProperty"));
     }
 
     @Test
@@ -146,6 +147,37 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
             JdbcEntityValueBinder.normalize(dateField, "2026-09-18"));
         assertEquals(java.sql.Timestamp.valueOf("2026-09-18 10:20:30"),
             JdbcEntityValueBinder.normalize(dateTimeField, "2026-09-18 10:20:30"));
+    }
+
+    @Test
+    void should_bind_java_bean_properties_and_nested_paths() throws Exception {
+        insertRow(20012L, "ORD-OBJECT", 198L, "tenant-a", 0);
+        OrderFilter filter = new OrderFilter(new OrderFilterCriteria(198L), "ORD-OBJECT");
+        validate(CustomDao.class, "findByFilter");
+        validate(CustomDao.class, "updateByCommand");
+
+        List<OrderTestEntity> rows = invoke(EntityAccessScope.unrestricted(), "findByFilter", filter);
+        assertEquals(1, rows.size());
+        assertEquals(Long.valueOf(20012L), rows.get(0).getId());
+        assertTrue(((List<?>) invoke(
+            EntityAccessScope.unrestricted(), "findByFilter",
+            new OrderFilter(new OrderFilterCriteria(198L), "ORD-OBJECT-MISSING")
+        )).isEmpty());
+
+        assertEquals(1, ((Integer) invoke(
+            EntityAccessScope.of(com.entloom.crud.core.capability.dao.RowConstraint.eq("schoolId", 198L)),
+            "updateByCommand", new OrderCommand(20012L, "ORD-OBJECT-UPDATED")
+        )).intValue());
+        assertEquals("ORD-OBJECT-UPDATED", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id = ?", String.class, 20012L
+        ));
+
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.unrestricted(), "findByFilter", new OrderFilter(null, "ORD-OBJECT")
+        ));
+        assertThrows(ValidationException.class, () -> invoke(
+            EntityAccessScope.unrestricted(), "findByFilter", (Object) null
+        ));
     }
 
     @Test
@@ -294,6 +326,13 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntQuery("select id, order_no from t_order where school_id = :schoolId")
         PageResult<OrderSummary> findSummaryPage(Long schoolId, PageQuery pageQuery);
+
+        @EntQuery("select * from t_order where school_id = :filter.criteria.schoolId "
+            + "and (order_no = :filter.orderNo or order_no = :filter.orderNo)")
+        List<OrderTestEntity> findByFilter(OrderFilter filter);
+
+        @EntCommand("update t_order set order_no = :command.orderNo where id = :command.id")
+        int updateByCommand(OrderCommand command);
     }
 
     interface InvalidDao {
@@ -344,6 +383,57 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
 
         @EntCommand("update t_order set order_no where id = :id")
         int incompleteUpdate(Long id);
+
+        @EntQuery("select * from t_order where id = :filter.unknown")
+        List<OrderTestEntity> unknownProperty(OrderFilter filter);
+    }
+
+    public static class OrderFilter {
+        private OrderFilterCriteria criteria;
+        private String orderNo;
+
+        public OrderFilter(OrderFilterCriteria criteria, String orderNo) {
+            this.criteria = criteria;
+            this.orderNo = orderNo;
+        }
+
+        public OrderFilterCriteria getCriteria() {
+            return criteria;
+        }
+
+        public String getOrderNo() {
+            return orderNo;
+        }
+    }
+
+    public static class OrderFilterCriteria {
+        private Long schoolId;
+
+        public OrderFilterCriteria(Long schoolId) {
+            this.schoolId = schoolId;
+        }
+
+        public Long getSchoolId() {
+            return schoolId;
+        }
+    }
+
+    public static class OrderCommand {
+        private Long id;
+        private String orderNo;
+
+        public OrderCommand(Long id, String orderNo) {
+            this.id = id;
+            this.orderNo = orderNo;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public String getOrderNo() {
+            return orderNo;
+        }
     }
 
     public static class OrderSummary {

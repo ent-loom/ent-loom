@@ -1,6 +1,6 @@
 # 实体 DAO 自定义 SQL 一期实施清单
 
-> 状态：Remaining（规划已整理，新增能力尚未实施）<br />
+> 状态：P1 JavaBean 对象路径已实现；Map/record、INSERT 与构造器投影 Remaining<br />
 > 核验日期：2026-09-21<br />
 > 当前合同：[实体 DAO 自定义方法](../../../architecture/components/crud/实体DAO自定义方法.md)<br />
 > 关联：[实体 DAO 实施清单](实体DAO实施清单.md)、[统一读写与分页设计](../../../architecture/components/crud/实体DAO统一读写与分页设计.md)
@@ -23,7 +23,8 @@
 | 单表 PageQuery / PageResult、可选 count | 已实现 | `EntDaoPaginationIntegrationTest`、分页设计文档 |
 | 范围和逻辑删除治理、OR 条件保护、非法 SQL 拒绝 | 已实现 | `JdbcEntityDaoCustomMethodExecutorTest` |
 | Starter 扫描、声明校验、代理执行 | 已实现 | `EntDaoTest` |
-| 对象属性路径、对象自动展开 | 未实现 | 当前只按方法参数名读取整个实参 |
+| JavaBean 对象属性路径 | 已实现；显式路径，不自动展开 | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
+| Map、record 参数路径 | 未实现 | 当前阶段只支持 JavaBean 可读属性 |
 | 自定义 INSERT | 未实现 | 当前命令只接受 UPDATE / DELETE |
 | JOIN、子查询、CTE、UNION、任意动态 SQL | 当前禁止 | 受限 SQL 解析合同 |
 
@@ -59,13 +60,13 @@ flowchart LR
     execute --> result[结果映射或影响行数]
 ```
 
-绑定计划仅缓存结构和访问方式，不能缓存实参、参数值或请求级范围。INSERT 的新增归属检查独立于查询 WHERE 治理，不能机械复用追加条件的方式。
+绑定计划只保存结构、实体字段元数据和 JavaBean 访问方式，不能保存实参、参数值或请求级范围。INSERT 的新增归属检查独立于查询 WHERE 治理，不能机械复用追加条件的方式。
 
 ## P1：对象属性参数绑定
 
 业务目标：直接传入实体或请求 DTO，避免 Service 为每个自定义方法逐个拆参数。
 
-目标 API（待实现）：
+当前已支持的 API：
 
 ```java
 @EntCommand("update customer set name = :customer.name where id = :customer.id")
@@ -75,7 +76,7 @@ int updateName(Customer customer);
 List<Customer> findByFilter(CustomerFilter filter);
 ```
 
-建议合同：使用显式 `:参数名.属性名`，保留 `:id`；单对象不自动展开成无前缀的 `:id`。先支持 JavaBean 可读属性，再推进嵌套路径、Map 和 record；不支持方法调用表达式、SpEL、数组下标及任意反射表达式。
+当前合同：使用显式 `:参数名.属性名`，支持 JavaBean 嵌套路径，保留 `:id`；单对象不自动展开成无前缀的 `:id`、`:name`。根对象或中间节点为 `null` 时执行前失败，叶子 `null` 按现有字段绑定规则传递。不支持 Map、record、方法调用表达式、SpEL、数组下标及任意反射表达式。
 
 | 编号 | 待办 | 实现位置 | 验收标准 |
 |---|---|---|---|
@@ -87,13 +88,13 @@ List<Customer> findByFilter(CustomerFilter filter);
 | P1.6 | 统一字段类型与集合规范化 | `JdbcEntityValueBinder`、参数绑定计划 | 以 SQL 对应实体字段规范化值；覆盖枚举、日期、重复引用和 IN 集合；非 IN 集合、集合 null 元素按现有规则拒绝 |
 | P1.7 | 评估显式参数别名注解 | annotations、Starter、JDBC 参数元数据 | 决定是否引入 `@EntParam`；若引入，明确与 `-parameters` 的优先级并验证重复名、空名；若暂缓，记录原因 |
 
-- [ ] P1.1 路径与错误合同完成。
-- [ ] P1.2 最小绑定计划提取完成。
-- [ ] P1.3 JavaBean 与嵌套路径完成。
-- [ ] P1.4 null 语义与异常验证完成。
-- [ ] P1.5 Map 与 record 输入完成。
-- [ ] P1.6 类型规范化与集合回归完成。
-- [ ] P1.7 参数别名决策完成，并按决策实施或明确暂缓。
+- [x] P1.1 路径与错误合同完成。
+- [x] P1.2 最小绑定计划提取完成。
+- [x] P1.3 JavaBean 与嵌套路径完成。
+- [x] P1.4 null 语义与异常验证完成。
+- [ ] P1.5 Map 与 record 输入完成（暂缓：尚无一期真实需求，避免扩大 Java 兼容面）。
+- [x] P1.6 类型规范化与集合回归完成。
+- [ ] P1.7 参数别名决策完成（暂缓：当前继续要求 `-parameters`，有真实无参数名构建需求再单独决策）。
 
 兼容要求：完整 Reactor 使用 JDK 21；Java 8 目标模块不得直接引用高版本 record API 或使用 record 语法。record 支持方案需按[运行时兼容边界](../../decisions/core/Java运行时与Spring兼容性.md)选定实现位置和访问方式。
 
@@ -122,7 +123,7 @@ int insertCustomer(Customer customer);
 - [ ] P2.3 受限单行 INSERT 完成。
 - [ ] P2.4 治理、参数和事务验收完成。
 
-P2.1/P2.2 未确定前不实现 INSERT。若暂缓，记录原因和重新进入条件，P2.3/P2.4 保持未勾选；其他已完成阶段可以独立交付，不得宣称 INSERT 已完成。
+P2.1/P2.2 未确定前不实现 INSERT。P2.3/P2.4 还必须保证“最终写入值”与范围校验值一致：先按受限 `VALUES` 列表形成待写入字段快照，再执行范围字段注入或冲突校验，最终绑定只能来自该快照；数据库默认值不能被当作已验证的范围归属。若暂缓，记录原因和重新进入条件；其他已完成阶段可以独立交付，不得宣称 INSERT 已完成。
 
 ## P3：查询投影完善
 
@@ -142,8 +143,8 @@ P2.1/P2.2 未确定前不实现 INSERT。若暂缓，记录原因和重新进入
 
 ## P4：业务与集成验收
 
-- [ ] 在示例工程接入对象参数更新或过滤查询；至少一个真实调用方使用新合同。
-- [ ] JDBC 单元/H2 测试覆盖对象读取、缺失路径、null、枚举、时间、集合及同参数重复引用。
+- [ ] 在示例工程接入对象参数更新或过滤查询；至少一个真实调用方使用新合同（当前以 JDBC 测试夹具作为阶段调用方，示例工程接入留待 P4）。
+- [x] JDBC 单元/H2 测试覆盖对象读取、缺失路径、null、枚举、时间、集合及同参数重复引用。
 - [ ] Starter 测试覆盖启动失败、代理调用、PageQuery 与对象参数混用、事务回滚。
 - [ ] 回归 OR 条件治理、范围隔离、逻辑删除、单对象基数、稳定分页和可选 count。
 - [ ] 按仓库 MySQL 8 integration profile 验证本期新增 SQL 行为；记录数据库版本和测试结果。
@@ -164,4 +165,4 @@ JOIN 涉及多表，不能称为“单表 JOIN”。复杂跨聚合写、数据�
 
 | 阶段/编号 | 实现或提交 | 测试命令与环境 | 结果 | 当前合同更新 | 暂缓项与原因 |
 |---|---|---|---|---|---|
-| 待填写 | — | — | 未执行 | — | — |
+| P1.1-P1.6 | `JdbcEntityDaoCustomMethodExecutor` 对象路径绑定与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，8 tests，0 failures，0 errors | 已更新 JavaBean 路径合同；Map/record 暂缓 | 无；INSERT、构造器/record 投影和真实示例工程接入留待后续阶段 |
