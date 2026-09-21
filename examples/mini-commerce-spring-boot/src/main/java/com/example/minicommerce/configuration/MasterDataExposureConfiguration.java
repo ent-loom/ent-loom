@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Profile;
 
 /** 统一维护示例中商品和客户的通用 CRUD 与文档暴露边界。 */
 @Configuration(proxyBeanMethods = false)
-@Profile({"example", "production"})
+@Profile("example")
 public class MasterDataExposureConfiguration {
     private static final Set<Class<?>> EXPOSED_ENTITIES = Set.of(Product.class, Customer.class);
     private static final Map<Class<?>, Set<String>> EXPOSED_FIELDS = Map.of(
@@ -33,7 +33,7 @@ public class MasterDataExposureConfiguration {
         return registry;
     }
 
-    /** 根据环境主体规则生成文档字段策略，避免开发和生产复制白名单逻辑。 */
+    /** 根据示例主体规则生成文档字段策略，统一实体和字段白名单。 */
     static EntityDocumentationExposurePolicyResolver documentationPolicy(
         Predicate<SubjectContext> subjectAllowed
     ) {

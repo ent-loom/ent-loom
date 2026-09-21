@@ -18,11 +18,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Product {
-    /** 商品主键。 */
     @EntField("商品 ID")
     private Long id;
 
-    /** 商品名称。 */
     @EntField("商品名称")
     private String name;
 

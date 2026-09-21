@@ -14,7 +14,7 @@
 
 本示例是独立 Maven 消费者，不继承 ent-loom 内部父 POM，不依赖 `ent-loom-tests` 或内部实现类。完整源码位于 `examples/mini-commerce-spring-boot`，POM 声明公开 Starter/API/Annotations、CRUD Core 的 DAO 合同和 Spring Boot 基础依赖。当前 DAO 重构版须使用下方当前工作区构件路径验证；2026-09-08 对 Maven Central `1.0.1` 的验收属于重构前版本，不能作为当前 DAO 能力已发布的依据。
 
-2026-09-18 已使用 JDK 21 和隔离 Maven 仓库完成工作区完整 Reactor 构建、示例 clean/test/package（10 项测试）及真实 MySQL HTTP 验收，覆盖下单、详情、价格快照、失败回滚和生产入口授权。
+历史验收记录（简化前）：2026-09-18 已使用 JDK 21 和隔离 Maven 仓库完成工作区完整 Reactor 构建、示例 clean/test/package（10 项测试）及真实 MySQL HTTP 验收，覆盖下单、详情、价格快照、失败回滚和生产入口授权。
 
 ## 业务边界
 
@@ -75,11 +75,11 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
 `dev` profile 默认连接 `localhost:3306`，并执行 `schema.sql`。健康检查地址为 [http://localhost:8082/actuator/health](http://localhost:8082/actuator/health)。开发态示例还会以 `local-developer` 主体访问 [实体文档契约](http://localhost:8082/api/ent-doc/contract)，只公开 `product` 和 `customer` 主数据。也可以在 IDEA 中以 `com.example.minicommerce.MiniCommerceApplication` 启动，激活 `dev` profile，工作目录设为本示例目录。
 
-## 生产认证适配边界
+## 示例治理与实际接入
 
-`production` profile 只演示接入边界，不提供认证系统。`ServletPrincipalCrudSubjectResolver` 读取 Servlet 容器已经完成的 `HttpServletRequest#getUserPrincipal()`，不解析请求头、令牌或登录凭据；真实项目应由 Spring Security、网关或容器完成认证，再把主体交给 ent-loom 治理链。
+`dev` 和 `verify` 共用 `example` profile，由 `ExampleGovernanceConfiguration` 提供固定的 `local-developer` 主体、全量数据范围以及主数据文档访问策略。
 
-未认证请求会映射为 `anonymous` 主体。生产 profile 默认没有该主体的权限规则，实体文档契约返回空目录，CRUD 和订单业务入口返回拒绝。设置 `ENTLOOM_PRODUCTION_SUBJECT_ID` 只用于本示例演示一个已认证主体的配置入口，生产项目应使用配置中心、权限服务和自身的租户/组织数据范围策略替换它。
+实际项目应由 Spring Security 或 Servlet 容器完成认证，通过 `CrudSubjectResolver` 接入可信主体，再配置动作权限、数据范围和文档访问策略。本示例只保留本地业务闭环，不提供生产认证配置。
 
 ## Compose 验收
 
@@ -112,7 +112,6 @@ Windows PowerShell：
 5. 验证失效商品、不存在商品和不存在客户均返回明确失败码。
 6. 在独立验收库增加临时明细约束，使订单头写入后明细写入失败，确认事务回滚、订单和明细均无残留，并移除约束。
 7. 使用 MySQL SQL 查询核对订单头、订单明细和金额。
-8. 启动 `production` profile，确认未认证主体只能获得空实体契约，不能调用通用 CRUD 或订单业务入口。
 
 业务权限测试在本示例目录执行 `mvn test`，覆盖无规则、明确拒绝、非授权主体、缺少主体、默认主体解析失败和动作权限隔离。该测试已接入商城 CI 作业。
 

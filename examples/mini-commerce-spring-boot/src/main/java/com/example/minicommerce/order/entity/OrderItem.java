@@ -22,7 +22,6 @@ public class OrderItem {
     @EntField("订单 ID")
     private Long orderId;
 
-    /** 下单商品主键。 */
     @EntField("商品 ID")
     private Long productId;
 

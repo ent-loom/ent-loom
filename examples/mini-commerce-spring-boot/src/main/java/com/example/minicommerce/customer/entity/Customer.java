@@ -17,15 +17,12 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Customer {
-    /** 客户主键。 */
     @EntField("客户 ID")
     private Long id;
 
-    /** 客户展示名称。 */
     @EntField("客户名称")
     private String displayName;
 
-    /** 客户联系邮箱。 */
     @EntField("邮箱")
     private String email;
 

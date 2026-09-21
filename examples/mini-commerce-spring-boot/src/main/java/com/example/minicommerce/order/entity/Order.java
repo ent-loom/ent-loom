@@ -20,7 +20,6 @@ public class Order {
     @EntField("订单 ID")
     private Long id;
 
-    /** 下单客户主键。 */
     @EntField("客户 ID")
     private Long customerId;
 

@@ -10,7 +10,7 @@ import verify
 
 
 class VerificationLifecycleTest(unittest.TestCase):
-    def execute(self, fail_detail=False, fail_logs=False, fail_start=False, fail_rollback=False, security=False):
+    def execute(self, fail_detail=False, fail_logs=False, fail_start=False, fail_rollback=False):
         with tempfile.TemporaryDirectory() as directory:
             example = Path(directory)
             target = example / "target"
@@ -25,8 +25,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                 process = Mock()
                 process.poll.return_value = None
                 processes.append(process)
-                port = "49154" if any("production" in part for part in command) else "49152"
-                kwargs["stdout"].write(f"Tomcat started on port {port}\n")
+                kwargs["stdout"].write("Tomcat started on port 49152\n")
                 kwargs["stdout"].flush()
                 return process
 
@@ -54,8 +53,6 @@ class VerificationLifecycleTest(unittest.TestCase):
                 if url.endswith("/health"):
                     return 200, {"status": "UP"}
                 if url.endswith("/api/ent-doc/contract"):
-                    if "49154" in url:
-                        return 200, {"contractVersion": "1.0.0", "entities": []}
                     return 200, {
                         "contractVersion": "1.0.0",
                         "entities": [
@@ -63,16 +60,12 @@ class VerificationLifecycleTest(unittest.TestCase):
                             {"resourceCode": "product", "fields": []},
                         ],
                     }
-                if "49154" in url and "/api/ent-crud/" in url:
-                    return 403, {"error": {"code": "PERMISSION_DENIED"}}
                 if url.endswith("/create"):
                     payload = body["payload"]
                     return 200, {"success": True, "data": {"id": payload["id"]}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
                 if url.endswith("/orders"):
-                    if "49154" in url:
-                        return 403, {"code": "ORDER_ACCESS_DENIED"}
                     if body["items"][0]["quantity"] == 3:
                         return 500, {"error": "Internal Server Error"}
                     if body["customerId"] == 9999:
@@ -93,7 +86,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                     patch.object(verify, "run", side_effect=run), \
                     patch.object(verify, "request", side_effect=request), \
                     patch.object(verify.subprocess, "Popen", side_effect=launch):
-                result = verify.verify(skip_build=True, security=security)
+                result = verify.verify(skip_build=True)
 
             self.assertEqual(result, int(fail_detail or fail_logs or fail_start or fail_rollback))
             if fail_rollback:
@@ -127,9 +120,6 @@ class VerificationLifecycleTest(unittest.TestCase):
 
     def test_rollback_leak_fails_and_removes_temporary_constraint(self):
         self.execute(fail_rollback=True)
-
-    def test_unauthorized_security_check_cleans_second_application(self):
-        self.execute(security=True)
 
 
 if __name__ == "__main__":

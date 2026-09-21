@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在独立 MySQL 环境中验收业务路径和生产 profile 的未授权边界。"""
+"""在独立 MySQL 环境中验收商城业务路径。"""
 
 import argparse
 import json
@@ -60,7 +60,7 @@ def sql_query(compose, env, sql):
                env, capture_output=True, text=True).stdout.strip()
 
 
-def verify(repository=None, skip_build=False, security=True):
+def verify(repository=None, skip_build=False):
     project = "ent-loom-commerce-verify-" + uuid.uuid4().hex[:12]
     logs = EXAMPLE / "target" / "verification-logs" / project
     logs.mkdir(parents=True)
@@ -76,8 +76,6 @@ def verify(repository=None, skip_build=False, security=True):
     compose_started = False
     failed = False
     app_log = None
-    security_app = None
-    security_log = None
     print(f"验收项目：{project}；日志：{logs}", flush=True)
     try:
         if not skip_build:
@@ -226,72 +224,11 @@ def verify(repository=None, skip_build=False, security=True):
         check(item_sql.split("\t") == [str(order_id), str(product_id), "Entity Book", "19.90", "2", "39.80"],
               f"订单明细 SQL 字段不匹配：{item_sql}")
 
-        if security:
-            security_log = (logs / "production-application.log").open("w")
-            security_app = subprocess.Popen([
-                java, "-jar", str(jar), "--spring.profiles.active=production",
-                "--spring.config.import=", "--server.port=0", "--server.address=127.0.0.1",
-                f"--spring.datasource.url=jdbc:mysql://127.0.0.1:{mysql_port}/mini_commerce"
-                "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai",
-                "--spring.datasource.username=mini_commerce",
-                "--spring.datasource.password=mini_commerce_verify",
-            ], cwd=EXAMPLE, env=env, stdout=security_log, stderr=subprocess.STDOUT)
-            security_deadline = time.monotonic() + 120
-            security_base_url = None
-            while time.monotonic() < security_deadline:
-                check(security_app.poll() is None, "生产 profile 应用在就绪前退出")
-                content = (logs / "production-application.log").read_text(errors="replace")
-                match = re.search(r"Tomcat started on port (\d+)", content)
-                if match:
-                    security_base_url = f"http://127.0.0.1:{match.group(1)}"
-                    try:
-                        if request(security_base_url + "/actuator/health")[1].get("status") == "UP":
-                            break
-                    except (URLError, TimeoutError):
-                        pass
-                time.sleep(1)
-            else:
-                raise RuntimeError("生产 profile 应用健康检查超时")
-
-            status, contract = request(security_base_url + "/api/ent-doc/contract")
-            check(status == 200 and contract.get("entities") == [],
-                  f"未认证主体不应获得实体文档契约：{status} {contract}")
-            status, denied_crud = request(security_base_url + "/api/ent-crud/product/create", {
-                "options": {"requestId": project + "-unauthorized-product"},
-                "payload": {"id": 3001, "name": "Unauthorized", "price": 1.00, "active": True},
-            })
-            check(status == 403 and denied_crud.get("error", {}).get("code") == "PERMISSION_DENIED",
-                  f"未认证主体 CRUD 请求未拒绝：{status} {denied_crud}")
-            status, denied_order = request(security_base_url + "/orders", {
-                "customerId": customer_id,
-                "items": [{"productId": product_id, "quantity": 1}],
-            })
-            check(status == 403 and denied_order.get("code") == "ORDER_ACCESS_DENIED",
-                  f"未认证主体订单请求未拒绝：{status} {denied_order}")
-            (logs / "production-unauthorized.json").write_text(json.dumps({
-                "contract": contract,
-                "crud": denied_crud,
-                "order": denied_order,
-            }, ensure_ascii=False, indent=2))
     except Exception as error:
         failed = True
         (logs / "failure.log").write_text(str(error) + "\n")
         print(f"验收失败：{error}；请查看 {logs}", file=sys.stderr)
     finally:
-        if security_app is not None:
-            try:
-                if security_app.poll() is None:
-                    security_app.terminate()
-                    try:
-                        security_app.wait(timeout=20)
-                    except subprocess.TimeoutExpired:
-                        security_app.kill()
-                        security_app.wait(timeout=10)
-            except Exception as error:
-                failed = True
-                print(f"停止生产 profile 应用失败：{error}", file=sys.stderr)
-        if security_log is not None:
-            security_log.close()
         if app is not None:
             try:
                 if app.poll() is None:
