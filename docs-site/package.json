@@ -4,8 +4,9 @@
   "private": true,
   "description": "ent-loom 当前主线文档站",
   "scripts": {
-    "prestart": "node scripts/ensure-search-index.mjs",
-    "start": "docusaurus start",
+    "prestart": "npm run build",
+    "start": "docusaurus serve",
+    "dev": "docusaurus start",
     "build": "docusaurus build",
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",

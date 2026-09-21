@@ -52,6 +52,8 @@ const config: Config = {
         indexBlog: false,
         indexPages: false,
         language: ['zh', 'en'],
+        // 技术术语关闭拼写容错，避免 mini 误匹配 MANY；保留前缀搜索。
+        fuzzyMatchingDistance: 0,
         hashed: true,
         searchResultLimits: 10,
         searchResultContextMaxLength: 80,
