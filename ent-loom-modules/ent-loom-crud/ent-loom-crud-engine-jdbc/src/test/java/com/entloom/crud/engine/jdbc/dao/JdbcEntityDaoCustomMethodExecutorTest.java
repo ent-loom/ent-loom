@@ -41,6 +41,7 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         validate(CustomDao.class, "findAvailable");
         validate(CustomDao.class, "findOne");
         validate(CustomDao.class, "summary");
+        validate(CustomDao.class, "summaryRecord");
         validate(CustomDao.class, "updateOrderNo");
         validate(CustomDao.class, "deleteOne");
         validate(CustomDao.class, "findByLowerOrderNo");
@@ -62,6 +63,10 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         OrderSummary summary = invoke(scope, "summary", 20001L);
         assertEquals(Long.valueOf(20001L), summary.id);
         assertEquals("ORD-CUSTOM-1", summary.orderNo);
+
+        OrderSummaryRecord record = invoke(scope, "summaryRecord", 20001L);
+        assertEquals(Long.valueOf(20001L), record.id());
+        assertEquals("ORD-CUSTOM-1", record.orderNo());
 
         assertEquals(1, ((Integer) invoke(scope, "updateOrderNo", 20001L, "ORD-CUSTOM-UPDATED")).intValue());
         assertEquals("ORD-CUSTOM-UPDATED", jdbcTemplate.queryForObject(
@@ -343,6 +348,9 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
         @EntQuery("select id, order_no from t_order where id = :id")
         OrderSummary summary(Long id);
 
+        @EntQuery("select id, order_no from t_order where id = :id")
+        OrderSummaryRecord summaryRecord(Long id);
+
         @EntQuery("select * from t_order where lower(order_no) = lower(:orderNo)")
         List<OrderTestEntity> findByLowerOrderNo(String orderNo);
 
@@ -542,6 +550,9 @@ class JdbcEntityDaoCustomMethodExecutorTest extends EngineJdbcTestSupport {
     public static class OrderSummary {
         public Long id;
         public String orderNo;
+    }
+
+    public record OrderSummaryRecord(Long id, String orderNo) {
     }
 
     private enum SampleStatus {

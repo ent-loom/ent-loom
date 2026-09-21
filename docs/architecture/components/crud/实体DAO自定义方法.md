@@ -1,6 +1,6 @@
 # 实体 DAO 自定义方法
 
-> 状态：Current（单表自定义 SQL、安全修复、页码分页、JavaBean 对象参数路径与受限单行 INSERT 已实现）<br />
+> 状态：Current（单表自定义 SQL、安全修复、页码分页、JavaBean 对象参数路径、受限单行 INSERT 与构造器/record 投影已实现）<br />
 > 决策日期：2026-09-18<br />
 > 最近核验：2026-09-21<br />
 > 关联文档：[实体 DAO](./实体DAO.md)
@@ -78,7 +78,7 @@ flowchart LR
 | `PageResult<T>` | 返回单表分页记录与 `hasNext` / 可选 `total` |
 | `int` / `long` | 写命令影响行数 |
 
-`T` 可以是实体或明确的 DTO。首期不支持原始容器、方法级动态泛型和复杂嵌套泛型，例如原始 `List`、`<T> List<T>`、`Map<String, List<T>>`；声明不合法时启动失败。
+`T` 可以是实体或明确的 DTO。DTO 支持无参 JavaBean、参数名可见的不可变构造器和 record；结果列标签按字段/组件名匹配，支持 `camelCase` 与 `snake_case`。record/构造器的必需列缺失或基本类型接收 SQL `NULL` 时失败，未知列忽略，重复列标签不纳入合同。首期不支持原始容器、方法级动态泛型和复杂嵌套泛型，例如原始 `List`、`<T> List<T>`、`Map<String, List<T>>`；声明不合法时启动失败。
 
 分页查询使用 `PageQuery` 与 `PageResult<T>`。方法必须声明唯一 `PageQuery` 参数；默认 `CountMode.NONE` 通过多取一条返回 `hasNext`，`CountMode.ALWAYS` 返回精确 `total`。分页只支持单表实体或明确 DTO，业务 SQL 不得自带 `LIMIT/OFFSET`。
 
@@ -114,7 +114,7 @@ flowchart TD
 
 - 普通 SQL 值按方法参数名绑定，例如 `:id` 对应 `Long id`，编译时须保留 `-parameters`。
 - 支持显式 JavaBean 对象属性路径，例如 `:customer.id`、`:filter.customer.id`；根参数不会自动展开为 `:id`、`:name`。路径在启动期校验可读属性，调用期根对象或中间节点为 `null` 时失败，叶子 `null` 沿用现有 JDBC 绑定规则。
-- 当前对象路径只支持 JavaBean 可读属性；Map、record、方法调用表达式、SpEL、数组下标及任意反射表达式暂不支持。
+- 当前对象路径入参只支持 JavaBean 可读属性；Map、record 入参、方法调用表达式、SpEL、数组下标及任意反射表达式暂不支持。record 仅作为查询结果投影支持。
 - 集合只允许用于 IN 参数位置，值统一按 SQL 对应实体字段进行 JDBC 类型规范化。
 - `PageQuery` 是专用分页控制参数，不作为普通 SQL 值引用。
 
@@ -154,7 +154,7 @@ flowchart TD
 
 ## 实施范围
 
-采用较小闭环：首期支持静态显式 SQL、命名参数、JavaBean 对象属性路径、实体/DTO/列表/可选对象/分页返回、可确定唯一治理实体的单表查询、更新删除和受限单行 INSERT、范围治理和 JDBC 执行。生成主键、批量 INSERT、upsert、Map/record 参数、构造器/record 投影和复杂 SQL 改写继续暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
+采用较小闭环：首期支持静态显式 SQL、命名参数、JavaBean 对象属性路径、实体/DTO/列表/可选对象/分页返回、可确定唯一治理实体的单表查询、更新删除和受限单行 INSERT、构造器/record 投影、范围治理和 JDBC 执行。生成主键、批量 INSERT、upsert、Map 投影、Map/record 参数和复杂 SQL 改写继续暂缓；方法名推导、XML Mapper、任意动态 SQL、ORM Session、脏检查、懒加载和自动关系导航不在首期实现。
 
 首期不追求通用 SQL 兼容性。若暂不引入成熟 SQL Parser，则只实现能够覆盖上述语法子集的受限词法和 AST；解析失败、语法超出白名单或治理位置不明确时，启动失败，不继续增加字符串解析特例。
 
@@ -163,12 +163,13 @@ flowchart TD
 ## 实现与验证入口
 
 - `JdbcEntityDaoCustomMethodExecutor`：受限 SQL 解析、参数绑定、治理与执行。
-- `JdbcEntityDaoCustomMethodExecutorTest`：查询与 DTO、写命令、受限 INSERT、OR 治理、安全拒绝、单对象基数、枚举时间及集合、分页与可选计数。
+- `JdbcEntityDaoCustomMethodExecutorTest`：查询与 DTO、写命令、受限 INSERT、构造器/record 投影、OR 治理、安全拒绝、单对象基数、枚举时间及集合、分页与可选计数。
+- `JdbcReflectiveMapperTest`：JavaBean、不可变 DTO、record、列别名和 null 映射合同。
 - `EntDaoTest`：Starter 扫描、声明校验及代理执行。
 - `EntDaoPaginationIntegrationTest`：Spring DAO 分页集成验证。
 
-这些为源码及现存测试入口；对象路径阶段的实现与验证记录维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。分页实施与既有验收记录继续维护在[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)。
+这些为源码及现存测试入口；对象参数、INSERT 和投影阶段的实现与验证记录维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。分页实施与既有验收记录继续维护在[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)。
 
 ## 后续实施入口
 
-新增能力、依赖顺序、待办与验收标准统一维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。Map/record 参数与构造器/record 投影仍待实施或待决策；生成主键、批量 INSERT、upsert、JOIN、子查询及复杂 SQL 继续遵守本文限制。
+新增能力、依赖顺序、待办与验收标准统一维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。Map/record 参数与 Map 投影仍暂缓；生成主键、批量 INSERT、upsert、JOIN、子查询及复杂 SQL 继续遵守本文限制。

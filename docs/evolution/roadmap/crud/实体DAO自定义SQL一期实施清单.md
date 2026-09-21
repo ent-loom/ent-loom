@@ -1,6 +1,6 @@
 # 实体 DAO 自定义 SQL 一期实施清单
 
-> 状态：P1 JavaBean 对象路径、P2 受限单行 INSERT 已实现；Map/record 与构造器投影待后续实施<br />
+> 状态：P1 JavaBean 对象路径、P2 受限单行 INSERT、P3 构造器/record 投影已实现；Map 投影暂缓<br />
 > 核验日期：2026-09-21<br />
 > 当前合同：[实体 DAO 自定义方法](../../../architecture/components/crud/实体DAO自定义方法.md)<br />
 > 关联：[实体 DAO 实施清单](实体DAO实施清单.md)、[统一读写与分页设计](../../../architecture/components/crud/实体DAO统一读写与分页设计.md)
@@ -19,12 +19,12 @@
 |---|---|---|
 | 单表 SELECT、UPDATE、DELETE、受限 INSERT | 已实现 | `JdbcEntityDaoCustomMethodExecutor` |
 | 方法参数名绑定、IN 集合、枚举和时间规范化 | 已实现；依赖 `-parameters` | `validateParameters`、`bind`、`JdbcEntityValueBinder` |
-| 实体、明确 DTO、List、Optional | 已实现；不等同于任意构造器或 record 映射 | `JdbcEntityDaoCustomMethodExecutorTest` |
+| 实体、明确 DTO、List、Optional | 已实现；DTO 支持无参 JavaBean、参数名构造器和 record 投影 | `JdbcEntityDaoCustomMethodExecutorTest`、`JdbcReflectiveMapperTest` |
 | 单表 PageQuery / PageResult、可选 count | 已实现 | `EntDaoPaginationIntegrationTest`、分页设计文档 |
 | 范围和逻辑删除治理、OR 条件保护、非法 SQL 拒绝 | 已实现 | `JdbcEntityDaoCustomMethodExecutorTest` |
 | Starter 扫描、声明校验、代理执行 | 已实现 | `EntDaoTest` |
 | JavaBean 对象属性路径 | 已实现；显式路径，不自动展开 | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
-| Map、record 参数路径 | 未实现 | 当前阶段只支持 JavaBean 可读属性 |
+| Map、record 参数路径 | 未实现 | 当前阶段只支持 JavaBean 可读属性；record 仅作为查询结果投影支持 |
 | 自定义 INSERT | 已实现；仅受限单表、显式主键、单行命名参数 VALUES | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
 | JOIN、子查询、CTE、UNION、任意动态 SQL | 当前禁止 | 受限 SQL 解析合同 |
 
@@ -131,7 +131,9 @@ P2.3/P2.4 保证“最终写入值”与范围校验值一致：先按受限 `VA
 
 业务目标：已有 DTO 查询继续可用，新增映射能力具备明确列名、类型和 null 合同，不把当前 DTO 支持误写为待从零实现。
 
-目标使用形态：`Optional<CustomerSummary> findSummary(Long id)`；其中 `CustomerSummary` 的构造器或 record 映射规则须先确定。
+当前使用形态：`Optional<CustomerSummary> findSummary(Long id)`；`CustomerSummary` 可以是无参 JavaBean、参数名可见的不可变 DTO 或 record。
+
+当前投影合同：结果列标签按目标字段名匹配，支持精确名称、`camelCase` 与 `snake_case`，并做大小写不敏感兜底。无参 JavaBean 优先使用字段写入；record 使用规范构造器并按组件名取值；无无参构造器的 DTO 选择能匹配全部列的最长构造器，构造器参数必须保留 `-parameters` 名称，匹配不唯一时拒绝。可选列之外的未知列忽略；record/构造器必需列缺失时失败；基本类型接收 SQL `NULL` 时失败。结果集应使用唯一列标签，重复标签在 JDBC 行 Map 中无法恢复，不纳入自定义 SQL 映射合同。
 
 | 编号 | 待办 | 实现位置 | 验收标准 |
 |---|---|---|---|
@@ -139,14 +141,14 @@ P2.3/P2.4 保证“最终写入值”与范围校验值一致：先按受限 `VA
 | P3.2 | 构造器及 record 投影 | 结果映射器、对应版本测试夹具 | 构造器选择确定；列与参数匹配可解释；基本类型接收 SQL NULL 时明确失败；满足 Java 兼容边界 |
 | P3.3 | 评估 Map 投影需求 | 查询返回类型合同 | 有真实需求才确定键命名与重复列行为并实施；否则明确暂缓，不扩大泛型返回合同 |
 
-- [ ] P3.1 现有映射回归与别名合同完成。
-- [ ] P3.2 构造器与 record 投影完成。
-- [ ] P3.3 Map 投影决策完成，并按决策实施或暂缓。
+- [x] P3.1 现有映射回归与别名合同完成。
+- [x] P3.2 构造器与 record 投影完成。
+- [x] P3.3 Map 投影决策完成：暂缓自定义 DAO 的 Map 返回；低层映射器已有 Map 能力，但当前 `@EntQuery` 泛型合同不扩大为任意键值结构。
 
 ## P4：业务与集成验收
 
 - [ ] 在示例工程接入对象参数更新或过滤查询；至少一个真实调用方使用新合同（当前以 JDBC 测试夹具作为阶段调用方，示例工程接入留待 P4）。
-- [x] JDBC 单元/H2 测试覆盖对象读取、缺失路径、null、枚举、时间、集合及同参数重复引用。
+- [x] JDBC 单元/H2 测试覆盖对象读取、缺失路径、null、枚举、时间、集合、同参数重复引用及构造器/record 投影。
 - [ ] Starter 测试覆盖启动失败、代理调用、PageQuery 与对象参数混用、事务回滚。
 - [ ] 回归 OR 条件治理、范围隔离、逻辑删除、单对象基数、稳定分页和可选 count。
 - [ ] 按仓库 MySQL 8 integration profile 验证本期新增 SQL 行为；记录数据库版本和测试结果。
@@ -170,3 +172,5 @@ JOIN 涉及多表，不能称为“单表 JOIN”。复杂跨聚合写、数据�
 | P1.1-P1.6 | `JdbcEntityDaoCustomMethodExecutor` 对象路径绑定与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，8 tests，0 failures，0 errors | 已更新 JavaBean 路径合同；Map/record 暂缓 | 无；构造器/record 投影和真实示例工程接入留待后续阶段 |
 | P2.1-P2.4 | `JdbcEntityDaoCustomMethodExecutor` 受限 INSERT 与测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，10 tests，0 failures，0 errors | 已更新 INSERT 合同；生成主键、批量 VALUES、upsert、复杂范围表达式暂缓 | 尚未完成 MySQL 8 profile 验证；Starter 代理层仍待 P4 验收 |
 | P2 回归 | JDBC 引擎及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`；JDK 21、H2 | 通过，依赖模块 254 tests、JDBC 引擎 119 tests，0 failures，0 errors | 基础 CRUD、范围治理、逻辑删除和自定义 SQL 回归通过 | MySQL 8 profile 与 Starter 代理层仍待 P4 验收 |
+| P3.1-P3.3 | `JdbcReflectiveMapper` 构造器/record 投影与合同测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcReflectiveMapperTest,JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，17 tests，0 failures，0 errors | 已更新 DTO/record 列标签和 null 合同；Map 返回暂缓 | 未覆盖 MySQL 8 profile；Starter 代理层仍待 P4 验收 |
+| P3 回归 | JDBC 引擎及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`；JDK 21、H2 | 通过，依赖模块 254 tests、JDBC 引擎 122 tests，0 failures，0 errors | P3 投影与既有 CRUD、自定义 SQL 回归通过 | MySQL 8 profile 与 Starter 代理层仍待 P4 验收 |

@@ -24,6 +24,44 @@ class JdbcReflectiveMapperTest {
     }
 
     @Test
+    void map_row_should_support_record_projection_by_component_name() {
+        JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
+        Map<String, Object> row = new LinkedHashMap<String, Object>();
+        row.put("id", 1002L);
+        row.put("order_no", "ORD-RECORD");
+
+        TestSummaryRecord result = mapper.mapRow(row, TestSummaryRecord.class);
+
+        Assertions.assertEquals(Long.valueOf(1002L), result.id());
+        Assertions.assertEquals("ORD-RECORD", result.orderNo());
+    }
+
+    @Test
+    void map_row_should_support_immutable_constructor_projection_by_parameter_name() {
+        JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
+        Map<String, Object> row = new LinkedHashMap<String, Object>();
+        row.put("id", 1003L);
+        row.put("order_no", "ORD-CONSTRUCTOR");
+
+        ImmutableSummary result = mapper.mapRow(row, ImmutableSummary.class);
+
+        Assertions.assertEquals(Long.valueOf(1003L), result.id);
+        Assertions.assertEquals("ORD-CONSTRUCTOR", result.orderNo);
+    }
+
+    @Test
+    void map_row_should_reject_missing_projection_column_and_null_primitive() {
+        JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
+        Map<String, Object> missing = new LinkedHashMap<String, Object>();
+        missing.put("id", 1004L);
+        Assertions.assertThrows(IllegalStateException.class, () -> mapper.mapRow(missing, TestSummaryRecord.class));
+
+        Map<String, Object> nullPrimitive = new LinkedHashMap<String, Object>();
+        nullPrimitive.put("id", null);
+        Assertions.assertThrows(IllegalStateException.class, () -> mapper.mapRow(nullPrimitive, PrimitiveSummaryRecord.class));
+    }
+
+    @Test
     void assign_children_should_return_new_crud_record_for_relation_field() {
         JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
         CrudRecord root = CrudRecord.copyOf(Collections.<String, Object>singletonMap("id", 1L));
@@ -82,5 +120,21 @@ class JdbcReflectiveMapperTest {
         private TestChild(Long id) {
             this.id = id;
         }
+    }
+
+    private record TestSummaryRecord(Long id, String orderNo) {
+    }
+
+    private static final class ImmutableSummary {
+        private final Long id;
+        private final String orderNo;
+
+        private ImmutableSummary(Long id, String orderNo) {
+            this.id = id;
+            this.orderNo = orderNo;
+        }
+    }
+
+    private record PrimitiveSummaryRecord(long id) {
     }
 }
