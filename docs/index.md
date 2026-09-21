@@ -1,64 +1,39 @@
 # ent-loom 文档中心
 
 > 状态：Current
-> 最近核验：2026-08-21
+> 最近核验：2026-09-22
 
-本文档中心只回答四类问题：系统现在是什么、如何使用、为什么这样设计、下一步做什么。实现细节尽量留在对应模块，历史材料不参与当前架构判断。
+ent-loom 是面向实体编程的业务框架。文档按“先使用、再理解、后维护”组织；当前代码和稳定契约优先于设计目标与实施记录。
 
-## 文档结构
+> 文档维护：ent-loom Documentation Team · [反馈文档问题](https://github.com/ent-loom/ent-loom/issues)
 
-```text
-domains       按领域聚合的阅读入口，不新增权威正文
-architecture  当前事实和必须遵守的架构契约
-guides        接入、开发和使用方式
-evolution     设计取舍与尚未完成的演进计划
-```
+## 先做什么
 
-权威顺序固定为：
-
-```text
-Core Contract
-  -> Component Architecture
-  -> Guide
-  -> Evolution Decision / Roadmap
-```
-
-下游文档只能细化上游契约，不能覆盖它。发现冲突时，以更上游且状态有效的文档为准，并修正冲突文档。
-
-## 从这里开始
-
-1. [系统架构总览](architecture/架构总览.md)：先了解模块、依赖、建模和执行主链。
-2. [CRUD 领域总览](domains/crud/index.md)：按当前架构、业务接入、设计决策和路线图阅读 CRUD。
-3. [DDL 领域总览](domains/ddl/index.md)：按实体到 MySQL 8 的路线和实施清单阅读 DDL。
-4. [Meta 领域总览](domains/meta/index.md)：按核心契约、实现参考、使用指南和路线图阅读 Meta。
-5. [Core Contract](architecture/core/index.md)：查看跨模块必须共同遵守的契约。
-6. [使用指南](guides/index.md)：按文档类型查找业务接入说明。
-7. [架构演进](evolution/index.md)：查看设计取舍和未完成目标。
-
-## 按文档类型查看
-
-- [架构文档](architecture/index.md)：当前事实、稳定契约和实现边界。
-- [使用指南](guides/index.md)：业务项目的接入、开发和配置方式。
-- [设计决策](evolution/decisions/index.md)：为什么采用当前方案，以及方案后果。
-- [路线图](evolution/roadmap/index.md)：尚未完成的目标和当前实施计划。
-- [框架实施清单](evolution/roadmap/实施清单.md)：按依赖顺序逐项完成并打钩。
-
-## 文档状态
-
-非索引文档应在标题后声明状态：
-
-| 状态 | 含义 |
+| 你的目标 | 从这里开始 |
 |---|---|
-| `Current` | 已由当前代码或稳定契约支持 |
-| `Target` | 已接受但尚未完全落地的规范性目标 |
-| `In Progress` | 正在实施，不能代替当前架构事实 |
-| `Remaining` | 已确认但尚未开始或未完成的路线 |
-| `Superseded` | 已被其他文档替代，只保留决策背景 |
+| 第一次运行项目 | [快速开始](guides/快速开始.md) |
+| 接入 CRUD 业务 | [CRUD 使用指南](guides/crud/index.md) |
+| 设计实体和字段 | [Meta 优先指南](guides/meta/Meta优先指南.md) |
+| 了解模块边界 | [系统架构总览](architecture/架构总览.md) |
+| 查阅稳定合同 | [Core Contract](architecture/core/index.md) |
 
-## 维护规则
+## 文档怎么分
 
-1. 一个结论只保留一个权威正文，其他文档使用链接。
-2. `architecture` 不保存实施步骤；`roadmap` 不保存已完成方案全文。
-3. 决策完成后保留取舍和后果，删除临时迁移清单与重复 API 说明；历史通过 Git 追溯。
-4. 当前事实、目标状态和历史背景必须明确分开。
-5. 移动或删除文档后必须检查仓库内 Markdown 相对链接。
+- [使用指南](guides/index.md)：面向业务开发者的接入、调用和配置步骤。
+- [领域入口](domains/index.md)：按 CRUD、DDL、Meta 聚合相关文档，不复制权威正文。
+- [当前架构](architecture/index.md)：只描述代码已经支持的模型、边界和执行合同。
+- [设计与维护](evolution/index.md)：记录设计取舍、路线图和验收过程，主要面向框架维护者。
+
+## 阅读规则
+
+权威顺序为：`Core Contract → Component Architecture → Guide → Decision / Roadmap`。
+下游文档可以补充上游内容，但不能把目标能力写成当前能力；发现冲突时，以状态为 `Current` 且更靠前的文档为准。
+
+非索引文档在标题后声明状态：`Current` 表示当前支持，`Target` 表示目标合同，`In Progress` 表示正在实施，`Remaining` 表示尚未完成，`Accepted` 表示有效的设计决策，`Superseded` 表示已被替代。
+
+一个结论只保留一个权威正文。架构文档不承载实施步骤，路线图不重复完整 API 说明；验收命令、阶段清单和历史背景统一放在维护区。
+
+## 联系方式
+
+- 文档反馈：[GitHub Issues](https://github.com/ent-loom/ent-loom/issues)
+- 技术讨论：[GitHub Discussions](https://github.com/ent-loom/ent-loom/discussions)

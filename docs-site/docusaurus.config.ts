@@ -41,6 +41,26 @@ const config: Config = {
       } satisfies Preset.Options,
     ],
   ],
+  plugins: [
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        // 文档源位于 docs-site 的上级目录，必须显式指定索引目录。
+        docsDir: '../docs',
+        docsRouteBasePath: 'docs',
+        indexDocs: true,
+        indexBlog: false,
+        indexPages: false,
+        language: ['zh', 'en'],
+        hashed: true,
+        searchResultLimits: 10,
+        searchResultContextMaxLength: 80,
+        explicitSearchResultPath: true,
+        highlightSearchTermsOnTargetPage: true,
+        searchBarShortcutKeymap: 'mod+k',
+      },
+    ],
+  ],
   themes: ['@docusaurus/theme-mermaid'],
   markdown: {
     mermaid: true,
@@ -100,6 +120,19 @@ const config: Config = {
             {
               label: 'GitHub',
               href: 'https://github.com/ent-loom/ent-loom',
+            },
+          ],
+        },
+        {
+          title: '维护与反馈',
+          items: [
+            {
+              label: '文档反馈',
+              href: 'https://github.com/ent-loom/ent-loom/issues',
+            },
+            {
+              label: '技术讨论',
+              href: 'https://github.com/ent-loom/ent-loom/discussions',
             },
           ],
         },

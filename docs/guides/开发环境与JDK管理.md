@@ -2,33 +2,28 @@
 
 > 状态：Current
 
-本机策略：全局 JDK 8，ent-loom 项目 JDK 21。全局版本不限制其他开发者。兼容边界见
-[Java 运行时与 Spring 兼容性版本线](../evolution/decisions/core/Java运行时与Spring兼容性.md)。
+完整 Maven Reactor 固定使用 JDK 21+。`.java-version` 只提示本地版本，不会替终端、IDE 或 CI 自动切换 JDK；兼容路线见
+[Java 运行时与 Spring 兼容性](../evolution/decisions/core/Java运行时与Spring兼容性.md)。
 
-## 一次配置
-
-```bash
-brew install jenv
-# 将以下两行加入 ~/.zshrc，不要固定写死 JAVA_HOME
-export PATH="$HOME/.jenv/bin:$PATH"
-eval "$(jenv init -)"
-source ~/.zshrc
-jenv enable-plugin export
-source ~/.zshrc
-jenv add "$(/usr/libexec/java_home -v 1.8)"
-jenv add "$(/usr/libexec/java_home -v 21)"
-jenv global 1.8
-```
-
-ent-loom 已提交 `.java-version=21`，进入项目目录后自动使用 JDK 21；其他 Java 8 项目使用全局 JDK 8。
-
-## 验证
+## 验证当前环境
 
 ```bash
-cd /path/to/java8-project && java -version && mvn -version
-cd /path/to/ent-loom && java -version && ./mvnw -version && ./mvnw test
+java -version
+./mvnw -version
 ```
 
-`.java-version` / jenv 选择 JDK；Maven Wrapper 固定 Maven 3.9.12；POM/Enforcer 约束编译目标和 JDK 下限；IDEA 为每个项目单独设置 SDK、Maven Importer 和 Runner JDK。
+两个命令都应显示 Java 21 或更高版本。Windows 使用 `.\mvnw.cmd -version`；在 IDEA 中将 Project SDK、Maven Importer 和 Runner JDK 设为同一个 JDK 21。
 
-若 `java` 与 Maven 版本不一致，检查 jenv `export` 插件和 `~/.zshrc` 中是否仍有固定的 `JAVA_HOME`。
+Maven Wrapper 提供项目要求的 Maven 版本；POM 和 Enforcer 负责编译目标与 JDK 下限。若 `java` 与 Maven 显示的 JDK 不一致，请检查 `JAVA_HOME`、IDEA 的 Maven Runner 和终端启动脚本。
+
+## 构建项目
+
+```bash
+./mvnw -B test
+```
+
+Windows：
+
+```powershell
+.\mvnw.cmd -B test
+```

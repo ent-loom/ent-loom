@@ -2,3 +2,4 @@ node_modules/
 .docusaurus/
 build/
 *.log
+static/search-index.json

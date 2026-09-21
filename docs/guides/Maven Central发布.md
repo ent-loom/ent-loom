@@ -10,7 +10,7 @@
 发布前确认本机已经完成：
 
 - Central 命名空间已验证：`io.github.ent-loom`。
-- `/Users/<用户名>/.m2/settings.xml` 已配置 Central User Token，服务器 ID 为 `central`，文件权限为 `600`。
+- `~/.m2/settings.xml` 已配置 Central User Token，服务器 ID 为 `central`，文件权限为 `600`。
 - 本机已有 GPG 签名密钥，公钥已发布到公共密钥服务器。
 - `release` profile 固定使用公钥指纹 `C73D6B8B4361B8F0593B0B9CF9814D6512123D10`；该公钥必须能从 Central 支持的 PGP 服务器查询到。
 - Token、GPG 私钥和 GPG 口令只保存在本机，不提交到 Git。
@@ -123,7 +123,7 @@ git push origin ent-loom-v1.0.1
 
 | 仓库 | 根目录 | 本次目标发布版本 |
 |---|---|---|
-| `ent-loom` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-loom` | `1.0.1` |
-| `ent-runtime` | `/Users/<用户名>/IdeaProjects/ent-workspace/ent-runtime` | `0.1.1` |
+| `ent-loom` | `<ent-loom-repo>` | `1.0.1` |
+| `ent-runtime` | `<ent-runtime-repo>` | `0.1.1` |
 
 每次只在发生变更的仓库中执行版本升级、验证、上传和 Central 发布。两个仓库同时变更时，分别完成各自的流程。

@@ -8,13 +8,15 @@ const sidebars: SidebarsConfig = {
       label: '使用指南',
       collapsed: false,
       items: [
-        'guides/index',
         'guides/快速开始',
+        'guides/index',
+        'guides/示例工程',
         'guides/开发环境与JDK管理',
-        'guides/Maven Central发布',
+        'guides/本地开发与验收',
         {
           type: 'category',
           label: 'CRUD',
+          collapsed: true,
           items: [
             'guides/crud/index',
             'guides/crud/开发指南',
@@ -27,6 +29,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Meta',
+          collapsed: true,
           items: [
             'guides/meta/index',
             'guides/meta/Meta优先指南',
@@ -37,8 +40,9 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: '领域入口',
-      collapsed: false,
+      collapsed: true,
       items: [
+        'domains/index',
         'domains/crud/index',
         'domains/ddl/index',
         'domains/meta/index',
@@ -47,7 +51,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: '当前架构',
-      collapsed: false,
+      collapsed: true,
       items: [
         'architecture/index',
         'architecture/架构总览',
@@ -55,6 +59,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Core Contract',
+          collapsed: true,
           items: [
             'architecture/core/组件边界与依赖规则',
             'architecture/core/元数据约定与裁决契约',
@@ -73,6 +78,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'CRUD 组件',
+          collapsed: true,
           items: [
             'architecture/components/index',
             'architecture/components/crud/index',
@@ -89,6 +95,46 @@ const sidebars: SidebarsConfig = {
             'architecture/components/crud/任务文件',
             'architecture/components/crud/默认引擎',
             'architecture/components/crud/运行时注册表',
+          ],
+        },
+      ],
+    },
+    {
+      type: 'category',
+      label: '设计与维护',
+      collapsed: true,
+      items: [
+        'evolution/index',
+        {
+          type: 'category',
+          label: '维护者指南',
+          collapsed: true,
+          items: [
+            'guides/Maven Central发布',
+          ],
+        },
+        {
+          type: 'category',
+          label: '设计决策',
+          collapsed: true,
+          items: [
+            'evolution/decisions/index',
+            'evolution/decisions/core/index',
+            'evolution/decisions/crud/index',
+          ],
+        },
+        {
+          type: 'category',
+          label: '路线图',
+          collapsed: true,
+          items: [
+            'evolution/roadmap/index',
+            'evolution/roadmap/当前实施总览',
+            'evolution/roadmap/实施清单',
+            'evolution/roadmap/ddl/index',
+            'evolution/roadmap/crud/index',
+            'evolution/roadmap/meta/index',
+            'evolution/roadmap/core/index',
           ],
         },
       ],
