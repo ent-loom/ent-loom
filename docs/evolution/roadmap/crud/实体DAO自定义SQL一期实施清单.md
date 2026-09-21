@@ -1,6 +1,6 @@
 # 实体 DAO 自定义 SQL 一期实施清单
 
-> 状态：P1 JavaBean 对象路径、P2 受限单行 INSERT、P3 构造器/record 投影已实现；Map 投影暂缓<br />
+> 状态：P1 JavaBean 对象路径、P2 受限单行 INSERT、P3 构造器/record 投影及 Starter 代理验收已实现；Map 投影暂缓<br />
 > 核验日期：2026-09-21<br />
 > 当前合同：[实体 DAO 自定义方法](../../../architecture/components/crud/实体DAO自定义方法.md)<br />
 > 关联：[实体 DAO 实施清单](实体DAO实施清单.md)、[统一读写与分页设计](../../../architecture/components/crud/实体DAO统一读写与分页设计.md)
@@ -22,7 +22,7 @@
 | 实体、明确 DTO、List、Optional | 已实现；DTO 支持无参 JavaBean、参数名构造器和 record 投影 | `JdbcEntityDaoCustomMethodExecutorTest`、`JdbcReflectiveMapperTest` |
 | 单表 PageQuery / PageResult、可选 count | 已实现 | `EntDaoPaginationIntegrationTest`、分页设计文档 |
 | 范围和逻辑删除治理、OR 条件保护、非法 SQL 拒绝 | 已实现 | `JdbcEntityDaoCustomMethodExecutorTest` |
-| Starter 扫描、声明校验、代理执行 | 已实现 | `EntDaoTest` |
+| Starter 扫描、声明校验、代理执行 | 已实现；真实 JDBC 自定义方法已验收 | `EntDaoTest`、`EntDaoCustomMethodIntegrationTest` |
 | JavaBean 对象属性路径 | 已实现；显式路径，不自动展开 | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
 | Map、record 参数路径 | 未实现 | 当前阶段只支持 JavaBean 可读属性；record 仅作为查询结果投影支持 |
 | 自定义 INSERT | 已实现；仅受限单表、显式主键、单行命名参数 VALUES | `JdbcEntityDaoCustomMethodExecutor`、`JdbcEntityDaoCustomMethodExecutorTest` |
@@ -147,13 +147,13 @@ P2.3/P2.4 保证“最终写入值”与范围校验值一致：先按受限 `VA
 
 ## P4：业务与集成验收
 
-- [ ] 在示例工程接入对象参数更新或过滤查询；至少一个真实调用方使用新合同（当前以 JDBC 测试夹具作为阶段调用方，示例工程接入留待 P4）。
+- [ ] 在示例工程接入对象参数更新或过滤查询；当前以 Starter JDBC 测试夹具作为阶段调用方，示例工程接入留待后续真实业务需求。
 - [x] JDBC 单元/H2 测试覆盖对象读取、缺失路径、null、枚举、时间、集合、同参数重复引用及构造器/record 投影。
-- [ ] Starter 测试覆盖启动失败、代理调用、PageQuery 与对象参数混用、事务回滚。
-- [ ] 回归 OR 条件治理、范围隔离、逻辑删除、单对象基数、稳定分页和可选 count。
-- [ ] 按仓库 MySQL 8 integration profile 验证本期新增 SQL 行为；记录数据库版本和测试结果。
-- [ ] 用 JDK 21 执行相关模块构建及仓库要求的兼容检查；未执行或失败项如实记录。
-- [ ] 更新当前能力文档、Mermaid 图、示例及本文验收记录；所有暂缓项均有明确原因。
+- [x] Starter 测试覆盖启动失败、代理调用、PageQuery、对象参数与 record 投影、事务回滚。
+- [x] 回归 OR 条件治理、范围隔离、逻辑删除、单对象基数、稳定分页和可选 count；由 JDBC 引擎回归及 Starter 集成测试共同覆盖。
+- [ ] 按仓库 MySQL 8 integration profile 验证本期新增 SQL 行为；当前仓库没有 CRUD 自定义 SQL 的 MySQL profile，现有 `mysql-integration` 仅覆盖 DDL 模块，暂不将 H2 结果替代 MySQL 结论。
+- [x] 用 JDK 21 执行相关模块构建及测试；兼容边界沿用仓库 Maven Enforcer。
+- [x] 更新当前能力文档、Mermaid 图、示例及本文验收记录；Map/record 参数、Map 投影和 MySQL CRUD profile 的暂缓原因已记录。
 
 ## 后续评估：不纳入一期实现承诺
 
@@ -174,3 +174,5 @@ JOIN 涉及多表，不能称为“单表 JOIN”。复杂跨聚合写、数据�
 | P2 回归 | JDBC 引擎及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`；JDK 21、H2 | 通过，依赖模块 254 tests、JDBC 引擎 119 tests，0 failures，0 errors | 基础 CRUD、范围治理、逻辑删除和自定义 SQL 回归通过 | MySQL 8 profile 与 Starter 代理层仍待 P4 验收 |
 | P3.1-P3.3 | `JdbcReflectiveMapper` 构造器/record 投影与合同测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am -Dtest=JdbcReflectiveMapperTest,JdbcEntityDaoCustomMethodExecutorTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，17 tests，0 failures，0 errors | 已更新 DTO/record 列标签和 null 合同；Map 返回暂缓 | 未覆盖 MySQL 8 profile；Starter 代理层仍待 P4 验收 |
 | P3 回归 | JDBC 引擎及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-engine-jdbc -am test`；JDK 21、H2 | 通过，依赖模块 254 tests、JDBC 引擎 122 tests，0 failures，0 errors | P3 投影与既有 CRUD、自定义 SQL 回归通过 | MySQL 8 profile 与 Starter 代理层仍待 P4 验收 |
+| P4.1-P4.3 | Starter 真实代理自定义 SQL 集成测试 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-spring-boot-starter -am -Dtest=EntDaoCustomMethodIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test`；JDK 21、H2 | 通过，Starter 集成测试 2 tests，0 failures，0 errors | 真实代理已覆盖 JavaBean 对象参数、record 投影、自定义 UPDATE、基础 DAO 回读和外层事务回滚；分页继续由 `EntDaoPaginationIntegrationTest` 覆盖 | 未新增示例工程调用；MySQL CRUD profile 尚不存在 |
+| P4 回归 | Starter 模块及其依赖模块 | `JAVA_HOME=/Users/zubin/Library/Java/JavaVirtualMachines/temurin-21.0.12.1/Contents/Home ./mvnw -pl ent-loom-modules/ent-loom-crud/ent-loom-crud-spring-boot-starter -am test`；JDK 21、H2 | 通过，Starter 模块 125 tests，0 failures，0 errors | Starter 代理声明校验、分页、对象参数、record 投影和事务参与形成真实 JDBC 闭环 | MySQL 8 自定义 SQL 行为未执行，原因同上 |

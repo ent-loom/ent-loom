@@ -1,6 +1,6 @@
 # 实体 DAO 自定义方法
 
-> 状态：Current（单表自定义 SQL、安全修复、页码分页、JavaBean 对象参数路径、受限单行 INSERT 与构造器/record 投影已实现）<br />
+> 状态：Current（单表自定义 SQL、安全修复、页码分页、JavaBean 对象参数路径、受限单行 INSERT、构造器/record 投影与 Starter 真实代理验收已实现）<br />
 > 决策日期：2026-09-18<br />
 > 最近核验：2026-09-21<br />
 > 关联文档：[实体 DAO](./实体DAO.md)
@@ -167,6 +167,7 @@ flowchart TD
 - `JdbcReflectiveMapperTest`：JavaBean、不可变 DTO、record、列别名和 null 映射合同。
 - `EntDaoTest`：Starter 扫描、声明校验及代理执行。
 - `EntDaoPaginationIntegrationTest`：Spring DAO 分页集成验证。
+- `EntDaoCustomMethodIntegrationTest`：Starter 真实代理的 JavaBean 对象参数、record 投影、自定义命令和外层事务回滚验证。
 
 这些为源码及现存测试入口；对象参数、INSERT 和投影阶段的实现与验证记录维护在[实体 DAO 自定义 SQL 一期实施清单](../../../evolution/roadmap/crud/实体DAO自定义SQL一期实施清单.md)。分页实施与既有验收记录继续维护在[统一读写与分页设计第 8 节](./实体DAO统一读写与分页设计.md#8-entquery-页码分页实施方案)。
 
