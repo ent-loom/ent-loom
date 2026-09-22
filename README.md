@@ -3,6 +3,8 @@
 ent-loom 是一个模块化、元数据驱动的 Java 后端框架，面向实体建模与业务能力扩展，
 提供可独立运行、按需组合的组件。
 
+在线文档：[ent-loom.lizubin.online](https://ent-loom.lizubin.online/)
+
 ## 业务 API 设计原则
 
 框架面向对象、面向实体、面向业务；最外层业务实现应语义直接、代码简洁，并能按需扩展。以业务调用代码是否容易理解和维护作为 API 设计的主要判断依据。
@@ -87,6 +89,7 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 
 ## 使用与文档
 
+- [在线文档中心](https://ent-loom.lizubin.online/)：使用指南、架构说明、领域文档与演进记录。
 - [Docusaurus 文档站](./docs-site/README.md)：独立展示工程、本地启动和静态构建方式。
 - [文档中心](./docs/index.md)：文档结构和推荐阅读路径。
 - [开发环境与 JDK 管理](./docs/guides/开发环境与JDK管理.md)：多 JDK、jenv、Maven Wrapper 和 IDEA 配置。

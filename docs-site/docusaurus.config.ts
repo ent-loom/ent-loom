@@ -5,7 +5,7 @@ const config: Config = {
   title: 'ent-loom 文档中心',
   tagline: '面向实体编程的业务友好型框架',
   favicon: 'img/favicon.svg',
-  url: 'https://docs.ent-loom.com',
+  url: 'https://ent-loom.lizubin.online',
   baseUrl: '/',
   organizationName: 'ent-loom',
   projectName: 'ent-loom',
