@@ -130,6 +130,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             return MetaDiagnosticResult.of(null, diagnostics.diagnostics());
         }
 
+        String entityName = resolveEntityName(entityClass, entity);
         List<EntFieldDescriptor> fields = new ArrayList<EntFieldDescriptor>();
         List<EntRelationDescriptor> relations = new ArrayList<EntRelationDescriptor>();
         Set<String> javaFieldNames = new LinkedHashSet<String>();
@@ -148,14 +149,14 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             }
         }
 
-        List<EntIndexDescriptor> indexes = indexes(entityClass, entity);
-        collectFieldDiagnostics(entityClass, entity, fields, diagnostics);
-        collectRelationDiagnostics(entityClass, entity, relations, javaFieldNames, diagnostics);
-        collectIndexDiagnostics(entityClass, entity, indexes, javaFieldNames, diagnostics);
+        List<EntIndexDescriptor> indexes = indexes(entityClass);
+        collectFieldDiagnostics(entityClass, entityName, fields, diagnostics);
+        collectRelationDiagnostics(entityClass, entityName, relations, javaFieldNames, diagnostics);
+        collectIndexDiagnostics(entityClass, entityName, indexes, javaFieldNames, diagnostics);
 
         EntEntityDescriptor descriptor = new DefaultEntEntityDescriptor(
             entityClass,
-            entity.entity(),
+            entityName,
             emptyToNull(entity.service()),
             emptyToNull(entity.value()),
             emptyToNull(entity.description()),
@@ -163,7 +164,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             fields,
             relations,
             indexes,
-            entitySources(entityClass, entity)
+            entitySources(entityClass, entity, entityName)
         );
         return MetaDiagnosticResult.of(descriptor, diagnostics.diagnostics());
     }
@@ -439,7 +440,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         );
     }
 
-    private List<EntIndexDescriptor> indexes(Class<?> entityClass, EntEntity entity) {
+    private List<EntIndexDescriptor> indexes(Class<?> entityClass) {
         List<EntIndexDescriptor> indexes = new ArrayList<EntIndexDescriptor>();
         for (EntIndex index : entityClass.getAnnotationsByType(EntIndex.class)) {
             indexes.add(toIndexDescriptor(index));
@@ -458,7 +459,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
 
     private void collectFieldDiagnostics(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         List<EntFieldDescriptor> fields,
         MetaDiagnosticCollector diagnostics
     ) {
@@ -468,53 +469,53 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
                 continue;
             }
             EntFieldKind kind = EntFieldKind.valueOf(field.fieldKind());
-            collectFieldKindMetaDiagnostics(entityClass, entity, javaField, kind, diagnostics);
-            collectConstraintDiagnostics(entityClass, entity, javaField, diagnostics);
+            collectFieldKindMetaDiagnostics(entityClass, entityName, javaField, kind, diagnostics);
+            collectConstraintDiagnostics(entityClass, entityName, javaField, diagnostics);
         }
     }
 
     private void collectFieldKindMetaDiagnostics(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         Field field,
         EntFieldKind kind,
         MetaDiagnosticCollector diagnostics
     ) {
         if (findAnnotation(field, EntMetaId.class) != null && kind != EntFieldKind.ID) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaId", EntFieldKind.ID, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaId", EntFieldKind.ID, diagnostics);
         }
         if (findAnnotation(field, EntRelation.class) != null && kind != EntFieldKind.REF_ID) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntRelation", EntFieldKind.REF_ID, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntRelation", EntFieldKind.REF_ID, diagnostics);
         }
         if (findAnnotation(field, EntMetaText.class) != null && kind != EntFieldKind.TEXT) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaText", EntFieldKind.TEXT, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaText", EntFieldKind.TEXT, diagnostics);
         }
         if (findAnnotation(field, EntMetaNumber.class) != null && kind != EntFieldKind.NUMBER) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaNumber", EntFieldKind.NUMBER, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaNumber", EntFieldKind.NUMBER, diagnostics);
         }
         if (findAnnotation(field, EntMetaEnum.class) != null && kind != EntFieldKind.ENUM) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaEnum", EntFieldKind.ENUM, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaEnum", EntFieldKind.ENUM, diagnostics);
         }
         if (findAnnotation(field, EntMetaFlag.class) != null && kind != EntFieldKind.FLAG) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaFlag", EntFieldKind.FLAG, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaFlag", EntFieldKind.FLAG, diagnostics);
         }
         if (findAnnotation(field, EntMetaDateTime.class) != null && kind != EntFieldKind.DATETIME) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaDateTime", EntFieldKind.DATETIME, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaDateTime", EntFieldKind.DATETIME, diagnostics);
         }
         if (findAnnotation(field, EntMetaMedia.class) != null && kind != EntFieldKind.MEDIA) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaMedia", EntFieldKind.MEDIA, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaMedia", EntFieldKind.MEDIA, diagnostics);
         }
         if (findAnnotation(field, EntMetaJson.class) != null && kind != EntFieldKind.JSON_DOC) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaJson", EntFieldKind.JSON_DOC, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaJson", EntFieldKind.JSON_DOC, diagnostics);
         }
         if (findAnnotation(field, EntMetaRichContent.class) != null && kind != EntFieldKind.RICH_CONTENT) {
-            addKindMismatchDiagnostic(entityClass, entity, field, kind, "EntMetaRichContent", EntFieldKind.RICH_CONTENT, diagnostics);
+            addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaRichContent", EntFieldKind.RICH_CONTENT, diagnostics);
         }
     }
 
     private void addKindMismatchDiagnostic(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         Field field,
         EntFieldKind actual,
         String annotationName,
@@ -522,7 +523,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         MetaDiagnosticCollector diagnostics
     ) {
         diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.FIELD_KIND_META_MISMATCH)
-            .entity(entity.entity())
+            .entity(entityName)
             .entityClass(entityClass)
             .field(field.getName())
             .property(MetaDescriptorProperties.FIELD_KIND)
@@ -533,44 +534,44 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
 
     private void collectConstraintDiagnostics(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         Field field,
         MetaDiagnosticCollector diagnostics
     ) {
         EntMetaNumber number = findAnnotation(field, EntMetaNumber.class);
         if (number != null) {
             if (number.precision() >= 0 && number.scale() > number.precision()) {
-                addInvalidConstraintDiagnostic(entityClass, entity, field, "number.scale", "scale 不能大于 precision", diagnostics);
+                addInvalidConstraintDiagnostic(entityClass, entityName, field, "number.scale", "scale 不能大于 precision", diagnostics);
             }
-            BigDecimal min = parseDecimalConstraint(entityClass, entity, field, "number.min", number.min(), diagnostics);
-            BigDecimal max = parseDecimalConstraint(entityClass, entity, field, "number.max", number.max(), diagnostics);
+            BigDecimal min = parseDecimalConstraint(entityClass, entityName, field, "number.min", number.min(), diagnostics);
+            BigDecimal max = parseDecimalConstraint(entityClass, entityName, field, "number.max", number.max(), diagnostics);
             if (min != null && max != null && min.compareTo(max) > 0) {
-                addInvalidConstraintDiagnostic(entityClass, entity, field, "number.min", "min 不能大于 max", diagnostics);
+                addInvalidConstraintDiagnostic(entityClass, entityName, field, "number.min", "min 不能大于 max", diagnostics);
             }
-            BigDecimal step = parseDecimalConstraint(entityClass, entity, field, "number.step", number.step(), diagnostics);
+            BigDecimal step = parseDecimalConstraint(entityClass, entityName, field, "number.step", number.step(), diagnostics);
             if (step != null && step.compareTo(BigDecimal.ZERO) <= 0) {
-                addInvalidConstraintDiagnostic(entityClass, entity, field, "number.step", "step 必须大于 0", diagnostics);
+                addInvalidConstraintDiagnostic(entityClass, entityName, field, "number.step", "step 必须大于 0", diagnostics);
             }
         }
         EntMetaEnum enumMeta = findAnnotation(field, EntMetaEnum.class);
         if (enumMeta != null
             && enumMeta.maxSelections() >= 0
             && enumMeta.cardinality() != EntMetaEnum.Cardinality.MULTI) {
-            addInvalidConstraintDiagnostic(entityClass, entity, field, "enum.maxSelections", "maxSelections 仅适用于 MULTI 枚举", diagnostics);
+            addInvalidConstraintDiagnostic(entityClass, entityName, field, "enum.maxSelections", "maxSelections 仅适用于 MULTI 枚举", diagnostics);
         }
         EntMetaDateTime dateTime = findAnnotation(field, EntMetaDateTime.class);
         if (dateTime != null && !isBlank(dateTime.timezone())) {
             try {
                 ZoneId.of(dateTime.timezone().trim());
             } catch (DateTimeException ex) {
-                addInvalidConstraintDiagnostic(entityClass, entity, field, "dateTime.timezone", "timezone 不是有效 ZoneId", diagnostics);
+                addInvalidConstraintDiagnostic(entityClass, entityName, field, "dateTime.timezone", "timezone 不是有效 ZoneId", diagnostics);
             }
         }
     }
 
     private BigDecimal parseDecimalConstraint(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         Field field,
         String property,
         String rawValue,
@@ -583,21 +584,21 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         try {
             return new BigDecimal(normalized);
         } catch (NumberFormatException ex) {
-            addInvalidConstraintDiagnostic(entityClass, entity, field, property, "数值约束不是合法十进制数", diagnostics);
+            addInvalidConstraintDiagnostic(entityClass, entityName, field, property, "数值约束不是合法十进制数", diagnostics);
             return null;
         }
     }
 
     private void addInvalidConstraintDiagnostic(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         Field field,
         String property,
         String message,
         MetaDiagnosticCollector diagnostics
     ) {
         diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.INVALID_FIELD_CONSTRAINT)
-            .entity(entity.entity())
+            .entity(entityName)
             .entityClass(entityClass)
             .field(field.getName())
             .property(property)
@@ -608,7 +609,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
 
     private void collectRelationDiagnostics(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         List<EntRelationDescriptor> relations,
         Set<String> javaFieldNames,
         MetaDiagnosticCollector diagnostics
@@ -616,7 +617,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         for (EntRelationDescriptor relation : relations) {
             if (!javaFieldNames.contains(relation.sourceField())) {
                 diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.RELATION_SOURCE_FIELD_NOT_FOUND)
-                    .entity(entity.entity())
+                    .entity(entityName)
                     .entityClass(entityClass)
                     .field(relation.sourceField())
                     .property(MetaDescriptorProperties.SOURCE_FIELD)
@@ -626,7 +627,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             }
             if (isBlank(relation.targetEntity())) {
                 diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND)
-                    .entity(entity.entity())
+                    .entity(entityName)
                     .entityClass(entityClass)
                     .field(relation.sourceField())
                     .property(MetaDescriptorProperties.TARGET_ENTITY)
@@ -637,7 +638,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             SourcedValue<?> sourceFieldSource = relation.sourcedValue(MetaDescriptorProperties.SOURCE_FIELD);
             if (sourceFieldSource != null && sourceFieldSource.source() == com.entloom.meta.contract.value.MetaValueSource.INFERRED) {
                 diagnostics.add(MetaDiagnostic.info(MetaDiagnosticCode.INFERRED_VALUE_USED)
-                    .entity(entity.entity())
+                    .entity(entityName)
                     .entityClass(entityClass)
                     .field(relation.sourceField())
                     .source(sourceFieldSource.source())
@@ -651,7 +652,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
 
     private void collectIndexDiagnostics(
         Class<?> entityClass,
-        EntEntity entity,
+        String entityName,
         List<EntIndexDescriptor> indexes,
         Set<String> javaFieldNames,
         MetaDiagnosticCollector diagnostics
@@ -660,7 +661,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         for (EntIndexDescriptor index : indexes) {
             if (!isBlank(index.indexName()) && !indexNames.add(index.indexName())) {
                 diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.DUPLICATE_INDEX)
-                    .entity(entity.entity())
+                    .entity(entityName)
                     .entityClass(entityClass)
                     .property(MetaDescriptorProperties.INDEX_NAME)
                     .location(entityClass.getName() + "#" + index.indexName())
@@ -670,7 +671,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             for (String fieldName : index.fields()) {
                 if (!javaFieldNames.contains(fieldName)) {
                     diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.INDEX_FIELD_NOT_FOUND)
-                        .entity(entity.entity())
+                        .entity(entityName)
                         .entityClass(entityClass)
                         .field(fieldName)
                         .property(MetaDescriptorProperties.FIELDS)
@@ -946,10 +947,28 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         return new DefaultEntFieldConstraintDescriptor(name, value, sources);
     }
 
-    private Map<String, SourcedValue<?>> entitySources(Class<?> entityClass, EntEntity entity) {
+    private String resolveEntityName(Class<?> entityClass, EntEntity entity) {
+        String explicitName = emptyToNull(entity.entity());
+        if (explicitName != null) {
+            return explicitName;
+        }
+        String simpleName = entityClass.getSimpleName();
+        // 连续大写前缀整体转小写，保留后续单词首字母：URLValue -> urlValue。
+        int prefixLength = 0;
+        while (prefixLength < simpleName.length() && Character.isUpperCase(simpleName.charAt(prefixLength))) {
+            prefixLength++;
+        }
+        if (prefixLength > 1 && prefixLength < simpleName.length()) {
+            prefixLength--;
+        }
+        return simpleName.substring(0, prefixLength).toLowerCase(java.util.Locale.ROOT)
+            + simpleName.substring(prefixLength);
+    }
+
+    private Map<String, SourcedValue<?>> entitySources(Class<?> entityClass, EntEntity entity, String entityName) {
         Map<String, SourcedValue<?>> sources = new LinkedHashMap<String, SourcedValue<?>>();
         sources.put(MetaDescriptorProperties.ENTITY_CLASS, SourcedValue.inferred(entityClass));
-        sources.put(MetaDescriptorProperties.ENTITY_NAME, SourcedValue.metaExplicit(entity.entity()));
+        sources.put(MetaDescriptorProperties.ENTITY_NAME, isBlank(entity.entity()) ? SourcedValue.inferred(entityName) : SourcedValue.metaExplicit(entityName));
         sources.put(MetaDescriptorProperties.SERVICE_NAME, stringSource(emptyToNull(entity.service())));
         sources.put(MetaDescriptorProperties.LABEL, stringSource(emptyToNull(entity.value())));
         sources.put(MetaDescriptorProperties.DESCRIPTION, stringSource(emptyToNull(entity.description())));

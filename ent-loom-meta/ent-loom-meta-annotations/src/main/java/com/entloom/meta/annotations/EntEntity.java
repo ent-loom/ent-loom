@@ -14,9 +14,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface EntEntity {
     /**
-     * 实体英文标识，通常用于持久化和接口约定。
+     * 实体英文标识，通常用于持久化和接口约定；为空时使用实体类简单名的小驼峰形式。
      */
-    String entity();
+    String entity() default "";
 
     /**
      * 实体展示名称，空字符串表示未显式指定。

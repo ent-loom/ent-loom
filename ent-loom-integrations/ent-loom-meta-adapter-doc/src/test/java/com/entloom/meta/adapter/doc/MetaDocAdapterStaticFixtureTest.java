@@ -137,7 +137,7 @@ class MetaDocAdapterStaticFixtureTest {
         return false;
     }
 
-    @EntEntity(entity = "order", value = "订单")
+    @EntEntity("订单")
     @EntIndex(name = "uk_order_no", fields = {"orderNo"}, unique = true)
     @EntDocEntity(name = "订单文档覆盖")
     private static final class Order {
@@ -166,7 +166,7 @@ class MetaDocAdapterStaticFixtureTest {
         private Long orderId;
     }
 
-    @EntEntity(entity = "customer")
+    @EntEntity
     private static final class Customer {
         @EntField
         private Long id;

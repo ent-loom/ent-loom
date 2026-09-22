@@ -22,7 +22,7 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 
-@EntEntity(entity = "student", value = "学生")
+@EntEntity("学生")
 public class Student {
     @EntField("编号")
     private Long id;
@@ -38,6 +38,8 @@ public class Student {
     private Long classId;
 }
 ```
+
+`entity` 可省略，默认使用类简单名的小驼峰形式：`Student → student`、`OrderItem → orderItem`、`URLValue → urlValue`。显式指定的标识优先；若需保持标识不随类重命名变化，请显式填写 `entity`。实体标识与数据库表名分别推断，表名仍由 `table` 覆盖。
 
 `class` 是目标实体标识；`sourceField` 省略时取当前字段名 `classId`。此处只声明关系，实际使用时还需定义目标班级实体，并按消费组件要求注册。声明关系本身不会执行 JOIN 或加载班级数据。
 

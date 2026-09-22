@@ -101,7 +101,7 @@ class MetaCrudAdapterStaticFixtureTest {
         return false;
     }
 
-    @EntEntity(entity = "order", service = "order-service")
+    @EntEntity(service = "order-service")
     @EntCrudEntity(name = "order", table = "sales_order")
     private static final class Order {
         @EntField
@@ -133,7 +133,7 @@ class MetaCrudAdapterStaticFixtureTest {
         private String sku;
     }
 
-    @EntEntity(entity = "customer", service = "customer-service")
+    @EntEntity(service = "customer-service")
     @EntCrudEntity(name = "customer", table = "crm_customer")
     private static final class Customer {
         @EntField

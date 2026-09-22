@@ -1,6 +1,12 @@
 package com.example.minicommerce.order;
 
 import com.example.minicommerce.order.dao.OrderItemDao;
+import com.example.minicommerce.order.dao.OrderDao;
+import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.OrderItem;
+import com.example.minicommerce.order.enums.OrderStatus;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,13 +30,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class OrderDaoIntegrationTest {
     @Autowired OrderItemDao orderItems;
+    @Autowired OrderDao orders;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
 
     @BeforeEach
     void seed() {
-        jdbc.update("delete from commerce_order_item");
-        jdbc.update("delete from commerce_order");
+        jdbc.update("delete from order_item");
+        jdbc.update("delete from `order`");
         jdbc.update("delete from product");
         jdbc.update("delete from customer");
         jdbc.update("insert into customer values (1, '测试客户', 'test@example.com')");
@@ -38,9 +45,34 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
+    void shouldUseConventionTableNamesForDaoAndCustomSql() {
+        Order order = new Order();
+        order.setId(100L);
+        order.setCustomerId(1L);
+        order.setStatus(OrderStatus.CREATED);
+        order.setTotalAmount(BigDecimal.TEN);
+        order.setCreatedAt(LocalDateTime.now());
+        orders.insert(order);
+
+        OrderItem item = new OrderItem();
+        item.setId(101L);
+        item.setOrderId(100L);
+        item.setProductId(10L);
+        item.setProductName("商品一");
+        item.setUnitPrice(BigDecimal.TEN);
+        item.setQuantity(1);
+        item.setLineAmount(BigDecimal.TEN);
+        orderItems.insert(item);
+
+        assertEquals(1, jdbc.queryForObject("select count(*) from `order`", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        assertEquals(Long.valueOf(101L), orderItems.findByOrderId(100L).get(0).getId());
+    }
+
+    @Test
     void shouldPersistGeneratedKeysAndAssembleSnapshotDetail() throws Exception {
         placeOrder(1);
-        Long orderId = jdbc.queryForObject("select max(id) from commerce_order", Long.class);
+        Long orderId = jdbc.queryForObject("select max(id) from `order`", Long.class);
         jdbc.update("update product set price=99, name='改名商品' where id=10");
         mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"filter\":{\"id\":" + orderId + "}}}"))
@@ -58,20 +90,20 @@ class OrderDaoIntegrationTest {
 
     @Test
     void secondItemFailureShouldRollbackOrderAndFirstItem() throws Exception {
-        jdbc.execute("alter table commerce_order_item add constraint reject_second check(product_id <> 20)");
+        jdbc.execute("alter table order_item add constraint reject_second check(product_id <> 20)");
         try {
             placeOrder(1, status().isInternalServerError());
-            assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
-            assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order_item", Integer.class));
+            assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
+            assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
         } finally {
-            jdbc.execute("alter table commerce_order_item drop constraint reject_second");
+            jdbc.execute("alter table order_item drop constraint reject_second");
         }
     }
 
     @Test
     void handlerAlsoValidatesCommandPayload() throws Exception {
         placeOrder(0, status().isBadRequest());
-        assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
     }
 
     @Test

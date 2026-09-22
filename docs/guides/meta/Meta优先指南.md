@@ -31,9 +31,7 @@ Runtime Model 是组件最终执行契约
 只表达通用语义时，仅使用 Meta 注解：
 
 ```java
-@EntEntity(
-    entity = "student"
-)
+@EntEntity
 public class Student {
     @EntField(value = "姓名", required = OptionalBoolean.TRUE)
     private String studentName;

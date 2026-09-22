@@ -9,7 +9,6 @@ import lombok.Setter;
 
 /** 商品主数据实体，交由 ent-loom 通用 CRUD 维护。 */
 @EntEntity(
-    entity = "product",
     value = "商品",
     description = "商城商品主数据",
     service = "mini-commerce"

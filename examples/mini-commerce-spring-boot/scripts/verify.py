@@ -214,10 +214,10 @@ def verify(repository=None, skip_build=False):
                   f"{label} 失败响应不匹配：{status} {error}")
 
         # 仅在独立验收库中增加约束，使订单头写入后，明细写入失败。
-        counts_sql = ("select (select count(*) from commerce_order), "
-                      "(select count(*) from commerce_order_item)")
+        counts_sql = ("select (select count(*) from `order`), "
+                      "(select count(*) from order_item)")
         before_failure = sql_query(compose, env, counts_sql)
-        sql_query(compose, env, "alter table commerce_order_item add constraint verify_quantity_failure "
+        sql_query(compose, env, "alter table order_item add constraint verify_quantity_failure "
                                "check (quantity <> 3)")
         try:
             status, error = request(base_url + "/api/ent-crud/order/action/place", {
@@ -229,11 +229,11 @@ def verify(repository=None, skip_build=False):
             check(after_failure == before_failure, "明细写入失败后存在订单或明细残留")
             (logs / "rollback.sql.tsv").write_text(before_failure + "\n" + after_failure + "\n")
         finally:
-            sql_query(compose, env, "alter table commerce_order_item drop check verify_quantity_failure")
+            sql_query(compose, env, "alter table order_item drop check verify_quantity_failure")
 
         order_sql = run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
                                    "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e",
-                                   "select id, customer_id, status, total_amount from commerce_order "
+                                   "select id, customer_id, status, total_amount from `order` "
                                    f"where id = {order_id}"], env, capture_output=True, text=True).stdout.strip()
         (logs / "order.sql.tsv").write_text(order_sql + "\n")
         check(order_sql.split("\t") == [str(order_id), str(customer_id), "CREATED", "39.80"],
@@ -241,7 +241,7 @@ def verify(repository=None, skip_build=False):
         item_sql = run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
                                   "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e",
                                   "select order_id, product_id, product_name, unit_price, quantity, line_amount "
-                                  f"from commerce_order_item where order_id = {order_id}"],
+                                  f"from order_item where order_id = {order_id}"],
                        env, capture_output=True, text=True).stdout.strip()
         (logs / "order-item.sql.tsv").write_text(item_sql + "\n")
         check(item_sql.split("\t") == [str(order_id), str(product_id), "Entity Book", "19.90", "2", "39.80"],

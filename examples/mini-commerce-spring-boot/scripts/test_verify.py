@@ -44,7 +44,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                 elif any("select count(*)" in part for part in command):
                     count_queries += 1
                     output = "2\t1\n" if fail_rollback and count_queries > 1 else "1\t1\n"
-                elif any("commerce_order_item" in part for part in command):
+                elif any("order_item" in part for part in command):
                     output = "123\t1001\tEntity Book\t19.90\t2\t39.80\n"
                 else:
                     output = "123\t2001\tCREATED\t39.80\n"

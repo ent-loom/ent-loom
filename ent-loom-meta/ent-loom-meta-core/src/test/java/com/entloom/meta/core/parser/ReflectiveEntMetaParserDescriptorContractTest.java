@@ -38,6 +38,44 @@ import org.junit.jupiter.api.Test;
 class ReflectiveEntMetaParserDescriptorContractTest {
 
     @Test
+    void parser_should_infer_entity_name_and_record_its_source() {
+        EntEntityDescriptor descriptor = new ReflectiveEntMetaParser().parse(OrderItem.class);
+        Assertions.assertEquals("orderItem", descriptor.entityName());
+        Assertions.assertEquals("订单明细", descriptor.label());
+        Assertions.assertEquals("orderItem", descriptor.sourcedValue(MetaDescriptorProperties.ENTITY_NAME).value());
+        assertSource(descriptor.sourcedValue(MetaDescriptorProperties.ENTITY_NAME), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
+        Assertions.assertEquals("urlValue", new ReflectiveEntMetaParser().parse(URLValue.class).entityName());
+        Assertions.assertEquals("sku", new ReflectiveEntMetaParser().parse(SKU.class).entityName());
+    }
+
+    @Test
+    void diagnostics_should_use_inferred_entity_name_when_entity_is_blank() {
+        MetaDiagnosticResult<EntEntityDescriptor> result = new ReflectiveEntMetaParser().parseWithDiagnostics(InvalidEntity.class);
+        Assertions.assertEquals("invalidEntity", result.value().entityName());
+        Assertions.assertFalse(result.diagnostics().isEmpty());
+        for (MetaDiagnostic diagnostic : result.diagnostics()) {
+            Assertions.assertEquals("invalidEntity", diagnostic.entity());
+        }
+    }
+
+    @EntEntity("订单明细")
+    private static class OrderItem {
+    }
+
+    @EntEntity
+    private static class URLValue {
+    }
+
+    @EntEntity
+    private static class SKU {
+    }
+
+    @EntEntity(entity = "  ")
+    @EntIndex(fields = {"missing"})
+    private static class InvalidEntity {
+    }
+
+    @Test
     void parser_should_fill_minimal_descriptor_contract_for_crud_and_doc_projection() {
         EntEntityDescriptor descriptor = new ReflectiveEntMetaParser().parse(ContractEntity.class);
 

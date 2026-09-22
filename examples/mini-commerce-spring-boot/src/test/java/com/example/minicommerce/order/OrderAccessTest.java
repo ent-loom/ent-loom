@@ -44,8 +44,8 @@ class OrderAccessTest {
         SubjectContext subject = new SubjectContext();
         subject.setSubjectId("local-developer");
         when(subjectResolver.resolveOrThrow()).thenReturn(subject);
-        jdbc.update("delete from commerce_order_item");
-        jdbc.update("delete from commerce_order");
+        jdbc.update("delete from order_item");
+        jdbc.update("delete from `order`");
     }
 
     @Test
@@ -110,8 +110,8 @@ class OrderAccessTest {
             .andExpect(status).andExpect(jsonPath("$.code").value(code));
         mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
             .andExpect(status).andExpect(jsonPath("$.code").value(code));
-        assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
-        assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order_item", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
     }
 
     private void rules(List<CrudPermissionRule> rules) {

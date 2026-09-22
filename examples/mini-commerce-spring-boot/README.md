@@ -43,3 +43,5 @@ python3 scripts/verify.py
 使用当前工作区构件（版本号相同不代表 Maven Central 已包含这些能力）：先在仓库根目录使用 JDK 21 执行 `./mvnw -pl :ent-loom-crud-spring-boot-starter,:ent-loom-meta-spring-boot-starter -am -DskipTests -Dmaven.javadoc.skip=true install`，再执行示例测试或验收脚本。隔离仓库安装时，脚本需同时传入 `--maven-repository <临时目录>`。
 
 商品、客户、订单和明细统一使用数据库生成主键，实体声明与 MySQL `auto_increment` 表结构保持一致。Customer/Product 必填约束由实体元数据驱动；PlaceOrderCommand 为不可变 record，Handler 校验业务输入。停止 Compose：docker compose down（加 -v 删除数据卷）。生产环境请接入正式认证、权限、数据范围、迁移和审计。
+
+实体与表名统一采用默认命名：`Order → order`、`OrderItem → order_item`，不额外配置 `entity` 或 `table`。`order` 是 SQL 关键字，手写 SQL 使用反引号引用；框架生成的 SQL 自动引用标识符。
