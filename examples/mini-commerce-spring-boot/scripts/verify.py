@@ -138,13 +138,13 @@ def verify(repository=None, skip_build=False):
             check(forbidden not in contract_text, f"实体文档泄露敏感字段：{forbidden}")
 
         product_id = crud_create(base_url, "product", {
-            "id": 1001, "name": "Entity Book", "price": 19.90, "active": True,
+            "name": "Entity Book", "price": 19.90, "active": True,
         }, project + "-product")
         inactive_product_id = crud_create(base_url, "product", {
-            "id": 1002, "name": "Inactive Product", "price": 9.90, "active": False,
+            "name": "Inactive Product", "price": 9.90, "active": False,
         }, project + "-inactive-product")
         customer_id = crud_create(base_url, "customer", {
-            "id": 2001, "displayName": "Ada Lovelace", "email": "ada@example.com",
+            "displayName": "Ada Lovelace", "email": "ada@example.com",
         }, project + "-customer")
 
         status, saleable = request(base_url + "/api/ent-crud/product/page/saleable", {

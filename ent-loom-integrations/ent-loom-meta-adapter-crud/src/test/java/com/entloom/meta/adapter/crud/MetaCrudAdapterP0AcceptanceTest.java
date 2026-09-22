@@ -48,6 +48,11 @@ class MetaCrudAdapterP0AcceptanceTest {
         Assertions.assertFalse(model.getField("status").isInputRequired());
     }
 
+    @Test
+    void 无主键生成依据时应缺省为显式主键() {
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(DefaultValueEntity.class));
+    }
+
     @EntEntity(entity = "input_hint_entity")
     static class InputHintEntity {
         /** 业务必填约束不等同于数据库非空。 */
@@ -146,11 +151,11 @@ class MetaCrudAdapterP0AcceptanceTest {
     }
 
     @Test
-    void p0_crud_acceptance_should_infer_only_jpa_identity_generation() {
+    void p0_crud_acceptance_should_infer_only_supported_jpa_identity_generation() {
         Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaIdentityOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaAutoOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaSequenceOrder.class));
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, idPolicy(JpaTableOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaAutoOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaSequenceOrder.class));
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(JpaTableOrder.class));
     }
 
     private EntityIdPolicy idPolicy(Class<?> entityClass) {

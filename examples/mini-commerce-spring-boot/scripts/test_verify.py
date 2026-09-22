@@ -19,6 +19,7 @@ class VerificationLifecycleTest(unittest.TestCase):
             commands = []
             count_queries = 0
             processes = []
+            generated_ids = {"product": 1001, "customer": 2001}
 
             def launch(command, **kwargs):
                 self.assertIn("--server.port=0", command)
@@ -62,7 +63,8 @@ class VerificationLifecycleTest(unittest.TestCase):
                     }
                 if url.endswith("/create"):
                     payload = body["payload"]
-                    return 200, {"success": True, "data": {"id": payload["id"]}}
+                    entity = url.split("/api/ent-crud/")[1].split("/")[0]
+                    return 200, {"success": True, "data": {"id": generated_ids[entity]}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
                 if url.endswith("/product/page/saleable"):

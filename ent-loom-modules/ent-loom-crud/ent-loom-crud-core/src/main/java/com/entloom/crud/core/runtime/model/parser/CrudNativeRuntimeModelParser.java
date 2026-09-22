@@ -295,7 +295,7 @@ public class CrudNativeRuntimeModelParser {
                 }
             }
         }
-        return EntityIdPolicy.GENERATED;
+        return EntityIdPolicy.EXPLICIT;
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {

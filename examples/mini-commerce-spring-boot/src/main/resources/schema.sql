@@ -1,12 +1,12 @@
 create table if not exists product (
-    id bigint not null primary key,
+    id bigint not null auto_increment primary key,
     name varchar(128) not null,
     price decimal(10, 2) not null,
     active boolean not null
 );
 
 create table if not exists customer (
-    id bigint not null primary key,
+    id bigint not null auto_increment primary key,
     display_name varchar(128) not null,
     email varchar(255) not null
 );

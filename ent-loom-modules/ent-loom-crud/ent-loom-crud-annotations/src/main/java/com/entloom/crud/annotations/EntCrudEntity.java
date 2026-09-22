@@ -34,7 +34,8 @@ public @interface EntCrudEntity {
     String idField() default "id";
 
     /**
-     * 主键写入策略；未配置时由解析器根据主键字段上的持久化注解推断。
+     * 主键写入策略；未配置时先根据主键字段上的持久化注解推断，
+     * 没有生成依据时按调用方显式提供主键处理。
      *
      * @return 主键写入策略
      */

@@ -56,12 +56,18 @@ class CrudNativeRuntimeModelParserTest {
     void native_parser_should_infer_only_explicit_identity_generation_strategy() {
         Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaIdentityOrderEntity.class)
             .getEntityMeta(JpaIdentityOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaAutoOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaAutoOrderEntity.class)
             .getEntityMeta(JpaAutoOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaSequenceOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaSequenceOrderEntity.class)
             .getEntityMeta(JpaSequenceOrderEntity.class).getIdPolicy());
-        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry(JpaTableOrderEntity.class)
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(JpaTableOrderEntity.class)
             .getEntityMeta(JpaTableOrderEntity.class).getIdPolicy());
+    }
+
+    @Test
+    void native_parser_should_default_to_explicit_id_without_generation_metadata() {
+        Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(NativeDateTimeOrder.class)
+            .getEntityMeta(NativeDateTimeOrder.class).getIdPolicy());
     }
 
     @Test
