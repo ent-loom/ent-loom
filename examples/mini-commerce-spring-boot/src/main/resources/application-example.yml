@@ -14,81 +14,80 @@ ent:
       doc:
         enabled: true
 
-entloom:
-  doc:
-    # P2 通常不用填：建议由 ent.loom.meta.doc.enabled 推导。
-    contract:
-      # P2 通常不用填：契约默认随文档能力启用。
-      enabled: true
-      # P0 必填：是否允许对外暴露，默认应为 false。
-      exposure:
+    doc:
+      # P2 通常不用填：建议由 ent.loom.meta.doc.enabled 推导。
+      contract:
+        # P2 通常不用填：契约默认随文档能力启用。
         enabled: true
-        # P0 必填：明确允许访问的主体，生产环境不能依赖默认主体。
-        subject-ids: [local-developer]
-        # P1 建议：默认按元数据推导；这里只保留字段暴露例外。
-        fields:
-          product: [id, name, price, active]
-          customer: [id, displayName, email]
-      # P1 建议：需要 HTTP 文档端点时开启。
-      http:
+        # P0 必填：是否允许对外暴露，默认应为 false。
+        exposure:
+          enabled: true
+          # P0 必填：明确允许访问的主体，生产环境不能依赖默认主体。
+          subject-ids: [local-developer]
+          # P1 建议：默认按元数据推导；这里只保留字段暴露例外。
+          fields:
+            product: [id, name, price, active]
+            customer: [id, displayName, email]
+        # P1 建议：需要 HTTP 文档端点时开启。
+        http:
+          enabled: true
+    crud:
+      # P3 特殊场景：仅示例或开发环境使用。
+      example:
         enabled: true
-  crud:
-    # P3 特殊场景：仅示例或开发环境使用。
-    example:
-      enabled: true
-    # P1 建议：需要自动 CRUD Controller 时开启。
-    controller:
-      enabled: true
-      # P2 通常不用填：使用默认路径即可。
-      base-path: /api/ent-crud
-      # P1 建议：明确允许暴露的实体，避免全量暴露。
-      include-entities:
-        - product
-        - customer
-        - order  # 订单仅授权下单与详情场景，见下方 permission-rules
-    # P1 建议：需要查询能力时开启。
-    query:
-      enabled: true
-    # P1 建议：需要写入能力时开启。
-    command:
-      enabled: true
-    # P3 特殊场景：仅有批量导入需求时开启。
-    import:
-      enabled: false
-    # P3 特殊场景：仅有数据导出需求时开启。
-    export:
-      enabled: false
-    # P2 通常不用填：默认 safe，生产环境建议保持。
-    sql-log:
-      mode: safe
-    # P0 必填：存在 HTTP/CRUD 暴露时必须配置权限边界。
-    governance:
-      # P0 必填：按资源、动作、场景和主体声明授权。
-      permission-rules:
-        - resource: order
-          action: COMMAND:ACTION
-          scene: place
-          decision: ALLOW
-          subject-ids:
-            - local-developer
-        - resource: order
-          action: QUERY:DETAIL
-          scene: detail
-          decision: ALLOW
-          subject-ids:
-            - local-developer
-        - resource: product
-          action: '*'
-          scene: '*'
-          decision: ALLOW
-          subject-ids:
-            - local-developer
-        - resource: customer
-          action: '*'
-          scene: '*'
-          decision: ALLOW
-          subject-ids:
-            - local-developer
-      # P1 建议：需要审计持久化时开启。
-      audit:
-        persist-to-jdbc: false
+      # P1 建议：需要自动 CRUD Controller 时开启。
+      controller:
+        enabled: true
+        # P2 通常不用填：使用默认路径即可。
+        base-path: /api/ent-crud
+        # P1 建议：明确允许暴露的实体，避免全量暴露。
+        include-entities:
+          - product
+          - customer
+          - order  # 订单仅授权下单与详情场景，见下方 permission-rules
+      # P1 建议：需要查询能力时开启。
+      query:
+        enabled: true
+      # P1 建议：需要写入能力时开启。
+      command:
+        enabled: true
+      # P3 特殊场景：仅有批量导入需求时开启。
+      import:
+        enabled: false
+      # P3 特殊场景：仅有数据导出需求时开启。
+      export:
+        enabled: false
+      # P2 通常不用填：默认 safe，生产环境建议保持。
+      sql-log:
+        mode: safe
+      # P0 必填：存在 HTTP/CRUD 暴露时必须配置权限边界。
+      governance:
+        # P0 必填：按资源、动作、场景和主体声明授权。
+        permission-rules:
+          - resource: order
+            action: COMMAND:ACTION
+            scene: place
+            decision: ALLOW
+            subject-ids:
+              - local-developer
+          - resource: order
+            action: QUERY:DETAIL
+            scene: detail
+            decision: ALLOW
+            subject-ids:
+              - local-developer
+          - resource: product
+            action: '*'
+            scene: '*'
+            decision: ALLOW
+            subject-ids:
+              - local-developer
+          - resource: customer
+            action: '*'
+            scene: '*'
+            decision: ALLOW
+            subject-ids:
+              - local-developer
+        # P1 建议：需要审计持久化时开启。
+        audit:
+          persist-to-jdbc: false

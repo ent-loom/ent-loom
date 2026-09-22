@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"${entloom.crud.controller.base-path:/api/ent-crud}"})
+@RequestMapping({"${ent.loom.crud.controller.base-path:/api/ent-crud}"})
 @RequiredArgsConstructor
 public class EntCrudCommandController {
 

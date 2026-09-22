@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Configuration;
  * Command 引擎装配。
  */
 @Configuration
-@ConditionalOnProperty(name = "entloom.crud.command.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "ent.loom.crud.command.enabled", havingValue = "true", matchIfMissing = true)
 public class CrudCommandEngineConfiguration {
     /**
      * 默认命令处理注册表，自动注入 JDBC 默认处理器。

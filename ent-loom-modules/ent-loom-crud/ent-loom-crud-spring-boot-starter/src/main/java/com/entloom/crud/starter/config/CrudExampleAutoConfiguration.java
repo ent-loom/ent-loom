@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 /** 显式开启的演示治理装配；不授予操作权限，不开放 HTTP 或文档。 */
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureBefore(CrudAutoConfiguration.class)
-@ConditionalOnProperty(prefix = "entloom.crud.example", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "ent.loom.crud.example", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(CrudExampleProperties.class)
 public class CrudExampleAutoConfiguration {
     @Bean
@@ -22,7 +22,7 @@ public class CrudExampleAutoConfiguration {
     public CrudSubjectResolver exampleCrudSubjectResolver(CrudExampleProperties properties) {
         String subjectId = properties.getSubjectId();
         if (subjectId == null || subjectId.trim().isEmpty()) {
-            throw new IllegalArgumentException("entloom.crud.example.subject-id 不能为空");
+            throw new IllegalArgumentException("ent.loom.crud.example.subject-id 不能为空");
         }
         String resolvedSubjectId = subjectId.trim();
         // 主体可变，每次解析创建独立实例，避免请求之间共享状态。
@@ -35,7 +35,7 @@ public class CrudExampleAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(CrudDataScopeResolver.class)
-    @ConditionalOnProperty(prefix = "entloom.crud.example", name = "allow-all-data-scope",
+    @ConditionalOnProperty(prefix = "ent.loom.crud.example", name = "allow-all-data-scope",
         havingValue = "true", matchIfMissing = true)
     public CrudDataScopeResolver exampleCrudDataScopeResolver() {
         return new AllowAllCrudDataScopeResolver();

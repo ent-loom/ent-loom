@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 统计 HTTP 入口。
  */
 @RestController
-@RequestMapping({"${entloom.crud.controller.base-path:/api/ent-crud}"})
+@RequestMapping({"${ent.loom.crud.controller.base-path:/api/ent-crud}"})
 @RequiredArgsConstructor
 public class EntCrudStatsController {
     private final EntCrudStatsFacade entCrudStatsFacade;

@@ -22,9 +22,9 @@ import java.util.function.Function;
  */
 public final class CrudRuntimeTaskMapper {
     /** runtime 任务属性中的错误文件 ID。 */
-    public static final String ERROR_FILE_ID_ATTRIBUTE = "entloom.crud.errorFileId";
+    public static final String ERROR_FILE_ID_ATTRIBUTE = "ent.loom.crud.errorFileId";
 
-    private static final String PREFIX = "entloom.crud.";
+    private static final String PREFIX = "ent.loom.crud.";
     private static final String SCENE = PREFIX + "scene";
     private static final String ROOT_TYPE = PREFIX + "rootType";
     private static final String OPERATION_DOMAIN = PREFIX + "operationDomain";

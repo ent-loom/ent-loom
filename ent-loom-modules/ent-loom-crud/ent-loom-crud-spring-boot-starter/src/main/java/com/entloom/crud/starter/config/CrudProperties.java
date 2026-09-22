@@ -24,7 +24,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * ent-loom-crud 配置项。
  */
-@ConfigurationProperties(prefix = "entloom.crud")
+@ConfigurationProperties(prefix = "ent.loom.crud")
 @Getter
 @Setter
 public class CrudProperties {
@@ -276,7 +276,7 @@ public class CrudProperties {
             CrudReadResultMode resolved = CrudReadResultMode.from(normalized);
             if (resolved == null) {
                 throw new IllegalArgumentException(
-                    "entloom.crud.controller.default-read-result-mode 仅支持 MAP 或 ENTITY，当前值: " + defaultReadResultMode
+                    "ent.loom.crud.controller.default-read-result-mode 仅支持 MAP 或 ENTITY，当前值: " + defaultReadResultMode
                 );
             }
             this.defaultReadResultMode = resolved;
@@ -291,7 +291,7 @@ public class CrudProperties {
             CrudNullFieldMode resolved = CrudNullFieldMode.from(normalized);
             if (resolved == null) {
                 throw new IllegalArgumentException(
-                    "entloom.crud.controller.default-null-field-mode 仅支持 INCLUDE 或 OMIT，当前值: " + defaultNullFieldMode
+                    "ent.loom.crud.controller.default-null-field-mode 仅支持 INCLUDE 或 OMIT，当前值: " + defaultNullFieldMode
                 );
             }
             this.defaultNullFieldMode = resolved;

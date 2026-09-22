@@ -8,42 +8,41 @@ ent:
       doc:
         enabled: true
 
-entloom:
-  doc:
-    contract:
-      enabled: true
-      exposure:
+    doc:
+      contract:
         enabled: true
-        subject-ids: [local-developer]
-        fields:
-          customer_profile: [id, displayName, email]
-      http:
+        exposure:
+          enabled: true
+          subject-ids: [local-developer]
+          fields:
+            customer_profile: [id, displayName, email]
+        http:
+          enabled: true
+    crud:
+      example:
         enabled: true
-  crud:
-    example:
-      enabled: true
-    controller:
-      enabled: true
-      base-path: /api/ent-crud
-      include-entities:
-        - customer_profile
-    query:
-      enabled: true
-    command:
-      enabled: true
-    import:
-      enabled: false
-    export:
-      enabled: false
-    sql-log:
-      mode: safe
-    governance:
-      permission-rules:
-        - resource: customer_profile
-          action: '*'
-          scene: '*'
-          decision: ALLOW
-          subject-ids:
-            - local-developer
-      audit:
-        persist-to-jdbc: false
+      controller:
+        enabled: true
+        base-path: /api/ent-crud
+        include-entities:
+          - customer_profile
+      query:
+        enabled: true
+      command:
+        enabled: true
+      import:
+        enabled: false
+      export:
+        enabled: false
+      sql-log:
+        mode: safe
+      governance:
+        permission-rules:
+          - resource: customer_profile
+            action: '*'
+            scene: '*'
+            decision: ALLOW
+            subject-ids:
+              - local-developer
+        audit:
+          persist-to-jdbc: false

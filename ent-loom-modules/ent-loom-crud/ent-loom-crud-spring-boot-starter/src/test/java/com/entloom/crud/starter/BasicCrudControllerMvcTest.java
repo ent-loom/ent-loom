@@ -24,23 +24,23 @@ class BasicCrudControllerMvcTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.sql-log.mode=full"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.sql-log.mode=full"
         );
     private final ApplicationContextRunner defaultLikeContextRunner = new ApplicationContextRunner()
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.sql-log.mode=full",
-            "entloom.crud.controller.string-filter.default-like-enabled=true"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.sql-log.mode=full",
+            "ent.loom.crud.controller.string-filter.default-like-enabled=true"
         );
     private final ApplicationContextRunner defaultLikeExcludeOrderNoContextRunner = new ApplicationContextRunner()
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.sql-log.mode=full",
-            "entloom.crud.controller.string-filter.default-like-enabled=true",
-            "entloom.crud.controller.string-filter.default-like-exclude-fields=orderNo"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.sql-log.mode=full",
+            "ent.loom.crud.controller.string-filter.default-like-enabled=true",
+            "ent.loom.crud.controller.string-filter.default-like-exclude-fields=orderNo"
         );
 
     @Test

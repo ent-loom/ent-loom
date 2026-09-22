@@ -20,7 +20,7 @@ class CrudExampleAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(CrudSubjectResolver.class);
             assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
         });
-        runner.withPropertyValues("entloom.crud.example.enabled=false").run(context -> {
+        runner.withPropertyValues("ent.loom.crud.example.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(CrudSubjectResolver.class);
             assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
         });
@@ -28,7 +28,7 @@ class CrudExampleAutoConfigurationTest {
 
     @Test
     void 启用后使用默认主体且每次解析互相隔离() {
-        runner.withPropertyValues("entloom.crud.example.enabled=true").run(context -> {
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true").run(context -> {
             assertThat(context).hasSingleBean(CrudSubjectResolver.class);
             assertThat(context).hasSingleBean(AllowAllCrudDataScopeResolver.class);
             CrudSubjectResolver resolver = context.getBean(CrudSubjectResolver.class);
@@ -40,8 +40,8 @@ class CrudExampleAutoConfigurationTest {
 
     @Test
     void 可配置主体并单独关闭全量数据范围() {
-        runner.withPropertyValues("entloom.crud.example.enabled=true",
-            "entloom.crud.example.subject-id=demo-user", "entloom.crud.example.allow-all-data-scope=false")
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true",
+            "ent.loom.crud.example.subject-id=demo-user", "ent.loom.crud.example.allow-all-data-scope=false")
             .run(context -> {
                 assertThat(context.getBean(CrudSubjectResolver.class).resolveOrThrow().getSubjectId()).isEqualTo("demo-user");
                 assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
@@ -52,12 +52,12 @@ class CrudExampleAutoConfigurationTest {
     void 自定义主体不影响默认范围且自定义范围不影响默认主体() {
         CrudSubjectResolver subject = () -> new SubjectContext();
         CrudDataScopeResolver scope = org.mockito.Mockito.mock(CrudDataScopeResolver.class);
-        runner.withPropertyValues("entloom.crud.example.enabled=true")
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true")
             .withBean(CrudSubjectResolver.class, () -> subject).run(context -> {
                 assertThat(context.getBean(CrudSubjectResolver.class)).isSameAs(subject);
                 assertThat(context).hasSingleBean(AllowAllCrudDataScopeResolver.class);
             });
-        runner.withPropertyValues("entloom.crud.example.enabled=true")
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true")
             .withBean(CrudDataScopeResolver.class, () -> scope).run(context -> {
                 assertThat(context.getBean(CrudDataScopeResolver.class)).isSameAs(scope);
                 assertThat(context.getBean(CrudSubjectResolver.class).resolveOrThrow().getSubjectId()).isEqualTo("local-developer");
@@ -66,7 +66,7 @@ class CrudExampleAutoConfigurationTest {
 
     @Test
     void 空主体配置在启动时失败() {
-        runner.withPropertyValues("entloom.crud.example.enabled=true", "entloom.crud.example.subject-id= ")
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true", "ent.loom.crud.example.subject-id= ")
             .run(context -> assertThat(context).hasFailed());
     }
 }

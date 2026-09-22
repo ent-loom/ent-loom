@@ -28,8 +28,8 @@ class EntDaoPaginationIntegrationTest {
         new ApplicationContextRunner()
             .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
             .withPropertyValues(
-                "entloom.crud.dao.pagination.max-page-size=3",
-                "entloom.crud.dao.pagination.max-offset=100"
+                "ent.loom.crud.dao.pagination.max-page-size=3",
+                "ent.loom.crud.dao.pagination.max-offset=100"
             )
             .withBean(EntityDaoScopeResolver.class, () -> entityType -> EntityAccessScope.unrestricted())
             .withBean("pageDao", EntDaoFactoryBean.class, () -> new EntDaoFactoryBean<>(PageDao.class))

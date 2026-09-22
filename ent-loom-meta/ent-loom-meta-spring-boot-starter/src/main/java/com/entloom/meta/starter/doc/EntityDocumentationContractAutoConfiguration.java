@@ -20,13 +20,13 @@ import org.springframework.context.annotation.Configuration;
 @AutoConfigureAfter(value = EntLoomMetaAutoConfiguration.class,
     name = "com.entloom.crud.starter.config.CrudAutoConfiguration")
 @ConditionalOnClass(MetaDocAdapter.class)
-@ConditionalOnProperty(prefix = "entloom.doc.contract", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "ent.loom.doc.contract", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(EntityDocumentationContractProperties.class)
 public class EntityDocumentationContractAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(EntityDocumentationExposurePolicyResolver.class)
-    @ConditionalOnProperty(prefix = "entloom.doc.contract.exposure", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "ent.loom.doc.contract.exposure", name = "enabled", havingValue = "true")
     public EntityDocumentationExposurePolicyResolver entityDocumentationExposurePolicyResolver(
         EntityDocumentationContractProperties properties
     ) {
@@ -46,7 +46,7 @@ public class EntityDocumentationContractAutoConfiguration {
 
     @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    @ConditionalOnProperty(prefix = "entloom.doc.contract.http", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "ent.loom.doc.contract.http", name = "enabled", havingValue = "true")
     @ConditionalOnBean(EntityDocumentationContractService.class)
     @ConditionalOnMissingBean
     public EntityDocumentationContractController entityDocumentationContractController(

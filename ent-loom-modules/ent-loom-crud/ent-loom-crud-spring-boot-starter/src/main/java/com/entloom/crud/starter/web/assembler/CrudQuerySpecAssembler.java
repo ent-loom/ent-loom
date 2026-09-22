@@ -157,7 +157,7 @@ public class CrudQuerySpecAssembler {
 
     private Class<?> resolvePreferredResultType(CrudReadHttpRequest request) {
         if (request == null || request.getOptions() == null) {
-            return resolveTypeByMode(defaultResultMode, "entloom.crud.controller.default-read-result-mode");
+            return resolveTypeByMode(defaultResultMode, "ent.loom.crud.controller.default-read-result-mode");
         }
         String viewType = request.getOptions().getViewType();
         if (viewType != null && !viewType.trim().isEmpty()) {
@@ -165,7 +165,7 @@ public class CrudQuerySpecAssembler {
         }
         CrudReadResultMode resultMode = request.getOptions().resolveResultMode();
         if (resultMode == null) {
-            return resolveTypeByMode(defaultResultMode, "entloom.crud.controller.default-read-result-mode");
+            return resolveTypeByMode(defaultResultMode, "ent.loom.crud.controller.default-read-result-mode");
         }
         return resolveTypeByMode(resultMode, "options.resultMode");
     }

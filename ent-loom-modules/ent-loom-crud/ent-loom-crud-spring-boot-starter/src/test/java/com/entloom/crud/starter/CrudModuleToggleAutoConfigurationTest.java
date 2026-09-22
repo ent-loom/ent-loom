@@ -32,14 +32,14 @@ class CrudModuleToggleAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.import-export.storage-directory=target/entloom-crud-starter-test"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.import-export.storage-directory=target/entloom-crud-starter-test"
         );
 
     @Test
     void should_support_command_only_mode() {
         contextRunner
-            .withPropertyValues("entloom.crud.query.enabled=false")
+            .withPropertyValues("ent.loom.crud.query.enabled=false")
             .run(context -> {
                 assertThat(context).doesNotHaveBean(QueryGateway.class);
                 assertThat(context).doesNotHaveBean(EntCrudQueryController.class);
@@ -51,7 +51,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_query_only_mode() {
         contextRunner
-            .withPropertyValues("entloom.crud.command.enabled=false")
+            .withPropertyValues("ent.loom.crud.command.enabled=false")
             .run(context -> {
                 assertThat(context).hasSingleBean(QueryGateway.class);
                 assertThat(context).hasSingleBean(EntCrudQueryController.class);
@@ -82,7 +82,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_import_export_toggle() {
         contextRunner
-            .withPropertyValues("entloom.crud.import.enabled=false", "entloom.crud.export.enabled=false")
+            .withPropertyValues("ent.loom.crud.import.enabled=false", "ent.loom.crud.export.enabled=false")
             .run(context -> {
                 assertThat(context).doesNotHaveBean(ImportFormatRegistry.class);
                 assertThat(context).doesNotHaveBean(ExportFormatRegistry.class);
@@ -103,7 +103,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_import_only_mode() {
         contextRunner
-            .withPropertyValues("entloom.crud.export.enabled=false")
+            .withPropertyValues("ent.loom.crud.export.enabled=false")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImportFormatRegistry.class);
                 assertThat(context).hasSingleBean(ImportGateway.class);
@@ -124,7 +124,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_export_only_mode() {
         contextRunner
-            .withPropertyValues("entloom.crud.import.enabled=false")
+            .withPropertyValues("ent.loom.crud.import.enabled=false")
             .run(context -> {
                 assertThat(context).hasSingleBean(ExportFormatRegistry.class);
                 assertThat(context).hasSingleBean(ExportGateway.class);
@@ -146,7 +146,7 @@ class CrudModuleToggleAutoConfigurationTest {
     void should_not_register_http_controllers_when_controller_disabled() {
         new ApplicationContextRunner()
             .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
-            .withPropertyValues("entloom.crud.controller.enabled=false")
+            .withPropertyValues("ent.loom.crud.controller.enabled=false")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImportGateway.class);
                 assertThat(context).hasSingleBean(ExportGateway.class);

@@ -68,11 +68,11 @@ import java.util.TimeZone;
 @Configuration
 @ConditionalOnClass(EntCrudQueryController.class)
 public class CrudWebAutoConfiguration {
-    private static final String CONTROLLER_ENABLED_PROPERTY = "entloom.crud.controller.enabled";
-    private static final String QUERY_ENABLED_PROPERTY = "entloom.crud.query.enabled";
-    private static final String COMMAND_ENABLED_PROPERTY = "entloom.crud.command.enabled";
-    private static final String IMPORT_ENABLED_PROPERTY = "entloom.crud.import.enabled";
-    private static final String EXPORT_ENABLED_PROPERTY = "entloom.crud.export.enabled";
+    private static final String CONTROLLER_ENABLED_PROPERTY = "ent.loom.crud.controller.enabled";
+    private static final String QUERY_ENABLED_PROPERTY = "ent.loom.crud.query.enabled";
+    private static final String COMMAND_ENABLED_PROPERTY = "ent.loom.crud.command.enabled";
+    private static final String IMPORT_ENABLED_PROPERTY = "ent.loom.crud.import.enabled";
+    private static final String EXPORT_ENABLED_PROPERTY = "ent.loom.crud.export.enabled";
     private static final String IMPORT_EXPORT_ENABLED_EXPRESSION =
         "${" + IMPORT_ENABLED_PROPERTY + ":true} or ${" + EXPORT_ENABLED_PROPERTY + ":true}";
 
@@ -386,7 +386,7 @@ public class CrudWebAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnExpression("${entloom.crud.controller.enabled:false} and ${entloom.crud.query.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.query.enabled:true}")
     @ConditionalOnBean(EntCrudQueryFacade.class)
     public EntCrudQueryController entCrudQueryController(
             EntCrudQueryFacade entCrudQueryFacade
@@ -395,7 +395,7 @@ public class CrudWebAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnExpression("${entloom.crud.controller.enabled:false} and ${entloom.crud.command.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.command.enabled:true}")
     @ConditionalOnBean(EntCrudCommandFacade.class)
     public EntCrudCommandController entCrudCommandController(
             EntCrudCommandFacade entCrudCommandFacade
@@ -404,14 +404,14 @@ public class CrudWebAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnExpression("${entloom.crud.controller.enabled:false} and ${entloom.crud.export.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.export.enabled:true}")
     @ConditionalOnBean(EntCrudExportFacade.class)
     public EntCrudExportController entCrudExportController(EntCrudExportFacade entCrudExportFacade) {
         return new EntCrudExportController(entCrudExportFacade);
     }
 
     @Bean
-    @ConditionalOnExpression("${entloom.crud.controller.enabled:false} and ${entloom.crud.import.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.import.enabled:true}")
     @ConditionalOnBean(EntCrudImportFacade.class)
     public EntCrudImportController entCrudImportController(EntCrudImportFacade entCrudImportFacade) {
         return new EntCrudImportController(entCrudImportFacade);

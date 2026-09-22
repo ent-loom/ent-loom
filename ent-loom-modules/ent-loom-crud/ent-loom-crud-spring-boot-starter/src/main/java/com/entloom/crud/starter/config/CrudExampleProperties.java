@@ -3,7 +3,7 @@ package com.entloom.crud.starter.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** 演示治理配置；只应在本地示例的配置文件中显式启用。 */
-@ConfigurationProperties(prefix = "entloom.crud.example")
+@ConfigurationProperties(prefix = "ent.loom.crud.example")
 public class CrudExampleProperties {
     /** 默认关闭，显式开启才装配演示治理。 */
     private boolean enabled;

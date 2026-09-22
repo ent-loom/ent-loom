@@ -22,9 +22,9 @@ class CrudPropertiesTest {
         Assertions.assertEquals(CrudNullFieldMode.OMIT, defaults.getDefaultNullFieldMode());
 
         Map<String, String> values = new LinkedHashMap<String, String>();
-        values.put("entloom.crud.controller.default-null-field-mode", "include");
+        values.put("ent.loom.crud.controller.default-null-field-mode", "include");
         CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
-            .bind("entloom.crud", Bindable.of(CrudProperties.class))
+            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
             .get();
 
         Assertions.assertEquals(CrudNullFieldMode.INCLUDE, properties.getController().getDefaultNullFieldMode());
@@ -68,11 +68,11 @@ class CrudPropertiesTest {
     @Test
     void import_export_module_switches_should_bind_to_typed_properties() {
         Map<String, String> values = new LinkedHashMap<String, String>();
-        values.put("entloom.crud.import.enabled", "false");
-        values.put("entloom.crud.export.enabled", "false");
+        values.put("ent.loom.crud.import.enabled", "false");
+        values.put("ent.loom.crud.export.enabled", "false");
 
         CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
-            .bind("entloom.crud", Bindable.of(CrudProperties.class))
+            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
             .get();
 
         Assertions.assertFalse(properties.getImport().isEnabled());

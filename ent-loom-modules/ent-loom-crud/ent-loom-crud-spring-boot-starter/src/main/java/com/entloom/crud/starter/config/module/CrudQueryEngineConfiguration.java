@@ -30,7 +30,7 @@ import org.springframework.context.annotation.Configuration;
  * Query 引擎装配。
  */
 @Configuration
-@ConditionalOnProperty(name = "entloom.crud.query.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "ent.loom.crud.query.enabled", havingValue = "true", matchIfMissing = true)
 public class CrudQueryEngineConfiguration {
     /**
      * 默认排序解析器：无显式排序时为 PAGE/LIST 补齐业务默认排序。

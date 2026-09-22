@@ -128,8 +128,8 @@ public interface OrderDao extends EntityDao<Order, Long> {
 - 首轮只支持现有受限语法内的单表实体或明确 DTO 查询；业务不编写 `LIMIT/OFFSET` 或计数 SQL。
 - 复用现有 `PageQuery`、`PageResult<T>` 与 `CountMode` 模型；`CountMode.NONE` 默认不计数，`ALWAYS` 查询精确总数。
 - Core 公共模型保持 Java 8 兼容，完整构建使用 JDK 21。
-- 默认分页页大小上限为 200、偏移上限为 1,000,000，可通过 `entloom.crud.dao.pagination.max-page-size` 和
-  `entloom.crud.dao.pagination.max-offset` 配置；后续由连续加载或深分页需求驱动独立游标合同。
+- 默认分页页大小上限为 200、偏移上限为 1,000,000，可通过 `ent.loom.crud.dao.pagination.max-page-size` 和
+  `ent.loom.crud.dao.pagination.max-offset` 配置；后续由连续加载或深分页需求驱动独立游标合同。
 - 通用动态筛选入口、`DISTINCT`、复杂 JOIN、聚合和任意 SQL 自动计数不纳入本轮。
 
 ### 8.2 实施清单

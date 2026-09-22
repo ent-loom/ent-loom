@@ -55,8 +55,8 @@ class AnnotatedHandlerAutoRegistrationTest {
             AutoRegistrationTestConfiguration.class
         )
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.sql-log.mode=full"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.sql-log.mode=full"
         );
 
     @Test

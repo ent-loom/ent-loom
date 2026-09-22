@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 实体文档契约服务配置。
  */
-@ConfigurationProperties(prefix = "entloom.doc.contract")
+@ConfigurationProperties(prefix = "ent.loom.doc.contract")
 public class EntityDocumentationContractProperties {
     /** 公共契约服务默认关闭，避免应用无意间暴露实体目录。 */
     private boolean enabled = false;

@@ -46,34 +46,34 @@ class CrudStarterConfigurationContractTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.import-export.storage-directory=target/entloom-crud-configuration-contract"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.import-export.storage-directory=target/entloom-crud-configuration-contract"
         );
 
     @Test
     void starter_configuration_keys_should_bind_to_typed_properties() {
         Map<String, String> values = new LinkedHashMap<String, String>();
-        values.put("entloom.crud.sql-log.mode", "FULL");
-        values.put("entloom.crud.sql-log.sample-rate", "0.75");
-        values.put("entloom.crud.sql-log.output", "BOTH");
-        values.put("entloom.crud.sql-log.pretty", "true");
-        values.put("entloom.crud.controller.enabled", "true");
-        values.put("entloom.crud.controller.base-path", "/internal/crud");
-        values.put("entloom.crud.controller.default-timezone", "UTC");
-        values.put("entloom.crud.controller.default-read-result-mode", "ENTITY");
-        values.put("entloom.crud.query.enabled", "false");
-        values.put("entloom.crud.command.enabled", "false");
-        values.put("entloom.crud.import.enabled", "false");
-        values.put("entloom.crud.export.enabled", "true");
-        values.put("entloom.crud.import-export.storage-directory", "target/typed-crud");
-        values.put("entloom.crud.import-export.retention-hours", "12");
-        values.put("entloom.crud.import-export.max-file-bytes", "1048576");
-        values.put("entloom.crud.idempotency.mode", "REQUIRED");
-        values.put("entloom.crud.dao.pagination.max-page-size", "80");
-        values.put("entloom.crud.dao.pagination.max-offset", "9000");
+        values.put("ent.loom.crud.sql-log.mode", "FULL");
+        values.put("ent.loom.crud.sql-log.sample-rate", "0.75");
+        values.put("ent.loom.crud.sql-log.output", "BOTH");
+        values.put("ent.loom.crud.sql-log.pretty", "true");
+        values.put("ent.loom.crud.controller.enabled", "true");
+        values.put("ent.loom.crud.controller.base-path", "/internal/crud");
+        values.put("ent.loom.crud.controller.default-timezone", "UTC");
+        values.put("ent.loom.crud.controller.default-read-result-mode", "ENTITY");
+        values.put("ent.loom.crud.query.enabled", "false");
+        values.put("ent.loom.crud.command.enabled", "false");
+        values.put("ent.loom.crud.import.enabled", "false");
+        values.put("ent.loom.crud.export.enabled", "true");
+        values.put("ent.loom.crud.import-export.storage-directory", "target/typed-crud");
+        values.put("ent.loom.crud.import-export.retention-hours", "12");
+        values.put("ent.loom.crud.import-export.max-file-bytes", "1048576");
+        values.put("ent.loom.crud.idempotency.mode", "REQUIRED");
+        values.put("ent.loom.crud.dao.pagination.max-page-size", "80");
+        values.put("ent.loom.crud.dao.pagination.max-offset", "9000");
 
         CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
-            .bind("entloom.crud", Bindable.of(CrudProperties.class))
+            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
             .get();
 
         Assertions.assertEquals(CrudProperties.SqlLog.Mode.FULL, properties.getSqlLog().getMode());
@@ -110,8 +110,8 @@ class CrudStarterConfigurationContractTest {
     void starter_should_apply_dao_pagination_limits() {
         contextRunner
             .withPropertyValues(
-                "entloom.crud.dao.pagination.max-page-size=80",
-                "entloom.crud.dao.pagination.max-offset=9000"
+                "ent.loom.crud.dao.pagination.max-page-size=80",
+                "ent.loom.crud.dao.pagination.max-offset=9000"
             )
             .run(context -> {
                 JdbcEntityDaoFactory factory = context.getBean(JdbcEntityDaoFactory.class);
@@ -123,7 +123,7 @@ class CrudStarterConfigurationContractTest {
     @Test
     void starter_should_reject_invalid_dao_pagination_limits() {
         contextRunner
-            .withPropertyValues("entloom.crud.dao.pagination.max-page-size=0")
+            .withPropertyValues("ent.loom.crud.dao.pagination.max-page-size=0")
             .run(context -> assertThat(context).hasFailed());
     }
 
@@ -140,7 +140,7 @@ class CrudStarterConfigurationContractTest {
     @Test
     void dao_factory_should_not_follow_command_engine_toggle() {
         contextRunner
-            .withPropertyValues("entloom.crud.command.enabled=false")
+            .withPropertyValues("ent.loom.crud.command.enabled=false")
             .run(context -> assertThat(context).hasSingleBean(JdbcEntityDaoFactory.class));
     }
 
@@ -161,8 +161,8 @@ class CrudStarterConfigurationContractTest {
         new ApplicationContextRunner()
             .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
             .withPropertyValues(
-                "entloom.crud.controller.enabled=false",
-                "entloom.crud.import-export.storage-directory=target/ent-loom-crud-default-contract"
+                "ent.loom.crud.controller.enabled=false",
+                "ent.loom.crud.import-export.storage-directory=target/ent-loom-crud-default-contract"
             )
             .run(context -> {
                 assertThat(context).hasSingleBean(CrudProperties.class);
@@ -189,10 +189,10 @@ class CrudStarterConfigurationContractTest {
     void disabling_query_and_command_should_keep_stats_controller_condition() {
         contextRunner
             .withPropertyValues(
-                "entloom.crud.query.enabled=false",
-                "entloom.crud.command.enabled=false",
-                "entloom.crud.import.enabled=false",
-                "entloom.crud.export.enabled=false"
+                "ent.loom.crud.query.enabled=false",
+                "ent.loom.crud.command.enabled=false",
+                "ent.loom.crud.import.enabled=false",
+                "ent.loom.crud.export.enabled=false"
             )
             .run(context -> {
                 assertThat(context).doesNotHaveBean(QueryGateway.class);

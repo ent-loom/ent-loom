@@ -23,10 +23,10 @@ class ConfiguredEntityDocumentationExposureTest {
         .withBean(DocOverrideProvider.class, () -> (entityClass, resourceCode) ->
             DocEntityOverride.builder().field(DocFieldOverride.builder("secret").hidden(true).build()).build())
         .withPropertyValues("ent.loom.meta.entity-class-names[0]=" + Customer.class.getName(),
-            "entloom.doc.contract.enabled=true", "entloom.doc.contract.exposure.enabled=true",
-            "entloom.doc.contract.exposure.subject-ids[0]=reader",
-            "entloom.doc.contract.exposure.fields.customer[0]=id",
-            "entloom.doc.contract.exposure.fields.customer[1]=secret");
+            "ent.loom.doc.contract.enabled=true", "ent.loom.doc.contract.exposure.enabled=true",
+            "ent.loom.doc.contract.exposure.subject-ids[0]=reader",
+            "ent.loom.doc.contract.exposure.fields.customer[0]=id",
+            "ent.loom.doc.contract.exposure.fields.customer[1]=secret");
 
     @Test
     @SuppressWarnings("unchecked")
@@ -44,7 +44,7 @@ class ConfiguredEntityDocumentationExposureTest {
 
     @Test
     void 未授权主体或缺省白名单不公开实体() {
-        runner.withPropertyValues("entloom.doc.contract.exposure.subject-ids[0]=other")
+        runner.withPropertyValues("ent.loom.doc.contract.exposure.subject-ids[0]=other")
             .run(context -> assertThat((List<?>) context.getBean(EntityDocumentationContractService.class).build().get("entities")).isEmpty());
         EntityDocumentationExposurePolicyResolver resolver = new ConfiguredEntityDocumentationExposurePolicyResolver(
             new EntityDocumentationContractProperties.Exposure());
@@ -64,7 +64,7 @@ class ConfiguredEntityDocumentationExposureTest {
 
     @Test
     void 单独关闭配置策略后不创建服务() {
-        runner.withPropertyValues("entloom.doc.contract.exposure.enabled=false").run(context -> {
+        runner.withPropertyValues("ent.loom.doc.contract.exposure.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(EntityDocumentationExposurePolicyResolver.class);
             assertThat(context).doesNotHaveBean(EntityDocumentationContractService.class);
         });

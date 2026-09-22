@@ -27,7 +27,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * 导出 HTTP 入口。
  */
 @RestController
-@RequestMapping({"${entloom.crud.controller.base-path:/api/ent-crud}"})
+@RequestMapping({"${ent.loom.crud.controller.base-path:/api/ent-crud}"})
 @RequiredArgsConstructor
 public class EntCrudExportController {
     private final EntCrudExportFacade exportFacade;

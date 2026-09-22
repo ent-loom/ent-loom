@@ -59,8 +59,8 @@ class E5CrudMvcAcceptanceTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(E5CrudMvcTestConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
-            "entloom.crud.controller.enabled=true",
-            "entloom.crud.sql-log.mode=full"
+            "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.sql-log.mode=full"
         );
 
     @Test

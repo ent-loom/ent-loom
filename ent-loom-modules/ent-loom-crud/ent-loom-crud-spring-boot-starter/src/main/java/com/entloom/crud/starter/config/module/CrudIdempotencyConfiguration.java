@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 幂等能力装配（存储实现与管理器）。
  */
 @Configuration
-@ConditionalOnProperty(name = "entloom.crud.command.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "ent.loom.crud.command.enabled", havingValue = "true", matchIfMissing = true)
 public class CrudIdempotencyConfiguration {
     /**
      * 存在 JdbcTemplate 时优先使用 JDBC 存储，并按配置可选自动建表。

@@ -39,7 +39,7 @@ class EntityDocumentationContractAutoConfigurationTest {
     @Test
     void enabledServiceShouldRequireSubjectAndPolicyResolver() {
         contextRunner
-            .withPropertyValues("entloom.doc.contract.enabled=true")
+            .withPropertyValues("ent.loom.doc.contract.enabled=true")
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
                 Assertions.assertFalse(context.containsBean("entityDocumentationContractService"));
@@ -50,7 +50,7 @@ class EntityDocumentationContractAutoConfigurationTest {
     void enabledServiceShouldResolvePolicyFromCurrentSubject() {
         contextRunner
             .withUserConfiguration(SubjectAndPolicyConfiguration.class)
-            .withPropertyValues("entloom.doc.contract.enabled=true")
+            .withPropertyValues("ent.loom.doc.contract.enabled=true")
             .run(context -> {
                 Assertions.assertTrue(context.containsBean("entityDocumentationContractService"));
 
@@ -107,7 +107,7 @@ class EntityDocumentationContractAutoConfigurationTest {
     void httpControllerShouldStayDisabledByDefault() {
         webContextRunner
             .withUserConfiguration(SubjectAndPolicyConfiguration.class)
-            .withPropertyValues("entloom.doc.contract.enabled=true")
+            .withPropertyValues("ent.loom.doc.contract.enabled=true")
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
                 Assertions.assertFalse(context.containsBean("entityDocumentationContractController"));
@@ -118,8 +118,8 @@ class EntityDocumentationContractAutoConfigurationTest {
     void httpControllerShouldRequireContractService() {
         webContextRunner
             .withPropertyValues(
-                "entloom.doc.contract.enabled=true",
-                "entloom.doc.contract.http.enabled=true"
+                "ent.loom.doc.contract.enabled=true",
+                "ent.loom.doc.contract.http.enabled=true"
             )
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
@@ -132,8 +132,8 @@ class EntityDocumentationContractAutoConfigurationTest {
         webContextRunner
             .withUserConfiguration(SubjectAndPolicyConfiguration.class)
             .withPropertyValues(
-                "entloom.doc.contract.enabled=true",
-                "entloom.doc.contract.http.enabled=true"
+                "ent.loom.doc.contract.enabled=true",
+                "ent.loom.doc.contract.http.enabled=true"
             )
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
