@@ -24,6 +24,7 @@ import com.entloom.crud.starter.web.controller.EntCrudImportController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
+import com.entloom.crud.starter.web.error.EntBusinessExceptionHandler;
 import com.entloom.crud.starter.web.facade.EntCrudCommandFacade;
 import com.entloom.crud.starter.web.facade.EntCrudExportFacade;
 import com.entloom.crud.starter.web.facade.EntCrudImportFacade;
@@ -170,6 +171,12 @@ public class CrudWebAutoConfiguration {
     @ConditionalOnMissingBean
     public CrudHttpExceptionTranslator crudHttpExceptionTranslator() {
         return new CrudHttpExceptionTranslator(crudResponseBuilder());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public EntBusinessExceptionHandler entBusinessExceptionHandler(CrudResponseBuilder responseBuilder) {
+        return new EntBusinessExceptionHandler(responseBuilder);
     }
 
     @Bean
