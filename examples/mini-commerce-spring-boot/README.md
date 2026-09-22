@@ -45,3 +45,7 @@ python3 scripts/verify.py
 商品、客户、订单和明细统一使用数据库生成主键，实体声明与 MySQL `auto_increment` 表结构保持一致。Customer/Product 必填约束由实体元数据驱动；PlaceOrderCommand 为不可变 record，Handler 校验业务输入。停止 Compose：docker compose down（加 -v 删除数据卷）。生产环境请接入正式认证、权限、数据范围、迁移和审计。
 
 实体与表名统一采用默认命名：`Order → order`、`OrderItem → order_item`，不额外配置 `entity` 或 `table`。`order` 是 SQL 关键字，手写 SQL 使用反引号引用；框架生成的 SQL 自动引用标识符。
+
+## 治理默认装配与定制
+
+`application-example.yml` 显式开启 `entloom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。实体路由复用 `controller.include-entities`；文档通过 `doc.contract.exposure` 声明主体与字段白名单，无需额外配置类。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。

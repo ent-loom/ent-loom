@@ -17,11 +17,21 @@ import org.springframework.context.annotation.Configuration;
  * 实体文档契约服务自动配置。
  */
 @Configuration
-@AutoConfigureAfter(EntLoomMetaAutoConfiguration.class)
+@AutoConfigureAfter(value = EntLoomMetaAutoConfiguration.class,
+    name = "com.entloom.crud.starter.config.CrudAutoConfiguration")
 @ConditionalOnClass(MetaDocAdapter.class)
 @ConditionalOnProperty(prefix = "entloom.doc.contract", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(EntityDocumentationContractProperties.class)
 public class EntityDocumentationContractAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(EntityDocumentationExposurePolicyResolver.class)
+    @ConditionalOnProperty(prefix = "entloom.doc.contract.exposure", name = "enabled", havingValue = "true")
+    public EntityDocumentationExposurePolicyResolver entityDocumentationExposurePolicyResolver(
+        EntityDocumentationContractProperties properties
+    ) {
+        return new ConfiguredEntityDocumentationExposurePolicyResolver(properties.getExposure());
+    }
 
     @Bean
     @ConditionalOnBean({MetaDocAdapter.class, CrudSubjectResolver.class, EntityDocumentationExposurePolicyResolver.class})

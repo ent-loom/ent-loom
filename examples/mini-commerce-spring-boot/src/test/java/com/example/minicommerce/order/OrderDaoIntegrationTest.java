@@ -45,28 +45,38 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
+    void 配置装配文档白名单且订单仍不进入公共文档() throws Exception {
+        mvc.perform(get("/api/ent-doc/contract"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.entities[*].resourceCode",
+                org.hamcrest.Matchers.containsInAnyOrder("product", "customer")))
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'customer')].fields[*].property",
+                org.hamcrest.Matchers.containsInAnyOrder("id", "displayName", "email")));
+    }
+
+    @Test
     void shouldUseConventionTableNamesForDaoAndCustomSql() {
         Order order = new Order();
-        order.setId(100L);
         order.setCustomerId(1L);
         order.setStatus(OrderStatus.CREATED);
         order.setTotalAmount(BigDecimal.TEN);
         order.setCreatedAt(LocalDateTime.now());
         orders.insert(order);
+        assertNotNull(order.getId());
 
         OrderItem item = new OrderItem();
-        item.setId(101L);
-        item.setOrderId(100L);
+        item.setOrderId(order.getId());
         item.setProductId(10L);
         item.setProductName("商品一");
         item.setUnitPrice(BigDecimal.TEN);
         item.setQuantity(1);
         item.setLineAmount(BigDecimal.TEN);
         orderItems.insert(item);
+        assertNotNull(item.getId());
 
         assertEquals(1, jdbc.queryForObject("select count(*) from `order`", Integer.class));
         assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
-        assertEquals(Long.valueOf(101L), orderItems.findByOrderId(100L).get(0).getId());
+        assertEquals(item.getId(), orderItems.findByOrderId(order.getId()).get(0).getId());
     }
 
     @Test

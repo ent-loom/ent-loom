@@ -79,6 +79,10 @@ public class CrudWebAutoConfiguration {
     @ConditionalOnMissingBean
     public ExposedEntityRegistry exposedEntityRegistry(CrudProperties properties, EntityMetaRegistry entityMetaRegistry) {
         ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
+        // 只有显式白名单才注册 HTTP 类型映射，空白名单保持关闭。
+        if (!properties.getController().getIncludeEntities().isEmpty()) {
+            entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
+        }
         registry.setIncludeEntities(properties.getController().getIncludeEntities());
         return registry;
     }

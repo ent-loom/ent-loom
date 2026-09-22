@@ -12,9 +12,16 @@ entloom:
   doc:
     contract:
       enabled: true
+      exposure:
+        enabled: true
+        subject-ids: [local-developer]
+        fields:
+          customer_profile: [id, displayName, email]
       http:
         enabled: true
   crud:
+    example:
+      enabled: true
     controller:
       enabled: true
       base-path: /api/ent-crud

@@ -187,3 +187,7 @@ docker compose down -v
 ```
 
 第二条命令会删除这个示例的 MySQL 数据卷。开发态主体、全量数据范围和日志审计配置只适合本地演示；生产项目应接入真实认证主体、权限服务、数据范围和审计存储，并使用正式数据库迁移工具替代 `schema.sql`。
+
+## 治理默认装配与定制
+
+`application-example.yml` 显式开启 `entloom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。实体路由复用 `controller.include-entities`；文档通过 `doc.contract.exposure` 声明主体与字段白名单，无需额外配置类。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。
