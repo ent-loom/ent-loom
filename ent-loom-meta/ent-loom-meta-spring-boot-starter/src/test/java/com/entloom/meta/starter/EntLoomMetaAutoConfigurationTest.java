@@ -339,7 +339,7 @@ class EntLoomMetaAutoConfigurationTest {
         }
     }
 
-    @EntEntity(entity = "p1_meta_order", label = "Meta Order", service = "order-service")
+    @EntEntity(entity = "p1_meta_order", value = "Meta Order", service = "order-service")
     static class MetaOrder {
         @EntField(required = OptionalBoolean.TRUE)
         private Long id;
@@ -351,7 +351,7 @@ class EntLoomMetaAutoConfigurationTest {
         private Long customerId;
     }
 
-    @EntEntity(entity = "p1_meta_customer", label = "Meta Customer", service = "order-service")
+    @EntEntity(entity = "p1_meta_customer", value = "Meta Customer", service = "order-service")
     static class MetaCustomer {
         @EntField(required = OptionalBoolean.TRUE)
         private Long id;

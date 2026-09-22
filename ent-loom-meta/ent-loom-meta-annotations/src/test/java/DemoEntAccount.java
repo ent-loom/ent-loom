@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @EntEntity(
         entity = "account",
         service = "account-center",
-        label = "账号",
+        value = "账号",
         description = "平台账号基础信息",
         plannedVolume = 300000
 )

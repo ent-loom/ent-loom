@@ -10,7 +10,7 @@ import com.entloom.meta.annotations.EntField;
  */
 @EntEntity(
     entity = "customer_profile",
-    label = "Customer Profile",
+    value = "Customer Profile",
     service = "customer-profile"
 )
 @EntCrudEntity(

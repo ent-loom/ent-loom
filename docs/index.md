@@ -11,16 +11,16 @@ ent-loom 是面向实体编程的业务框架。文档按“先使用、再理�
 
 | 你的目标 | 从这里开始 |
 |---|---|
-| 第一次运行项目 | [快速开始](guides/快速开始.md) |
+| 从零运行第一个实体 | [快速开始](guides/快速开始.md) |
 | 接入 CRUD 业务 | [CRUD 使用指南](guides/crud/index.md) |
-| 设计实体和字段 | [Meta 优先指南](guides/meta/Meta优先指南.md) |
+| 设计实体和字段 | [Meta：实体建模](guides/meta/index.md) |
 | 了解模块边界 | [系统架构总览](architecture/架构总览.md) |
 | 查阅稳定合同 | [Core Contract](architecture/core/index.md) |
 
 ## 文档怎么分
 
 - [使用指南](guides/index.md)：面向业务开发者的接入、调用和配置步骤。
-- [领域入口](domains/index.md)：按 CRUD、DDL、Meta 聚合相关文档，不复制权威正文。
+- [按模块查阅](domains/index.md)：按 Meta、CRUD、DDL 聚合相关文档，不复制权威正文。
 - [当前架构](architecture/index.md)：只描述代码已经支持的模型、边界和执行合同。
 - [设计与维护](evolution/index.md)：记录设计取舍、路线图和验收过程，主要面向框架维护者。
 

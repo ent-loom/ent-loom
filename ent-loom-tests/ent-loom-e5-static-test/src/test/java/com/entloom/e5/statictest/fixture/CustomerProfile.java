@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 /** E5 静态与集成验收共用的客户档案实体样例。 */
 @EntEntity(
     entity = "customer_profile",
-    label = "客户档案",
+    value = "客户档案",
     description = "客户档案",
     service = "customer-service"
 )

@@ -185,7 +185,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
     @EntEntity(
         entity = "contract_entity",
         service = "contract-service",
-        label = "Contract Entity",
+        value = "Contract Entity",
         description = "Contract descriptor fixture",
         plannedVolume = 1000L
     )

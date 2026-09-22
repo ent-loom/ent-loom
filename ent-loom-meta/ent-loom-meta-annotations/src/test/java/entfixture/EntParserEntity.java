@@ -32,7 +32,7 @@
 //@EntEntity(
 //        entity = "user",
 //        service = "userService",
-//        label = "用户",
+//        value = "用户",
 //        description = "平台用户",
 //        plannedVolume = 20000
 //)

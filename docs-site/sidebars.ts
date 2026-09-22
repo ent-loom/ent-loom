@@ -7,18 +7,22 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: '使用指南',
       collapsed: false,
+      link: {type: 'doc', id: 'guides/index'},
       items: [
         'guides/快速开始',
-        'guides/index',
-        'guides/示例工程',
-        'guides/开发环境与JDK管理',
-        'guides/本地开发与验收',
         {
           type: 'category',
-          label: 'CRUD',
+          label: 'Meta：实体建模',
           collapsed: true,
+          link: {type: 'doc', id: 'guides/meta/index'},
+          items: ['guides/meta/Meta优先指南'],
+        },
+        {
+          type: 'category',
+          label: 'CRUD：数据操作',
+          collapsed: true,
+          link: {type: 'doc', id: 'guides/crud/index'},
           items: [
-            'guides/crud/index',
             'guides/crud/开发指南',
             'guides/crud/常用CRUD调用指南',
             'guides/crud/批量CRUD调用指南',
@@ -26,39 +30,21 @@ const sidebars: SidebarsConfig = {
             'guides/crud/导出展示值配置',
           ],
         },
-        {
-          type: 'category',
-          label: 'Meta',
-          collapsed: true,
-          items: [
-            'guides/meta/index',
-            'guides/meta/Meta优先指南',
-          ],
-        },
-      ],
-    },
-    {
-      type: 'category',
-      label: '领域入口',
-      collapsed: true,
-      items: [
-        'domains/index',
-        'domains/crud/index',
-        'domains/ddl/index',
-        'domains/meta/index',
+        'guides/示例工程',
       ],
     },
     {
       type: 'category',
       label: '当前架构',
+      link: {type: 'doc', id: 'architecture/index'},
       collapsed: true,
       items: [
-        'architecture/index',
         'architecture/架构总览',
-        'architecture/core/index',
+        'architecture/components/index',
         {
           type: 'category',
-          label: 'Core Contract',
+          label: 'Core：公共契约',
+          link: {type: 'doc', id: 'architecture/core/index'},
           collapsed: true,
           items: [
             'architecture/core/组件边界与依赖规则',
@@ -77,11 +63,10 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'category',
-          label: 'CRUD 组件',
+          label: 'CRUD：组件架构',
+          link: {type: 'doc', id: 'architecture/components/crud/index'},
           collapsed: true,
           items: [
-            'architecture/components/index',
-            'architecture/components/crud/index',
             'architecture/components/crud/架构总览',
             'architecture/components/crud/运行时架构',
             'architecture/components/crud/HTTP契约',
@@ -101,24 +86,37 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: '设计与维护',
+      label: '按模块查阅',
+      link: {type: 'doc', id: 'domains/index'},
       collapsed: true,
       items: [
-        'evolution/index',
+        'domains/meta/index',
+        'domains/crud/index',
+        'domains/ddl/index',
+      ],
+    },
+    {
+      type: 'category',
+      label: '设计与维护',
+      link: {type: 'doc', id: 'evolution/index'},
+      collapsed: true,
+      items: [
         {
           type: 'category',
           label: '维护者指南',
           collapsed: true,
           items: [
+            'guides/开发环境与JDK管理',
+            'guides/本地开发与验收',
             'guides/Maven Central发布',
           ],
         },
         {
           type: 'category',
           label: '设计决策',
+          link: {type: 'doc', id: 'evolution/decisions/index'},
           collapsed: true,
           items: [
-            'evolution/decisions/index',
             'evolution/decisions/core/index',
             'evolution/decisions/crud/index',
           ],
@@ -126,9 +124,9 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: '路线图',
+          link: {type: 'doc', id: 'evolution/roadmap/index'},
           collapsed: true,
           items: [
-            'evolution/roadmap/index',
             'evolution/roadmap/当前实施总览',
             'evolution/roadmap/实施清单',
             'evolution/roadmap/ddl/index',

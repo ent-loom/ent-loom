@@ -22,7 +22,7 @@ import com.entloom.meta.enums.role.TextRole;
 @EntEntity(
         entity = "content_article",
         service = "content-center",
-        label = "文章",
+        value = "文章",
         description = "内容文章语义模型",
         plannedVolume = 500000
 )

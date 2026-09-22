@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /** 订单持久化实体，由下单 Handler 经 OrderDao 保存。 */
-@EntEntity(entity = "order", label = "订单", description = "商城订单",
+@EntEntity(entity = "order", value = "订单", description = "商城订单",
     service = "mini-commerce", table = "commerce_order")
 @Getter
 @Setter

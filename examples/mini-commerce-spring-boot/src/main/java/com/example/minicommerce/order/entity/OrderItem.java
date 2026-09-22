@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /** 订单明细持久化实体，由订单业务服务经 OrderItemDao 保存。 */
-@EntEntity(entity = "orderItem", label = "订单明细", description = "商城订单明细",
+@EntEntity(entity = "orderItem", value = "订单明细", description = "商城订单明细",
     service = "mini-commerce", table = "commerce_order_item")
 @Getter
 @Setter

@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @EntEntity(
         entity = "inferred_trade_order",
         service = "trade-center",
-        label = "推断订单",
+        value = "推断订单",
         description = "通过字段命名约定推断 EntField 语义",
         plannedVolume = 2000000
 )

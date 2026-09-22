@@ -19,9 +19,9 @@ public @interface EntEntity {
     String entity();
 
     /**
-     * 实体展示名称。
+     * 实体展示名称，空字符串表示未显式指定。
      */
-    String label() default "";
+    String value() default "";
 
     /**
      * 实体说明文本。

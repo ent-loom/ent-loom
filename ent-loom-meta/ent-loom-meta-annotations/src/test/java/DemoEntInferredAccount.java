@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @EntEntity(
         entity = "inferred_account",
         service = "account-center",
-        label = "推断账号",
+        value = "推断账号",
         description = "根据字段名和字段类型自动推断语义",
         plannedVolume = 300000
 )

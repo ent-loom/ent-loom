@@ -8,7 +8,7 @@ import java.time.LocalDate;
 @EntEntity(
         entity = "inferred_content_article",
         service = "content-center",
-        label = "推断文章",
+        value = "推断文章",
         description = "字段类型 + 字段名基线推断",
         plannedVolume = 500000
 )

@@ -137,7 +137,7 @@ class MetaDocAdapterStaticFixtureTest {
         return false;
     }
 
-    @EntEntity(entity = "order", label = "订单")
+    @EntEntity(entity = "order", value = "订单")
     @EntIndex(name = "uk_order_no", fields = {"orderNo"}, unique = true)
     @EntDocEntity(name = "订单文档覆盖")
     private static final class Order {

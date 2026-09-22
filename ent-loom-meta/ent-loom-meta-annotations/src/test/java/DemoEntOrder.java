@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
 @EntEntity(
         entity = "trade_order",
         service = "trade-center",
-        label = "交易订单",
+        value = "交易订单",
         description = "订单业务语义模型",
         plannedVolume = 2000000
 )

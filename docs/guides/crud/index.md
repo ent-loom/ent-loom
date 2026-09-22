@@ -1,8 +1,10 @@
-# CRUD 指南
+# CRUD：数据操作
 
-CRUD 的完整文档导航见 [CRUD 领域总览](../../domains/crud/index.md)。
+先阅读 [Meta：实体建模](../meta/index.md)，完成实体、字段和关系声明。CRUD 在此基础上提供查询、命令、批量操作和场景扩展；关系加载与执行策略属于 CRUD。
 
-- [CRUD 开发指南](开发指南.md)
+建议先读查询、命令与场景，再按业务需求查阅具体调用方式。CRUD 的完整文档导航见 [CRUD 领域总览](../../domains/crud/index.md)。
+
+- [查询、命令与场景](开发指南.md)
 - [常用 CRUD 调用指南](常用CRUD调用指南.md)
 - [批量 CRUD 调用指南](批量CRUD调用指南.md)
 - [业务集成模板](业务集成模板.md)
