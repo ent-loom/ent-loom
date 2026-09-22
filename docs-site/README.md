@@ -26,3 +26,15 @@ npm run serve
 需要热更新时使用 `npm run dev`。搜索插件在开发模式下不执行搜索，即使复制索引也无法启用；验证搜索请使用 `npm run start`。
 
 搜索支持中文和英文，默认显示最多 10 条结果；可使用导航栏搜索框或 `Ctrl/Cmd + K` 聚焦搜索。
+
+## 部署
+
+本机 SSH 配置可访问 `my4g` 后，在本站目录执行：
+
+```bash
+npm run deploy
+```
+
+脚本依次执行锁定依赖安装、类型检查、生产构建和 `rsync` 增量发布。产物先上传至远端暂存目录，校验通过后再同步到线上目录，避免网络中断直接留下不完整站点。
+
+已确认依赖未变化时，可使用 `npm run deploy -- --skip-install`；使用 `npm run deploy -- --dry-run` 可只预览待上传文件。SSH 主机和远端目录可通过 `DEPLOY_HOST`、`DEPLOY_DIR`、`DEPLOY_STAGING_DIR` 覆盖。

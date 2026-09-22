@@ -8,6 +8,7 @@
     "start": "docusaurus serve",
     "dev": "docusaurus start",
     "build": "docusaurus build",
+    "deploy": "./scripts/deploy.sh",
     "serve": "docusaurus serve",
     "clear": "docusaurus clear",
     "typecheck": "tsc --noEmit"
