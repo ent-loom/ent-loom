@@ -8,5 +8,6 @@ CRUD 的完整文档导航见 [CRUD 领域总览](../../../domains/crud/index.md
 |---|---|---|
 | [Operation Domain / Operation](能力操作重构.md) | Accepted | [CRUD 协议](../../../architecture/components/crud/查询命令协议.md) |
 | [强类型命令 Handler](强类型命令处理器决策.md) | Accepted | [强类型边界](../../../architecture/components/crud/强类型边界.md) |
+| [外部输入契约与实体校验边界](外部输入契约与实体校验边界.md) | Accepted | 本文 |
 
 本目录不维护待办。未完成事项统一进入 [CRUD 路线图](../../roadmap/crud/index.md)。
