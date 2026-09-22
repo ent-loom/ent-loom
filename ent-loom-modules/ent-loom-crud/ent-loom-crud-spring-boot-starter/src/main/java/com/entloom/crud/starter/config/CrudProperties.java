@@ -7,6 +7,7 @@ import com.entloom.crud.api.enums.CrudReadResultMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
+import com.entloom.crud.starter.web.registry.EntityExposureMode;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import java.util.ArrayList;
@@ -301,7 +302,9 @@ public class CrudProperties {
         private CrudNullFieldMode defaultNullFieldMode = DEFAULT_NULL_FIELD_MODE;
         /** 字符串简写过滤默认策略。 */
         private StringFilter stringFilter = new StringFilter();
-        /** 允许暴露的实体集合。 */
+        /** HTTP 实体暴露模式，见 {@link EntityExposureMode}。 */
+        private EntityExposureMode exposureMode = EntityExposureMode.EXPLICIT;
+        /** EXPLICIT 模式下允许暴露的实体集合。 */
         private Set<String> includeEntities = new HashSet<>();
 
         public void setDefaultTimeField(String defaultTimeField) {
@@ -519,8 +522,8 @@ public class CrudProperties {
     @Getter
     @Setter
     public static class Import {
-        /** 是否启用 Import 主链。 */
-        private boolean enabled = true;
+        /** 是否启用导入主链，默认关闭。 */
+        private boolean enabled = false;
     }
 
     /**
@@ -529,8 +532,8 @@ public class CrudProperties {
     @Getter
     @Setter
     public static class Export {
-        /** 是否启用 Export 主链。 */
-        private boolean enabled = true;
+        /** 是否启用导出主链，默认关闭。 */
+        private boolean enabled = false;
     }
 
     /**

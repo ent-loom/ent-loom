@@ -87,7 +87,7 @@ import com.entloom.crud.core.runtime.scene.DefaultSceneHandlerRegistry;
 @Configuration
 public class CrudGatewayConfiguration {
     private static final String IMPORT_EXPORT_ENABLED_EXPRESSION =
-        "${ent.loom.crud.import.enabled:true} or ${ent.loom.crud.export.enabled:true}";
+        "${ent.loom.crud.import.enabled:false} or ${ent.loom.crud.export.enabled:false}";
 
     /**
      * Query 路由器，默认将请求路由到默认 QueryEngine。
@@ -209,42 +209,42 @@ public class CrudGatewayConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ImportFormatRegistry.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true")
     public ImportFormatRegistry importFormatRegistry(ObjectProvider<ImportFormatDescriptor[]> descriptors) {
         return new DefaultImportFormatRegistry(Arrays.asList(nullToEmpty(descriptors.getIfAvailable(), ImportFormatDescriptor.class)));
     }
 
     @Bean
     @ConditionalOnMissingBean(ExportFormatRegistry.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true")
     public ExportFormatRegistry exportFormatRegistry(ObjectProvider<ExportFormatDescriptor[]> descriptors) {
         return new DefaultExportFormatRegistry(Arrays.asList(nullToEmpty(descriptors.getIfAvailable(), ExportFormatDescriptor.class)));
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "importSceneHandlerRegistry")
-    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true")
     public SceneHandlerRegistry<ImportSpec, ImportResult> importSceneHandlerRegistry() {
         return new DefaultSceneHandlerRegistry<ImportSpec, ImportResult>();
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "exportSceneHandlerRegistry")
-    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true")
     public SceneHandlerRegistry<ExportSpec, ExportResult> exportSceneHandlerRegistry() {
         return new DefaultSceneHandlerRegistry<ExportSpec, ExportResult>();
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true")
     public ImportPayloadCustomizerRegistry importPayloadCustomizerRegistry(ObjectProvider<ImportPayloadCustomizer[]> customizers) {
         return new ImportPayloadCustomizerRegistry(Arrays.asList(nullToEmpty(customizers.getIfAvailable(), ImportPayloadCustomizer.class)));
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true")
     public ExportPayloadCustomizerRegistry exportPayloadCustomizerRegistry(ObjectProvider<ExportPayloadCustomizer[]> customizers) {
         return new ExportPayloadCustomizerRegistry(Arrays.asList(nullToEmpty(customizers.getIfAvailable(), ExportPayloadCustomizer.class)));
     }
@@ -286,7 +286,7 @@ public class CrudGatewayConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ImportEngine.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true")
     public ImportEngine defaultImportEngine(
         ImportFormatRegistry importFormatRegistry,
         FileService fileService,
@@ -309,7 +309,7 @@ public class CrudGatewayConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ExportEngine.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true")
     public ExportEngine defaultExportEngine(
         QueryEngine queryEngine,
         ExportFormatRegistry exportFormatRegistry,
@@ -333,7 +333,7 @@ public class CrudGatewayConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ImportGateway.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.import.enabled", havingValue = "true")
     public ImportGateway importGateway(
         ImportFormatRegistry importFormatRegistry,
         ImportPayloadCustomizerRegistry importPayloadCustomizerRegistry,
@@ -358,7 +358,7 @@ public class CrudGatewayConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ExportGateway.class)
-    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = "ent.loom.crud.export.enabled", havingValue = "true")
     public ExportGateway exportGateway(
         ExportFormatRegistry exportFormatRegistry,
         ExportPayloadCustomizerRegistry exportPayloadCustomizerRegistry,

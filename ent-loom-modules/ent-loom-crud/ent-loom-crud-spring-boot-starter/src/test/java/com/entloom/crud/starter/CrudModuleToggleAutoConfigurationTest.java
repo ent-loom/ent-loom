@@ -61,8 +61,8 @@ class CrudModuleToggleAutoConfigurationTest {
     }
 
     @Test
-    void should_register_import_export_main_chain_by_default() {
-        contextRunner.run(context -> {
+    void should_register_import_export_main_chain_when_enabled() {
+        contextRunner.withPropertyValues("ent.loom.crud.import.enabled=true", "ent.loom.crud.export.enabled=true").run(context -> {
             assertThat(context).hasSingleBean(ImportFormatRegistry.class);
             assertThat(context).hasSingleBean(ExportFormatRegistry.class);
             assertThat(context).hasSingleBean(ImportGateway.class);
@@ -80,9 +80,18 @@ class CrudModuleToggleAutoConfigurationTest {
     }
 
     @Test
+    void should_disable_import_export_by_default() {
+        assertImportExportDisabled(contextRunner);
+    }
+
+    @Test
     void should_support_import_export_toggle() {
-        contextRunner
-            .withPropertyValues("ent.loom.crud.import.enabled=false", "ent.loom.crud.export.enabled=false")
+        assertImportExportDisabled(contextRunner.withPropertyValues(
+            "ent.loom.crud.import.enabled=false", "ent.loom.crud.export.enabled=false"));
+    }
+
+    private void assertImportExportDisabled(ApplicationContextRunner runner) {
+        runner
             .run(context -> {
                 assertThat(context).doesNotHaveBean(ImportFormatRegistry.class);
                 assertThat(context).doesNotHaveBean(ExportFormatRegistry.class);
@@ -103,7 +112,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_import_only_mode() {
         contextRunner
-            .withPropertyValues("ent.loom.crud.export.enabled=false")
+            .withPropertyValues("ent.loom.crud.import.enabled=true")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImportFormatRegistry.class);
                 assertThat(context).hasSingleBean(ImportGateway.class);
@@ -124,7 +133,7 @@ class CrudModuleToggleAutoConfigurationTest {
     @Test
     void should_support_export_only_mode() {
         contextRunner
-            .withPropertyValues("ent.loom.crud.import.enabled=false")
+            .withPropertyValues("ent.loom.crud.export.enabled=true")
             .run(context -> {
                 assertThat(context).hasSingleBean(ExportFormatRegistry.class);
                 assertThat(context).hasSingleBean(ExportGateway.class);
@@ -146,7 +155,7 @@ class CrudModuleToggleAutoConfigurationTest {
     void should_not_register_http_controllers_when_controller_disabled() {
         new ApplicationContextRunner()
             .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
-            .withPropertyValues("ent.loom.crud.controller.enabled=false")
+            .withPropertyValues("ent.loom.crud.controller.enabled=false", "ent.loom.crud.import.enabled=true", "ent.loom.crud.export.enabled=true")
             .run(context -> {
                 assertThat(context).hasSingleBean(ImportGateway.class);
                 assertThat(context).hasSingleBean(ExportGateway.class);
@@ -161,7 +170,7 @@ class CrudModuleToggleAutoConfigurationTest {
 
     @Test
     void should_start_without_excel_module_and_reject_excel_xlsx_format() {
-        contextRunner.run(context -> {
+        contextRunner.withPropertyValues("ent.loom.crud.import.enabled=true", "ent.loom.crud.export.enabled=true").run(context -> {
             assertThat(ClassUtils.isPresent("com.entloom.crud.excel.ExcelXlsxSupport", context.getClassLoader()))
                 .isFalse();
             assertThatThrownBy(() -> context.getBean(ImportFormatRegistry.class).getRequired("excel-xlsx"))

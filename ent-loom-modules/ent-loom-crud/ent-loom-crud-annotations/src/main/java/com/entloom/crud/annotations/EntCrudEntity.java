@@ -12,6 +12,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface EntCrudEntity {
+    /** 是否允许框架生成通用 HTTP 接口；false 优先于项目暴露策略，不影响内部 CRUD 调用。 */
+    boolean httpExposed() default true;
+
     /**
      * 实体稳定名称。
      *

@@ -34,6 +34,8 @@ class CrudHttpContractSnapshotTest {
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, CrudAutoConfiguration.class)
         .withPropertyValues(
             "ent.loom.crud.controller.enabled=true",
+            "ent.loom.crud.import.enabled=true",
+            "ent.loom.crud.export.enabled=true",
             "ent.loom.crud.sql-log.mode=full"
         );
 

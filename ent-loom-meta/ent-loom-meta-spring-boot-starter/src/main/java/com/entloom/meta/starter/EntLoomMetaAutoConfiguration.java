@@ -15,6 +15,15 @@ import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.doc.annotations.EntDocEntity;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -55,13 +64,14 @@ public class EntLoomMetaAutoConfiguration {
 
     @Bean
     @Order(Ordered.LOWEST_PRECEDENCE - 100)
-    @Conditional(EntityClassNamesPresentCondition.class)
+    @Conditional(EntitySourcesPresentCondition.class)
     @ConditionalOnClass(MetaCrudAdapter.class)
     @ConditionalOnProperty(prefix = "ent.loom.meta.crud", name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(MetaCrudAdapter.class)
     public ResourceCatalogAdapter entLoomMetaCrudAdapter(
         EntLoomMetaProperties properties,
         EntMetaParser parser,
+        ResourceLoader resourceLoader,
         ObjectProvider<CrudConvention> conventionProvider,
         ObjectProvider<CrudInputContract> inputContractProvider
     ) {
@@ -69,7 +79,7 @@ public class EntLoomMetaAutoConfiguration {
         conventionProvider.orderedStream().forEach(conventions::add);
         CrudInputContract inputContract = inputContractProvider.getIfAvailable();
         return new MetaCrudAdapter(
-            resolveEntityClasses(properties),
+            resolveEntityClasses(properties, resourceLoader),
             parser,
             conventions,
             inputContract == null ? CrudInputContract.empty() : inputContract,
@@ -78,13 +88,14 @@ public class EntLoomMetaAutoConfiguration {
     }
 
     @Bean
-    @Conditional(EntityClassNamesPresentCondition.class)
+    @Conditional(EntitySourcesPresentCondition.class)
     @ConditionalOnClass(MetaDocAdapter.class)
     @ConditionalOnProperty(prefix = "ent.loom.meta.doc", name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
     public MetaDocAdapter entLoomMetaDocAdapter(
         EntLoomMetaProperties properties,
         EntMetaParser parser,
+        ResourceLoader resourceLoader,
         DocEntityMetaResolver entityMetaResolver,
         ObjectProvider<DocOverrideProvider> overrideProvider,
         ObjectProvider<CrudInputContract> inputContractProvider
@@ -93,7 +104,7 @@ public class EntLoomMetaAutoConfiguration {
         return new MetaDocAdapter(
             entityMetaResolver,
             com.entloom.doc.core.spi.DocIndexProvider.noop(),
-            resolveEntityClasses(properties),
+            resolveEntityClasses(properties, resourceLoader),
             parser,
             new DocRuntimeModelMerger(inputContractProvider.getIfAvailable()),
             provider == null ? DocOverrideProvider.noop() : provider,
@@ -108,18 +119,26 @@ public class EntLoomMetaAutoConfiguration {
         return DefaultMetaDiagnosticPolicy.lenient();
     }
 
-    private static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties) {
+    private static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties, ResourceLoader resourceLoader) {
         List<Class<?>> classes = new ArrayList<Class<?>>();
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        ClassLoader classLoader = resourceLoader.getClassLoader();
         if (classLoader == null) {
             classLoader = EntLoomMetaAutoConfiguration.class.getClassLoader();
         }
-        for (String className : properties.getEntityClassNames()) {
-            String normalized = EntLoomMetaProperties.trimToNull(className);
-            if (normalized == null) {
-                continue;
+        Set<String> classNames = new TreeSet<String>(properties.getEntityClassNames());
+        ClassPathScanningCandidateComponentProvider scanner =
+            new ClassPathScanningCandidateComponentProvider(false);
+        scanner.setResourceLoader(resourceLoader);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(EntEntity.class));
+        scanner.addIncludeFilter(new AnnotationTypeFilter(EntCrudEntity.class));
+        scanner.addIncludeFilter(new AnnotationTypeFilter(EntDocEntity.class));
+        for (String basePackage : properties.getBasePackages()) {
+            for (BeanDefinition candidate : scanner.findCandidateComponents(basePackage)) {
+                classNames.add(candidate.getBeanClassName());
             }
-            classes.add(resolveClass(normalized, classLoader));
+        }
+        for (String className : classNames) {
+            classes.add(resolveClass(className, classLoader));
         }
         return classes;
     }
@@ -128,7 +147,7 @@ public class EntLoomMetaAutoConfiguration {
         try {
             return Class.forName(className, false, classLoader);
         } catch (ClassNotFoundException ex) {
-            throw new IllegalStateException("无法加载 ent.loom.meta.entity-class-names 配置的实体类: " + className, ex);
+            throw new IllegalStateException("无法加载 ent.loom.meta 配置或扫描发现的实体类: " + className, ex);
         }
     }
 }

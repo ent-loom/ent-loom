@@ -48,4 +48,4 @@ python3 scripts/verify.py
 
 ## 治理默认装配与定制
 
-`application-example.yml` 只保留 P1、少量 P2 和必要的安全边界。它显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。实体路由复用 `controller.include-entities`；文档通过 `doc.contract.exposure` 声明主体与字段白名单，无需额外配置类。全部公开配置、默认值和分级见[配置参考](../../docs/guides/配置参考.md)；自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略，详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。
+`application-example.yml` 只保留 P1、少量 P2 和必要的安全边界。它显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。实体通过 `meta.base-packages` 扫描，路由使用 `controller.exposure-mode: ALL_REGISTERED`；`OrderItem` 通过 `@EntCrudEntity(httpExposed = false)` 关闭独立接口，订单操作仍由权限规则约束；文档通过 `doc.contract.exposure` 声明主体与字段白名单，无需额外配置类。全部公开配置、默认值和分级见[配置参考](../../docs/guides/配置参考.md)；自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略，详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。

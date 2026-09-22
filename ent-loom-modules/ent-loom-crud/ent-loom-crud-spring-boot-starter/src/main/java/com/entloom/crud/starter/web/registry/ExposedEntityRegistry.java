@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.web.registry;
 
 import com.entloom.crud.api.enums.CrudErrorCode;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
@@ -9,12 +10,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 
 /**
  * 实体暴露注册表。
  * 对外正式 entity code 统一来自 ResourceDescriptor.resourceCode。
  */
 public class ExposedEntityRegistry {
+    /** HTTP 暴露策略，见 {@link EntityExposureMode}。 */
+    private final EntityExposureMode exposureMode;
     /** 元数据注册表。 */
     private final EntityMetaRegistry entityMetaRegistry;
     /** 实体编码映射。 */
@@ -27,7 +32,12 @@ public class ExposedEntityRegistry {
     }
 
     public ExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
+        this(entityMetaRegistry, EntityExposureMode.EXPLICIT);
+    }
+
+    public ExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry, EntityExposureMode exposureMode) {
         this.entityMetaRegistry = entityMetaRegistry;
+        this.exposureMode = Objects.requireNonNull(exposureMode, "实体暴露模式不能为空");
     }
 
     /**
@@ -77,6 +87,9 @@ public class ExposedEntityRegistry {
      * @param includes 允许暴露实体列表
      */
     public void setIncludeEntities(Set<String> includes) {
+        if (exposureMode == EntityExposureMode.ALL_REGISTERED && includes != null && !includes.isEmpty()) {
+            throw new IllegalArgumentException("ALL_REGISTERED 模式不能同时配置 controller.include-entities");
+        }
         includeEntities.clear();
         if (includes != null) {
             includes.forEach(code -> includeEntities.add(normalize(code)));
@@ -89,16 +102,17 @@ public class ExposedEntityRegistry {
      * @param code 实体编码
      * @return 实体类型
      */
-    /**
-     * 解析实体编码并在缺失时抛出异常。
-     */
     public Class<?> resolveOrThrow(String code) {
         String normalized = normalize(code);
         Class<?> type = entityMapping.get(normalized);
         if (type == null) {
             throw new CrudException(CrudErrorCode.TYPE_RESOLUTION_FAILED, "未找到实体类型: " + code);
         }
-        if (!includeEntities.isEmpty()
+        EntCrudEntity annotation = AnnotatedElementUtils.findMergedAnnotation(type, EntCrudEntity.class);
+        if (annotation != null && !annotation.httpExposed()) {
+            throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体禁止 HTTP 暴露: " + code);
+        }
+        if (exposureMode == EntityExposureMode.EXPLICIT
             && !includeEntities.contains(normalized)
             && !includeEntities.contains(normalize(entityCode(type)))) {
             throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体未暴露: " + code);

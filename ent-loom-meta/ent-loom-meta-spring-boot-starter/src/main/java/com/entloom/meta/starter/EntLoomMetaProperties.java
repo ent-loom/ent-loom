@@ -13,6 +13,8 @@ public class EntLoomMetaProperties {
     private boolean enabled = true;
     /** 参与 Meta 投影的实体全限定类名；未提供自定义目录适配器时使用。 */
     private List<String> entityClassNames = new ArrayList<String>();
+    /** 递归扫描实体的包名，识别 EntEntity、EntCrudEntity、EntDocEntity。 */
+    private List<String> basePackages = new ArrayList<String>();
     /** Meta 到 CRUD 的适配开关。 */
     private Crud crud = new Crud();
     /** Meta 到 DOC 的适配开关。 */
@@ -34,6 +36,14 @@ public class EntLoomMetaProperties {
 
     public void setEntityClassNames(List<String> entityClassNames) {
         this.entityClassNames = nonBlankList(entityClassNames);
+    }
+
+    public List<String> getBasePackages() {
+        return basePackages;
+    }
+
+    public void setBasePackages(List<String> basePackages) {
+        this.basePackages = nonBlankList(basePackages);
     }
 
     public Crud getCrud() {

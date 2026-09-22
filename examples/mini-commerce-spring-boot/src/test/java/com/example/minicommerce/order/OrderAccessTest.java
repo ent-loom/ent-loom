@@ -1,5 +1,11 @@
 package com.example.minicommerce.order;
 
+import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
+import com.entloom.crud.core.exception.CrudException;
+import com.example.minicommerce.product.entity.Product;
+import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.OrderItem;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
@@ -20,6 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -34,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("example")
 @AutoConfigureMockMvc
 class OrderAccessTest {
+    @Autowired ExposedEntityRegistry exposedEntities;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean CrudSubjectResolver subjectResolver;
@@ -46,6 +54,19 @@ class OrderAccessTest {
         when(subjectResolver.resolveOrThrow()).thenReturn(subject);
         jdbc.update("delete from order_item");
         jdbc.update("delete from `order`");
+    }
+
+    @Test
+    void allRegisteredExposesBusinessEntitiesButKeepsOrderItemsInternal() {
+        assertEquals(Product.class, exposedEntities.resolveOrThrow("product"));
+        assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
+        assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
+        assertThrows(
+            CrudException.class,
+            () -> exposedEntities.resolveOrThrow("orderItem"));
+        assertThrows(
+            CrudException.class,
+            () -> exposedEntities.resolveOrThrow(OrderItem.class.getName()));
     }
 
     @Test

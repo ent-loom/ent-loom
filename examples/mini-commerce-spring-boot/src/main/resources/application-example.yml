@@ -1,12 +1,9 @@
 ent:
   loom:
     meta:
-      # P1｜接入必填：声明本示例参与 Meta -> CRUD / DOC 投影的实体。
-      entity-class-names:
-        - com.example.minicommerce.product.entity.Product
-        - com.example.minicommerce.customer.entity.Customer
-        - com.example.minicommerce.order.entity.Order
-        - com.example.minicommerce.order.entity.OrderItem
+      # P1｜递归扫描实体注解，供 Meta -> CRUD / DOC 投影使用。
+      base-packages:
+        - com.example.minicommerce.*.entity
       # P1｜启用 CRUD 能力时推荐显式声明。
       crud:
         enabled: true
@@ -43,16 +40,14 @@ ent:
       controller:
         # P1｜使用框架默认 HTTP CRUD 时开启。
         enabled: true
-        # P1｜明确暴露实体，避免默认全量路由。
-        include-entities:
-          - product
-          - customer
-          - order  # 订单仅授权下单与详情场景，见下方 permission-rules
+        # P1｜暴露已注册 CRUD 实体；OrderItem 在实体注解上关闭 HTTP 暴露。
+        # 订单仍仅授权下单与详情场景，见 permission-rules。
+        exposure-mode: ALL_REGISTERED
       query:
         enabled: true
       command:
         enabled: true
-      # P1｜本示例不提供导入导出能力，显式关闭默认开启的模块。
+      # P1｜本示例不提供导入导出能力，显式声明关闭；框架默认也关闭。
       import:
         enabled: false
       export:

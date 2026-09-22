@@ -29,6 +29,7 @@ import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.convention.MetaConventionContext;
 import com.entloom.meta.core.parser.EntMetaParser;
 
+import com.entloom.meta.starter.scanfixture.nested.ScannedEntities;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -45,6 +46,53 @@ import org.springframework.core.annotation.Order;
 class EntLoomMetaAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(MinimalCrudRegistryConfiguration.class, EntLoomMetaAutoConfiguration.class);
+
+    @Test
+    void packagesShouldDiscoverEntitiesRecursively() {
+        for (String property : Arrays.asList("ent.loom.meta.base-packages", "ent.loom.meta.base-packages[0]")) {
+            contextRunner.withPropertyValues(property + "=com.entloom.meta.starter.scanfixture")
+                .run(context -> {
+                    Assertions.assertNull(context.getStartupFailure());
+                    EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+                    Assertions.assertEquals("scanned_entity", registry.getResourceDescriptor(
+                        ScannedEntities.MetaEntity.class).getResourceCode());
+                    Assertions.assertEquals("scanned_crud_entity", registry.getResourceDescriptor(
+                        ScannedEntities.CrudEntity.class).getResourceCode());
+                    Assertions.assertThrows(ValidationException.class, () -> registry.getResourceDescriptor(
+                        ScannedEntities.PlainClass.class));
+                    Assertions.assertNotNull(context.getBean(MetaDocAdapter.class).buildOne(
+                        ScannedEntities.DocEntity.class));
+                    Assertions.assertTrue(context.getBeansOfType(ScannedEntities.MetaEntity.class).isEmpty());
+                });
+        }
+    }
+
+    @Test
+    void packagePatternsShouldSupportSingleAndMultipleLevels() {
+        for (String pattern : Arrays.asList(
+            "com.entloom.meta.starter.*.nested",
+            "com.entloom.meta.**.nested"
+        )) {
+            contextRunner.withPropertyValues("ent.loom.meta.base-packages=" + pattern).run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertEquals("scanned_entity", context.getBean(EntityMetaRegistry.class)
+                    .getResourceDescriptor(ScannedEntities.MetaEntity.class).getResourceCode());
+            });
+        }
+    }
+
+    @Test
+    void overlappingPackagesAndExplicitClassesShouldBeDeduplicated() {
+        contextRunner.withPropertyValues(
+            "ent.loom.meta.base-packages[0]=com.entloom.meta.starter.scanfixture",
+            "ent.loom.meta.base-packages[1]=com.entloom.meta.starter.scanfixture.nested",
+            entityClasses(ScannedEntities.MetaEntity.class)[0]
+        ).run(context -> {
+            Assertions.assertNull(context.getStartupFailure());
+            Assertions.assertEquals("scanned_entity", context.getBean(EntityMetaRegistry.class)
+                .getResourceDescriptor(ScannedEntities.MetaEntity.class).getResourceCode());
+        });
+    }
 
     @Test
     void metaEntitiesShouldAutoAssembleCrudRegistryAndDocAdapter() {

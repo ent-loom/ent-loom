@@ -74,17 +74,15 @@ public class CrudWebAutoConfiguration {
     private static final String IMPORT_ENABLED_PROPERTY = "ent.loom.crud.import.enabled";
     private static final String EXPORT_ENABLED_PROPERTY = "ent.loom.crud.export.enabled";
     private static final String IMPORT_EXPORT_ENABLED_EXPRESSION =
-        "${" + IMPORT_ENABLED_PROPERTY + ":true} or ${" + EXPORT_ENABLED_PROPERTY + ":true}";
+        "${" + IMPORT_ENABLED_PROPERTY + ":false} or ${" + EXPORT_ENABLED_PROPERTY + ":false}";
 
     @Bean
     @ConditionalOnMissingBean
     public ExposedEntityRegistry exposedEntityRegistry(CrudProperties properties, EntityMetaRegistry entityMetaRegistry) {
-        ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
-        // 只有显式白名单才注册 HTTP 类型映射，空白名单保持关闭。
-        if (!properties.getController().getIncludeEntities().isEmpty()) {
-            entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
-        }
+        ExposedEntityRegistry registry = new ExposedEntityRegistry(
+            entityMetaRegistry, properties.getController().getExposureMode());
         registry.setIncludeEntities(properties.getController().getIncludeEntities());
+        entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
         return registry;
     }
 
@@ -344,7 +342,7 @@ public class CrudWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(CrudSubjectResolver.class)
-    @ConditionalOnProperty(name = EXPORT_ENABLED_PROPERTY, havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = EXPORT_ENABLED_PROPERTY, havingValue = "true")
     public EntCrudExportFacade entCrudExportFacade(
             ExportGateway exportGateway,
             FileService fileService,
@@ -366,7 +364,7 @@ public class CrudWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(CrudSubjectResolver.class)
-    @ConditionalOnProperty(name = IMPORT_ENABLED_PROPERTY, havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = IMPORT_ENABLED_PROPERTY, havingValue = "true")
     public EntCrudImportFacade entCrudImportFacade(
             ImportGateway importGateway,
             FileService fileService,
@@ -404,14 +402,14 @@ public class CrudWebAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.export.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.export.enabled:false}")
     @ConditionalOnBean(EntCrudExportFacade.class)
     public EntCrudExportController entCrudExportController(EntCrudExportFacade entCrudExportFacade) {
         return new EntCrudExportController(entCrudExportFacade);
     }
 
     @Bean
-    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.import.enabled:true}")
+    @ConditionalOnExpression("${ent.loom.crud.controller.enabled:false} and ${ent.loom.crud.import.enabled:false}")
     @ConditionalOnBean(EntCrudImportFacade.class)
     public EntCrudImportController entCrudImportController(EntCrudImportFacade entCrudImportFacade) {
         return new EntCrudImportController(entCrudImportFacade);
