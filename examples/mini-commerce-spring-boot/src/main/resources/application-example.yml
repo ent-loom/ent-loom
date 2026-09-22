@@ -1,34 +1,30 @@
 ent:
   loom:
     meta:
-      # P0 必填：实体元数据扫描入口；后续可替换为 base-packages 约定扫描。
+      # P1｜接入必填：声明本示例参与 Meta -> CRUD / DOC 投影的实体。
       entity-class-names:
         - com.example.minicommerce.product.entity.Product
         - com.example.minicommerce.customer.entity.Customer
         - com.example.minicommerce.order.entity.Order
         - com.example.minicommerce.order.entity.OrderItem
-      # P1 建议：需要自动 CRUD 能力时开启。
+      # P1｜启用 CRUD 能力时推荐显式声明。
       crud:
         enabled: true
-      # P1 建议：需要生成实体文档时开启。
+      # P1｜启用实体文档能力时推荐显式声明。
       doc:
         enabled: true
 
     doc:
-      # P2 通常不用填：建议由 ent.loom.meta.doc.enabled 推导。
       contract:
-        # P2 通常不用填：契约默认随文档能力启用。
+        # P1｜需要文档 HTTP 端点时必须开启。
         enabled: true
-        # P0 必填：是否允许对外暴露，默认应为 false。
         exposure:
+          # P1｜HTTP 暴露必须显式打开，并配合主体与字段白名单。
           enabled: true
-          # P0 必填：明确允许访问的主体，生产环境不能依赖默认主体。
           subject-ids: [local-developer]
-          # P1 建议：默认按元数据推导；这里只保留字段暴露例外。
           fields:
             product: [id, name, price, active]
             customer: [id, displayName, email]
-        # P1 建议：需要 HTTP 文档端点时开启。
         http:
           enabled: true
     crud:
@@ -41,37 +37,28 @@ ent:
           forbidden-fields:
             product: [id]
             customer: [id]
-      # P3 特殊场景：仅示例或开发环境使用。
+      # P1｜本地示例需要稳定的主体和全量数据范围；生产环境应替换为正式治理实现。
       example:
         enabled: true
-      # P1 建议：需要自动 CRUD Controller 时开启。
       controller:
+        # P1｜使用框架默认 HTTP CRUD 时开启。
         enabled: true
-        # P2 通常不用填：使用默认路径即可。
-        base-path: /api/ent-crud
-        # P1 建议：明确允许暴露的实体，避免全量暴露。
+        # P1｜明确暴露实体，避免默认全量路由。
         include-entities:
           - product
           - customer
           - order  # 订单仅授权下单与详情场景，见下方 permission-rules
-      # P1 建议：需要查询能力时开启。
       query:
         enabled: true
-      # P1 建议：需要写入能力时开启。
       command:
         enabled: true
-      # P3 特殊场景：仅有批量导入需求时开启。
+      # P1｜本示例不提供导入导出能力，显式关闭默认开启的模块。
       import:
         enabled: false
-      # P3 特殊场景：仅有数据导出需求时开启。
       export:
         enabled: false
-      # P2 通常不用填：默认 safe，生产环境建议保持。
-      sql-log:
-        mode: safe
-      # P0 必填：存在 HTTP/CRUD 暴露时必须配置权限边界。
       governance:
-        # P0 必填：按资源、动作、场景和主体声明授权。
+        # 安全边界｜存在 HTTP/CRUD 暴露时必须配置，默认拒绝未知访问。
         permission-rules:
           - resource: order
             action: COMMAND:ACTION
@@ -97,6 +84,6 @@ ent:
             decision: ALLOW
             subject-ids:
               - local-developer
-        # P1 建议：需要审计持久化时开启。
+        # P2｜本地示例关闭 JDBC 审计，避免引入额外审计表；生产环境按审计要求开启。
         audit:
           persist-to-jdbc: false

@@ -8,13 +8,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * DDL starter 配置项。
  */
-@ConfigurationProperties(prefix = "entloom.ddl")
+@ConfigurationProperties(prefix = "ent.loom.ddl")
 public class EntDdlProperties {
+    /** DDL starter 总开关。 */
     private boolean enabled = false;
+    /** 目标数据库 schema；空值使用数据源默认 schema。 */
     private String schema = "";
+    /** 是否允许启动时创建数据库。 */
     private boolean createDatabaseIfMissing = false;
+    /** DDL 执行级别。 */
     private DdlExecutionMode mode = DdlExecutionMode.NONE;
+    /** 扫描实体包。 */
     private List<String> basePackages = new ArrayList<String>();
+    /** 直接声明的实体全限定类名。 */
     private List<String> entityClassNames = new ArrayList<String>();
 
     public boolean isEnabled() {

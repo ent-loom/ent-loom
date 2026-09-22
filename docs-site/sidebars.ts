@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       link: {type: 'doc', id: 'guides/index'},
       items: [
         'guides/快速开始',
+        'guides/配置参考',
         {
           type: 'category',
           label: 'Meta：实体建模',

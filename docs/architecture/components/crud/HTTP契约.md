@@ -12,13 +12,14 @@
 默认 Controller 关闭，通过以下配置启用：
 
 ```yaml
-entloom:
-  crud:
-    controller:
-      enabled: true
-      base-path: /api/ent-crud
-      default-timezone: Asia/Shanghai
-      default-null-field-mode: OMIT
+ent:
+  loom:
+    crud:
+      controller:
+        enabled: true
+        base-path: /api/ent-crud
+        default-timezone: Asia/Shanghai
+        default-null-field-mode: OMIT
 ```
 
 Query、Command、Import、Export 还受各自的 `enabled` 开关控制。

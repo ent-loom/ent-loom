@@ -9,10 +9,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "ent.loom.meta")
 public class EntLoomMetaProperties {
+    /** Meta 适配器总开关。 */
     private boolean enabled = true;
+    /** 参与 Meta 投影的实体全限定类名；未提供自定义目录适配器时使用。 */
     private List<String> entityClassNames = new ArrayList<String>();
+    /** Meta 到 CRUD 的适配开关。 */
     private Crud crud = new Crud();
+    /** Meta 到 DOC 的适配开关。 */
     private Doc doc = new Doc();
+    /** 元数据诊断策略。 */
     private Diagnostics diagnostics = new Diagnostics();
 
     public boolean isEnabled() {
@@ -78,6 +83,7 @@ public class EntLoomMetaProperties {
     }
 
     public static class Crud {
+        /** 是否启用 Meta 到 CRUD 的适配器。 */
         private boolean enabled = true;
 
         public boolean isEnabled() {
@@ -90,6 +96,7 @@ public class EntLoomMetaProperties {
     }
 
     public static class Doc {
+        /** 是否启用 Meta 到 DOC 的适配器。 */
         private boolean enabled = true;
 
         public boolean isEnabled() {
@@ -102,6 +109,7 @@ public class EntLoomMetaProperties {
     }
 
     public static class Diagnostics {
+        /** 发现元数据错误时是否快速失败。 */
         private boolean failFast = true;
 
         public boolean isFailFast() {

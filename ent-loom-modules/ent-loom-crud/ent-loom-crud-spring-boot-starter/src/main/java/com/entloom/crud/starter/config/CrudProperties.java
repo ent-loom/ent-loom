@@ -203,12 +203,14 @@ public class CrudProperties {
     @Getter
     @Setter
     public static class Create {
+        /** 按资源声明创建请求必须提供的字段。 */
         private Map<String, List<String>> inputRequiredFields = new java.util.LinkedHashMap<>();
     }
 
     @Getter
     @Setter
     public static class Update {
+        /** 按资源声明更新请求禁止修改的字段。 */
         private Map<String, List<String>> forbiddenFields = new java.util.LinkedHashMap<>();
     }
 
