@@ -11,8 +11,10 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -71,9 +73,19 @@ class JdbcCrudCommandHandlerTest {
     void create_should_validate_required_field_with_label_before_sql() {
         EntityMeta meta = testMeta(EntityIdPolicy.GENERATED, true);
         RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        Map<String, List<String>> required = new LinkedHashMap<String, List<String>>();
+        required.put("TestEntity", Collections.singletonList("name"));
+        CrudInputContract contract = new CrudInputContract(
+            required,
+            Collections.<String, List<String>>emptyMap()
+        );
         JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>> handler =
             new JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>>(
-                new SingleEntityMetaRegistry(meta), executor
+                new SingleEntityMetaRegistry(meta),
+                executor,
+                StandardJdbcDialect.GENERIC,
+                new JdbcCrudCommandOptions(),
+                contract
             );
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("name", "   ");
@@ -228,6 +240,37 @@ class JdbcCrudCommandHandlerTest {
         );
 
         assertTrue(ex.getMessage().contains("payload.id"));
+    }
+
+    @Test
+    void update_should_reject_contract_forbidden_field_before_sql() {
+        EntityMeta meta = testMeta();
+        RecordingGuardedSqlExecutor executor = new RecordingGuardedSqlExecutor();
+        Map<String, List<String>> forbidden = new LinkedHashMap<String, List<String>>();
+        forbidden.put("TestEntity", Collections.singletonList("name"));
+        CrudInputContract contract = new CrudInputContract(
+            Collections.<String, List<String>>emptyMap(), forbidden
+        );
+        JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>> handler =
+            new JdbcCrudCommandHandler<Map<String, Object>, Map<String, Object>>(
+                new SingleEntityMetaRegistry(meta),
+                executor,
+                StandardJdbcDialect.GENERIC,
+                new JdbcCrudCommandOptions(),
+                contract
+            );
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 1L);
+        payload.put("name", null);
+
+        ValidationException exception = assertThrows(
+            ValidationException.class,
+            () -> handler.update(spec(CommandOperation.UPDATE, payload, Map.class))
+        );
+
+        assertTrue(exception.getMessage().contains("禁止修改字段"));
+        assertFalse(executor.updateCalled);
     }
 
     @Test
@@ -477,11 +520,11 @@ class JdbcCrudCommandHandlerTest {
     ) {
         LinkedHashMap<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
         fields.put("id", idRequired
-            ? new EntityFieldMeta("id", Long.class, "id", false, false, true, true, true, false, false, "ID", true)
+            ? new EntityFieldMeta("id", Long.class, "id", false, false, true, true, true, false, false, "ID", true, null)
             : new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
         fields.put("name", new EntityFieldMeta(
             "name", String.class, "name", true, false, true, true, true, false, false,
-            "名称", nameRequired, false, nameDefault
+            "名称", nameRequired, nameDefault
         ));
         fields.put("createdAt", new EntityFieldMeta("createdAt", String.class, "created_at", true, false, true, true, false, false, false));
         fields.put("schoolId", new EntityFieldMeta("schoolId", Long.class, "school_id", false, false, true, true, false, true, false));

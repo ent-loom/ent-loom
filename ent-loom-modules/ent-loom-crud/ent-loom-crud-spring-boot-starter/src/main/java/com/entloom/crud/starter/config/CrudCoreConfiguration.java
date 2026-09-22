@@ -1,5 +1,6 @@
 package com.entloom.crud.starter.config;
 
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.starter.config.module.CrudCommandEngineConfiguration;
 import com.entloom.crud.starter.config.module.CrudCommonConfiguration;
 import com.entloom.crud.starter.config.module.CrudEntityDaoConfiguration;
@@ -11,6 +12,8 @@ import com.entloom.crud.starter.config.module.CrudStatsEngineConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Bean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 
 /**
  * ent-loom-crud 核心装配入口。
@@ -32,4 +35,12 @@ import org.springframework.context.annotation.Import;
     CrudGatewayConfiguration.class
 })
 public class CrudCoreConfiguration {
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudInputContract crudInputContract(CrudProperties properties) {
+        return new CrudInputContract(
+            properties.getContracts().getCreate().getInputRequiredFields(),
+            properties.getContracts().getUpdate().getForbiddenFields()
+        );
+    }
 }

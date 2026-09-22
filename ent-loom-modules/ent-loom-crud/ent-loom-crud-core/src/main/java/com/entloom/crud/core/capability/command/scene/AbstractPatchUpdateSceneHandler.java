@@ -6,6 +6,7 @@ import com.entloom.crud.core.capability.command.patch.CommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
@@ -25,8 +26,19 @@ import java.util.Set;
  */
 public abstract class AbstractPatchUpdateSceneHandler<T, R>
     extends AbstractEntityCommandSupport<T> {
+    private final CrudInputContract inputContract;
+
     protected AbstractPatchUpdateSceneHandler(EntityMetaRegistry entityMetaRegistry, Class<T> entityType, String scene) {
-        this(entityMetaRegistry, new DefaultCommandPayloadBinder(), entityType, scene);
+        this(entityMetaRegistry, new DefaultCommandPayloadBinder(), entityType, scene, CrudInputContract.empty());
+    }
+
+    protected AbstractPatchUpdateSceneHandler(
+        EntityMetaRegistry entityMetaRegistry,
+        Class<T> entityType,
+        String scene,
+        CrudInputContract inputContract
+    ) {
+        this(entityMetaRegistry, new DefaultCommandPayloadBinder(), entityType, scene, inputContract);
     }
 
     protected AbstractPatchUpdateSceneHandler(
@@ -35,7 +47,18 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
         Class<T> entityType,
         String scene
     ) {
+        this(entityMetaRegistry, payloadBinder, entityType, scene, CrudInputContract.empty());
+    }
+
+    protected AbstractPatchUpdateSceneHandler(
+        EntityMetaRegistry entityMetaRegistry,
+        CommandPayloadBinder payloadBinder,
+        Class<T> entityType,
+        String scene,
+        CrudInputContract inputContract
+    ) {
         super(entityMetaRegistry, payloadBinder, entityType, scene);
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
     }
 
     @Override
@@ -53,6 +76,7 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
             meta,
             additionalPatchFields()
         );
+        inputContract().validateUpdateFields(patch.getPresentFields(), meta);
         if (patch.getId() == null && !hasFilters(spec.getTargetFilters())) {
             throw new ValidationException("update patch 需要合法 id 或 targetFilters");
         }
@@ -67,6 +91,11 @@ public abstract class AbstractPatchUpdateSceneHandler<T, R>
 
     protected Set<String> additionalPatchFields() {
         return Collections.emptySet();
+    }
+
+    /** 返回当前处理器使用的外部输入契约。 */
+    protected CrudInputContract inputContract() {
+        return inputContract;
     }
 
     protected Object invokeDelegateUpdate(

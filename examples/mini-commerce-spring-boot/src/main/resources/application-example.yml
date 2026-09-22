@@ -32,6 +32,15 @@ ent:
         http:
           enabled: true
     crud:
+      contracts:
+        create:
+          input-required-fields:
+            product: [name, price, active]
+            customer: [displayName, email]
+        update:
+          forbidden-fields:
+            product: [id]
+            customer: [id]
       # P3 特殊场景：仅示例或开发环境使用。
       example:
         enabled: true

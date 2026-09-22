@@ -1,6 +1,5 @@
 package com.entloom.meta.core.parser;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.base.util.value.TypedValueType;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
@@ -111,7 +110,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         Assertions.assertEquals("Name", name.label());
         Assertions.assertEquals("Displayed name", name.description());
         Assertions.assertEquals("Alice", name.examples().get(0));
-        Assertions.assertEquals(Boolean.TRUE, name.required());
         Assertions.assertEquals(Boolean.TRUE, name.readOnly());
         Assertions.assertEquals("new-user", name.createDefaultValue());
         Assertions.assertEquals(TypedValueType.STRING, name.createDefaultValueType());
@@ -120,7 +118,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         Assertions.assertEquals("[A-Za-z]+", constraints(name).get("text.pattern"));
         Assertions.assertEquals("PARTIAL", constraints(name).get("text.masking"));
         assertSource(name.sourcedValue(MetaDescriptorProperties.LABEL), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
-        assertSource(name.sourcedValue(MetaDescriptorProperties.REQUIRED), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
         assertSource(name.sourcedValue(MetaDescriptorProperties.CREATE_DEFAULT_VALUE), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
         assertSource(name.sourcedValue(MetaDescriptorProperties.CREATE_DEFAULT_VALUE_TYPE), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
 
@@ -242,8 +239,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
             description = "Displayed name",
             examples = {"Alice"},
             createDefaultValue = "new-user",
-            required = OptionalBoolean.TRUE,
-            readOnly = OptionalBoolean.TRUE
+            readOnly = com.entloom.base.common.OptionalBoolean.TRUE
         )
         @EntMetaText(value = TextRole.SECRET, maxLength = 64, pattern = "[A-Za-z]+", masking = EntMetaText.Masking.PARTIAL)
         private String name;

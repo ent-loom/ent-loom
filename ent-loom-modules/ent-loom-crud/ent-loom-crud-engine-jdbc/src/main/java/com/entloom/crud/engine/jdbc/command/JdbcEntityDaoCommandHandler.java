@@ -23,6 +23,7 @@ import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
 import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
@@ -45,6 +46,7 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
     private final CrudCommandHandler<P, R> fallback;
     private final DefaultCommandPayloadBinder payloadBinder;
     private final RequiredFieldValidator requiredFieldValidator;
+    private final CrudInputContract inputContract;
     private final CreateDefaultValueApplier createDefaultValueApplier;
     private final CrudWriteTransactionExecutor transactionExecutor;
 
@@ -62,6 +64,16 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         CrudCommandHandler<P, R> fallback,
         CrudWriteTransactionExecutor transactionExecutor
     ) {
+        this(metaRegistry, daoFactory, fallback, transactionExecutor, CrudInputContract.empty());
+    }
+
+    public JdbcEntityDaoCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        EntityDaoFactory daoFactory,
+        CrudCommandHandler<P, R> fallback,
+        CrudWriteTransactionExecutor transactionExecutor,
+        CrudInputContract inputContract
+    ) {
         if (metaRegistry == null || daoFactory == null || fallback == null) {
             throw new ValidationException("DAO 命令处理器依赖不能为空");
         }
@@ -69,7 +81,8 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         this.daoFactory = daoFactory;
         this.fallback = fallback;
         this.payloadBinder = new DefaultCommandPayloadBinder();
-        this.requiredFieldValidator = new RequiredFieldValidator();
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+        this.requiredFieldValidator = new RequiredFieldValidator(this.inputContract);
         this.createDefaultValueApplier = new CreateDefaultValueApplier();
         this.transactionExecutor = transactionExecutor == null
             ? resolveTransactionExecutor(daoFactory)
@@ -114,10 +127,10 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         rejectVersion(spec);
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
-        createDefaultValueApplier.applyToValues(values, meta);
         Object id = resolveId(values, meta);
-        values.put(meta.getIdField(), id);
         requiredFieldValidator.validateCreateValues(values, meta, id);
+        createDefaultValueApplier.applyToValues(values, meta);
+        values.put(meta.getIdField(), id);
         Object entity = payloadBinder.bindEntity(values, spec.getRootType(), meta);
         Object insertedId = dao(meta, scope(spec)).insert(entity);
         return result(spec, 1, insertedId);
@@ -127,6 +140,7 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
     public R update(CommandSpec<P> spec) {
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         Map<String, Object> values = payloadValues(spec, meta);
+        validateUpdateContract(values, meta);
         applyExpectedVersion(values, spec, meta);
         Object id = resolveId(values, meta);
         values.put(meta.getIdField(), id);
@@ -412,6 +426,14 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
     private void rejectVersion(CommandSpec<P> spec) {
         if (spec.getExpectedVersion() != null) {
             throw new ValidationException("DAO 首期不支持 expectedVersion");
+        }
+    }
+
+    private void validateUpdateContract(Map<String, Object> values, EntityMeta meta) {
+        try {
+            inputContract.validateUpdate(values, meta);
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException(ex.getMessage());
         }
     }
 

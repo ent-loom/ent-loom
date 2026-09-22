@@ -1,6 +1,5 @@
 package com.entloom.meta.core.parser;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntIndex;
@@ -194,7 +193,7 @@ class ReflectiveEntMetaParserFixtureTest {
         @EntMetaId(generator = EntMetaId.IdGenerator.SNOWFLAKE)
         private Long id;
 
-        @EntField(required = OptionalBoolean.TRUE)
+        @EntField
         @EntMetaText(value = TextRole.GENERIC, maxLength = 80)
         private String name;
 

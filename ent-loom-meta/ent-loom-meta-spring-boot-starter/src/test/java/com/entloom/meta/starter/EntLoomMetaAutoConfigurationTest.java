@@ -1,6 +1,5 @@
 package com.entloom.meta.starter;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.crud.core.convention.CrudConventionProperties;
@@ -341,10 +340,10 @@ class EntLoomMetaAutoConfigurationTest {
 
     @EntEntity(entity = "p1_meta_order", value = "Meta Order", service = "order-service")
     static class MetaOrder {
-        @EntField(required = OptionalBoolean.TRUE)
+        @EntField
         private Long id;
 
-        @EntField(value = "Order No", required = OptionalBoolean.TRUE)
+        @EntField(value = "Order No")
         private String orderNo;
 
         @EntField
@@ -353,7 +352,7 @@ class EntLoomMetaAutoConfigurationTest {
 
     @EntEntity(entity = "p1_meta_customer", value = "Meta Customer", service = "order-service")
     static class MetaCustomer {
-        @EntField(required = OptionalBoolean.TRUE)
+        @EntField
         private Long id;
 
         @EntField
@@ -389,7 +388,7 @@ class EntLoomMetaAutoConfigurationTest {
 
     @EntDocEntity(name = "Doc Only Order", description = "DOC-only fixture")
     static class DocOnlyOrder {
-        @EntDocField(name = "Order No", required = OptionalBoolean.TRUE)
+        @EntDocField(name = "Order No")
         private String orderNo;
     }
 

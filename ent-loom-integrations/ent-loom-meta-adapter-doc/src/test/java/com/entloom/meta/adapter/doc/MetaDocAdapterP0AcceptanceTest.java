@@ -1,6 +1,5 @@
 package com.entloom.meta.adapter.doc;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
 import com.entloom.doc.core.contract.EntityDocumentationExposurePolicy;
@@ -45,7 +44,7 @@ class MetaDocAdapterP0AcceptanceTest {
         Assertions.assertEquals("doc_only_order_name", docOnly.get("entityName"));
         Assertions.assertEquals("doc_only_order", docOnly.get("tableName"));
         Assertions.assertEquals("订单号", findBy(fieldDocs(docOnly), "property", "orderNo").get("name"));
-        Assertions.assertEquals(Boolean.TRUE, findBy(fieldDocs(docOnly), "property", "orderNo").get("required"));
+        Assertions.assertEquals(Boolean.FALSE, findBy(fieldDocs(docOnly), "property", "orderNo").get("inputRequired"));
 
         Map<String, Object> overrideDoc = adapter.buildOne(OverrideOrder.class);
         Assertions.assertEquals("override_order", overrideDoc.get("resourceCode"));
@@ -72,7 +71,7 @@ class MetaDocAdapterP0AcceptanceTest {
         Assertions.assertFalse(hasMethod(EntDocField.class, "relationEntityName"));
         Assertions.assertFalse(hasMethod(EntDocField.class, "localField"));
         Assertions.assertFalse(hasMethod(EntDocField.class, "refField"));
-        Assertions.assertSame(OptionalBoolean.class, method(EntDocField.class, "required").getReturnType());
+        Assertions.assertFalse(hasMethod(EntDocField.class, "required"));
     }
 
     @Test
@@ -207,7 +206,7 @@ class MetaDocAdapterP0AcceptanceTest {
     private static final class DocOnlyOrder {
         private Long id;
 
-        @EntDocField(name = "订单号", required = OptionalBoolean.TRUE)
+        @EntDocField(name = "订单号")
         private String orderNo;
     }
 

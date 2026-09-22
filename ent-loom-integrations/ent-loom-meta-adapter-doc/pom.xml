@@ -15,6 +15,10 @@
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-crud-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-meta-enums</artifactId>
         </dependency>
         <dependency>

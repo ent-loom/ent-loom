@@ -4,6 +4,7 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -11,11 +12,20 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 基于 CRUD 运行时元数据校验业务必填字段。
+ * 基于 CRUD 运行时元数据校验创建输入契约字段。
  */
 public final class RequiredFieldValidator {
+    private final CrudInputContract inputContract;
 
-    /** 校验创建实体；应在默认值和治理字段注入后调用。 */
+    public RequiredFieldValidator() {
+        this(CrudInputContract.empty());
+    }
+
+    public RequiredFieldValidator(CrudInputContract inputContract) {
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+    }
+
+    /** 校验创建实体；应在默认值、治理字段和业务准备前调用。 */
     public void validateCreateEntity(Object entity, EntityMeta meta) {
         validateCreateEntity(entity, meta, null);
     }
@@ -31,14 +41,13 @@ public final class RequiredFieldValidator {
         if (entity == null || meta == null) {
             return;
         }
-        for (EntityFieldMeta fieldMeta : meta.getFieldMetas().values()) {
-            if (!shouldValidate(fieldMeta, meta)) {
-                continue;
-            }
+        Set<String> requiredFields = requiredFields(meta);
+        for (String fieldName : requiredFields) {
+            EntityFieldMeta fieldMeta = requireField(meta, fieldName);
             if (isPrimitiveMissing(fieldMeta, presentFields)) {
                 validate(fieldMeta, null);
             } else {
-                validate(fieldMeta, readField(entity, fieldMeta.getFieldName()));
+                validate(fieldMeta, readField(entity, fieldName));
             }
         }
     }
@@ -58,15 +67,37 @@ public final class RequiredFieldValidator {
         if (values == null || meta == null) {
             return;
         }
-        for (EntityFieldMeta fieldMeta : meta.getFieldMetas().values()) {
-            if (shouldValidate(fieldMeta, meta)) {
-                Object value = values.get(fieldMeta.getFieldName());
-                if (fieldMeta.getFieldName().equals(meta.getIdField()) && resolvedId != null) {
-                    value = resolvedId;
-                }
-                validate(fieldMeta, value);
+        Set<String> requiredFields = requiredFields(meta);
+        for (String fieldName : requiredFields) {
+            EntityFieldMeta fieldMeta = requireField(meta, fieldName);
+            Object value = values.get(fieldName);
+            if (fieldName.equals(meta.getIdField()) && resolvedId != null) {
+                value = resolvedId;
             }
+            validate(fieldMeta, value);
         }
+    }
+
+    private Set<String> requiredFields(EntityMeta meta) {
+        Set<String> fields = inputContract.resolveCreateRequiredFields(meta);
+        for (String fieldName : fields) {
+            requireField(meta, fieldName);
+        }
+        return fields;
+    }
+
+    private EntityFieldMeta requireField(EntityMeta meta, String fieldName) {
+        EntityFieldMeta field = meta.resolveFieldMeta(fieldName);
+        if (field == null) {
+            throw new ValidationException("创建契约字段不存在: " + meta.getEntityName() + "." + fieldName);
+        }
+        if (!field.isWritable()) {
+            throw new ValidationException("创建契约字段不可写: " + meta.getEntityName() + "." + fieldName);
+        }
+        if (fieldName.equals(meta.getIdField()) && meta.getIdPolicy() == EntityIdPolicy.GENERATED) {
+            throw new ValidationException("生成主键不可配置为创建输入字段: " + meta.getEntityName() + "." + fieldName);
+        }
+        return field;
     }
 
     private boolean isPrimitiveMissing(EntityFieldMeta field, Set<String> presentFields) {
@@ -74,15 +105,6 @@ public final class RequiredFieldValidator {
             && field.getJavaType() != null
             && field.getJavaType().isPrimitive()
             && !presentFields.contains(field.getFieldName());
-    }
-
-    private boolean shouldValidate(EntityFieldMeta field, EntityMeta meta) {
-        // required 表示创建完成后的最终状态；只读字段也必须由准备阶段或系统生成逻辑补齐。
-        if (field == null || !field.isRequired()) {
-            return false;
-        }
-        return !(field.getFieldName().equals(meta.getIdField())
-            && meta.getIdPolicy() == EntityIdPolicy.GENERATED);
     }
 
     private void validate(EntityFieldMeta field, Object value) {

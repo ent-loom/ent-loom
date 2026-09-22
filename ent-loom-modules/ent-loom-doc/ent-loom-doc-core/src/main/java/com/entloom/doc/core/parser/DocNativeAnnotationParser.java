@@ -1,6 +1,5 @@
 package com.entloom.doc.core.parser;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
 import com.entloom.doc.core.model.DocEntityModel;
@@ -83,7 +82,7 @@ public class DocNativeAnnotationParser {
                 stringExplicitOrUnknown(fieldDoc.description()),
                 stringExplicitOrUnknown(fieldDoc.example()),
                 exampleList(fieldDoc.example()),
-                optionalBoolean(fieldDoc.required()),
+                SourcedValue.unknown(null),
                 SourcedValue.unknown(null),
                 intExplicitOrUnknown(fieldDoc.maxLength()),
                 intExplicitOrUnknown(fieldDoc.minLength()),
@@ -209,16 +208,6 @@ public class DocNativeAnnotationParser {
             current = current.getSuperclass();
         }
         return fields;
-    }
-
-    private SourcedValue<Boolean> optionalBoolean(OptionalBoolean value) {
-        if (value == OptionalBoolean.TRUE) {
-            return SourcedValue.nativeExplicit(Boolean.TRUE);
-        }
-        if (value == OptionalBoolean.FALSE) {
-            return SourcedValue.nativeExplicit(Boolean.FALSE);
-        }
-        return SourcedValue.unknown(null);
     }
 
     private SourcedValue<Integer> intExplicitOrUnknown(int value) {

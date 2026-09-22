@@ -11,9 +11,11 @@ import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
@@ -22,7 +24,7 @@ import org.junit.jupiter.api.Test;
 class AbstractEntityCreateHandlerTest {
     @Test
     void should_inject_create_scope_into_entity_before_business_handler() {
-        TestCreateHandler handler = new TestCreateHandler(registry());
+        TestCreateHandler handler = new TestCreateHandler(registry(), contract("name"));
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("id", "");
         payload.put("name", "A");
@@ -36,7 +38,7 @@ class AbstractEntityCreateHandlerTest {
 
     @Test
     void should_reject_create_scope_conflict_before_business_handler() {
-        TestCreateHandler handler = new TestCreateHandler(registry());
+        TestCreateHandler handler = new TestCreateHandler(registry(), contract("name"));
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("schoolId", 9L);
         payload.put("name", "A");
@@ -49,8 +51,8 @@ class AbstractEntityCreateHandlerTest {
     }
 
     @Test
-    void should_validate_required_field_after_scope_injection() {
-        TestCreateHandler handler = new TestCreateHandler(registry());
+    void should_validate_contract_field_before_scope_injection() {
+        TestCreateHandler handler = new TestCreateHandler(registry(), contract("name"));
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("name", "   ");
 
@@ -64,8 +66,21 @@ class AbstractEntityCreateHandlerTest {
     }
 
     @Test
+    void should_reject_missing_contract_field_before_prepare_hook() {
+        PreparingCreateHandler handler = new PreparingCreateHandler(registry(), contract("name"));
+
+        ValidationException exception = Assertions.assertThrows(
+            ValidationException.class,
+            () -> handler.handle(spec(Collections.<String, Object>emptyMap(), null), noopDelegate())
+        );
+
+        Assertions.assertEquals("名称不能为空", exception.getMessage());
+        Assertions.assertNull(handler.requested);
+    }
+
+    @Test
     void should_distinguish_missing_primitive_from_explicit_false() {
-        TestCreateHandler handler = new TestCreateHandler(registry(true));
+        TestCreateHandler handler = new TestCreateHandler(registry(true), contract("name", "enabled"));
         Map<String, Object> missing = new LinkedHashMap<String, Object>();
         missing.put("name", "A");
 
@@ -81,16 +96,18 @@ class AbstractEntityCreateHandlerTest {
         handler.handle(spec(explicitFalse, null), noopDelegate());
         Assertions.assertFalse(handler.requested.enabled);
 
-        TestCreateHandler scopedHandler = new TestCreateHandler(registry(true));
+        TestCreateHandler scopedHandler = new TestCreateHandler(registry(true), contract("name", "enabled"));
         Map<String, Object> scopedPayload = new LinkedHashMap<String, Object>();
         scopedPayload.put("name", "A");
-        scopedHandler.handle(spec(scopedPayload, scope("enabled", Boolean.TRUE)), noopDelegate());
-        Assertions.assertTrue(scopedHandler.requested.enabled);
+        Assertions.assertThrows(
+            ValidationException.class,
+            () -> scopedHandler.handle(spec(scopedPayload, scope("enabled", Boolean.TRUE)), noopDelegate())
+        );
     }
 
     @Test
-    void should_validate_after_prepare_hook() {
-        PreparingCreateHandler handler = new PreparingCreateHandler(registry());
+    void should_run_prepare_hook_after_input_contract_validation() {
+        PreparingCreateHandler handler = new PreparingCreateHandler(registry(), contractWithNoRequiredFields());
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
 
         handler.handle(spec(payload, null), noopDelegate());
@@ -99,8 +116,8 @@ class AbstractEntityCreateHandlerTest {
     }
 
     @Test
-    void should_apply_default_value_before_required_validation() {
-        TestCreateHandler handler = new TestCreateHandler(registryWithNameDefault());
+    void should_apply_create_default_value_before_business_handler() {
+        TestCreateHandler handler = new TestCreateHandler(registryWithNameDefault(), CrudInputContract.empty());
 
         handler.handle(spec(Collections.<String, Object>emptyMap(), null), noopDelegate());
 
@@ -137,6 +154,16 @@ class AbstractEntityCreateHandlerTest {
         return registry(false);
     }
 
+    private CrudInputContract contract(String... fields) {
+        Map<String, List<String>> required = new LinkedHashMap<String, List<String>>();
+        required.put("testEntity", Arrays.asList(fields));
+        return new CrudInputContract(required, Collections.<String, List<String>>emptyMap());
+    }
+
+    private CrudInputContract contractWithNoRequiredFields() {
+        return contract();
+    }
+
     private EntityMetaRegistry registry(boolean enabledRequired) {
         final EntityMeta meta = meta(enabledRequired);
         return new EntityMetaRegistry() {
@@ -167,15 +194,9 @@ class AbstractEntityCreateHandlerTest {
 
     private EntityMetaRegistry registryWithNameDefault() {
         Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
-        fields.put("id", field("id", Long.class, "id"));
-        fields.put("schoolId", field("schoolId", Long.class, "school_id"));
         fields.put("name", new EntityFieldMeta(
             "name", String.class, "name", true, false, true, true, true, false, false,
-            "名称", true, false, "默认名称"
-        ));
-        fields.put("enabled", new EntityFieldMeta(
-            "enabled", Boolean.TYPE, "enabled", false, false, true, true, true, false, false,
-            "启用状态", false
+            "名称", false, "默认名称"
         ));
         final EntityMeta meta = new EntityMeta(
             TestEntity.class,
@@ -212,10 +233,10 @@ class AbstractEntityCreateHandlerTest {
         fields.put("id", field("id", Long.class, "id"));
         fields.put("schoolId", field("schoolId", Long.class, "school_id"));
         fields.put("name", new EntityFieldMeta(
-            "name", String.class, "name", true, false, true, true, true, false, false, "名称", true
+            "name", String.class, "name", true, false, true, true, true, false, false, "名称", true, null
         ));
         fields.put("enabled", new EntityFieldMeta(
-            "enabled", Boolean.TYPE, "enabled", false, false, true, true, true, false, false, "启用状态", enabledRequired
+            "enabled", Boolean.TYPE, "enabled", false, false, true, true, true, false, false, "启用状态", enabledRequired, null
         ));
         return new EntityMeta(
             TestEntity.class,
@@ -236,7 +257,19 @@ class AbstractEntityCreateHandlerTest {
         protected TestEntity requested;
 
         TestCreateHandler(EntityMetaRegistry entityMetaRegistry) {
+            this(entityMetaRegistry, CrudInputContract.empty());
+        }
+
+        TestCreateHandler(EntityMetaRegistry entityMetaRegistry, CrudInputContract inputContract) {
             this.entityMetaRegistry = entityMetaRegistry;
+            this.inputContract = inputContract;
+        }
+
+        private final CrudInputContract inputContract;
+
+        @Override
+        protected CrudInputContract inputContract() {
+            return inputContract;
         }
 
         @Override
@@ -269,8 +302,8 @@ class AbstractEntityCreateHandlerTest {
     }
 
     static class PreparingCreateHandler extends TestCreateHandler {
-        PreparingCreateHandler(EntityMetaRegistry entityMetaRegistry) {
-            super(entityMetaRegistry);
+        PreparingCreateHandler(EntityMetaRegistry entityMetaRegistry, CrudInputContract inputContract) {
+            super(entityMetaRegistry, inputContract);
         }
 
         @Override

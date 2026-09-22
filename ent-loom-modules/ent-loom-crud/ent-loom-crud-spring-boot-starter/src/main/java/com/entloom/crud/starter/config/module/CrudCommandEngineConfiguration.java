@@ -4,6 +4,7 @@ import com.entloom.crud.core.capability.command.engine.CommandEngine;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
@@ -36,6 +37,7 @@ public class CrudCommandEngineConfiguration {
         GuardedSqlExecutor guardedSqlExecutor,
         EntityDaoFactory entityDaoFactory,
         CrudProperties properties,
+        CrudInputContract inputContract,
         JdbcDialect jdbcDialect,
         ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider
     ) {
@@ -51,13 +53,15 @@ public class CrudCommandEngineConfiguration {
             metaRegistry,
             guardedSqlExecutor,
             jdbcDialect,
-            options
+            options,
+            inputContract
         );
         registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<>(
             metaRegistry,
             entityDaoFactory,
             fallback,
-            transactionExecutorProvider.getIfAvailable()
+            transactionExecutorProvider.getIfAvailable(),
+            inputContract
         ));
         return registry;
     }

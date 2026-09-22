@@ -15,6 +15,7 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.capability.command.spec.BatchCommand;
@@ -54,7 +55,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     /** 数据库方言，用于引用元数据标识符。 */
     private final JdbcDialect dialect;
     /** 业务必填字段校验器。 */
-    private final RequiredFieldValidator requiredFieldValidator = new RequiredFieldValidator();
+    private final RequiredFieldValidator requiredFieldValidator;
+    /** 外部创建/更新输入契约。 */
+    private final CrudInputContract inputContract;
     /** 创建默认值补齐器。 */
     private final CreateDefaultValueApplier createDefaultValueApplier = new CreateDefaultValueApplier();
 
@@ -96,6 +99,24 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
     public JdbcCrudCommandHandler(
         EntityMetaRegistry metaRegistry,
         GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        JdbcCrudCommandOptions options,
+        CrudInputContract inputContract
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            new CommandPayloadMapper(),
+            new JdbcWritePredicateBuilder(dialect),
+            options,
+            dialect,
+            inputContract
+        );
+    }
+
+    public JdbcCrudCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
         JdbcCrudCommandOptions options
     ) {
         this(
@@ -114,7 +135,8 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         CommandPayloadMapper payloadMapper,
         JdbcWritePredicateBuilder predicateBuilder
     ) {
-        this(metaRegistry, guardedSqlExecutor, payloadMapper, predicateBuilder, null, StandardJdbcDialect.GENERIC);
+        this(metaRegistry, guardedSqlExecutor, payloadMapper, predicateBuilder, null, StandardJdbcDialect.GENERIC,
+            CrudInputContract.empty());
     }
 
     JdbcCrudCommandHandler(
@@ -130,7 +152,8 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             payloadMapper,
             predicateBuilder,
             options,
-            StandardJdbcDialect.GENERIC
+            StandardJdbcDialect.GENERIC,
+            CrudInputContract.empty()
         );
     }
 
@@ -142,12 +165,27 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         JdbcCrudCommandOptions options,
         JdbcDialect dialect
     ) {
+        this(metaRegistry, guardedSqlExecutor, payloadMapper, predicateBuilder, options, dialect,
+            CrudInputContract.empty());
+    }
+
+    JdbcCrudCommandHandler(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        CommandPayloadMapper payloadMapper,
+        JdbcWritePredicateBuilder predicateBuilder,
+        JdbcCrudCommandOptions options,
+        JdbcDialect dialect,
+        CrudInputContract inputContract
+    ) {
         this.metaRegistry = metaRegistry;
         this.guardedSqlExecutor = guardedSqlExecutor;
         this.payloadMapper = payloadMapper == null ? new CommandPayloadMapper() : payloadMapper;
         this.predicateBuilder = predicateBuilder == null ? new JdbcWritePredicateBuilder() : predicateBuilder;
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.options = options == null ? new JdbcCrudCommandOptions() : options;
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+        this.requiredFieldValidator = new RequiredFieldValidator(this.inputContract);
     }
 
     @Override
@@ -187,9 +225,9 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         WriteCommand<Map<String, Object>> command = resolveWriteCommand(meta, spec, CommandOperation.CREATE);
         Map<String, Object> payload = new LinkedHashMap<String, Object>(command.getValues());
+        requiredFieldValidator.validateCreateValues(payload, meta, command.getId());
         createDefaultValueApplier.applyToValues(payload, meta);
         enforceCreateScope(meta, payload, spec);
-        requiredFieldValidator.validateCreateValues(payload, meta, command.getId());
 
         List<String> fields = validateCreateFields(meta, payload, spec);
         IdentityInsertPlan identityPlan = resolveCreateIdentity(meta, command);
@@ -227,6 +265,7 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         EntityMeta meta = metaRegistry.getEntityMeta(spec.getRootType());
         WriteCommand<Map<String, Object>> command = resolveWriteCommand(meta, spec, CommandOperation.UPDATE);
         Map<String, Object> payload = command.getValues();
+        validateUpdateContract(payload, meta);
         List<QueryFilter> targetFilters = resolveTargetFilters(meta, spec, command);
 
         int removedNonWritableFields = sanitizeNonWritableUpdateFields(meta, payload, spec, targetFilters);
@@ -560,6 +599,14 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
             fields.add(field);
         }
         return fields;
+    }
+
+    private void validateUpdateContract(Map<String, Object> payload, EntityMeta meta) {
+        try {
+            inputContract.validateUpdate(payload, meta);
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException(ex.getMessage());
+        }
     }
 
     private List<String> validateUpdateFields(EntityMeta meta, Map<String, Object> payload) {

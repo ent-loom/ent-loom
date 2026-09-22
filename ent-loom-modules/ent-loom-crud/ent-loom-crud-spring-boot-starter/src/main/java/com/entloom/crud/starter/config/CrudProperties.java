@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -54,6 +55,8 @@ public class CrudProperties {
     private ImportExport importExport = new ImportExport();
     /** 实体 DAO 配置。 */
     private Dao dao = new Dao();
+    /** 外部创建/更新输入契约。 */
+    private Contracts contracts = new Contracts();
 
     public void setRelation(Relation relation) {
         this.relation = getOrDefault(relation, Relation::new);
@@ -93,6 +96,10 @@ public class CrudProperties {
 
     public void setDao(Dao dao) {
         this.dao = getOrDefault(dao, Dao::new);
+    }
+
+    public void setContracts(Contracts contracts) {
+        this.contracts = getOrDefault(contracts, Contracts::new);
     }
 
     private static <T> T getOrDefault(T value, Supplier<T> defaultSupplier) {
@@ -171,6 +178,38 @@ public class CrudProperties {
         public JdbcPaginationPolicy toPolicy() {
             return new JdbcPaginationPolicy(maxPageSize, maxOffset);
         }
+    }
+
+    /**
+     * 普通 CRUD 外部输入边界。
+     */
+    @Getter
+    @Setter
+    public static class Contracts {
+        /** 创建请求必须提供的字段，键为资源编码或实体别名。 */
+        private Create create = new Create();
+        /** 更新请求禁止修改的字段，键为资源编码或实体别名。 */
+        private Update update = new Update();
+
+        public void setCreate(Create create) {
+            this.create = getOrDefault(create, Create::new);
+        }
+
+        public void setUpdate(Update update) {
+            this.update = getOrDefault(update, Update::new);
+        }
+    }
+
+    @Getter
+    @Setter
+    public static class Create {
+        private Map<String, List<String>> inputRequiredFields = new java.util.LinkedHashMap<>();
+    }
+
+    @Getter
+    @Setter
+    public static class Update {
+        private Map<String, List<String>> forbiddenFields = new java.util.LinkedHashMap<>();
     }
 
     /**

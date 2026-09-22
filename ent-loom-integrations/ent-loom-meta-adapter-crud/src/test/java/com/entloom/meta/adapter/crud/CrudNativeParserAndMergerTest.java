@@ -24,6 +24,7 @@ import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.crud.core.convention.CrudConventionProperties;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.meta.enums.RelationCardinality;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -154,6 +155,24 @@ class CrudNativeParserAndMergerTest {
         Assertions.assertTrue(hasDiagnostic(merged.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, CrudRuntimeProperties.SOURCE_FIELD));
     }
 
+    @Test
+    void merger_should_project_explicit_input_required_contract() {
+        java.util.Map<String, java.util.List<String>> required = new java.util.LinkedHashMap<String, java.util.List<String>>();
+        required.put("native_order", java.util.Collections.singletonList("orderNo"));
+        CrudRuntimeModelMerger merger = new CrudRuntimeModelMerger(new CrudInputContract(
+            required,
+            java.util.Collections.<String, java.util.List<String>>emptyMap()
+        ));
+        CrudNativeEntityModel nativeModel = new CrudNativeAnnotationParser()
+            .parseWithDiagnostics(NativeOrder.class)
+            .value();
+
+        CrudEntityRuntimeModel model = merger.merge(NativeOrder.class, null, nativeModel).value();
+
+        Assertions.assertTrue(field(model, "orderNo").inputRequired());
+        Assertions.assertFalse(field(model, "id").inputRequired());
+    }
+
     private boolean hasDiagnostic(List<MetaDiagnostic> diagnostics, MetaDiagnosticCode code, String property) {
         for (MetaDiagnostic diagnostic : diagnostics) {
             if (diagnostic.code() == code && property.equals(diagnostic.property())) {
@@ -181,6 +200,15 @@ class CrudNativeParserAndMergerTest {
             }
         }
         Assertions.fail("Missing field " + name);
+        return null;
+    }
+
+    private com.entloom.meta.adapter.crud.model.CrudFieldRuntimeModel field(CrudEntityRuntimeModel model, String name) {
+        for (com.entloom.meta.adapter.crud.model.CrudFieldRuntimeModel field : model.fields()) {
+            if (name.equals(field.fieldName())) {
+                return field;
+            }
+        }
         return null;
     }
 

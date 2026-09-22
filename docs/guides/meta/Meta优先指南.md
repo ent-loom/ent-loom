@@ -33,17 +33,17 @@ Runtime Model 是组件最终执行契约
 ```java
 @EntEntity
 public class Student {
-    @EntField(value = "姓名", required = OptionalBoolean.TRUE)
+    @EntField("姓名")
     private String studentName;
 
-    @EntField(value = "备注", required = OptionalBoolean.FALSE)
+    @EntField("备注")
     private String remark;
 }
 ```
 
-`EntField.required` 表达业务字段必填约束，CRUD 创建链按字段类型统一校验，Doc/UI 继承展示；业务不必区分 `NotNull`、`NotBlank`、`NotEmpty`。必填与可选都直接声明在字段上，未声明时保持未知，或按 Validation 默认组提供补充推断。文案默认由 label 生成。
+`EntField` 只表达实体字段事实。CRUD 创建输入要求和更新禁改字段配置在 `ent.loom.crud.contracts`，Doc/UI 使用运行时合并后的 `inputRequired` 作为输入提示；复杂业务校验仍由 Service / Handler 负责。
 
-当前创建最小闭环已实现，更新显式清空、统一默认值赋值和结构化错误仍在演进。类型映射、执行边界及兼容规则见 [实体必填约束与统一校验](../../evolution/decisions/core/实体必填约束与统一校验.md)。
+当前创建和更新输入边界已接入默认 CRUD、DAO 命令和强类型 Handler。类型映射、执行边界及配置示例见 [CRUD 外部输入契约与统一校验](../../evolution/decisions/core/实体必填约束与统一校验.md)。
 
 数据库可空性独立：DDL 默认非空，可空例外使用 `@EntDdlField(nullable = OptionalBoolean.TRUE)`，主键不可为空。默认值另行声明，不自动补零或空字符串。
 

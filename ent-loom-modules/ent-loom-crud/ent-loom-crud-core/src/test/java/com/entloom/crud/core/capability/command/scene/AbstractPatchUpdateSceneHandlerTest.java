@@ -5,6 +5,7 @@ import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -78,6 +79,62 @@ class AbstractPatchUpdateSceneHandlerTest {
         Assertions.assertThrows(ValidationException.class, () -> handler.handle(spec(payload), newDelegate(new ArrayList<CommandSpec<Object>>())));
     }
 
+    @Test
+    void should_reject_forbidden_patch_field_even_when_value_is_null() {
+        TestPatchUpdateHandler handler = new TestPatchUpdateHandler(registry(), contract("name"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 11L);
+        payload.put("name", null);
+
+        IllegalArgumentException exception = Assertions.assertThrows(
+            IllegalArgumentException.class,
+            () -> handler.handle(spec(payload), newDelegate(new ArrayList<CommandSpec<Object>>()))
+        );
+
+        Assertions.assertEquals("禁止修改字段: testEntity.name", exception.getMessage());
+    }
+
+    @Test
+    void should_reject_forbidden_field_in_strongly_typed_update() {
+        TestEntityUpdateHandler handler = new TestEntityUpdateHandler(registry(), contract("name"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 11L);
+        payload.put("name", null);
+
+        IllegalArgumentException exception = Assertions.assertThrows(
+            IllegalArgumentException.class,
+            () -> handler.handle(spec(payload), newDelegate(new ArrayList<CommandSpec<Object>>()))
+        );
+
+        Assertions.assertEquals("禁止修改字段: testEntity.name", exception.getMessage());
+        Assertions.assertFalse(handler.invoked);
+    }
+
+    @Test
+    void should_allow_forbidden_id_as_strongly_typed_update_locator() {
+        TestEntityUpdateHandler handler = new TestEntityUpdateHandler(registry(), contract("id"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 11L);
+        payload.put("name", "new-name");
+
+        handler.handle(spec(payload), newDelegate(new ArrayList<CommandSpec<Object>>()));
+
+        Assertions.assertTrue(handler.invoked);
+    }
+
+    @Test
+    void should_allow_forbidden_id_as_patch_locator() {
+        TestPatchUpdateHandler handler = new TestPatchUpdateHandler(registry(), contract("id"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("id", 11L);
+        payload.put("name", "new-name");
+
+        handler.handle(spec(payload), newDelegate(new ArrayList<CommandSpec<Object>>()));
+
+        Assertions.assertEquals(Long.valueOf(11L), handler.patch.getId());
+        Assertions.assertEquals("new-name", handler.patch.get("name"));
+    }
+
     private SceneDelegate<CommandSpec<Object>, Object> newDelegate(final List<CommandSpec<Object>> delegateSpecs) {
         return new SceneDelegate<CommandSpec<Object>, Object>() {
             @Override
@@ -124,6 +181,15 @@ class AbstractPatchUpdateSceneHandlerTest {
         };
     }
 
+    private CrudInputContract contract(String... fields) {
+        Map<String, List<String>> forbidden = new LinkedHashMap<String, List<String>>();
+        forbidden.put("testEntity", Arrays.asList(fields));
+        return new CrudInputContract(
+            Collections.<String, List<String>>emptyMap(),
+            forbidden
+        );
+    }
+
     private EntityMeta meta() {
         Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
         fields.put("id", field("id", Long.class, "id"));
@@ -149,6 +215,10 @@ class AbstractPatchUpdateSceneHandlerTest {
             super(entityMetaRegistry, TestEntity.class, "patch");
         }
 
+        TestPatchUpdateHandler(EntityMetaRegistry entityMetaRegistry, CrudInputContract inputContract) {
+            super(entityMetaRegistry, TestEntity.class, "patch", inputContract);
+        }
+
         @Override
         protected Object handlePatch(
             CommandSpec<UpdatePatch<TestEntity>> spec,
@@ -156,6 +226,20 @@ class AbstractPatchUpdateSceneHandlerTest {
         ) {
             patch = spec.getPayload();
             return invokeDelegateUpdate(spec, delegate);
+        }
+    }
+
+    static class TestEntityUpdateHandler extends AbstractEntityUpdateHandler<TestEntity, Object> {
+        private boolean invoked;
+
+        TestEntityUpdateHandler(EntityMetaRegistry entityMetaRegistry, CrudInputContract inputContract) {
+            super(entityMetaRegistry, TestEntity.class, "update", inputContract);
+        }
+
+        @Override
+        protected Object handleEntity(TestEntity requested) {
+            invoked = true;
+            return requested;
         }
     }
 

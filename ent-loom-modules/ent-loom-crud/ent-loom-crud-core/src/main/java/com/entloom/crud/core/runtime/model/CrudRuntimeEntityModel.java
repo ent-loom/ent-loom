@@ -124,7 +124,6 @@ public final class CrudRuntimeEntityModel {
                     field.getDictionaryCode(),
                     field.getDisplayField(),
                     field.getLabel(),
-                    field.isRequired(),
                     field.isInputRequired(),
                     field.getCreateDefaultValue()
                 )

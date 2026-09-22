@@ -19,6 +19,13 @@ ent:
         http:
           enabled: true
     crud:
+      contracts:
+        create:
+          input-required-fields:
+            customer_profile: [displayName, email]
+        update:
+          forbidden-fields:
+            customer_profile: [id]
       example:
         enabled: true
       controller:

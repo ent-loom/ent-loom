@@ -17,7 +17,6 @@ public final class CrudFieldRuntimeModel {
     private final boolean scopeField;
     private final boolean immutable;
     private final String label;
-    private final boolean required;
     private final boolean inputRequired;
     private final Object createDefaultValue;
 
@@ -28,7 +27,7 @@ public final class CrudFieldRuntimeModel {
         SourcedValue<Boolean> nullable,
         boolean relation
     ) {
-        this(fieldName, javaType, columnName, nullable, relation, true, true, true, false, false, null, false, false, null);
+        this(fieldName, javaType, columnName, nullable, relation, true, true, true, false, false, null, false, null);
     }
 
     public CrudFieldRuntimeModel(
@@ -44,7 +43,7 @@ public final class CrudFieldRuntimeModel {
         boolean immutable
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
-            scopeField, immutable, null, false, false, null);
+            scopeField, immutable, null, false, null);
     }
 
     public CrudFieldRuntimeModel(
@@ -59,25 +58,6 @@ public final class CrudFieldRuntimeModel {
         boolean scopeField,
         boolean immutable,
         String label,
-        boolean required
-    ) {
-        this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
-            scopeField, immutable, label, required, required && writable, null);
-    }
-
-    public CrudFieldRuntimeModel(
-        String fieldName,
-        Class<?> javaType,
-        SourcedValue<String> columnName,
-        SourcedValue<Boolean> nullable,
-        boolean relation,
-        boolean filterable,
-        boolean sortable,
-        boolean writable,
-        boolean scopeField,
-        boolean immutable,
-        String label,
-        boolean required,
         boolean inputRequired,
         Object createDefaultValue
     ) {
@@ -92,7 +72,6 @@ public final class CrudFieldRuntimeModel {
         this.scopeField = scopeField;
         this.immutable = immutable;
         this.label = label;
-        this.required = required;
         this.inputRequired = inputRequired;
         this.createDefaultValue = createDefaultValue;
     }
@@ -139,10 +118,6 @@ public final class CrudFieldRuntimeModel {
 
     public String label() {
         return label;
-    }
-
-    public boolean required() {
-        return required;
     }
 
     public boolean inputRequired() {

@@ -266,7 +266,7 @@ public class MetaDocAdapter {
             field.description(),
             field.example(),
             field.examples(),
-            field.required(),
+            field.inputRequired(),
             field.readOnly(),
             field.maxLength(),
             field.minLength(),

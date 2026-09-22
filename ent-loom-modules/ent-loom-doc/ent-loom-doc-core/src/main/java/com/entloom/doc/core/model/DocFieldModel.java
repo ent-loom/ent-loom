@@ -16,7 +16,7 @@ public final class DocFieldModel {
     private final SourcedValue<String> description;
     private final SourcedValue<String> example;
     private final List<String> examples;
-    private final SourcedValue<Boolean> required;
+    private final SourcedValue<Boolean> inputRequired;
     private final SourcedValue<Boolean> readOnly;
     private final SourcedValue<Integer> maxLength;
     private final SourcedValue<Integer> minLength;
@@ -37,7 +37,7 @@ public final class DocFieldModel {
         SourcedValue<String> description,
         SourcedValue<String> example,
         List<String> examples,
-        SourcedValue<Boolean> required,
+        SourcedValue<Boolean> inputRequired,
         SourcedValue<Boolean> readOnly,
         SourcedValue<Integer> maxLength,
         SourcedValue<Integer> minLength,
@@ -54,7 +54,7 @@ public final class DocFieldModel {
             description,
             example,
             examples,
-            required,
+            inputRequired,
             readOnly,
             maxLength,
             minLength,
@@ -77,7 +77,7 @@ public final class DocFieldModel {
         SourcedValue<String> description,
         SourcedValue<String> example,
         List<String> examples,
-        SourcedValue<Boolean> required,
+        SourcedValue<Boolean> inputRequired,
         SourcedValue<Boolean> readOnly,
         SourcedValue<Integer> maxLength,
         SourcedValue<Integer> minLength,
@@ -97,7 +97,7 @@ public final class DocFieldModel {
         this.description = description == null ? SourcedValue.unknown(null) : description;
         this.example = example == null ? SourcedValue.unknown(null) : example;
         this.examples = examples == null ? Collections.<String>emptyList() : Collections.unmodifiableList(new ArrayList<String>(examples));
-        this.required = required == null ? SourcedValue.unknown(null) : required;
+        this.inputRequired = inputRequired == null ? SourcedValue.unknown(null) : inputRequired;
         this.readOnly = readOnly == null ? SourcedValue.unknown(null) : readOnly;
         this.maxLength = maxLength == null ? SourcedValue.unknown(null) : maxLength;
         this.minLength = minLength == null ? SourcedValue.unknown(null) : minLength;
@@ -141,8 +141,8 @@ public final class DocFieldModel {
         return examples;
     }
 
-    public SourcedValue<Boolean> required() {
-        return required;
+    public SourcedValue<Boolean> inputRequired() {
+        return inputRequired;
     }
 
     public SourcedValue<Boolean> readOnly() {

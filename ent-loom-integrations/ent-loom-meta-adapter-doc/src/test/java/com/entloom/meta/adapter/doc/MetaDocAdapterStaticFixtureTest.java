@@ -1,6 +1,5 @@
 package com.entloom.meta.adapter.doc;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
 import com.entloom.doc.core.spi.DocEntityOverride;
@@ -43,7 +42,7 @@ class MetaDocAdapterStaticFixtureTest {
         Map<String, Object> orderNo = findBy(fields, "property", "orderNo");
         Assertions.assertEquals("订单号文档覆盖", orderNo.get("name"));
         Assertions.assertEquals("SO-001", orderNo.get("example"));
-        Assertions.assertEquals(Boolean.TRUE, orderNo.get("required"));
+        Assertions.assertEquals(Boolean.FALSE, orderNo.get("inputRequired"));
         Assertions.assertEquals("order_no", orderNo.get("column"));
 
         @SuppressWarnings("unchecked")
@@ -144,7 +143,7 @@ class MetaDocAdapterStaticFixtureTest {
         @EntField
         private Long id;
 
-        @EntField(value = "订单号", required = OptionalBoolean.TRUE)
+        @EntField(value = "订单号")
         @EntDocField(name = "订单号文档覆盖", example = "SO-001")
         private String orderNo;
 

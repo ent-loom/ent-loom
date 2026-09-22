@@ -1,7 +1,6 @@
 package com.example.customerprofile;
 
 import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 
@@ -22,10 +21,10 @@ public class CustomerProfile {
     @EntField("ID")
     private Long id;
 
-    @EntField(value = "Display name", required = OptionalBoolean.TRUE)
+    @EntField("Display name")
     private String displayName;
 
-    @EntField(value = "Email", required = OptionalBoolean.TRUE)
+    @EntField("Email")
     private String email;
 
     public Long getId() {

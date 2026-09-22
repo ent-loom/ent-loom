@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.command.scene;
 
 import com.entloom.crud.core.capability.command.scene.AbstractEntityUpdateHandler;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
@@ -19,6 +20,9 @@ public abstract class CrudTransactionalUpdateHandler<T, R>
     @Autowired
     private EntityMetaRegistry autowiredEntityMetaRegistry;
 
+    @Autowired
+    private CrudInputContract autowiredInputContract;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Object handle(CommandSpec<Object> spec, SceneDelegate<CommandSpec<Object>, Object> delegate) {
@@ -29,5 +33,10 @@ public abstract class CrudTransactionalUpdateHandler<T, R>
     protected EntityMetaRegistry getEntityMetaRegistry() {
         EntityMetaRegistry registry = super.getEntityMetaRegistry();
         return registry == null ? autowiredEntityMetaRegistry : registry;
+    }
+
+    @Override
+    protected CrudInputContract inputContract() {
+        return autowiredInputContract == null ? super.inputContract() : autowiredInputContract;
     }
 }

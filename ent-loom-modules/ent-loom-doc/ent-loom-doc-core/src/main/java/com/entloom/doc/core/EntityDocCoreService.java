@@ -130,7 +130,7 @@ public class EntityDocCoreService {
             item.put("description", valueOrDefault(field.description().value(), ""));
             item.put("example", valueOrDefault(field.example().value(), ""));
             item.put("examples", field.examples());
-            item.put("required", Boolean.TRUE.equals(field.required().value()));
+            item.put("inputRequired", Boolean.TRUE.equals(field.inputRequired().value()));
             item.put("readOnly", Boolean.TRUE.equals(field.readOnly().value()));
             item.put("maxLength", field.maxLength().value() == null ? Integer.valueOf(-1) : field.maxLength().value());
             item.put("minLength", field.minLength().value() == null ? Integer.valueOf(-1) : field.minLength().value());

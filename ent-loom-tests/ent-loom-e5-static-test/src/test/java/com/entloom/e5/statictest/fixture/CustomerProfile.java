@@ -46,7 +46,7 @@ import java.time.LocalDateTime;
 @EntDocEntity(name = "客户档案", description = "客户档案")
 public final class CustomerProfile {
     /** 数据库主键。 */
-    @EntField(value = "标识", description = "主键", required = OptionalBoolean.TRUE)
+    @EntField(value = "标识", description = "主键")
     @EntDdlField(
         column = "id",
         nullable = OptionalBoolean.FALSE,
@@ -54,15 +54,14 @@ public final class CustomerProfile {
         generationStrategy = GenerationStrategy.AUTO_INCREMENT,
         comment = "主键"
     )
-    @EntDocField(name = "标识", description = "主键", required = OptionalBoolean.TRUE)
+    @EntDocField(name = "标识", description = "主键")
     private Long id;
 
     /** 客户展示名称。 */
     @EntField(
         value = "显示名称",
         description = "客户展示名称",
-        examples = {"张三"},
-        required = OptionalBoolean.TRUE
+        examples = {"张三"}
     )
     @EntMetaText(maxLength = 64)
     @EntDdlField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE, comment = "客户展示名称")
@@ -70,7 +69,6 @@ public final class CustomerProfile {
         name = "显示名称",
         description = "客户展示名称",
         example = "张三",
-        required = OptionalBoolean.TRUE,
         maxLength = 64
     )
     private String displayName;
@@ -79,39 +77,35 @@ public final class CustomerProfile {
     @EntField(
         value = "信用额度",
         description = "客户信用额度",
-        examples = {"1000.00"},
-        required = OptionalBoolean.TRUE
+        examples = {"1000.00"}
     )
     @EntMetaNumber(value = NumberRole.MONEY, precision = 10, scale = 2)
     @EntDdlField(column = "credit_limit", precision = 10, scale = 2, nullable = OptionalBoolean.FALSE, comment = "客户信用额度")
     @EntDocField(
         name = "信用额度",
         description = "客户信用额度",
-        example = "1000.00",
-        required = OptionalBoolean.TRUE
+        example = "1000.00"
     )
     private BigDecimal creditLimit;
 
     /** 客户注册时间。 */
     @EntField(
         value = "注册时间",
-        description = "客户注册时间",
-        required = OptionalBoolean.TRUE
+        description = "客户注册时间"
     )
     @EntMetaDateTime(value = DateTimeRole.CREATED_TIME, encoding = EntMetaDateTime.TimeEncoding.ISO_LOCAL)
     @EntDdlField(column = "registered_at", nullable = OptionalBoolean.FALSE, comment = "客户注册时间")
-    @EntDocField(name = "注册时间", description = "客户注册时间", required = OptionalBoolean.TRUE)
+    @EntDocField(name = "注册时间", description = "客户注册时间")
     private LocalDateTime registeredAt;
 
     /** 客户头像地址，作为 UI 图片字段验收样本。 */
     @EntField(
         kind = EntFieldKind.MEDIA,
         value = "头像",
-        description = "客户头像地址",
-        required = OptionalBoolean.FALSE
+        description = "客户头像地址"
     )
     @EntMetaMedia(value = MediaRole.IMAGE, pathMode = EntMetaMedia.PathMode.ABSOLUTE_URL, accept = {"image/png", "image/jpeg"})
     @EntDdlField(column = "avatar_url", length = 255, nullable = OptionalBoolean.TRUE, comment = "客户头像地址")
-    @EntDocField(name = "头像", description = "客户头像地址", required = OptionalBoolean.FALSE)
+    @EntDocField(name = "头像", description = "客户头像地址")
     private String avatarUrl;
 }

@@ -71,7 +71,7 @@ public class DocRuntimeModelOverrideApplier {
                 stringOverride("description", model, field.property(), diagnostics, field.description(), override.description()),
                 stringOverride("example", model, field.property(), diagnostics, field.example(), override.example()),
                 examplesOverride(field.examples(), override),
-                field.required(),
+                field.inputRequired(),
                 field.readOnly(),
                 field.maxLength(),
                 field.minLength(),

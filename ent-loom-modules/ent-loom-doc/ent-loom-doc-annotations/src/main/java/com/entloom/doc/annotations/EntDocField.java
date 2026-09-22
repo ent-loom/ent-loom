@@ -1,6 +1,5 @@
 package com.entloom.doc.annotations;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
 import com.entloom.meta.enums.RelationCardinality;
 
@@ -26,9 +25,6 @@ public @interface EntDocField {
 
     /** 示例值 */
     String example() default "";
-
-    /** 输入必填提示；UNSET 时可继承 Meta 提示，不保证响应字段存在，也不执行校验。 */
-    OptionalBoolean required() default OptionalBoolean.UNSET;
 
     /** 最大长度（-1 表示未知或不限制） */
     int maxLength() default -1;

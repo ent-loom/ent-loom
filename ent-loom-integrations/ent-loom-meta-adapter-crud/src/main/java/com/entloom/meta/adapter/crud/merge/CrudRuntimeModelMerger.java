@@ -1,6 +1,7 @@
 package com.entloom.meta.adapter.crud.merge;
 
 import com.entloom.crud.api.enums.JoinType;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.enums.RelationScope;
 import com.entloom.crud.core.convention.CrudConventionProperties;
@@ -31,12 +32,22 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * CRUD P0 最小合并器。
  */
 public class CrudRuntimeModelMerger {
     private final PropertyContributionResolver contributionResolver = new PropertyContributionResolver();
+    private final CrudInputContract inputContract;
+
+    public CrudRuntimeModelMerger() {
+        this(CrudInputContract.empty());
+    }
+
+    public CrudRuntimeModelMerger(CrudInputContract inputContract) {
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+    }
 
     public MetaDiagnosticResult<CrudEntityRuntimeModel> merge(
         Class<?> entityClass,
@@ -59,10 +70,17 @@ public class CrudRuntimeModelMerger {
             meta == null ? null : SourcedValue.metaExplicit(resolveIdField(meta)),
             SourcedValue.defaulted("id")
         );
+        SourcedValue<String> resourceCode = resolveProperty(
+            CrudRuntimeProperties.RESOURCE_CODE,
+            entityClass,
+            null,
+            diagnostics,
+            nativeModel == null ? null : nativeModel.resourceCode(),
+            meta == null ? null : SourcedValue.metaExplicit(meta.entityName())
+        );
         CrudEntityRuntimeModel model = new CrudEntityRuntimeModel(
             entityClass,
-            resolveProperty(CrudRuntimeProperties.RESOURCE_CODE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.resourceCode(),
-                meta == null ? null : SourcedValue.metaExplicit(meta.entityName())),
+            resourceCode,
             resolveProperty(CrudRuntimeProperties.TABLE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.table(),
                 SourcedValue.inferred(defaultTable(entityClass))),
             idField,
@@ -74,7 +92,7 @@ public class CrudRuntimeModelMerger {
                 nativeModel == null ? null : nativeModel.logicDeleteDeletedValue(), SourcedValue.defaulted("")),
             resolveProperty(CrudRuntimeProperties.OWNER_SERVICE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.ownerService(),
                 meta == null ? null : stringMeta(meta.serviceName())),
-            mergeFields(entityClass, meta, nativeModel, diagnostics),
+            mergeFields(entityClass, meta, nativeModel, resourceCode.value(), diagnostics),
             mergeRelations(entityClass, meta, nativeModel, idField.value(), diagnostics)
         );
         return MetaDiagnosticResult.of(model, diagnostics.diagnostics());
@@ -84,6 +102,7 @@ public class CrudRuntimeModelMerger {
         Class<?> entityClass,
         EntEntityDescriptor meta,
         CrudNativeEntityModel nativeModel,
+        String resourceCode,
         MetaDiagnosticCollector diagnostics
     ) {
         LinkedHashSet<String> fieldNames = new LinkedHashSet<String>();
@@ -101,6 +120,11 @@ public class CrudRuntimeModelMerger {
                 fieldNames.add(field.fieldName());
             }
         }
+        Set<String> inputRequiredFields = inputContract.resolveConfiguredCreateRequiredFields(
+            resourceCode,
+            entityClass,
+            null
+        );
         List<CrudFieldRuntimeModel> fields = new ArrayList<CrudFieldRuntimeModel>();
         for (String fieldName : fieldNames) {
             EntFieldDescriptor metaField = metaFields.get(fieldName);
@@ -113,15 +137,10 @@ public class CrudRuntimeModelMerger {
             if (column == null) {
                 column = SourcedValue.inferred(NamingUtils.camelToSnake(fieldName));
             }
-            // 输入必填提示不参与 CRUD 空值能力裁决。
             SourcedValue<Boolean> nullable = nativeField == null
                 ? SourcedValue.inferred(Boolean.valueOf(!javaType.isPrimitive())) : nativeField.nullable();
             SourcedValue<Boolean> writable = resolveWritable(entityClass, fieldName, metaField, nativeField, diagnostics);
-            boolean required = metaField != null && Boolean.TRUE.equals(metaField.required());
             Object createDefaultValue = metaField == null ? null : metaField.typedCreateDefaultValue();
-            boolean inputRequired = required
-                && (writable.value() == null || writable.value().booleanValue())
-                && createDefaultValue == null;
             fields.add(new CrudFieldRuntimeModel(
                 fieldName,
                 javaType,
@@ -134,8 +153,7 @@ public class CrudRuntimeModelMerger {
                 false,
                 false,
                 metaField == null ? fieldName : metaField.label(),
-                required,
-                inputRequired,
+                inputRequiredFields.contains(fieldName),
                 createDefaultValue
             ));
         }

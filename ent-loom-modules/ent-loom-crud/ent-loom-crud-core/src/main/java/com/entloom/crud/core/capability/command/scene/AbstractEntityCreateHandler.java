@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
 import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
@@ -23,8 +24,16 @@ import java.util.Set;
  */
 public abstract class AbstractEntityCreateHandler<T, R>
     extends AbstractEntityCommandHandler<T, R> {
-    private final RequiredFieldValidator requiredFieldValidator = new RequiredFieldValidator();
+    private final CrudInputContract inputContract;
     private final CreateDefaultValueApplier createDefaultValueApplier = new CreateDefaultValueApplier();
+
+    protected AbstractEntityCreateHandler() {
+        this(CrudInputContract.empty());
+    }
+
+    protected AbstractEntityCreateHandler(CrudInputContract inputContract) {
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+    }
 
     @Override
     public final CommandOperation operation() {
@@ -41,11 +50,20 @@ public abstract class AbstractEntityCreateHandler<T, R>
         Set<String> mutablePresentFields = presentFields == null
             ? new LinkedHashSet<String>()
             : presentFields;
+        requiredFieldValidator().validateCreateEntity(requested, meta, mutablePresentFields);
         createDefaultValueApplier.applyToEntity(requested, meta, mutablePresentFields);
         enforceCreateScope(requested, spec, meta, mutablePresentFields);
         beforeHandleEntity(requested, spec, meta);
         prepareCreateEntity(requested, spec, meta, mutablePresentFields);
-        requiredFieldValidator.validateCreateEntity(requested, meta, mutablePresentFields);
+    }
+
+    /** 返回当前处理器使用的外部输入契约，Spring 子类可通过注入覆盖。 */
+    protected CrudInputContract inputContract() {
+        return inputContract;
+    }
+
+    private RequiredFieldValidator requiredFieldValidator() {
+        return new RequiredFieldValidator(inputContract());
     }
 
     /** 兼容旧版三参数扩展钩子；默认不执行额外逻辑。 */
@@ -54,9 +72,9 @@ public abstract class AbstractEntityCreateHandler<T, R>
     }
 
     /**
-     * 在 CREATE 必填校验前准备业务计算字段、默认值或治理补充字段。
+     * 在输入契约校验、默认值补齐和治理范围注入后准备业务计算字段。
      *
-     * <p>需要标记 primitive 字段已形成有效值时，可将字段名加入 presentFields。</p>
+     * <p>输入契约只判断请求是否满足外部输入边界；最终实体值和跨字段规则由业务处理负责。</p>
      */
     protected void prepareCreateEntity(
         T requested,

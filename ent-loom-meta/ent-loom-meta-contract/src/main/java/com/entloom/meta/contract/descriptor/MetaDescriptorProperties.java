@@ -19,7 +19,6 @@ public final class MetaDescriptorProperties {
     public static final String CREATE_DEFAULT_VALUE_TYPE = "createDefaultValueType";
     public static final String TYPED_CREATE_DEFAULT_VALUE = "typedCreateDefaultValue";
     public static final String CONSTRAINTS = "constraints";
-    public static final String REQUIRED = "required";
     public static final String READ_ONLY = "readOnly";
     public static final String SOURCE_FIELD = "sourceField";
     public static final String TARGET_SERVICE = "targetService";

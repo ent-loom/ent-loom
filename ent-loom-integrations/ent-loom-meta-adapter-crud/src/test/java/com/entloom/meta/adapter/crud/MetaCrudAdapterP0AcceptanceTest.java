@@ -28,12 +28,12 @@ import org.junit.jupiter.api.Test;
 class MetaCrudAdapterP0AcceptanceTest {
 
     @Test
-    void required应投影到Crud运行时且不改变数据库空值能力() {
+    void 输入契约不改变Crud运行时的数据库空值能力() {
         CrudRuntimeEntityModel model = new MetaCrudAdapter(
             Collections.<Class<?>>singletonList(InputHintEntity.class))
             .runtimeModel().getEntity(InputHintEntity.class);
         Assertions.assertTrue(model.getField("name").isNullable());
-        Assertions.assertTrue(model.getField("name").isRequired());
+        Assertions.assertFalse(model.getField("name").isInputRequired());
         Assertions.assertEquals("名称", model.getField("name").getLabel());
     }
 
@@ -44,7 +44,6 @@ class MetaCrudAdapterP0AcceptanceTest {
             .runtimeModel().getEntity(DefaultValueEntity.class);
 
         Assertions.assertEquals("ACTIVE", model.getField("status").getCreateDefaultValue());
-        Assertions.assertTrue(model.getField("status").isRequired());
         Assertions.assertFalse(model.getField("status").isInputRequired());
     }
 
@@ -56,7 +55,7 @@ class MetaCrudAdapterP0AcceptanceTest {
     @EntEntity(entity = "input_hint_entity")
     static class InputHintEntity {
         /** 业务必填约束不等同于数据库非空。 */
-        @EntField(value = "名称", required = com.entloom.base.common.OptionalBoolean.TRUE)
+        @EntField(value = "名称")
         private String name;
     }
 
@@ -65,7 +64,7 @@ class MetaCrudAdapterP0AcceptanceTest {
         @EntField
         private Long id;
 
-        @EntField(required = com.entloom.base.common.OptionalBoolean.TRUE, createDefaultValue = "ACTIVE")
+        @EntField(createDefaultValue = "ACTIVE")
         private String status;
     }
 

@@ -13,7 +13,7 @@
           "label": "id label",
           "description": "field description",
           "examples": ["example"],
-          "required": true,
+          "inputRequired": true,
           "readOnly": false,
           "maxLength": 80,
           "relation": false
@@ -34,7 +34,7 @@
           "label": "alpha label",
           "description": "field description",
           "examples": ["example"],
-          "required": true,
+          "inputRequired": true,
           "readOnly": false,
           "maxLength": 80,
           "relation": false
@@ -46,7 +46,7 @@
           "label": "customerId label",
           "description": "field description",
           "examples": ["example"],
-          "required": true,
+          "inputRequired": true,
           "readOnly": false,
           "maxLength": 80,
           "relation": true
@@ -58,7 +58,7 @@
           "label": "status label",
           "description": "field description",
           "examples": ["example"],
-          "required": true,
+          "inputRequired": true,
           "readOnly": false,
           "maxLength": 80,
           "relation": false,
@@ -74,7 +74,7 @@
           "label": "zeta label",
           "description": "field description",
           "examples": ["example"],
-          "required": true,
+          "inputRequired": true,
           "readOnly": false,
           "maxLength": 80,
           "relation": false

@@ -10,7 +10,7 @@ public final class DocRuntimeProperties {
     public static final String TABLE = "table";
     public static final String FIELD_NAME = "fieldName";
     public static final String COLUMN = "column";
-    public static final String REQUIRED = "required";
+    public static final String INPUT_REQUIRED = "inputRequired";
     public static final String TARGET_SERVICE = "targetService";
     public static final String TARGET_ENTITY = "targetEntity";
     public static final String SOURCE_FIELD = "sourceField";

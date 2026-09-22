@@ -1,6 +1,5 @@
 package com.entloom.meta.adapter.doc;
 
-import com.entloom.base.common.OptionalBoolean;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
 import com.entloom.doc.core.model.DocEntityModel;
@@ -16,6 +15,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -32,8 +32,8 @@ class DocNativeParserAndMergerTest {
         Assertions.assertEquals("native_order", model.entityName().value());
         Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, model.entityName().source());
         Assertions.assertEquals("customerId", model.fields().get(0).property());
-        Assertions.assertNull(model.fields().get(0).required().value());
-        Assertions.assertEquals(MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN, model.fields().get(0).required().source());
+        Assertions.assertNull(model.fields().get(0).inputRequired().value());
+        Assertions.assertEquals(MetaValueSource.DEFAULT_OR_EXPLICIT_UNKNOWN, model.fields().get(0).inputRequired().source());
 
         DocRelationModel relation = model.relations().get(0);
         Assertions.assertEquals("customerId", relation.sourceField().value());
@@ -72,23 +72,46 @@ class DocNativeParserAndMergerTest {
     }
 
     @Test
-    void unknownRequiredUsesDocDefaultAndAllowsNativeOverrideWithoutExplicitConflict() {
+    void inputRequiredShouldRemainIndependentFromMetaDefaultValue() {
         com.entloom.meta.contract.descriptor.EntEntityDescriptor meta =
             new com.entloom.meta.core.parser.ReflectiveEntMetaParser().parse(RequiredDefaults.class);
         com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger merger =
             new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger();
         DocEntityModel inferred = merger.merge(RequiredDefaults.class, meta, null,
             com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults")).value();
-        Assertions.assertEquals(Boolean.FALSE, inferred.fields().get(0).required().value());
-        Assertions.assertEquals(MetaValueSource.DEFAULT, inferred.fields().get(0).required().source());
+        Assertions.assertEquals(Boolean.FALSE, inferred.fields().get(0).inputRequired().value());
+        Assertions.assertEquals(MetaValueSource.DEFAULT, inferred.fields().get(0).inputRequired().source());
+        Assertions.assertEquals("true", inferred.fields().get(0).createDefaultValue().value());
         DocEntityModel nativeModel = new DocNativeAnnotationParser(new SimpleDocMetaResolver(), null)
             .parseWithDiagnostics(RequiredDefaults.class).value();
         MetaDiagnosticResult<DocEntityModel> merged = merger.merge(RequiredDefaults.class, meta, nativeModel,
             com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults"));
-        Assertions.assertEquals(Boolean.TRUE, merged.value().fields().get(0).required().value());
-        Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, merged.value().fields().get(0).required().source());
-        Assertions.assertFalse(hasDiagnostic(merged.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT,
-            DocRuntimeProperties.REQUIRED));
+        Assertions.assertEquals(Boolean.FALSE, merged.value().fields().get(0).inputRequired().value());
+        Assertions.assertEquals(MetaValueSource.DEFAULT, merged.value().fields().get(0).inputRequired().source());
+        Assertions.assertEquals("true", merged.value().fields().get(0).createDefaultValue().value());
+    }
+
+    @Test
+    void merger_should_project_explicit_input_required_contract() {
+        com.entloom.meta.contract.descriptor.EntEntityDescriptor meta =
+            new com.entloom.meta.core.parser.ReflectiveEntMetaParser().parse(RequiredDefaults.class);
+        java.util.Map<String, java.util.List<String>> required = new java.util.LinkedHashMap<String, java.util.List<String>>();
+        required.put("required_defaults", java.util.Collections.singletonList("active"));
+        com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger merger =
+            new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(new CrudInputContract(
+                required,
+                java.util.Collections.<String, java.util.List<String>>emptyMap()
+            ));
+
+        DocEntityModel model = merger.merge(
+            RequiredDefaults.class,
+            meta,
+            null,
+            com.entloom.meta.contract.value.SourcedValue.inferred("required_defaults")
+        ).value();
+
+        Assertions.assertEquals(Boolean.TRUE, model.fields().get(0).inputRequired().value());
+        Assertions.assertEquals(MetaValueSource.BUSINESS_DEFAULT_CONFIG, model.fields().get(0).inputRequired().source());
     }
 
     @EntEntity(entity = "required_defaults")
@@ -96,7 +119,7 @@ class DocNativeParserAndMergerTest {
     private static final class RequiredDefaults {
         /** 默认启用，文档场景显式要求确认。 */
         @EntField(createDefaultValue = "true")
-        @EntDocField(required = OptionalBoolean.TRUE)
+        @EntDocField
         private Boolean active;
     }
 

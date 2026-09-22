@@ -5,79 +5,87 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** required 类型语义回归。 */
+/** 外部创建输入契约的字段值语义回归。 */
 class RequiredFieldValidatorTest {
-    private final RequiredFieldValidator validator = new RequiredFieldValidator();
-
     @Test
     void should_reject_blank_text_and_empty_container_with_label_message() {
         ValidationException text = Assertions.assertThrows(
             ValidationException.class,
-            () -> validator.validateCreateValues(values("name", "  "), meta(required("name", String.class, "商品名称")))
+            () -> validator("name").validateCreateValues(values("name", "  "), meta(field("name", String.class, "商品名称")))
         );
         Assertions.assertEquals("商品名称不能为空", text.getMessage());
 
         Assertions.assertThrows(
             ValidationException.class,
-            () -> validator.validateCreateValues(
+            () -> validator("items").validateCreateValues(
                 values("items", Collections.emptyList()),
-                meta(required("items", java.util.List.class, "商品明细"))
+                meta(field("items", java.util.List.class, "商品明细"))
             )
         );
         Assertions.assertThrows(
             ValidationException.class,
-            () -> validator.validateCreateValues(values("items", new String[0]), meta(required("items", String[].class, "商品明细")))
+            () -> validator("items").validateCreateValues(values("items", new String[0]), meta(field("items", String[].class, "商品明细")))
         );
     }
 
     @Test
     void should_accept_zero_false_and_non_empty_container() {
-        validator.validateCreateValues(values("number", Integer.valueOf(0)), meta(required("number", Integer.class, "数量")));
-        validator.validateCreateValues(values("enabled", Boolean.FALSE), meta(required("enabled", Boolean.class, "启用状态")));
-        validator.validateCreateValues(values("items", Arrays.asList("A")), meta(required("items", java.util.List.class, "商品明细")));
+        validator("number").validateCreateValues(values("number", Integer.valueOf(0)), meta(field("number", Integer.class, "数量")));
+        validator("enabled").validateCreateValues(values("enabled", Boolean.FALSE), meta(field("enabled", Boolean.class, "启用状态")));
+        validator("items").validateCreateValues(values("items", Arrays.asList("A")), meta(field("items", java.util.List.class, "商品明细")));
     }
 
     @Test
     void should_reject_missing_primitive_but_accept_explicit_false() {
         EntityFieldMeta field = new EntityFieldMeta(
             "enabled", Boolean.TYPE, "enabled", false, false, true, true,
-            true, false, false, "启用状态", true
+            true, false, false, "启用状态", false, null
         );
         Set<String> absent = new HashSet<String>();
         Assertions.assertThrows(
             ValidationException.class,
-            () -> validator.validateCreateEntity(new PrimitiveEntity(), meta(field), absent)
+            () -> validator("enabled").validateCreateEntity(new PrimitiveEntity(), meta(field), absent)
         );
 
         PrimitiveEntity entity = new PrimitiveEntity();
         Set<String> present = new HashSet<String>();
         present.add("enabled");
-        validator.validateCreateEntity(entity, meta(field), present);
+        validator("enabled").validateCreateEntity(entity, meta(field), present);
     }
 
     @Test
     void should_validate_resolved_explicit_id_after_command_normalization() {
-        EntityFieldMeta id = required("id", Long.class, "商品 ID");
-        validator.validateCreateValues(Collections.<String, Object>emptyMap(), meta(id), Long.valueOf(1001L));
+        EntityFieldMeta id = field("id", Long.class, "商品 ID");
+        validator("id").validateCreateValues(Collections.<String, Object>emptyMap(), meta(id), Long.valueOf(1001L));
     }
 
     @Test
     void should_skip_database_generated_id() {
-        EntityFieldMeta id = required("id", Long.class, "商品 ID");
-        validator.validateCreateValues(Collections.<String, Object>emptyMap(), meta(id, EntityIdPolicy.GENERATED));
+        EntityFieldMeta id = field("id", Long.class, "商品 ID");
+        new RequiredFieldValidator().validateCreateValues(
+            Collections.<String, Object>emptyMap(), meta(id, EntityIdPolicy.GENERATED)
+        );
     }
 
-    private EntityFieldMeta required(String name, Class<?> type, String label) {
-        return new EntityFieldMeta(name, type, name, true, false, true, true, true, false, false, label, true);
+    private RequiredFieldValidator validator(String... fields) {
+        Map<String, List<String>> configured = new LinkedHashMap<String, List<String>>();
+        configured.put("test", Arrays.asList(fields));
+        return new RequiredFieldValidator(new CrudInputContract(configured, Collections.<String, List<String>>emptyMap()));
+    }
+
+    private EntityFieldMeta field(String name, Class<?> type, String label) {
+        return new EntityFieldMeta(name, type, name, true, false, true, true, true, false, false, label, false, null);
     }
 
     private Map<String, Object> values(String name, Object value) {

@@ -79,4 +79,24 @@ class CrudPropertiesTest {
         Assertions.assertFalse(properties.getExport().isEnabled());
     }
 
+    @Test
+    void input_contracts_should_bind_resource_field_lists() {
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("ent.loom.crud.contracts.create.input-required-fields.customer", "displayName,email");
+        values.put("ent.loom.crud.contracts.update.forbidden-fields.customer", "phone,createdAt");
+
+        CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
+            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
+            .get();
+
+        Assertions.assertEquals(
+            Arrays.asList("displayName", "email"),
+            properties.getContracts().getCreate().getInputRequiredFields().get("customer")
+        );
+        Assertions.assertEquals(
+            Arrays.asList("phone", "createdAt"),
+            properties.getContracts().getUpdate().getForbiddenFields().get("customer")
+        );
+    }
+
 }

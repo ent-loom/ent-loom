@@ -196,7 +196,7 @@ public final class EntityDocumentationProjector {
             putText(item, "description", field.description().value());
             putText(item, "role", field.role().value());
             putExamples(item, field);
-            putBoolean(item, "required", field.required().value());
+            putBoolean(item, "inputRequired", field.inputRequired().value());
             putBoolean(item, "readOnly", field.readOnly().value());
             putInteger(item, "minLength", field.minLength().value());
             putInteger(item, "maxLength", field.maxLength().value());

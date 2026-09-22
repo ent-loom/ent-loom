@@ -25,7 +25,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
     private final TypedValueType createDefaultValueType;
     private final Object typedCreateDefaultValue;
     private final List<? extends EntFieldConstraintDescriptor> constraints;
-    private final Boolean required;
     private final Boolean readOnly;
     private final Map<String, SourcedValue<?>> sourcedValues;
 
@@ -41,7 +40,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
         TypedValueType createDefaultValueType,
         Object typedCreateDefaultValue,
         List<? extends EntFieldConstraintDescriptor> constraints,
-        Boolean required,
         Boolean readOnly
     ) {
         this(
@@ -56,7 +54,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
             createDefaultValueType,
             typedCreateDefaultValue,
             constraints,
-            required,
             readOnly,
             Collections.<String, SourcedValue<?>>emptyMap()
         );
@@ -74,7 +71,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
         TypedValueType createDefaultValueType,
         Object typedCreateDefaultValue,
         List<? extends EntFieldConstraintDescriptor> constraints,
-        Boolean required,
         Boolean readOnly,
         Map<String, SourcedValue<?>> sourcedValues
     ) {
@@ -93,7 +89,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
         this.constraints = constraints == null
             ? Collections.<EntFieldConstraintDescriptor>emptyList()
             : Collections.unmodifiableList(new ArrayList<EntFieldConstraintDescriptor>(constraints));
-        this.required = required;
         this.readOnly = readOnly;
         this.sourcedValues = immutableMap(sourcedValues);
     }
@@ -151,11 +146,6 @@ public final class DefaultEntFieldDescriptor implements EntFieldDescriptor {
     @Override
     public List<? extends EntFieldConstraintDescriptor> constraints() {
         return constraints;
-    }
-
-    @Override
-    public Boolean required() {
-        return required;
     }
 
     @Override

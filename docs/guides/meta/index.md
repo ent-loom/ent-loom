@@ -9,7 +9,7 @@ Meta 是跨组件的实体描述基础。先在这里声明“实体是什么、
 | 注解 | 负责什么 | 示例 |
 |---|---|---|
 | `@EntEntity` | 实体标识和展示名称 | `student`、学生 |
-| `@EntField` | 字段名称、必填等通用业务约束 | 姓名、必填 |
+| `@EntField` | 字段名称、字段角色等通用业务事实 | 姓名、金额 |
 | `@EntRelation` | 实体间的关联事实 | 学生的班级编号关联班级主键 |
 
 这些注解来自 `ent-loom-meta-annotations`，不是 CRUD 专属能力。
@@ -27,7 +27,7 @@ public class Student {
     @EntField("编号")
     private Long id;
 
-    @EntField(value = "姓名", required = OptionalBoolean.TRUE)
+    @EntField("姓名")
     private String name;
 
     @EntField("年龄")

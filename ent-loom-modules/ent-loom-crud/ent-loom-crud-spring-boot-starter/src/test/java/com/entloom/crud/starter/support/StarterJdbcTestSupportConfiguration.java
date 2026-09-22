@@ -2,6 +2,7 @@ package com.entloom.crud.starter.support;
 
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.crud.core.runtime.model.parser.CrudNativeRuntimeModelParser;
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
@@ -14,6 +15,7 @@ import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
+import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.command.JdbcEntityDaoCommandHandler;
 import com.entloom.crud.engine.jdbc.command.RegistryBackedCommandEngine;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
@@ -27,6 +29,7 @@ import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
 import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.core.capability.stats.StatsQueryExecutor;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.capability.stats.StatsGatewayImpl;
@@ -41,6 +44,8 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Bean;
@@ -226,14 +231,26 @@ public class StarterJdbcTestSupportConfiguration {
             sqlExecutionLogger()
         );
         CrudCommandRegistry registry = new CrudCommandRegistry();
+        Map<String, List<String>> createRequired = Collections.singletonMap(
+            "TestOrderEntity", Collections.singletonList("orderNo")
+        );
+        CrudInputContract inputContract = new CrudInputContract(
+            createRequired,
+            Collections.<String, List<String>>emptyMap()
+        );
         JdbcCrudCommandHandler<Object, Object> fallback = new JdbcCrudCommandHandler<>(
             metaRegistry,
-            guardedSqlExecutor
+            guardedSqlExecutor,
+            StandardJdbcDialect.GENERIC,
+            new JdbcCrudCommandOptions(),
+            inputContract
         );
         registry.setDefaultHandler(new JdbcEntityDaoCommandHandler<Object, Object>(
             metaRegistry,
             new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor),
-            fallback
+            fallback,
+            null,
+            inputContract
         ));
         return new RegistryBackedCommandEngine(registry, sqlSecurityGuard);
     }

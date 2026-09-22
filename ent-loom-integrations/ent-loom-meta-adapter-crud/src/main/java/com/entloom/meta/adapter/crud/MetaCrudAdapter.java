@@ -5,6 +5,7 @@ import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
@@ -79,6 +80,22 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             parser,
             new CrudNativeAnnotationParser(conventions),
             new CrudRuntimeModelMerger(),
+            diagnosticPolicy
+        );
+    }
+
+    public MetaCrudAdapter(
+        Collection<Class<?>> entityClasses,
+        EntMetaParser parser,
+        Collection<? extends CrudConvention> conventions,
+        CrudInputContract inputContract,
+        MetaDiagnosticPolicy diagnosticPolicy
+    ) {
+        this(
+            entityClasses,
+            parser,
+            new CrudNativeAnnotationParser(conventions),
+            new CrudRuntimeModelMerger(inputContract),
             diagnosticPolicy
         );
     }
@@ -181,7 +198,6 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     field.scopeField(),
                     field.immutable(),
                     field.label(),
-                    field.required(),
                     field.inputRequired() && !(field.fieldName().equals(idField) && idPolicy == EntityIdPolicy.GENERATED),
                     field.createDefaultValue()
                 )

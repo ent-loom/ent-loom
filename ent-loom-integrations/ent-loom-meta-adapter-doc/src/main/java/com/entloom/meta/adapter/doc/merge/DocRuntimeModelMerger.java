@@ -6,6 +6,7 @@ import com.entloom.doc.core.model.DocFieldModel;
 import com.entloom.doc.core.model.DocIndexModel;
 import com.entloom.doc.core.model.DocRelationModel;
 import com.entloom.doc.core.model.DocRuntimeProperties;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
 import com.entloom.meta.contract.descriptor.EntFieldConstraintDescriptor;
 import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
@@ -31,6 +32,15 @@ import java.util.Map;
  * DOC P0 minimal runtime model merger.
  */
 public class DocRuntimeModelMerger {
+    private final CrudInputContract inputContract;
+
+    public DocRuntimeModelMerger() {
+        this(CrudInputContract.empty());
+    }
+
+    public DocRuntimeModelMerger(CrudInputContract inputContract) {
+        this.inputContract = inputContract == null ? CrudInputContract.empty() : inputContract;
+    }
 
     public MetaDiagnosticResult<DocEntityModel> merge(
         Class<?> entityClass,
@@ -45,12 +55,18 @@ public class DocRuntimeModelMerger {
             return MetaDiagnosticResult.of(null, java.util.Collections.emptyList());
         }
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
+        SourcedValue<String> resourceCode = choose(
+            DocRuntimeProperties.RESOURCE_CODE,
+            entityClass,
+            null,
+            diagnostics,
+            nativeModel == null ? null : nativeModel.resourceCode(),
+            meta == null ? null : stringMeta(meta.entityName()),
+            SourcedValue.inferred(entityClass.getSimpleName())
+        );
         DocEntityModel model = new DocEntityModel(
             entityClass,
-            choose(DocRuntimeProperties.RESOURCE_CODE, entityClass, null, diagnostics,
-                nativeModel == null ? null : nativeModel.resourceCode(),
-                meta == null ? null : stringMeta(meta.entityName()),
-                SourcedValue.inferred(entityClass.getSimpleName())),
+            resourceCode,
             choose(DocRuntimeProperties.ENTITY_NAME, entityClass, null, diagnostics,
                 nativeModel == null ? null : nativeModel.entityName(),
                 meta == null ? null : stringMeta(valueOrDefault(meta.label(), meta.entityName())),
@@ -63,7 +79,7 @@ public class DocRuntimeModelMerger {
                 nativeModel == null ? null : nativeModel.tableName(),
                 inferredTable,
                 SourcedValue.defaulted("")),
-            mergeFields(entityClass, meta, nativeModel, diagnostics),
+            mergeFields(entityClass, meta, nativeModel, resourceCode.value(), diagnostics),
             mergeRelations(entityClass, meta, nativeModel, diagnostics),
             mergeIndexes(meta, nativeModel)
         );
@@ -74,6 +90,7 @@ public class DocRuntimeModelMerger {
         Class<?> entityClass,
         EntEntityDescriptor meta,
         DocEntityModel nativeModel,
+        String resourceCode,
         MetaDiagnosticCollector diagnostics
     ) {
         LinkedHashSet<String> fieldNames = new LinkedHashSet<String>();
@@ -91,6 +108,11 @@ public class DocRuntimeModelMerger {
                 fieldNames.add(field.property());
             }
         }
+        java.util.Set<String> inputRequiredFields = inputContract.resolveConfiguredCreateRequiredFields(
+            resourceCode,
+            entityClass,
+            null
+        );
         List<DocFieldModel> fields = new ArrayList<DocFieldModel>();
         for (String fieldName : fieldNames) {
             EntFieldDescriptor metaField = metaFields.get(fieldName);
@@ -117,10 +139,11 @@ public class DocRuntimeModelMerger {
                 metaField != null && !metaField.examples().isEmpty()
                     ? new ArrayList<String>(metaField.examples())
                     : nativeField == null ? java.util.Collections.<String>emptyList() : nativeField.examples(),
-                choose(DocRuntimeProperties.REQUIRED, entityClass, fieldName, diagnostics,
-                    nativeField == null ? null : nativeField.required(),
-                    requiredSource(metaField),
-                    SourcedValue.defaulted(Boolean.FALSE)),
+                choose(DocRuntimeProperties.INPUT_REQUIRED, entityClass, fieldName, diagnostics,
+                    null,
+                    inputRequiredFields.contains(fieldName)
+                        ? SourcedValue.businessDefaultConfig(Boolean.TRUE)
+                        : SourcedValue.defaulted(Boolean.FALSE)),
                 choose("readOnly", entityClass, fieldName, diagnostics,
                     nativeField == null ? null : nativeField.readOnly(),
                     metaField == null || metaField.readOnly() == null ? null : SourcedValue.metaExplicit(metaField.readOnly()),
@@ -203,15 +226,6 @@ public class DocRuntimeModelMerger {
             ));
         }
         return relations;
-    }
-
-    private SourcedValue<Boolean> requiredSource(EntFieldDescriptor field) {
-        if (field == null || field.required() == null) {
-            return null;
-        }
-        SourcedValue<?> source = field.sourcedValue(MetaDescriptorProperties.REQUIRED);
-        return source == null ? SourcedValue.metaExplicit(field.required())
-            : SourcedValue.of(field.required(), source.source(), source.state(), source.explicit(), source.ruleId());
     }
 
     private List<DocIndexModel> mergeIndexes(EntEntityDescriptor meta, DocEntityModel nativeModel) {

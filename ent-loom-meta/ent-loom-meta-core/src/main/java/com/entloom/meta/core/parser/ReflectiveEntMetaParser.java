@@ -43,10 +43,6 @@ import com.entloom.meta.contract.value.MetaValueState;
 import com.entloom.meta.core.convention.BuiltInDateTimeConvention;
 import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.convention.MetaConventionContext;
-import com.entloom.meta.core.convention.RequiredInferenceContext;
-import com.entloom.meta.core.convention.RequiredInferenceContribution;
-import com.entloom.meta.core.convention.RequiredInferenceFilter;
-import com.entloom.meta.core.convention.RequiredInferenceValue;
 import com.entloom.meta.core.resolution.PropertyContributionResolver;
 import com.entloom.meta.enums.EntFieldKind;
 import java.lang.annotation.Annotation;
@@ -75,21 +71,12 @@ import java.util.Set;
 public class ReflectiveEntMetaParser implements EntMetaParser {
     private final List<MetaConvention> conventions;
     private final PropertyContributionResolver contributionResolver;
-    private final RequiredInferenceFilter requiredInferenceFilter;
 
     public ReflectiveEntMetaParser() {
-        this(Collections.<MetaConvention>emptyList(), null);
+        this(Collections.<MetaConvention>emptyList());
     }
 
     public ReflectiveEntMetaParser(Collection<? extends MetaConvention> conventions) {
-        this(conventions, null);
-    }
-
-    /** 显式启用单个项目级 CREATE required 推断过滤器。 */
-    public ReflectiveEntMetaParser(
-        Collection<? extends MetaConvention> conventions,
-        RequiredInferenceFilter requiredInferenceFilter
-    ) {
         this.conventions = new ArrayList<MetaConvention>();
         this.conventions.add(new BuiltInDateTimeConvention());
         if (conventions != null) {
@@ -100,7 +87,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             }
         }
         this.contributionResolver = new PropertyContributionResolver();
-        this.requiredInferenceFilter = requiredInferenceFilter;
     }
 
     @Override
@@ -192,8 +178,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         if (conventionValues.readOnly != null || conventionValues.readOnlySource != null) {
             sources.put(MetaDescriptorProperties.READ_ONLY, conventionValues.readOnlySource);
         }
-        SourcedValue<Boolean> required = resolveRequired(entityClass, field, entField, diagnostics);
-        sources.put(MetaDescriptorProperties.REQUIRED, required);
         return new DefaultEntFieldDescriptor(
             field.getName(),
             field.getType(),
@@ -206,55 +190,9 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             defaultValue.valueType,
             defaultValue.typedValue,
             constraints,
-            required.value(),
             conventionValues.readOnly,
             sources
         );
-    }
-
-    private SourcedValue<Boolean> resolveRequired(
-        Class<?> entityClass, Field field, EntField entField, MetaDiagnosticCollector diagnostics
-    ) {
-        String target = entityClass.getName() + "#" + field.getName();
-        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
-        if (entField != null && entField.required() != OptionalBoolean.UNSET) {
-            contributions.add(Contribution.builder().target(target).property(MetaDescriptorProperties.REQUIRED)
-                .value(entField.required() == OptionalBoolean.TRUE).source(MetaValueSource.META_EXPLICIT)
-                .ruleId("parser.explicit.required").reason("字段显式声明 required").priority(Priority.META_EXPLICIT).build());
-        }
-        SourcedValue<Boolean> validation = RequiredInference.resolve(field, null);
-        if (validation.value() != null) {
-            contributions.add(Contribution.builder().target(target).property(MetaDescriptorProperties.REQUIRED)
-                .value(validation.value()).source(MetaValueSource.INFERRED).ruleId("validation.required")
-                .reason("Bean Validation 默认组约束").priority(Priority.META_INFERENCE).build());
-        }
-        if (requiredInferenceFilter != null) {
-            try {
-                RequiredInferenceContribution inferred = requiredInferenceFilter.contribute(
-                    new RequiredInferenceContext(entityClass, field, RequiredInferenceContext.Scenario.CREATE));
-                if (inferred != null && inferred.value() != RequiredInferenceValue.UNSET) {
-                    contributions.add(Contribution.builder().target(target).property(MetaDescriptorProperties.REQUIRED)
-                        .value(inferred.value() == RequiredInferenceValue.TRUE)
-                        .source(MetaValueSource.MODULE_PROJECT_CONVENTION).ruleId(inferred.ruleId())
-                        .reason(inferred.reason()).priority(Priority.MODULE_PROJECT_CONVENTION).build());
-                }
-            } catch (RuntimeException ex) {
-                diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.CONVENTION_FAILURE).field(field.getName())
-                    .location(target).property(MetaDescriptorProperties.REQUIRED)
-                    .message("RequiredInferenceFilter 执行失败: " + ex.getMessage()).build());
-            }
-        }
-        if (contributions.isEmpty()) {
-            return SourcedValue.unknown(null);
-        }
-        MetaDiagnosticResult<Map<String, Contribution<?>>> result = contributionResolver.resolve(contributions);
-        diagnostics.addAll(result.diagnostics());
-        Contribution<?> winner = result.value().get(target + "." + MetaDescriptorProperties.REQUIRED);
-        if (winner == null) {
-            return SourcedValue.unknown(null);
-        }
-        return SourcedValue.of((Boolean) winner.value(), winner.source(), state(winner.source()),
-            isExplicit(winner.source()), winner.ruleId().value(), winner.reason());
     }
 
     private FieldConventionValues applyConventions(
@@ -1010,10 +948,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         sources.put(
             MetaDescriptorProperties.CONSTRAINTS,
             constraintValues.isEmpty() ? SourcedValue.unknown(constraintValues) : SourcedValue.metaExplicit(constraintValues)
-        );
-        sources.put(
-            MetaDescriptorProperties.REQUIRED,
-            entField == null ? SourcedValue.unknown(null) : optionalBooleanSource(entField.required(), toBoolean(entField.required()))
         );
         sources.put(
             MetaDescriptorProperties.READ_ONLY,

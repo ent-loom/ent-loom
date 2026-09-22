@@ -1,7 +1,7 @@
 package com.entloom.meta.annotations;
 
-import com.entloom.base.util.value.TypedValueType;
 import com.entloom.base.common.OptionalBoolean;
+import com.entloom.base.util.value.TypedValueType;
 import com.entloom.meta.enums.EntFieldKind;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -45,12 +45,6 @@ public @interface EntField {
      * createDefaultValue 的解析类型，UNSET 表示按字段 Java 类型和 EntFieldKind 推断。
      */
     TypedValueType createDefaultValueType() default TypedValueType.UNSET;
-
-    /**
-     * 业务字段必填约束；UNSET 表示未显式声明，并兼容从 Validation 默认组推断。
-     * 字段类型只决定校验方式，不决定是否必填；该属性不表达数据库非空或响应字段存在性。
-     */
-    OptionalBoolean required() default OptionalBoolean.UNSET;
 
     /**
      * 是否只读，UNSET 表示由角色和上下文策略决定。

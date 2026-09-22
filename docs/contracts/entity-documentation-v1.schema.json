@@ -115,7 +115,7 @@
             "type": "string"
           }
         },
-        "required": {
+        "inputRequired": {
           "type": "boolean"
         },
         "nullable": {

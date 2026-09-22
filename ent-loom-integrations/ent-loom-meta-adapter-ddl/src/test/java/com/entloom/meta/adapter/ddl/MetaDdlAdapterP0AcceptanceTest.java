@@ -162,12 +162,12 @@ class MetaDdlAdapterP0AcceptanceTest {
     @EntEntity(entity = "input_hint_account")
     static class InputHintAccount {
         /** 输入可选，但存储默认非空。 */
-        @EntField(required = OptionalBoolean.FALSE)
+        @EntField
         private String optionalInput;
         /** 包装类型不自动视为数据库可空。 */
         private Long unspecifiedInput;
         /** 输入提示与显式数据库可空可以并存。 */
-        @EntField(required = OptionalBoolean.TRUE)
+        @EntField
         @EntDdlField(nullable = OptionalBoolean.TRUE)
         private String requiredInput;
     }
@@ -208,7 +208,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         @EntMetaId(generator = EntMetaId.IdGenerator.AUTO)
         private Long id;
 
-        @EntField(required = OptionalBoolean.TRUE, description = "账户名称")
+        @EntField(description = "账户名称")
         @EntMetaText(maxLength = 64)
         private String displayName;
 
@@ -241,7 +241,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         @EntDdlField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
         private Long id;
 
-        @EntField(required = OptionalBoolean.TRUE)
+        @EntField
         @EntMetaText(maxLength = 80)
         @EntDdlField(column = "native_display", length = 24, nullable = OptionalBoolean.TRUE)
         private String displayName;

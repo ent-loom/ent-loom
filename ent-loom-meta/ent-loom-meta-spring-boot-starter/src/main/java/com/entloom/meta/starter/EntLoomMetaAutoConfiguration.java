@@ -2,14 +2,15 @@ package com.entloom.meta.starter;
 
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.convention.CrudConvention;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.crud.MetaCrudAdapter;
 import com.entloom.meta.adapter.doc.MetaDocAdapter;
+import com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy;
 import com.entloom.meta.core.convention.MetaConvention;
-import com.entloom.meta.core.convention.RequiredInferenceFilter;
 import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import java.util.ArrayList;
@@ -39,17 +40,11 @@ public class EntLoomMetaAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public EntMetaParser entLoomMetaParser(
-        ObjectProvider<MetaConvention> conventionProvider,
-        ObjectProvider<RequiredInferenceFilter> requiredInferenceFilterProvider
+        ObjectProvider<MetaConvention> conventionProvider
     ) {
         List<MetaConvention> conventions = new ArrayList<MetaConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
-        List<RequiredInferenceFilter> filters = new ArrayList<RequiredInferenceFilter>();
-        requiredInferenceFilterProvider.orderedStream().forEach(filters::add);
-        if (filters.size() > 1) {
-            throw new IllegalStateException("RequiredInferenceFilter 只允许注册一个实例，实际注册了 " + filters.size() + " 个");
-        }
-        return new ReflectiveEntMetaParser(conventions, filters.isEmpty() ? null : filters.get(0));
+        return new ReflectiveEntMetaParser(conventions);
     }
 
     @Bean
@@ -67,11 +62,19 @@ public class EntLoomMetaAutoConfiguration {
     public ResourceCatalogAdapter entLoomMetaCrudAdapter(
         EntLoomMetaProperties properties,
         EntMetaParser parser,
-        ObjectProvider<CrudConvention> conventionProvider
+        ObjectProvider<CrudConvention> conventionProvider,
+        ObjectProvider<CrudInputContract> inputContractProvider
     ) {
         List<CrudConvention> conventions = new ArrayList<CrudConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
-        return new MetaCrudAdapter(resolveEntityClasses(properties), parser, conventions, diagnosticPolicy(properties));
+        CrudInputContract inputContract = inputContractProvider.getIfAvailable();
+        return new MetaCrudAdapter(
+            resolveEntityClasses(properties),
+            parser,
+            conventions,
+            inputContract == null ? CrudInputContract.empty() : inputContract,
+            diagnosticPolicy(properties)
+        );
     }
 
     @Bean
@@ -83,7 +86,8 @@ public class EntLoomMetaAutoConfiguration {
         EntLoomMetaProperties properties,
         EntMetaParser parser,
         DocEntityMetaResolver entityMetaResolver,
-        ObjectProvider<DocOverrideProvider> overrideProvider
+        ObjectProvider<DocOverrideProvider> overrideProvider,
+        ObjectProvider<CrudInputContract> inputContractProvider
     ) {
         DocOverrideProvider provider = overrideProvider.getIfAvailable();
         return new MetaDocAdapter(
@@ -91,7 +95,7 @@ public class EntLoomMetaAutoConfiguration {
             com.entloom.doc.core.spi.DocIndexProvider.noop(),
             resolveEntityClasses(properties),
             parser,
-            new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(),
+            new DocRuntimeModelMerger(inputContractProvider.getIfAvailable()),
             provider == null ? DocOverrideProvider.noop() : provider,
             diagnosticPolicy(properties)
         );
