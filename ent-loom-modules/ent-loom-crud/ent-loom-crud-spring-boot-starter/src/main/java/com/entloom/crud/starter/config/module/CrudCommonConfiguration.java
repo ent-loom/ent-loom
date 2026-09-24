@@ -1,5 +1,8 @@
 package com.entloom.crud.starter.config.module;
 
+import com.entloom.crud.api.enums.AccessDecision;
+import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.core.adapter.AccessEntryResolver;
 import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
 import com.entloom.crud.core.adapter.ContextAccessEntryAttributeContributor;
@@ -19,6 +22,7 @@ import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
+import com.entloom.crud.core.governance.permission.AnnotationCrudPermissionService;
 import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
 import com.entloom.crud.core.governance.policy.DefaultScenePolicyService;
 import com.entloom.crud.core.governance.policy.ScenePolicy;
@@ -42,6 +46,9 @@ import com.entloom.crud.engine.jdbc.log.SqlLogLevel;
 import com.entloom.crud.starter.config.CrudProperties;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -141,7 +148,93 @@ public class CrudCommonConfiguration {
                 rule.getOrgIds()
             ));
         }
-        return new RuleBasedCrudPermissionService(rules);
+        addConventionGrantRules(rules, properties.getGovernance().getGrants());
+        return new AnnotationCrudPermissionService(new RuleBasedCrudPermissionService(rules));
+    }
+
+    /**
+     * 将简洁权限码展开为现有规则模型。
+     *
+     * <p>权限码约定为 resource:permission：read 覆盖全部查询操作，
+     * write 覆盖标准 CREATE/UPDATE/DELETE，标准操作名可单独授权，其他名称表示 ACTION scene。</p>
+     */
+    private void addConventionGrantRules(List<CrudPermissionRule> rules, Map<String, List<String>> grants) {
+        if (grants == null) {
+            return;
+        }
+        for (Map.Entry<String, List<String>> entry : grants.entrySet()) {
+            String subjectId = normalizeGrantPart(entry.getKey(), "主体");
+            List<String> permissions = entry.getValue();
+            if (permissions == null) {
+                continue;
+            }
+            for (String rawPermission : permissions) {
+                String permission = normalizeGrantPart(rawPermission, "权限码");
+                int separator = permission.indexOf(':');
+                if (separator <= 0 || separator == permission.length() - 1) {
+                    throw new IllegalArgumentException("权限码必须使用 resource:permission 格式: " + permission);
+                }
+                String resource = permission.substring(0, separator);
+                String operation = permission.substring(separator + 1);
+                addConventionGrant(rules, resource, operation, subjectId);
+            }
+        }
+    }
+
+    private void addConventionGrant(List<CrudPermissionRule> rules, String resource, String operation, String subjectId) {
+        Set<String> subjects = java.util.Collections.singleton(subjectId);
+        String normalized = operation.toLowerCase(Locale.ROOT);
+        if ("*".equals(operation)) {
+            rules.add(new CrudPermissionRule(resource, "*", "*", AccessDecision.ALLOW, subjects, null, null));
+            return;
+        }
+        if ("read".equals(normalized)) {
+            for (QueryOperation queryOperation : QueryOperation.values()) {
+                rules.add(new CrudPermissionRule(resource, "QUERY:" + queryOperation.name(), "*",
+                    AccessDecision.ALLOW, subjects, null, null));
+            }
+            return;
+        }
+        if ("write".equals(normalized)) {
+            for (CommandOperation commandOperation : new CommandOperation[] {
+                CommandOperation.CREATE, CommandOperation.UPDATE, CommandOperation.DELETE
+            }) {
+                rules.add(new CrudPermissionRule(resource, "COMMAND:" + commandOperation.name(), "*",
+                    AccessDecision.ALLOW, subjects, null, null));
+            }
+            return;
+        }
+        for (QueryOperation queryOperation : QueryOperation.values()) {
+            if (queryOperation.name().toLowerCase(Locale.ROOT).equals(normalized)
+                || (queryOperation == QueryOperation.FIND_ONE && "find-one".equals(normalized))) {
+                rules.add(new CrudPermissionRule(resource, "QUERY:" + queryOperation.name(), "*",
+                    AccessDecision.ALLOW, subjects, null, null));
+                return;
+            }
+        }
+        for (CommandOperation commandOperation : new CommandOperation[] {
+            CommandOperation.CREATE, CommandOperation.UPDATE, CommandOperation.DELETE
+        }) {
+            if (commandOperation.name().toLowerCase(Locale.ROOT).equals(normalized)) {
+                rules.add(new CrudPermissionRule(resource, "COMMAND:" + commandOperation.name(), "*",
+                    AccessDecision.ALLOW, subjects, null, null));
+                return;
+            }
+        }
+        if (operation.indexOf(':') >= 0) {
+            rules.add(new CrudPermissionRule(resource, operation.toUpperCase(Locale.ROOT), "*",
+                AccessDecision.ALLOW, subjects, null, null));
+            return;
+        }
+        rules.add(new CrudPermissionRule(resource, "COMMAND:ACTION", operation,
+            AccessDecision.ALLOW, subjects, null, null));
+    }
+
+    private String normalizeGrantPart(String value, String label) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(label + "不能为空");
+        }
+        return value.trim();
     }
 
     @Bean

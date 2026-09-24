@@ -1,5 +1,6 @@
 package com.example.minicommerce.order.entity;
 
+import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
@@ -11,10 +12,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 订单持久化实体，由下单 Handler 经 OrderDao 保存。 */
+/**
+ * 订单持久化实体，由下单 Handler 经 OrderDao 保存。
+ *
+ * <p>订单是流程实体：标准 CRUD 沿用项目全局权限，本实体仅将业务动作限制为下单，
+ * 避免其他动作绕过订单流程。</p>
+ */
 @EntEntity(value = "订单", description = "商城订单",
     service = "mini-commerce")
 @EntCrudEntity(idPolicy = CrudIdPolicy.GENERATED)
+@EntCrudActions("place")
 @Getter
 @Setter
 @NoArgsConstructor

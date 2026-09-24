@@ -13,6 +13,7 @@ public class OrderValidationException extends EntBusinessException {
         this.error = error;
     }
 
+    @Override
     public String getCode() {
         return error.code();
     }

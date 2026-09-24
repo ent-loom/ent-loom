@@ -13,6 +13,7 @@ import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
@@ -632,11 +633,19 @@ public class CrudProperties {
     public static class Governance {
         /** 权限规则列表。 */
         private List<PermissionRule> permissionRules = new ArrayList<>();
+        /** 按主体集中声明的约定权限；键为主体标识，值为权限码。 */
+        private Map<String, List<String>> grants = new LinkedHashMap<>();
         /** 审计配置。 */
         private Audit audit = new Audit();
 
         public void setPermissionRules(List<PermissionRule> permissionRules) {
             this.permissionRules = copyList(permissionRules);
+        }
+
+        public void setGrants(Map<String, List<String>> grants) {
+            this.grants = grants == null
+                ? new LinkedHashMap<String, List<String>>()
+                : new LinkedHashMap<String, List<String>>(grants);
         }
 
         public void setAudit(Audit audit) {

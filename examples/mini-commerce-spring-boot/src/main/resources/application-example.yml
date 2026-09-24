@@ -41,7 +41,7 @@ ent:
         # P1｜使用框架默认 HTTP CRUD 时开启。
         enabled: true
         # P1｜暴露已注册 CRUD 实体；OrderItem 在实体注解上关闭 HTTP 暴露。
-        # 订单仍仅授权下单与详情场景，见 permission-rules。
+        # 订单的标准 CRUD 沿用全局授权，业务动作由实体注解进一步约束。
         exposure-mode: ALL_REGISTERED
       query:
         enabled: true
@@ -53,32 +53,14 @@ ent:
       export:
         enabled: false
       governance:
-        # 安全边界｜存在 HTTP/CRUD 暴露时必须配置，默认拒绝未知访问。
-        permission-rules:
-          - resource: order
-            action: COMMAND:ACTION
-            scene: place
-            decision: ALLOW
-            subject-ids:
-              - local-developer
-          - resource: order
-            action: QUERY:DETAIL
-            scene: detail
-            decision: ALLOW
-            subject-ids:
-              - local-developer
-          - resource: product
-            action: '*'
-            scene: '*'
-            decision: ALLOW
-            subject-ids:
-              - local-developer
-          - resource: customer
-            action: '*'
-            scene: '*'
-            decision: ALLOW
-            subject-ids:
-              - local-developer
+        # 安全边界｜按主体集中声明约定权限，未命中权限默认拒绝。
+        # 普通实体使用 resource:*；订单读取沿用此处授权，业务动作由实体注解限制为下单。
+        grants:
+          local-developer:
+            - product:*
+            - customer:*
+            - order:read
+            - order:place
         # P2｜本地示例关闭 JDBC 审计，避免引入额外审计表；生产环境按审计要求开启。
         audit:
           persist-to-jdbc: false
