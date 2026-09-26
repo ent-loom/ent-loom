@@ -2,12 +2,15 @@ package com.example.minicommerce.order.entity;
 
 import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -44,5 +47,9 @@ public class Order {
     /** 订单创建时间，使用应用配置的本地时间。 */
     @EntField("创建时间")
     private LocalDateTime createdAt;
+
+    /** 订单明细 */
+//    @EntField(exist = false)
+    private List<OrderItem> orderItemList;
 
 }
