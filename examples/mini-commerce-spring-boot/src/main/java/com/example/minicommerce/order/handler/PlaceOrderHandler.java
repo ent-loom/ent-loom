@@ -34,11 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @EntCrudCommandAction(
     entityClass = Order.class,
-    scene = PlaceOrderHandler.SCENE
+    scene = Order.PLACE
 )
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    public static final String SCENE = "place";
-
     private final CustomerDao customerDao;
     private final ProductDao productDao;
     private final OrderDao orderDao;

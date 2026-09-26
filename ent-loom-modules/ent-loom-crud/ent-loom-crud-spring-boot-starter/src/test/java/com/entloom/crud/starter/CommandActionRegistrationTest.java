@@ -1,6 +1,8 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.annotations.EntCrudActions;
+import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
@@ -87,6 +89,14 @@ class CommandActionRegistrationTest {
         }
     }
 
+    @Test
+    void should_reject_handler_outside_entity_action_boundary() {
+        try (GenericApplicationContext context = context(new ForbiddenAction())) {
+            assertThatThrownBy(() -> register(context)).isInstanceOf(ValidationException.class)
+                .hasMessageContaining("超出实体动作边界");
+        }
+    }
+
     private GenericApplicationContext context(CommandActionSceneHandler<?, ?> handler) {
         GenericApplicationContext context = new GenericApplicationContext();
         context.getBeanFactory().registerSingleton("action", handler);
@@ -115,6 +125,14 @@ class CommandActionRegistrationTest {
 
     @EntCrudCommandAction(entityClass = TestEntity.class, scene = " ")
     public static class EmptySceneAction extends BoundAction {
+    }
+
+    @EntCrudCommandAction(entityClass = RestrictedEntity.class, scene = "cancel")
+    public static class ForbiddenAction extends BoundAction {
+    }
+
+    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order"))
+    private static class RestrictedEntity {
     }
 
     public static class UnannotatedAction implements CommandActionSceneHandler<String, String> {

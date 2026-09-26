@@ -1,12 +1,12 @@
 package com.entloom.crud.core.governance.permission;
 
 import com.entloom.crud.annotations.CrudAccessOperation;
-import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudOperations;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CrudOperationDomain;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.model.CrudResourceAction;
+import com.entloom.crud.core.governance.policy.EntityActionDeclarations;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
 import java.util.Arrays;
 
@@ -38,9 +38,7 @@ public class AnnotationCrudPermissionService implements CrudPermissionService {
         }
         if (action.getOperationDomain() == CrudOperationDomain.COMMAND
             && "ACTION".equals(action.getOperation())) {
-            EntCrudActions actions = action.getResourceDescriptor().getEntityType()
-                .getAnnotation(EntCrudActions.class);
-            return actions == null || containsAction(actions.value(), action.getScene());
+            return EntityActionDeclarations.allows(action.getResourceDescriptor().getEntityType(), action.getScene());
         }
         EntCrudOperations operations = action.getResourceDescriptor().getEntityType()
             .getAnnotation(EntCrudOperations.class);
@@ -65,17 +63,5 @@ public class AnnotationCrudPermissionService implements CrudPermissionService {
 
     private boolean containsStandard(CrudAccessOperation[] operations, CrudAccessOperation expected) {
         return Arrays.asList(operations).contains(expected);
-    }
-
-    private boolean containsAction(String[] actions, String expected) {
-        if (expected == null) {
-            return false;
-        }
-        for (String action : actions) {
-            if (expected.equals(action == null ? null : action.trim())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

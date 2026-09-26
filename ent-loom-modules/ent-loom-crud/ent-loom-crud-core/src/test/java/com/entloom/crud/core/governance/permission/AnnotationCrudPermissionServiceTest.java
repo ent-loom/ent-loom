@@ -2,6 +2,7 @@ package com.entloom.crud.core.governance.permission;
 
 import com.entloom.crud.annotations.CrudAccessOperation;
 import com.entloom.crud.annotations.EntCrudActions;
+import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.annotations.EntCrudOperations;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CommandOperation;
@@ -65,11 +66,11 @@ class AnnotationCrudPermissionServiceTest {
     }
 
     @EntCrudOperations(CrudAccessOperation.DETAIL)
-    @EntCrudActions("place")
+    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order"))
     private static final class RestrictedOrder {
     }
 
-    @EntCrudActions("place")
+    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order"))
     private static final class ActionOnlyOrder {
     }
 

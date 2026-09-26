@@ -15,7 +15,7 @@
 | 下单 | `POST /api/ent-crud/order/action/place` | ACTION 强类型入出参契约、跨 DAO 事务与价格快照 |
 | 订单详情 | `POST /api/ent-crud/order/detail` | 默认 DETAIL 查询，通过 `expandRelations` 展开客户和订单明细 |
 
-`Order` 通过 `@EntCrudActions("place")` 限制业务动作，`OrderSceneConfiguration` 声明下单 ACTION 场景策略。订单注册到 HTTP 实体路由，但不进入实体文档白名单；示例权限配置向 `local-developer` 授予订单读取与下单权限。示例使用全量数据范围，未限制订单归属；生产环境需接入正式的数据范围实现。
+`Order` 通过 `@EntCrudActions` 声明下单动作及 `base`、`consumer`、`management` 三个入口的 ACTION 策略，无需额外配置类。Handler 通过 `Order.PLACE` 绑定动作；策略准入后仍检查当前用户权限。订单注册到 HTTP 实体路由，但不进入实体文档白名单；示例权限配置向 `local-developer` 授予订单读取与下单权限。示例使用全量数据范围，未限制订单归属；生产环境需接入正式的数据范围实现。
 
 详情请求使用 `options.resultMode: "ENTITY"` 保持实体字段名，通过 `options.expandRelations: ["customer", "orderItemList"]` 展开关联，返回 `data.item.customer.displayName` 和 `data.item.orderItemList`；不展开时只读取订单本身。明细中的商品名称、成交单价仍来自下单快照。详情未命中使用框架默认的 HTTP 404 与 `ROUTE_NOT_FOUND` 错误码，附加过滤条件由默认引擎统一执行。
 
@@ -25,7 +25,7 @@
 
 ## 配置可见性 Demo
 
-`application-visibility.yml` 按「实体 → 入口 → 条件」声明：`product.consumer.active: true` 自动强制只读启用商品，`product.management: all` 显式不追加可见性条件。`VisibilityDemoConfiguration` 从服务端启动属性 `mini-commerce.access-entry` 固定识别入口，HTTP 请求不能切换入口；下单 Scene Policy 使用同一启动属性。
+`application-visibility.yml` 按「实体 → 入口 → 条件」声明：`product.consumer.active: true` 自动强制只读启用商品，`product.management: all` 显式不追加可见性条件。`VisibilityDemoConfiguration` 从服务端启动属性 `mini-commerce.access-entry` 固定识别入口，HTTP 请求不能切换入口；下单按该入口匹配实体注解生成的策略，不向 `base` 回退，未知入口拒绝下单。
 
 准备好本地 MySQL 后，在本目录启动用户端 Demo：
 

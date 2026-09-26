@@ -101,12 +101,12 @@ public class CrudCommonConfiguration {
         return new AttributePortalResolver();
     }
 
-    /** 启动期收集并冻结业务 Scene Policy。 */
+    /** 启动期统一收集实体动作注解与业务 Scene Policy，校验后冻结。 */
     @Bean
     @ConditionalOnMissingBean
-    public ScenePolicyRegistry scenePolicyRegistry(ObjectProvider<ScenePolicy[]> policiesProvider) {
+    public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, ObjectProvider<ScenePolicy[]> policiesProvider) {
         ScenePolicy[] policies = policiesProvider.getIfAvailable();
-        return new ScenePolicyRegistry(policies == null ? java.util.Collections.<ScenePolicy>emptyList() : java.util.Arrays.asList(policies));
+        return ScenePolicyRegistry.create(entities, policies == null ? java.util.Collections.<ScenePolicy>emptyList() : java.util.Arrays.asList(policies));
     }
 
     @Bean

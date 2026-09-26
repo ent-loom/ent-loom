@@ -1,6 +1,7 @@
 package com.example.minicommerce.order.entity;
 
 import com.entloom.crud.annotations.EntCrudActions;
+import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.crud.api.enums.CrudIdPolicy;
@@ -26,11 +27,15 @@ import lombok.Setter;
 @EntEntity(value = "订单", description = "商城订单",
     service = "mini-commerce")
 @EntCrudEntity(idPolicy = CrudIdPolicy.GENERATED)
-@EntCrudActions("place")
+@EntCrudActions({
+    @EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"),
+})
 @Getter
 @Setter
 @NoArgsConstructor
 public class Order {
+    public static final String PLACE = "place";
+
     /** 订单主键，由数据库自增生成。 */
     @EntField("订单 ID")
     private Long id;

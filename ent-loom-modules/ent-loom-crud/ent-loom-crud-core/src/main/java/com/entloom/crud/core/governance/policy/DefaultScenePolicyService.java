@@ -33,6 +33,11 @@ public final class DefaultScenePolicyService implements ScenePolicyService {
         String accessEntry = accessEntryResolver == null ? AccessEntryResolver.DEFAULT_ENTRY : accessEntryResolver.resolveAccessEntry(spec);
         String portal = portalResolver.resolvePortal(spec);
         if (!requiresPolicy(action)) return ScenePolicyMatch.skipped(accessEntry, portal);
+        if (action.getOperationDomain() == CrudOperationDomain.COMMAND
+            && "ACTION".equals(action.getOperation())
+            && !EntityActionDeclarations.allows(action.getResourceDescriptor().getEntityType(), action.getScene())) {
+            return ScenePolicyMatch.rejected(accessEntry, portal, "ACTION 超出实体动作边界: " + action.getScene());
+        }
         ScenePolicyKey key = new ScenePolicyKey(accessEntry, action.getResource(), operationKey(action), action.getScene());
         ScenePolicy policy = registry.find(key);
         if (policy == null) return ScenePolicyMatch.rejected(accessEntry, portal, "高风险场景未配置 Scene Policy: " + key);
