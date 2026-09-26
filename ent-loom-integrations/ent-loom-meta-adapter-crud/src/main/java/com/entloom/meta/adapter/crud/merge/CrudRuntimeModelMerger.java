@@ -109,6 +109,9 @@ public class CrudRuntimeModelMerger {
         Map<String, EntFieldDescriptor> metaFields = new LinkedHashMap<String, EntFieldDescriptor>();
         if (meta != null) {
             for (EntFieldDescriptor field : meta.fields()) {
+                if (!field.persisted()) {
+                    continue;
+                }
                 metaFields.put(field.fieldName(), field);
                 fieldNames.add(field.fieldName());
             }
@@ -300,8 +303,8 @@ public class CrudRuntimeModelMerger {
         Map<String, EntRelationDescriptor> metaRelations = new LinkedHashMap<String, EntRelationDescriptor>();
         if (meta != null) {
             for (EntRelationDescriptor relation : meta.relations()) {
-                metaRelations.put(relation.sourceField(), relation);
-                relationFields.add(relation.sourceField());
+                metaRelations.put(relation.relationField(), relation);
+                relationFields.add(relation.relationField());
             }
         }
         Map<String, CrudNativeRelationModel> nativeRelations = new LinkedHashMap<String, CrudNativeRelationModel>();

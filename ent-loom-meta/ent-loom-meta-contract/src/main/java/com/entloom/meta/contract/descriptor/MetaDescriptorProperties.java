@@ -12,6 +12,8 @@ public final class MetaDescriptorProperties {
     public static final String PLANNED_VOLUME = "plannedVolume";
     public static final String FIELD_NAME = "fieldName";
     public static final String JAVA_TYPE = "javaType";
+    public static final String ELEMENT_TYPE = "elementType";
+    public static final String PERSISTED = "persisted";
     public static final String FIELD_KIND = "fieldKind";
     public static final String ROLE = "role";
     public static final String EXAMPLES = "examples";

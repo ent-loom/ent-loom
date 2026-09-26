@@ -17,6 +17,20 @@ public interface EntFieldDescriptor extends SourcedDescriptor {
      */
     Class<?> javaType();
 
+    /** 集合元素、Map 值或数组元素类型；无法确定时为 null。 */
+    default Class<?> elementType() {
+        com.entloom.meta.contract.value.SourcedValue<?> value = sourcedValue(MetaDescriptorProperties.ELEMENT_TYPE);
+        return value == null ? null : (Class<?>) value.value();
+    }
+
+    /** 是否可映射当前表的单列；业务属性始终保留在字段描述中。 */
+    default boolean persisted() {
+        com.entloom.meta.contract.value.SourcedValue<?> value = sourcedValue(MetaDescriptorProperties.PERSISTED);
+        return value == null
+            ? com.entloom.base.util.reflect.EntityProperty.isSingleColumnType(javaType())
+            : Boolean.TRUE.equals(value.value());
+    }
+
     /**
      * 字段语义类型名。
      */

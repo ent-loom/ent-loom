@@ -480,7 +480,7 @@ public final class EntityDocumentationProjector {
             if ("ENUM".equals(kind)) {
                 return "enum";
             }
-            if ("JSON_DOC".equals(kind)) {
+            if ("JSON_DOC".equals(kind) || "STRUCTURED".equals(kind)) {
                 return "object";
             }
             if ("MEDIA".equals(kind)) {

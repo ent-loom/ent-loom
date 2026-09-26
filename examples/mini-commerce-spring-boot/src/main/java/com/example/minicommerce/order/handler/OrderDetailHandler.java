@@ -55,7 +55,8 @@ public class OrderDetailHandler implements QueryDetailSceneHandler<OrderDetail> 
         String customerName = customerDao.findById(order.getCustomerId())
             .map(customer -> customer.getDisplayName())
             .orElseThrow(() -> new OrderValidationException(OrderError.ORDER_NOT_FOUND));
-        List<OrderDetail.Item> items = orderItemDao.findByOrderId(id).stream()
+        order.setOrderItemList(orderItemDao.findByOrderId(id));
+        List<OrderDetail.Item> items = order.getOrderItemList().stream()
             .map(this::toDetailItem)
             .toList();
         return new OrderDetail(

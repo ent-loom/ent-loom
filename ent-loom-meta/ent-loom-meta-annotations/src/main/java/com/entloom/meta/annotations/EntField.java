@@ -16,6 +16,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface EntField {
+    /** 是否映射当前实体表的列，UNSET 按支持的单列类型推断；复杂属性默认不映射。 */
+    OptionalBoolean persisted() default OptionalBoolean.UNSET;
+
     /**
      * 字段展示名称，空字符串表示使用默认命名策略。
      */

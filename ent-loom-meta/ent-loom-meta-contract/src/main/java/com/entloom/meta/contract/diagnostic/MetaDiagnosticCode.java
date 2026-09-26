@@ -14,6 +14,10 @@ public enum MetaDiagnosticCode {
     FIELD_KIND_META_MISMATCH,
     INVALID_FIELD_CONSTRAINT,
     INVALID_DEFAULT_VALUE,
+    /** 显式要求的列映射没有受支持的转换能力。 */
+    UNSUPPORTED_COLUMN_MAPPING,
+    /** 非列属性被用于索引、主键或其他物理列职责。 */
+    NON_PERSISTENT_FIELD,
     DUPLICATE_INDEX,
     EXPLICIT_VALUE_CONFLICT,
     INFERRED_VALUE_USED,

@@ -1,9 +1,12 @@
 package com.entloom.crud.engine.jdbc.query;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Instant;
 import java.util.Date;
 
 /**
@@ -41,6 +44,23 @@ class JdbcValueConverter {
 
         if (boxedType == String.class) {
             return String.valueOf(rawValue);
+        }
+        if (boxedType == Character.class) {
+            String value = String.valueOf(rawValue);
+            if (value.length() != 1) {
+                throw new IllegalArgumentException("字符列必须包含一个字符: " + value);
+            }
+            return Character.valueOf(value.charAt(0));
+        }
+        if (boxedType == BigInteger.class) {
+            return rawValue instanceof BigDecimal ? ((BigDecimal) rawValue).toBigIntegerExact()
+                : new BigInteger(String.valueOf(rawValue));
+        }
+        if (boxedType == Instant.class && rawValue instanceof Timestamp) {
+            return ((Timestamp) rawValue).toInstant();
+        }
+        if (boxedType == LocalTime.class && rawValue instanceof java.sql.Time) {
+            return ((java.sql.Time) rawValue).toLocalTime();
         }
         if (boxedType == Integer.class) {
             return rawValue instanceof Number ? ((Number) rawValue).intValue() : Integer.valueOf(String.valueOf(rawValue));

@@ -8,6 +8,12 @@ import com.entloom.meta.contract.enums.RelationResolutionStatus;
  * 解析后的通用关系语义描述。
  */
 public interface EntRelationDescriptor extends SourcedDescriptor {
+    /** 承载关系的 Java 属性名，与参与关联的 sourceField 独立。 */
+    default String relationField() {
+        com.entloom.meta.contract.value.SourcedValue<?> value = sourcedValue(MetaDescriptorProperties.FIELD_NAME);
+        return value == null ? sourceField() : (String) value.value();
+    }
+
     /**
      * 当前实体上的来源字段名。
      */

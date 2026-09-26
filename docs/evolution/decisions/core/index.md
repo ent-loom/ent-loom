@@ -4,6 +4,7 @@
 
 | 决策 | 状态 |
 |---|---|
+| [实体属性与数据库列映射边界](实体属性与数据库列映射边界.md) | Accepted，属性识别与单列映射闭环已实施 |
 | [实体必填约束与统一校验](实体必填约束与统一校验.md) | Accepted，创建最小闭环已实施 |
 | [RequiredInferenceFilter 退役说明](RequiredInferenceFilter边界与实施清单.md) | Superseded，改用 CRUD 外部输入契约 |
 | [Java 运行时与 Spring 兼容性](Java运行时与Spring兼容性.md) | Accepted，分阶段实施 |

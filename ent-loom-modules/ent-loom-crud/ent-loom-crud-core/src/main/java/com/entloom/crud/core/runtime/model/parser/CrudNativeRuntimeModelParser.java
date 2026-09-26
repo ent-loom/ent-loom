@@ -1,5 +1,7 @@
 package com.entloom.crud.core.runtime.model.parser;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudExportField;
 import com.entloom.crud.annotations.EntCrudField;
@@ -23,7 +25,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -76,17 +77,7 @@ public class CrudNativeRuntimeModelParser {
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
         String idField = nativeModel.idField().value();
         String[] scopeFields = entity == null ? new String[0] : entity.scopeFields();
-        Set<String> declaredFieldNames = new LinkedHashSet<String>();
-        for (Field field : getAllFields(entityClass)) {
-            if (Modifier.isStatic(field.getModifiers())
-                || Modifier.isTransient(field.getModifiers())
-                || field.isSynthetic()) {
-                continue;
-            }
-            // 子类字段优先，避免 Java 字段隐藏时父类同名字段覆盖子类元数据。
-            if (!declaredFieldNames.add(field.getName())) {
-                continue;
-            }
+        for (Field field : EntityProperties.fields(entityClass)) {
             EntCrudField relation = field.getAnnotation(EntCrudField.class);
             if (relation != null) {
                 relationEdges.add(toRelationEdge(entityClass, field, relation, idField));
@@ -105,6 +96,11 @@ public class CrudNativeRuntimeModelParser {
             nativeModel.ownerService().value(),
             resourceAliases(entityClass)
         );
+        for (String scopeField : scopeFields) {
+            if (!fieldMetas.containsKey(scopeField)) {
+                throw new ValidationException("治理字段必须映射数据库列: " + entityClass.getName() + "#" + scopeField);
+            }
+        }
         EntityMeta entityMeta = new EntityMeta(
             entityClass,
             descriptor,
@@ -251,21 +247,7 @@ public class CrudNativeRuntimeModelParser {
     }
 
     private boolean isPersistentField(Field field) {
-        return !Collection.class.isAssignableFrom(field.getType())
-            && !java.util.Map.class.isAssignableFrom(field.getType())
-            && field.getType().getAnnotation(EntCrudEntity.class) == null;
-    }
-
-    private List<Field> getAllFields(Class<?> entityClass) {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> current = entityClass;
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                fields.add(field);
-            }
-            current = current.getSuperclass();
-        }
-        return fields;
+        return EntityProperties.describe(field).persisted();
     }
 
     private EntityIdPolicy resolveIdPolicy(Class<?> entityClass, EntCrudEntity entity, String idField) {

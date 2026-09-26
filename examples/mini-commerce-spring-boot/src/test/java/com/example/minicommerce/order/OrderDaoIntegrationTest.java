@@ -61,8 +61,11 @@ class OrderDaoIntegrationTest {
         order.setStatus(OrderStatus.CREATED);
         order.setTotalAmount(BigDecimal.TEN);
         order.setCreatedAt(LocalDateTime.now());
+        order.setOrderItemList(java.util.List.of(new OrderItem()));
         orders.insert(order);
         assertNotNull(order.getId());
+        assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        assertNull(orders.findById(order.getId()).orElseThrow().getOrderItemList());
 
         OrderItem item = new OrderItem();
         item.setOrderId(order.getId());
@@ -77,6 +80,11 @@ class OrderDaoIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from `order`", Integer.class));
         assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
         assertEquals(item.getId(), orderItems.findByOrderId(order.getId()).get(0).getId());
+        Order loaded = orders.findById(order.getId()).orElseThrow();
+        loaded.setOrderItemList(orderItems.findByOrderId(order.getId()));
+        assertEquals(item.getId(), loaded.getOrderItemList().getFirst().getId());
+        orders.update(loaded);
+        assertEquals(1, jdbc.queryForObject("select count(*) from order_item", Integer.class));
     }
 
     @Test

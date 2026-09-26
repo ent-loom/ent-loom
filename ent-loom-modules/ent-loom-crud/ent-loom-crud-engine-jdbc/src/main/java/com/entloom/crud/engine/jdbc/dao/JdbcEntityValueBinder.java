@@ -1,9 +1,12 @@
 package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
+import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.LocalTime;
 
 /**
  * 将 DAO 字段值规范化为稳定的 JDBC 绑定值。
@@ -25,6 +28,18 @@ final class JdbcEntityValueBinder {
         }
         if (normalized instanceof LocalDateTime) {
             return java.sql.Timestamp.valueOf((LocalDateTime) normalized);
+        }
+        if (normalized instanceof Instant) {
+            return java.sql.Timestamp.from((Instant) normalized);
+        }
+        if (normalized instanceof LocalTime) {
+            if (((LocalTime) normalized).getNano() != 0) {
+                throw new ValidationException("LocalTime 列当前仅支持秒精度，不能包含小数秒: " + field.getFieldName());
+            }
+            return java.sql.Time.valueOf((LocalTime) normalized);
+        }
+        if (normalized instanceof Character) {
+            return normalized.toString();
         }
         return normalized;
     }

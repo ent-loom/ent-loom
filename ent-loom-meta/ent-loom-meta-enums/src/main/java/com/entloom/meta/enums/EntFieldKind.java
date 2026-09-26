@@ -6,6 +6,8 @@ package com.entloom.meta.enums;
 public enum EntFieldKind {
     /** 自动根据 Java 字段类型和命名约定推断。 */
     AUTO,
+    /** 结构化对象或集合，默认不映射数据库列。 */
+    STRUCTURED,
     /** 主键类型。 */
     ID,
     /** 外部引用 ID。 */

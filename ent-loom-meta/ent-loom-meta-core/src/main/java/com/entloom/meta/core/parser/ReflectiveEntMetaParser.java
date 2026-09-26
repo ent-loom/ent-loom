@@ -1,5 +1,8 @@
 package com.entloom.meta.core.parser;
 
+import com.entloom.base.util.reflect.EntityProperties;
+import com.entloom.base.util.reflect.EntityProperty;
+
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.base.util.value.TypedValueCodec;
 import com.entloom.base.util.value.TypedValueType;
@@ -47,7 +50,6 @@ import com.entloom.meta.core.resolution.PropertyContributionResolver;
 import com.entloom.meta.enums.EntFieldKind;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -120,16 +122,11 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         List<EntFieldDescriptor> fields = new ArrayList<EntFieldDescriptor>();
         List<EntRelationDescriptor> relations = new ArrayList<EntRelationDescriptor>();
         Set<String> javaFieldNames = new LinkedHashSet<String>();
-        for (Field field : getAllFields(entityClass)) {
-            if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
-                continue;
-            }
+        for (Field field : EntityProperties.fields(entityClass)) {
             javaFieldNames.add(field.getName());
             EntField entField = findAnnotation(field, EntField.class);
             EntRelation relation = findAnnotation(field, EntRelation.class);
-            if (shouldDescribeAsField(field, entField, relation)) {
-                fields.add(toFieldDescriptor(entityClass, field, entField, diagnostics));
-            }
+            fields.add(toFieldDescriptor(entityClass, field, entField, diagnostics));
             if (relation != null) {
                 relations.add(toRelationDescriptor(field, relation));
             }
@@ -167,6 +164,21 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         SourcedValue<String> role = fieldRole(field, kind);
         List<EntFieldConstraintDescriptor> constraints = constraints(field);
         Map<String, SourcedValue<?>> sources = fieldSources(field, entField, kind, explicitField, defaultValue, role, constraints);
+        EntityProperty property = EntityProperties.describe(field);
+        boolean persisted = false;
+        try {
+            persisted = property.persisted();
+        } catch (IllegalArgumentException exception) {
+            diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.UNSUPPORTED_COLUMN_MAPPING)
+                .entityClass(entityClass).field(field.getName())
+                .property(MetaDescriptorProperties.PERSISTED)
+                .location(entityClass.getName() + "#" + field.getName())
+                .message(exception.getMessage()).build());
+        }
+        sources.put(MetaDescriptorProperties.PERSISTED, property.persistence() == OptionalBoolean.UNSET
+            ? SourcedValue.inferred(Boolean.valueOf(persisted))
+            : SourcedValue.metaExplicit(Boolean.valueOf(persisted)));
+        sources.put(MetaDescriptorProperties.ELEMENT_TYPE, SourcedValue.inferred(property.elementType()));
         FieldConventionValues conventionValues = applyConventions(entityClass, field, entField, role, diagnostics);
         if (conventionValues.role != null) {
             role = conventionValues.role;
@@ -422,7 +434,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         if (findAnnotation(field, EntMetaId.class) != null && kind != EntFieldKind.ID) {
             addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaId", EntFieldKind.ID, diagnostics);
         }
-        if (findAnnotation(field, EntRelation.class) != null && kind != EntFieldKind.REF_ID) {
+        if (findAnnotation(field, EntRelation.class) != null
+            && EntityProperty.isSingleColumnType(field.getType()) && kind != EntFieldKind.REF_ID) {
             addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntRelation", EntFieldKind.REF_ID, diagnostics);
         }
         if (findAnnotation(field, EntMetaText.class) != null && kind != EntFieldKind.TEXT) {
@@ -628,16 +641,12 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         return inferFieldKind(field);
     }
 
-    private boolean shouldDescribeAsField(Field field, EntField entField, EntRelation relation) {
-        if (entField != null || relation == null) {
-            return true;
-        }
-        return isScalarValueType(field.getType());
-    }
-
     private EntFieldKind inferFieldKind(Field field) {
         String fieldName = field.getName();
         Class<?> javaType = field.getType();
+        if (!EntityProperty.isSingleColumnType(javaType)) {
+            return EntFieldKind.STRUCTURED;
+        }
         if ("id".equals(fieldName)) {
             return EntFieldKind.ID;
         }
@@ -651,7 +660,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             return EntFieldKind.FLAG;
         }
         if (LocalDate.class.equals(javaType) || LocalDateTime.class.equals(javaType)
-            || Instant.class.equals(javaType) || Date.class.equals(javaType)) {
+            || java.time.LocalTime.class.equals(javaType) || Instant.class.equals(javaType)
+            || Date.class.isAssignableFrom(javaType)) {
             return EntFieldKind.DATETIME;
         }
         if (Number.class.isAssignableFrom(wrapPrimitive(javaType))) {
@@ -668,19 +678,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             return EntFieldKind.MEDIA;
         }
         return EntFieldKind.TEXT;
-    }
-
-    private boolean isScalarValueType(Class<?> javaType) {
-        Class<?> type = wrapPrimitive(javaType);
-        return type != null
-            && (CharSequence.class.isAssignableFrom(type)
-                || Number.class.isAssignableFrom(type)
-                || Boolean.class.equals(type)
-                || type.isEnum()
-                || LocalDate.class.equals(type)
-                || LocalDateTime.class.equals(type)
-                || Instant.class.equals(type)
-                || Date.class.equals(type));
     }
 
     private Class<?> wrapPrimitive(Class<?> javaType) {
@@ -967,6 +964,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         boolean sourceFieldInferred
     ) {
         Map<String, SourcedValue<?>> sources = new LinkedHashMap<String, SourcedValue<?>>();
+        sources.put(MetaDescriptorProperties.FIELD_NAME, SourcedValue.inferred(field.getName()));
         sources.put(
             MetaDescriptorProperties.SOURCE_FIELD,
             isBlank(relation.sourceField()) ? SourcedValue.inferred(field.getName()) : SourcedValue.metaExplicit(resolvedSourceField)
@@ -1017,16 +1015,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             return SourcedValue.metaExplicit(value);
         }
         return SourcedValue.unknown(null);
-    }
-
-    private List<Field> getAllFields(Class<?> entityClass) {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> current = entityClass;
-        while (current != null && current != Object.class) {
-            fields.addAll(Arrays.asList(current.getDeclaredFields()));
-            current = current.getSuperclass();
-        }
-        return fields;
     }
 
     private Field findDeclaredField(Class<?> entityClass, String fieldName) {

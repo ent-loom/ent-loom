@@ -203,6 +203,14 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                 )
             );
         }
+        EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);
+        if (crudEntity != null) {
+            for (String scopeField : crudEntity.scopeFields()) {
+                if (!fieldMetas.containsKey(scopeField)) {
+                    throw new IllegalArgumentException("治理字段必须映射数据库列: " + entityClass.getName() + "#" + scopeField);
+                }
+            }
+        }
         return new EntityMeta(
             entityClass,
             new ResourceDescriptor(entityClass, model.resourceCode().value(), model.ownerService().value(), aliases(entityClass)),

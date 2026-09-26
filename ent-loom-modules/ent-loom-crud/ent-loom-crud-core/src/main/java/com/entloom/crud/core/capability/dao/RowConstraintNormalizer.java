@@ -89,6 +89,15 @@ public final class RowConstraintNormalizer {
         }
         String text = String.valueOf(value);
         try {
+            if (target == java.time.Instant.class) {
+                return java.time.Instant.parse(text);
+            }
+            if (target == java.time.LocalTime.class) {
+                return java.time.LocalTime.parse(text);
+            }
+            if (target == Character.class && text.length() == 1) {
+                return Character.valueOf(text.charAt(0));
+            }
             if (target == String.class) {
                 return text;
             }
@@ -114,7 +123,7 @@ public final class RowConstraintNormalizer {
                 return new BigDecimal(text);
             }
             if (target == BigInteger.class) {
-                return new BigInteger(text);
+                return value instanceof BigDecimal ? ((BigDecimal) value).toBigIntegerExact() : new BigInteger(text);
             }
             if (target == LocalDate.class) {
                 return LocalDate.parse(text);

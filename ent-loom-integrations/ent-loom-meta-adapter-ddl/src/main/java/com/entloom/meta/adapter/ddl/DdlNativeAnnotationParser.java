@@ -1,5 +1,7 @@
 package com.entloom.meta.adapter.ddl;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
@@ -33,7 +35,7 @@ final class DdlNativeAnnotationParser {
             return null;
         }
         Map<String, DdlNativeFieldModel> fields = new LinkedHashMap<String, DdlNativeFieldModel>();
-        for (Field field : allFields(entityClass)) {
+        for (Field field : EntityProperties.fields(entityClass)) {
             if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())
                 || field.isSynthetic()) {
                 continue;
@@ -44,7 +46,7 @@ final class DdlNativeAnnotationParser {
         for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
             indexes.add(toIndex(entityClass, index, fields, null, diagnostics));
         }
-        for (Field field : allFields(entityClass)) {
+        for (Field field : EntityProperties.fields(entityClass)) {
             for (EntDdlIndex index : field.getAnnotationsByType(EntDdlIndex.class)) {
                 indexes.add(toIndex(entityClass, index, fields, field.getName(), diagnostics));
             }
@@ -87,9 +89,16 @@ final class DdlNativeAnnotationParser {
         Boolean unique = annotation == null || annotation.unique() == OptionalBoolean.UNSET
             ? Boolean.FALSE
             : Boolean.valueOf(annotation.unique() == OptionalBoolean.TRUE);
-        Boolean persisted = annotation == null || annotation.persisted() == OptionalBoolean.UNSET
-            ? Boolean.TRUE
-            : Boolean.valueOf(annotation.persisted() == OptionalBoolean.TRUE);
+        Boolean persisted = Boolean.FALSE;
+        try {
+            persisted = Boolean.valueOf(EntityProperties.describe(field).persisted(
+                annotation == null ? OptionalBoolean.UNSET : annotation.persisted()));
+        } catch (IllegalArgumentException exception) {
+            diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.UNSUPPORTED_COLUMN_MAPPING)
+                .entityClass(entityClass).field(field.getName()).property("persisted")
+                .location(entityClass.getName() + "#" + field.getName())
+                .message(exception.getMessage()).build());
+        }
         Boolean primaryKey = annotation == null || annotation.primaryKey() == OptionalBoolean.UNSET
             ? Boolean.valueOf(inferredPrimaryKey)
             : Boolean.valueOf(annotation.primaryKey() == OptionalBoolean.TRUE);
@@ -108,7 +117,8 @@ final class DdlNativeAnnotationParser {
                 ? SourcedValue.defaulted(unique)
                 : nativeValue(unique),
             annotation == null || annotation.persisted() == OptionalBoolean.UNSET
-                ? SourcedValue.defaulted(persisted)
+                ? EntityProperties.describe(field).persistence() == OptionalBoolean.UNSET
+                    ? SourcedValue.inferred(persisted) : SourcedValue.metaExplicit(persisted)
                 : nativeValue(persisted),
             annotation == null || annotation.primaryKey() == OptionalBoolean.UNSET
                 ? SourcedValue.inferred(primaryKey)
@@ -176,18 +186,6 @@ final class DdlNativeAnnotationParser {
             .location(entityClass.getName() + (fieldName == null ? "" : "#" + fieldName))
             .message("DDL Adapter 当前不承接原生属性 " + property + "，已保留诊断并继续使用可表达的 DDL 模型")
             .build());
-    }
-
-    private static List<Field> allFields(Class<?> type) {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> current = type;
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                fields.add(field);
-            }
-            current = current.getSuperclass();
-        }
-        return fields;
     }
 
     private static <T> SourcedValue<T> nativeValue(T value) {

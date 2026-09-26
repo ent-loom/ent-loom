@@ -27,6 +27,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Spring 实体、字段和索引解析合同测试。
  */
 class SpringEntityDiscoveryContractTest {
+    @Test
+    void should_keep_complex_properties_out_of_columns() {
+        DdlEntityMetadata model = new SpringAnnotationMetadataLoader(
+            new SpringPackageEntityClassResolver(getClass().getClassLoader())).load(new MetadataLoadRequest(
+                Collections.<String>emptyList(), Collections.<Class<?>>singletonList(Aggregate.class))).get(0);
+        assertEquals(1, model.fields().stream().filter(DdlFieldMetadata::persisted).count());
+    }
+
+    @EntDdlEntity
+    private static class Aggregate {
+        Long id;
+        List<OrderEntity> items;
+        OrderEntity order;
+    }
     private static final String FIXTURE_PACKAGE = "com.entloom.ddl.spring.discoveryfixtures";
 
     @Test

@@ -53,7 +53,9 @@ final class DdlRuntimeModelMerger {
             DdlFieldMetadata field = mergeField(entityClass, metaField, nativeField, diagnostics);
             if (field != null) {
                 fields.add(field);
-                columnsByField.put(fieldName, field.columnName());
+                if (field.persisted()) {
+                    columnsByField.put(fieldName, field.columnName());
+                }
             }
         }
 
@@ -158,7 +160,8 @@ final class DdlRuntimeModelMerger {
         SourcedValue<Boolean> persisted = choose(
             "persisted", entityClass, fieldName,
             nativeField == null ? null : nativeField.persisted(),
-            SourcedValue.defaulted(Boolean.TRUE),
+            metaField == null ? null : sourced(metaField, MetaDescriptorProperties.PERSISTED, Boolean.valueOf(metaField.persisted())),
+            SourcedValue.inferred(Boolean.valueOf(com.entloom.base.util.reflect.EntityProperty.isSingleColumnType(javaType))),
             diagnostics
         );
         SourcedValue<Boolean> primaryKey = choose(
@@ -304,6 +307,23 @@ final class DdlRuntimeModelMerger {
 
         List<DdlIndexMetadata> result = new ArrayList<DdlIndexMetadata>();
         for (IndexCandidate index : merged) {
+            // 原生覆盖完成后，再按最终有效列校验普通索引。
+            boolean valid = true;
+            if (index.expression == null || index.expression.isEmpty()) {
+                for (String column : index.fields) {
+                    if (!columnsByField.containsValue(column)) {
+                        diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.NON_PERSISTENT_FIELD)
+                            .entityClass(entityClass)
+                            .property(MetaDescriptorProperties.FIELDS)
+                            .location(entityClass.getName() + "#" + column)
+                            .message("索引字段必须映射最终数据库列: " + column).build());
+                        valid = false;
+                    }
+                }
+            }
+            if (!valid) {
+                continue;
+            }
             try {
                 result.add(new DdlIndexMetadata(
                     valueOrDefault(index.name, ""),

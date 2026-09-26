@@ -26,6 +26,23 @@ Runtime Model 是组件最终执行契约
 
 业务不应把聚合 POM 当作运行时 API 依赖，也不应直接依赖 Adapter 实现模块。
 
+## 属性与数据库列的边界
+
+`@EntField` 用于业务元数据描述。支持的单列值类型默认映射当前实体表列，实体对象、集合、Map 和普通 POJO 默认不映射列，仍保留业务描述。为复杂属性添加中文名称不改变列资格：
+
+```java
+@EntField("订单明细")
+private List<OrderItem> orderItemList;
+
+@EntField(value = "客户名称", persisted = OptionalBoolean.FALSE)
+private String customerName;
+```
+
+`OptionalBoolean` 来自 `com.entloom.base.common`。`persisted` 默认 `UNSET` 按类型推断，`FALSE` 排除临时标量，`TRUE` 显式要求受支持的单列存储。复杂属性上的 `TRUE` 当前会报错；JSON／转换器扩展尚未开放。框架不支持 `exist` 或 `persistent` 参数。
+
+非列属性不参与普通单表写入和列筛选／排序，关系装配与聚合写入仍需遵循各自契约。完整规则见
+[实体属性与数据库列映射边界](../../evolution/decisions/core/实体属性与数据库列映射边界.md)。
+
 ## 通用字段
 
 只表达通用语义时，仅使用 Meta 注解：

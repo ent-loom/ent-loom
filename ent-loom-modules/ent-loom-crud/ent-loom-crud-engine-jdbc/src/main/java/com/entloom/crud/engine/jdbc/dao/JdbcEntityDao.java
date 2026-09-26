@@ -780,6 +780,9 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
 
     private Object adaptValue(Class<?> type, Object raw) {
         Class<?> target = wrap(type);
+        if (target == java.time.Instant.class && raw instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) raw).toInstant();
+        }
         if (target.isInstance(raw)) {
             return raw;
         }

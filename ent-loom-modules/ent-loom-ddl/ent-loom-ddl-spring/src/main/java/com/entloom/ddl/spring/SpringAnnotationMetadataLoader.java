@@ -1,5 +1,7 @@
 package com.entloom.ddl.spring;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
@@ -94,12 +96,13 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
 
     private List<DdlFieldMetadata> resolveFields(Class<?> entityClass) {
         List<DdlFieldMetadata> fields = new ArrayList<DdlFieldMetadata>();
-        for (Field field : collectDeclaredFields(entityClass)) {
+        for (Field field : EntityProperties.fields(entityClass)) {
             if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())) {
                 continue;
             }
             EntDdlField ann = field.getAnnotation(EntDdlField.class);
-            boolean persisted = ann == null || ann.persisted() != OptionalBoolean.FALSE;
+            boolean persisted = EntityProperties.describe(field).persisted(
+                ann == null ? OptionalBoolean.UNSET : ann.persisted());
             String columnName = ann == null || trim(ann.column()).isEmpty() ? toSnake(field.getName()) : ann.column().trim();
             boolean primaryKey = ann != null && ann.primaryKey() == OptionalBoolean.TRUE;
             if (!primaryKey && "id".equals(field.getName())) {
@@ -143,7 +146,7 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
         for (DdlFieldMetadata field : fields) {
             fieldToColumn.put(field.fieldName(), field.columnName());
         }
-        for (Field field : collectDeclaredFields(entityClass)) {
+        for (Field field : EntityProperties.fields(entityClass)) {
             EntDdlIndex[] fieldIndexes = field.getAnnotationsByType(EntDdlIndex.class);
             if (fieldIndexes.length == 0) {
                 continue;
@@ -163,18 +166,6 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             }
         }
         return indexes;
-    }
-
-    private static List<Field> collectDeclaredFields(Class<?> type) {
-        List<Field> result = new ArrayList<Field>();
-        Class<?> cursor = type;
-        while (cursor != null && cursor != Object.class) {
-            for (Field field : cursor.getDeclaredFields()) {
-                result.add(field);
-            }
-            cursor = cursor.getSuperclass();
-        }
-        return result;
     }
 
     private static List<String> toList(String[] values) {

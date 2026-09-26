@@ -1,5 +1,7 @@
 package com.entloom.crud.core.runtime.model.input;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.crud.api.enums.JoinType;
@@ -13,6 +15,8 @@ import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.contribution.PropertyContributionResolver;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
+import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.value.MetaValueSource;
@@ -20,13 +24,10 @@ import com.entloom.meta.contract.value.SourcedValue;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * 解析 CRUD 原生注解为中间模型，不直接注册 runtime。
@@ -71,22 +72,20 @@ public class CrudNativeAnnotationParser {
         List<CrudNativeFieldModel> fields = new ArrayList<CrudNativeFieldModel>();
         List<CrudNativeRelationModel> relations = new ArrayList<CrudNativeRelationModel>();
         MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
-        Set<String> declaredFieldNames = new LinkedHashSet<String>();
-        for (Field field : getAllFields(entityClass)) {
-            if (Modifier.isStatic(field.getModifiers())
-                || Modifier.isTransient(field.getModifiers())
-                || field.isSynthetic()) {
-                continue;
-            }
-            if (!declaredFieldNames.add(field.getName())) {
-                continue;
-            }
+        for (Field field : EntityProperties.fields(entityClass)) {
             EntCrudField relation = field.getAnnotation(EntCrudField.class);
             if (relation != null) {
                 relations.add(toRelationModel(field, relation));
             }
-            if (isPersistentField(field)) {
-                fields.add(toFieldModel(entityClass, field, diagnostics));
+            try {
+                if (EntityProperties.describe(field).persisted()) {
+                    fields.add(toFieldModel(entityClass, field, diagnostics));
+                }
+            } catch (IllegalArgumentException exception) {
+                diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.UNSUPPORTED_COLUMN_MAPPING)
+                    .entityClass(entityClass).field(field.getName()).property("persisted")
+                    .location(entityClass.getName() + "#" + field.getName())
+                    .message(exception.getMessage()).build());
             }
         }
         return MetaDiagnosticResult.of(
@@ -186,24 +185,6 @@ public class CrudNativeAnnotationParser {
                 ? SourcedValue.unknown(JoinType.LEFT)
                 : SourcedValue.nativeExplicit(relation.joinType())
         );
-    }
-
-    private List<Field> getAllFields(Class<?> entityClass) {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> current = entityClass;
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                fields.add(field);
-            }
-            current = current.getSuperclass();
-        }
-        return fields;
-    }
-
-    private boolean isPersistentField(Field field) {
-        return !Collection.class.isAssignableFrom(field.getType())
-            && !java.util.Map.class.isAssignableFrom(field.getType())
-            && field.getType().getAnnotation(EntCrudEntity.class) == null;
     }
 
     private SourcedValue<String> stringExplicitOrInferred(String raw, String inferred) {

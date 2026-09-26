@@ -6,6 +6,8 @@ import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Instant;
+import java.util.Date;
 
 /**
  * Java 类型到 MySQL 类型的基础映射。
@@ -20,6 +22,9 @@ public final class MysqlTypeMapper {
         if (type == String.class) {
             int length = field.length() > 0 ? field.length() : 200;
             return "varchar(" + length + ")";
+        }
+        if (type == Character.class || type == char.class) {
+            return "char(1)";
         }
         if (type == Long.class || type == Long.TYPE) {
             return "bigint";
@@ -43,7 +48,8 @@ public final class MysqlTypeMapper {
         if (type == Float.class || type == Float.TYPE) {
             return "float";
         }
-        if (type == LocalDateTime.class || "java.sql.Timestamp".equals(type.getName())) {
+        if (type == LocalDateTime.class || type == Instant.class || type == Date.class
+            || "java.sql.Timestamp".equals(type.getName())) {
             return "datetime";
         }
         if (type == LocalDate.class || "java.sql.Date".equals(type.getName())) {
@@ -58,6 +64,6 @@ public final class MysqlTypeMapper {
         if (Enum.class.isAssignableFrom(type)) {
             return "varchar(64)";
         }
-        return "varchar(255)";
+        throw new IllegalArgumentException("不支持的数据库列类型: " + field.fieldName() + " (" + type.getTypeName() + ")");
     }
 }

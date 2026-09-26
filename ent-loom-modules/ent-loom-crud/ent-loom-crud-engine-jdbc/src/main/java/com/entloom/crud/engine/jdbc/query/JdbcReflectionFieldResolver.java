@@ -1,8 +1,8 @@
 package com.entloom.crud.engine.jdbc.query;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,16 +30,9 @@ final class JdbcReflectionFieldResolver {
     List<Field> writableFields(Class<?> type) {
         return writableFieldsCache.computeIfAbsent(type, key -> {
             List<Field> fields = new ArrayList<Field>();
-            Class<?> current = key;
-            while (current != null && current != Object.class) {
-                for (Field field : current.getDeclaredFields()) {
-                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
-                        continue;
-                    }
-                    field.setAccessible(true);
-                    fields.add(field);
-                }
-                current = current.getSuperclass();
+            for (Field field : EntityProperties.fields(key)) {
+                field.setAccessible(true);
+                fields.add(field);
             }
             return fields;
         });
@@ -87,13 +80,7 @@ final class JdbcReflectionFieldResolver {
     }
 
     private boolean isCollectionElementType(Field field, Class<?> childType) {
-        Type type = field.getGenericType();
-        if (!(type instanceof ParameterizedType)) {
-            return false;
-        }
-        ParameterizedType parameterizedType = (ParameterizedType) type;
-        Type[] args = parameterizedType.getActualTypeArguments();
-        return args.length == 1 && Objects.equals(args[0], childType);
+        return Objects.equals(EntityProperties.describe(field).elementType(), childType);
     }
 
     private static final class RelationKey {

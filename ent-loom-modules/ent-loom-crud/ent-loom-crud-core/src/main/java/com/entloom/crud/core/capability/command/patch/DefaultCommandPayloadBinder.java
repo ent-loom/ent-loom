@@ -1,12 +1,12 @@
 package com.entloom.crud.core.capability.command.patch;
 
+import com.entloom.base.util.reflect.EntityProperties;
+
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.text.ParseException;
@@ -137,6 +137,19 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
             if (targetType == String.class) {
                 return targetType.cast(String.valueOf(value));
             }
+            if (targetType == Character.class || targetType == Character.TYPE) {
+                String text = String.valueOf(value);
+                if (text.length() != 1) {
+                    throw new ValidationException("字符字段必须包含一个字符: " + field);
+                }
+                return (V) Character.valueOf(text.charAt(0));
+            }
+            if (targetType == java.time.Instant.class) {
+                return (V) java.time.Instant.parse(String.valueOf(value).trim());
+            }
+            if (targetType == java.time.LocalTime.class) {
+                return (V) java.time.LocalTime.parse(String.valueOf(value).trim());
+            }
             if (targetType == Long.class || targetType == Long.TYPE) {
                 return (V) Long.valueOf(value instanceof Number ? ((Number) value).longValue() : Long.valueOf(String.valueOf(value)));
             }
@@ -233,15 +246,7 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
     }
 
     private Class<?> resolveCollectionElementType(Field field) {
-        Type genericType = field.getGenericType();
-        if (!(genericType instanceof ParameterizedType)) {
-            return null;
-        }
-        Type[] arguments = ((ParameterizedType) genericType).getActualTypeArguments();
-        if (arguments.length != 1 || !(arguments[0] instanceof Class<?>)) {
-            return null;
-        }
-        return (Class<?>) arguments[0];
+        return EntityProperties.describe(field).elementType();
     }
 
     private Map<String, Object> toRawFieldMap(Object payload) {
@@ -261,7 +266,7 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
             }
             return result;
         }
-        for (Field field : getAllFields(payload.getClass())) {
+        for (Field field : EntityProperties.fields(payload.getClass())) {
             try {
                 field.setAccessible(true);
                 result.put(field.getName(), field.get(payload));
@@ -380,19 +385,6 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
             }
         }
         throw new ValidationException("日期格式不支持: " + text);
-    }
-
-    private List<Field> getAllFields(Class<?> type) {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> current = type;
-        while (current != null && current != Object.class) {
-            Field[] declaredFields = current.getDeclaredFields();
-            for (Field field : declaredFields) {
-                fields.add(field);
-            }
-            current = current.getSuperclass();
-        }
-        return fields;
     }
 
     private Field findField(Class<?> type, String fieldName) {

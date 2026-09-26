@@ -38,7 +38,8 @@ class MetaDocAdapterStaticFixtureTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> fields = (List<Map<String, Object>>) doc.get("fields");
-        Assertions.assertEquals(3, fields.size());
+        Assertions.assertEquals(4, fields.size());
+        Assertions.assertEquals("STRUCTURED", findBy(fields, "property", "items").get("fieldKind"));
         Map<String, Object> orderNo = findBy(fields, "property", "orderNo");
         Assertions.assertEquals("订单号文档覆盖", orderNo.get("name"));
         Assertions.assertEquals("SO-001", orderNo.get("example"));
@@ -88,7 +89,7 @@ class MetaDocAdapterStaticFixtureTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> fields = (List<Map<String, Object>>) doc.get("fields");
-        Assertions.assertEquals(2, fields.size());
+        Assertions.assertEquals(3, fields.size());
         Map<String, Object> orderNo = findBy(fields, "property", "orderNo");
         Assertions.assertEquals("业务订单号", orderNo.get("name"));
         Assertions.assertEquals("BO-001", orderNo.get("example"));

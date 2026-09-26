@@ -48,8 +48,7 @@ public class Order {
     @EntField("创建时间")
     private LocalDateTime createdAt;
 
-    /** 订单明细 */
-//    @EntField(exist = false)
+    @EntField("订单明细")
     private List<OrderItem> orderItemList;
 
 }

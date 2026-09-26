@@ -175,8 +175,8 @@ public class DocRuntimeModelMerger {
         Map<String, EntRelationDescriptor> metaRelations = new LinkedHashMap<String, EntRelationDescriptor>();
         if (meta != null) {
             for (EntRelationDescriptor relation : meta.relations()) {
-                metaRelations.put(relation.sourceField(), relation);
-                relationFields.add(relation.sourceField());
+                metaRelations.put(relation.relationField(), relation);
+                relationFields.add(relation.relationField());
             }
         }
         Map<String, DocRelationModel> nativeRelations = new LinkedHashMap<String, DocRelationModel>();

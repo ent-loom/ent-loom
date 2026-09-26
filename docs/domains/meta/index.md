@@ -9,6 +9,7 @@
 | 目的 | 状态 | 入口 | 内容边界 |
 |---|---|---|---|
 | 核心契约 | `Target` | [元数据约定与裁决契约](../../architecture/core/元数据约定与裁决契约.md) | 属性来源、优先级、诊断和 Runtime Model 闭环 |
+| 属性与列映射决策 | `Accepted / 首期已实施` | [实体属性与数据库列映射边界](../../evolution/decisions/core/实体属性与数据库列映射边界.md) | 非列属性、类型推断、显式覆盖和跨模块投影 |
 | 架构总览 | `Current` | [Meta 分层与运行模型](../../architecture/core/meta/分层与运行模型.md) | Module-only、Meta-first、模块分层和模型投影 |
 | 实现参考 | `Current` | [Meta 解析引擎](../../architecture/core/meta/元数据解析引擎.md)、[运行时适配器](../../architecture/core/meta/运行时适配器.md) | 当前解析、装配和已验证路径 |
 | 使用指南 | `Current` | [Meta 指南](../../guides/meta/index.md) | Meta-first 的依赖选择、覆盖规则和使用边界 |
