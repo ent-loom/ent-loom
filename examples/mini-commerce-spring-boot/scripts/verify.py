@@ -171,14 +171,16 @@ def verify(repository=None, skip_build=False):
         order_id = int(place["data"]["orderId"])
         check(Decimal(str(place["data"]["totalAmount"])) == Decimal("39.80"), "订单总额不匹配")
 
-        status, detail_response = request(base_url + "/api/ent-crud/order/detail/detail", {
-            "options": {"filter": {"id": order_id}},
+        status, detail_response = request(base_url + "/api/ent-crud/order/detail", {
+            "options": {"resultMode": "ENTITY", "filter": {"id": order_id},
+                        "expandRelations": ["customer", "orderItemList"]},
         })
         detail = detail_response.get("data", {}).get("item", {})
         (logs / "order-detail.json").write_text(json.dumps(detail, ensure_ascii=False, indent=2))
         check(status == 200, f"订单详情失败：{detail}")
-        item = detail["items"][0]
+        item = detail["orderItemList"][0]
         check(detail["id"] == order_id and detail["customerId"] == customer_id
+              and detail["customer"]["displayName"] == "Ada Lovelace"
               and detail["status"] == "CREATED"
               and Decimal(str(detail["totalAmount"])) == Decimal("39.80"),
               "订单详情头信息不匹配")
@@ -189,13 +191,13 @@ def verify(repository=None, skip_build=False):
               "订单详情明细不匹配")
 
         crud_update(base_url, "product", {"id": product_id, "price": 21.00}, project + "-price-update")
-        status, after_response = request(base_url + "/api/ent-crud/order/detail/detail", {
-            "options": {"filter": {"id": order_id}},
+        status, after_response = request(base_url + "/api/ent-crud/order/detail", {
+            "options": {"resultMode": "ENTITY", "filter": {"id": order_id}, "expandRelations": ["orderItemList"]},
         })
         after_price_change = after_response.get("data", {}).get("item", {})
-        check(status == 200 and Decimal(str(after_price_change["items"][0]["unitPrice"])) == Decimal("19.90")
+        check(status == 200 and Decimal(str(after_price_change["orderItemList"][0]["unitPrice"])) == Decimal("19.90")
               and Decimal(str(after_price_change["totalAmount"])) == Decimal("39.80")
-              and Decimal(str(after_price_change["items"][0]["lineAmount"])) == Decimal("39.80"),
+              and Decimal(str(after_price_change["orderItemList"][0]["lineAmount"])) == Decimal("39.80"),
               "订单没有保留价格快照")
         check(Decimal(sql_query(compose, env, f"select price from product where id = {product_id}"))
               == Decimal("21.00"), "商品价格未实际更新")

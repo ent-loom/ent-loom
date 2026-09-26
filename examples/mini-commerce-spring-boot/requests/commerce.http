@@ -44,11 +44,11 @@ Content-Type: application/json
   }
 }
 
-### 查询订单及明细：内置 Query Controller 路由到业务 Handler
-POST {{baseUrl}}/api/ent-crud/order/detail/detail
+### 查询订单及明细：默认查询展开客户与订单明细
+POST {{baseUrl}}/api/ent-crud/order/detail
 Content-Type: application/json
 
-{"options": {"filter": {"id": 1}}}
+{"options": {"resultMode": "ENTITY", "filter": {"id": 1}, "expandRelations": ["customer", "orderItemList"]}}
 
 ### 默认订单创建未授权，预期 403
 POST {{baseUrl}}/api/ent-crud/order/create

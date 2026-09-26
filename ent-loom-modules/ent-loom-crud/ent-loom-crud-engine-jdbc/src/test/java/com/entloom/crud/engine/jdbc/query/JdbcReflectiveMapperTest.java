@@ -81,6 +81,36 @@ class JdbcReflectiveMapperTest {
     }
 
     @Test
+    void 多对一关联在Map和CrudRecord中返回单个对象() {
+        JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
+        RelationEdge edge = new RelationEdge();
+        edge.setToEntity(TestChild.class);
+        edge.setCardinality(RelationCardinality.MANY_TO_ONE);
+        TestChild child = new TestChild(9L);
+        List<Object> children = Collections.<Object>singletonList(child);
+        Map<String, Object> root = new LinkedHashMap<String, Object>();
+        CrudRecord record = CrudRecord.copyOf(Collections.<String, Object>singletonMap("id", 1L));
+
+        mapper.assignChildren(root, edge, children);
+        CrudRecord updated = (CrudRecord) mapper.assignChildren(record, edge, children);
+        Assertions.assertSame(child, root.get("testChild"));
+        Assertions.assertSame(child, updated.get("testChild"));
+
+        edge.setRelationField("customer");
+        mapper.assignChildren(root, edge, children);
+        updated = (CrudRecord) mapper.assignChildren(record, edge, children);
+        Assertions.assertSame(child, root.get("customer"));
+        Assertions.assertSame(child, updated.get("customer"));
+
+        mapper.assignChildren(root, edge, Collections.emptyList());
+        updated = (CrudRecord) mapper.assignChildren(record, edge, Collections.emptyList());
+        Assertions.assertTrue(root.containsKey("customer"));
+        Assertions.assertNull(root.get("customer"));
+        Assertions.assertTrue(updated.asMap().containsKey("customer"));
+        Assertions.assertNull(updated.get("customer"));
+    }
+
+    @Test
     void assign_children_should_not_infer_object_relation_field_by_default() {
         JdbcReflectiveMapper mapper = new JdbcReflectiveMapper();
         TestRoot root = new TestRoot();

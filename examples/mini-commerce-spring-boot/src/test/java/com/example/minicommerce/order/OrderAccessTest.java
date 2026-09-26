@@ -107,7 +107,7 @@ class OrderAccessTest {
         rules(List.of(rule("COMMAND:ACTION", "place", AccessDecision.ALLOW)));
         mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON).content(command()))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("CUSTOMER_NOT_FOUND"));
-        mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
+        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
             .andExpect(status().isForbidden());
         rules(List.of(rule("COMMAND:ACTION", "other-scene", AccessDecision.ALLOW)));
         assertDenied();
@@ -129,7 +129,7 @@ class OrderAccessTest {
     private void assertRejected(org.springframework.test.web.servlet.ResultMatcher status, String code) throws Exception {
         mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON).content(command()))
             .andExpect(status).andExpect(jsonPath("$.code").value(code));
-        mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
+        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
             .andExpect(status).andExpect(jsonPath("$.code").value(code));
         assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
         assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
@@ -150,6 +150,8 @@ class OrderAccessTest {
     }
 
     private String detail() {
-        return "{\"options\":{\"filter\":{\"id\":1}}}";
+        return """
+            {"options":{"resultMode":"ENTITY","filter":{"id":1},"expandRelations":["customer","orderItemList"]}}
+            """;
     }
 }

@@ -64,7 +64,9 @@ class VerificationLifecycleTest(unittest.TestCase):
                 if url.endswith("/create"):
                     payload = body["payload"]
                     entity = url.split("/api/ent-crud/")[1].split("/")[0]
-                    return 200, {"success": True, "data": {"id": generated_ids[entity]}}
+                    entity_id = generated_ids[entity]
+                    generated_ids[entity] += 1
+                    return 200, {"success": True, "data": {"id": entity_id}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
                 if url.endswith("/product/page/saleable"):
@@ -84,9 +86,13 @@ class VerificationLifecycleTest(unittest.TestCase):
                     if payload["items"][0]["productId"] == 9999:
                         return 400, {"code": "PRODUCT_NOT_FOUND"}
                     return 200, {"data": {"orderId": 123, "totalAmount": "39.80"}}
+                self.assertTrue(url.endswith("/order/detail"), url)
+                self.assertEqual("ENTITY", body["options"]["resultMode"])
+                self.assertIn("orderItemList", body["options"]["expandRelations"])
                 return 200, {"data": {"item": {
                     "id": 123, "customerId": 2001, "status": "CREATED",
-                    "totalAmount": "39.80", "items": [{
+                    "customer": {"displayName": "Ada Lovelace"},
+                    "totalAmount": "39.80", "orderItemList": [{
                         "productId": 1001, "productName": "Entity Book",
                         "unitPrice": "19.90" if not fail_detail else "21.00",
                         "quantity": 2, "lineAmount": "39.80",

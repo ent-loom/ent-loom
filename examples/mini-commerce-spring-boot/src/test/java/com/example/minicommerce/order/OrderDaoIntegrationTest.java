@@ -88,22 +88,32 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void shouldPersistGeneratedKeysAndAssembleSnapshotDetail() throws Exception {
+    void 默认详情展开客户和明细且保留价格快照() throws Exception {
         placeOrder(1);
         Long orderId = jdbc.queryForObject("select max(id) from `order`", Long.class);
         jdbc.update("update product set price=99, name='改名商品' where id=10");
-        mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"options\":{\"filter\":{\"id\":" + orderId + "}}}"))
+        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"options":{"resultMode":"ENTITY","filter":{"id":%d},"expandRelations":["customer","orderItemList"]}}
+                    """.formatted(orderId)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.item.customerName").value("测试客户"))
+            .andExpect(jsonPath("$.data.item.customer.displayName").value("测试客户"))
             .andExpect(jsonPath("$.data.item.totalAmount").value(30.0))
-            .andExpect(jsonPath("$.data.item.items[0].productName").value("商品一"))
-            .andExpect(jsonPath("$.data.item.items[0].unitPrice").value(10.0));
+            .andExpect(jsonPath("$.data.item.orderItemList.length()").value(2))
+            .andExpect(jsonPath("$.data.item.orderItemList[?(@.productId == 10)].productName",
+                org.hamcrest.Matchers.contains("商品一")))
+            .andExpect(jsonPath("$.data.item.orderItemList[?(@.productId == 10)].unitPrice",
+                org.hamcrest.Matchers.contains(10.0)));
         assertTrue(orderItems.findByOrderId(orderId).stream()
             .allMatch(item -> item.getId() != null && orderId.equals(item.getOrderId())));
-        mvc.perform(post("/api/ent-crud/order/detail/detail").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"filter\":{\"id\":-1}}}"))
-            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
+            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"));
+        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"options":{"resultMode":"ENTITY","filter":{"id":%d,"customerId":-1},"expandRelations":["orderItemList"]}}
+                    """.formatted(orderId)))
+            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"));
     }
 
     @Test
@@ -143,7 +153,7 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void orderOnlyExposesAuthorizedBusinessScenes() throws Exception {
+    void 订单允许默认读取但拒绝直接写入及未知业务动作() throws Exception {
         mvc.perform(post("/api/ent-crud/order/create").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"customerId\":1}}"))
             .andExpect(status().isForbidden());
@@ -154,7 +164,7 @@ class OrderDaoIntegrationTest {
                 .content("{\"payload\":{\"id\":1}}"))
             .andExpect(status().isForbidden());
         mvc.perform(post("/api/ent-crud/order/page").contentType(MediaType.APPLICATION_JSON).content("{}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(0));
         mvc.perform(post("/api/ent-crud/order/action/unknown").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{}}"))
             .andExpect(status().isNotFound());

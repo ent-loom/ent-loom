@@ -25,9 +25,7 @@ public enum OrderError {
     /** 商品当前未启用。 */
     PRODUCT_INACTIVE("PRODUCT_INACTIVE", "商品当前不可下单"),
     /** 商品价格不符合下单要求。 */
-    PRODUCT_PRICE_INVALID("PRODUCT_PRICE_INVALID", "商品价格必须大于零"),
-    /** 订单不存在。 */
-    ORDER_NOT_FOUND("ORDER_NOT_FOUND", "订单不存在");
+    PRODUCT_PRICE_INVALID("PRODUCT_PRICE_INVALID", "商品价格必须大于零");
 
     private final String code;
     private final String message;

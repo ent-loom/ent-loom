@@ -64,7 +64,7 @@ final class JdbcRelationAssignmentHelper {
             ? defaultRelationFieldName(edge)
             : edge.getRelationField();
         List<Object> safeChildren = children == null ? Collections.<Object>emptyList() : children;
-        if (edge.getCardinality() == RelationCardinality.ONE_TO_ONE) {
+        if (isSingleValued(edge)) {
             target.put(relationField, safeChildren.isEmpty() ? null : safeChildren.get(0));
             return;
         }
@@ -80,7 +80,7 @@ final class JdbcRelationAssignmentHelper {
         }
         LinkedHashMap<String, Object> target = new LinkedHashMap<String, Object>(root.asMap());
         List<Object> safeChildren = children == null ? Collections.<Object>emptyList() : children;
-        if (edge.getCardinality() == RelationCardinality.ONE_TO_ONE) {
+        if (isSingleValued(edge)) {
             target.put(relationField, safeChildren.isEmpty() ? null : safeChildren.get(0));
             return CrudRecord.copyOf(target);
         }
@@ -108,7 +108,7 @@ final class JdbcRelationAssignmentHelper {
         if (edge == null || edge.getToEntity() == null) {
             return null;
         }
-        if (edge.getCardinality() == RelationCardinality.ONE_TO_ONE) {
+        if (isSingleValued(edge)) {
             return lowerCamel(edge.getToEntity().getSimpleName());
         }
         return lowerCamel(edge.getToEntity().getSimpleName()) + "List";
@@ -119,6 +119,11 @@ final class JdbcRelationAssignmentHelper {
             return value;
         }
         return Character.toLowerCase(value.charAt(0)) + value.substring(1);
+    }
+
+    private boolean isSingleValued(RelationEdge edge) {
+        return edge.getCardinality() == RelationCardinality.ONE_TO_ONE
+            || edge.getCardinality() == RelationCardinality.MANY_TO_ONE;
     }
 
     private void writeRelationValue(Object root, Field relationField, List<Object> children) {

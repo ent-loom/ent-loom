@@ -2,6 +2,7 @@ package com.entloom.crud.starter.web.error;
 
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * 业务异常的默认 HTTP 转换器。
  */
 @RestControllerAdvice
+@Order(0)
 public class EntBusinessExceptionHandler {
     private final CrudResponseBuilder responseBuilder;
 

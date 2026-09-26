@@ -1,21 +1,23 @@
 # Mini Commerce Spring Boot 示例
 
-最小业务闭环：Product、Customer 使用 ent-loom 通用 CRUD；订单通过 PlaceOrderHandler 在事务中下单，通过 OrderDetailHandler 查询详情。订单保存商品名称、单价和金额快照。
+最小业务闭环：Product、Customer 使用 ent-loom 通用 CRUD；订单通过 PlaceOrderHandler 在事务中下单，通过默认通用查询读取详情并展开客户、明细。订单保存商品名称、单价和金额快照。
 
 ## 业务边界
 
-所有业务入口复用框架内置 Controller。主数据接口为 `/api/ent-crud/product/*`、`/api/ent-crud/customer/*`；下单为 `POST /api/ent-crud/order/action/place`，订单详情为 `POST /api/ent-crud/order/detail/detail`，文档契约为 `/api/ent-doc/contract`。权限只放行订单的 `COMMAND:ACTION + place` 与 `QUERY:DETAIL + detail`；订单默认 CRUD 和未知场景均拒绝。示例不包含登录、租户/行级权限、支付、库存、优惠券、搜索、消息队列和前端管理台。
+所有业务入口复用框架内置 Controller。主数据接口为 `/api/ent-crud/product/*`、`/api/ent-crud/customer/*`；下单为 `POST /api/ent-crud/order/action/place`，订单详情为 `POST /api/ent-crud/order/detail`，文档契约为 `/api/ent-doc/contract`。订单通过 `order:read` 授权默认读取，通过 `order:place` 授权下单；直接创建、修改、删除不授权，业务动作仅允许 `place`。示例不包含登录、租户/行级权限、支付、库存、优惠券、搜索、消息队列和前端管理台。
 
-代码按 configuration、customer、product、order 分包。调用方向为 `内置 Controller → Gateway → 统一治理与场景分发 → Handler → DAO`；应用只实现实体、DTO、Handler 和治理配置。Gateway 负责授权，Handler 负责业务校验、事务和结果组装。只有需要兼容独立 URL、HTTP 状态码或外部协议时，才增加业务 Controller。
+代码按 configuration、customer、product、order 分包。下单调用方向为 `内置 Controller → Gateway → 统一治理与场景分发 → Handler → DAO`；默认查询经 Gateway 治理后由查询引擎执行。应用只实现实体、必要的 DTO、Handler 和治理配置。Gateway 负责授权，下单 Handler 负责业务校验、事务和结果组装。只有需要兼容独立 URL、HTTP 状态码或外部协议时，才增加业务 Controller。
 
 | 业务场景 | 接口 | 框架能力 |
 | --- | --- | --- |
 | 商品、客户维护 | `/api/ent-crud/{entity}/*` | 默认 CRUD，无需业务 Handler |
 | 可售商品分页 | `POST /api/ent-crud/product/page/saleable` | Handler 追加 `active=true`，委托默认引擎过滤、排序、分页 |
 | 下单 | `POST /api/ent-crud/order/action/place` | ACTION 强类型入出参契约、跨 DAO 事务与价格快照 |
-| 订单详情 | `POST /api/ent-crud/order/detail/detail` | DETAIL 场景跨实体组装 `OrderDetail` |
+| 订单详情 | `POST /api/ent-crud/order/detail` | 默认 DETAIL 查询，通过 `expandRelations` 展开客户和订单明细 |
 
-`OrderSceneConfiguration` 声明下单 ACTION 场景准入。订单注册到 HTTP 实体路由以供内置 Controller 定位 Handler，但不进入实体文档白名单；示例权限规则只允许 `local-developer` 执行上述两个操作与场景，默认创建、修改、删除、分页及未知场景均失败关闭。示例仍使用全量 DAO 数据范围；自定义查询不会因为进入 Gateway 就自动落实订单归属限制。
+`Order` 通过 `@EntCrudActions("place")` 限制业务动作，`OrderSceneConfiguration` 声明下单 ACTION 场景策略。订单注册到 HTTP 实体路由，但不进入实体文档白名单；示例权限配置向 `local-developer` 授予订单读取与下单权限。示例使用全量数据范围，未限制订单归属；生产环境需接入正式的数据范围实现。
+
+详情请求使用 `options.resultMode: "ENTITY"` 保持实体字段名，通过 `options.expandRelations: ["customer", "orderItemList"]` 展开关联，返回 `data.item.customer.displayName` 和 `data.item.orderItemList`；不展开时只读取订单本身。明细中的商品名称、成交单价仍来自下单快照。详情未命中使用框架默认的 HTTP 404 与 `ROUTE_NOT_FOUND` 错误码，附加过滤条件由默认引擎统一执行。
 
 可售条件与调用方过滤条件取交集：传入 `active=false` 返回空页；普通商品管理分页仍可查看停用商品。可复制请求见 [commerce.http](requests/commerce.http)。
 
@@ -29,7 +31,7 @@ Copy-Item .env.example .env
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-接口包括主数据 CRUD、订单下单与详情场景，以及 `/api/ent-doc/contract`。订单默认 CRUD 不授权。
+接口包括主数据 CRUD、订单下单与默认查询，以及 `/api/ent-doc/contract`。订单直接创建、修改、删除不授权。
 
 非交互验收：
 

@@ -6,6 +6,8 @@ import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.enums.RelationCardinality;
+import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -36,6 +38,10 @@ public class Order {
     @EntField("客户 ID")
     private Long customerId;
 
+    @EntField("客户")
+    @EntCrudField(targetClass = Customer.class, sourceField = "customerId")
+    private Customer customer;
+
     /** 订单生命周期状态，参见 {@link OrderStatus}。 */
     @EntField("订单状态")
     private OrderStatus status;
@@ -49,6 +55,7 @@ public class Order {
     private LocalDateTime createdAt;
 
     @EntField("订单明细")
+    @EntCrudField(targetClass = OrderItem.class, targetField = "orderId", cardinality = RelationCardinality.ONE_TO_MANY)
     private List<OrderItem> orderItemList;
 
 }
