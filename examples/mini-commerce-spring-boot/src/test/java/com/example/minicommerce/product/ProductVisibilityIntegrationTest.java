@@ -3,6 +3,8 @@ package com.example.minicommerce.product;
 import com.entloom.crud.core.adapter.AccessEntryResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -65,5 +67,14 @@ class ProductVisibilityIntegrationTest {
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"crudAccessEntry\":\"management\"}}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"base", "management", "unknown"})
+    void 非用户端入口不能下单(String entry) throws Exception {
+        when(accessEntryResolver.resolveAccessEntry(any())).thenReturn(entry);
+        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"customerId\":1,\"items\":[{\"productId\":10,\"quantity\":1}]}}"))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
     }
 }

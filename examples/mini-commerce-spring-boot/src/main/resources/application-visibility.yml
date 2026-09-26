@@ -1,6 +1,3 @@
-mini-commerce:
-  access-entry: consumer
-
 ent:
   loom:
     crud:

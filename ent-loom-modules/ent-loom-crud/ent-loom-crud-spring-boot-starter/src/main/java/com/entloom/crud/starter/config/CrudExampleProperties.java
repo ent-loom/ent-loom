@@ -9,7 +9,7 @@ public class CrudExampleProperties {
     private boolean enabled;
     /** 演示主体标识；权限与文档授权仍需独立配置。 */
     private String subjectId = "local-developer";
-    /** 演示模式使用全量数据范围；可关闭或通过 Bean 替换。 */
+    /** 演示模式的 Gateway 与 DAO 使用全量数据范围；可关闭或分别通过 Bean 替换。 */
     private boolean allowAllDataScope = true;
 
     public boolean isEnabled() {

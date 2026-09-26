@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @ActiveProfiles({"example", "visibility"})
 @AutoConfigureMockMvc
-class VisibilityDemoConfigurationTest {
+class ConfiguredAccessEntryIntegrationTest {
     @Autowired AccessEntryResolver accessEntryResolver;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;

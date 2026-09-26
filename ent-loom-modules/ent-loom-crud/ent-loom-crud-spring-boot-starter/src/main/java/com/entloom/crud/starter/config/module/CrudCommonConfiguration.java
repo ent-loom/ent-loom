@@ -91,8 +91,9 @@ public class CrudCommonConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AccessEntryResolver accessEntryResolver() {
-        return new AttributeAccessEntryResolver();
+    public AccessEntryResolver accessEntryResolver(CrudProperties properties) {
+        String accessEntry = properties.getGovernance().getAccessEntry();
+        return accessEntry == null ? new AttributeAccessEntryResolver() : spec -> accessEntry;
     }
 
     @Bean

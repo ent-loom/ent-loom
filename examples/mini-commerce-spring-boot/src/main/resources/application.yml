@@ -18,6 +18,12 @@ spring:
       verify:
         - example
 
+ent:
+  loom:
+    crud:
+      governance:
+        access-entry: consumer
+
 server:
   port: ${APP_PORT:8082}
 

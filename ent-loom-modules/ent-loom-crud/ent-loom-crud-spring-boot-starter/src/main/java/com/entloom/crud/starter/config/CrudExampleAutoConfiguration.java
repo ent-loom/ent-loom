@@ -1,6 +1,8 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.capability.dao.EntityAccessScope;
+import com.entloom.crud.core.capability.dao.EntityDaoScopeResolver;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
@@ -39,5 +41,13 @@ public class CrudExampleAutoConfiguration {
         havingValue = "true", matchIfMissing = true)
     public CrudDataScopeResolver exampleCrudDataScopeResolver() {
         return new AllowAllCrudDataScopeResolver();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(EntityDaoScopeResolver.class)
+    @ConditionalOnProperty(prefix = "ent.loom.crud.example", name = "allow-all-data-scope",
+        havingValue = "true", matchIfMissing = true)
+    public EntityDaoScopeResolver exampleEntityDaoScopeResolver() {
+        return entityType -> EntityAccessScope.unrestricted();
     }
 }

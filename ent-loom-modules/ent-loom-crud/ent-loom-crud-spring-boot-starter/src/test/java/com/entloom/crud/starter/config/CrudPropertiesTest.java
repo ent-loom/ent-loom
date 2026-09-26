@@ -11,11 +11,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 class CrudPropertiesTest {
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", " consumer", "consumer "})
+    void 固定入口配置拒绝空值及首尾空格(String entry) {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("ent.loom.crud.governance.access-entry", entry);
+        Assertions.assertThrows(org.springframework.boot.context.properties.bind.BindException.class, () ->
+            new Binder(new MapConfigurationPropertySource(values))
+                .bind("ent.loom.crud", Bindable.of(CrudProperties.class)));
+    }
+
     @Test
     void controller_should_omit_null_fields_by_default_and_allow_configuration_override() {
         CrudProperties.Controller defaults = new CrudProperties.Controller();

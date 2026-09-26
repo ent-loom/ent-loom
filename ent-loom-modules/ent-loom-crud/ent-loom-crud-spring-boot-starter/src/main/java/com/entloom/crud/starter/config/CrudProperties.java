@@ -631,6 +631,16 @@ public class CrudProperties {
      */
     @Getter
     public static class Governance {
+        /** 服务端固定业务入口；未配置时从可信属性解析，最终回退到 base。 */
+        private String accessEntry;
+
+        public void setAccessEntry(String accessEntry) {
+            if (accessEntry != null && (accessEntry.trim().isEmpty() || !accessEntry.equals(accessEntry.trim()))) {
+                throw new IllegalArgumentException("ent.loom.crud.governance.access-entry 不能为空或包含首尾空格");
+            }
+            this.accessEntry = accessEntry;
+        }
+
         /** 按实体和业务入口生效的读取可见性。 */
         private Map<String, Map<String, Object>> readVisibility = new LinkedHashMap<>();
 

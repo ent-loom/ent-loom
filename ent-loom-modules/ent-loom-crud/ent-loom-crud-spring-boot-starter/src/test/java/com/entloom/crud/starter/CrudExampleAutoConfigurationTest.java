@@ -1,6 +1,10 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.api.model.SubjectContext;
+import com.entloom.crud.core.capability.dao.EntityAccessScope;
+import com.entloom.crud.core.capability.dao.EntityDaoScopeResolver;
+import com.entloom.crud.core.capability.dao.EntityType;
+import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
@@ -19,10 +23,12 @@ class CrudExampleAutoConfigurationTest {
         runner.run(context -> {
             assertThat(context).doesNotHaveBean(CrudSubjectResolver.class);
             assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
+            assertThat(context).doesNotHaveBean(EntityDaoScopeResolver.class);
         });
         runner.withPropertyValues("ent.loom.crud.example.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(CrudSubjectResolver.class);
             assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
+            assertThat(context).doesNotHaveBean(EntityDaoScopeResolver.class);
         });
     }
 
@@ -31,6 +37,9 @@ class CrudExampleAutoConfigurationTest {
         runner.withPropertyValues("ent.loom.crud.example.enabled=true").run(context -> {
             assertThat(context).hasSingleBean(CrudSubjectResolver.class);
             assertThat(context).hasSingleBean(AllowAllCrudDataScopeResolver.class);
+            assertThat(context).hasSingleBean(EntityDaoScopeResolver.class);
+            assertThat(context.getBean(EntityDaoScopeResolver.class).resolve(EntityType.of(String.class, Long.class))
+                .getRowConstraint().isUnrestricted()).isTrue();
             CrudSubjectResolver resolver = context.getBean(CrudSubjectResolver.class);
             SubjectContext first = resolver.resolveOrThrow();
             first.setSubjectId("changed");
@@ -45,6 +54,7 @@ class CrudExampleAutoConfigurationTest {
             .run(context -> {
                 assertThat(context.getBean(CrudSubjectResolver.class).resolveOrThrow().getSubjectId()).isEqualTo("demo-user");
                 assertThat(context).doesNotHaveBean(CrudDataScopeResolver.class);
+                assertThat(context).doesNotHaveBean(EntityDaoScopeResolver.class);
             });
     }
 
@@ -56,11 +66,27 @@ class CrudExampleAutoConfigurationTest {
             .withBean(CrudSubjectResolver.class, () -> subject).run(context -> {
                 assertThat(context.getBean(CrudSubjectResolver.class)).isSameAs(subject);
                 assertThat(context).hasSingleBean(AllowAllCrudDataScopeResolver.class);
+                assertThat(context).hasSingleBean(EntityDaoScopeResolver.class);
             });
         runner.withPropertyValues("ent.loom.crud.example.enabled=true")
             .withBean(CrudDataScopeResolver.class, () -> scope).run(context -> {
                 assertThat(context.getBean(CrudDataScopeResolver.class)).isSameAs(scope);
+                assertThat(context).hasSingleBean(EntityDaoScopeResolver.class);
                 assertThat(context.getBean(CrudSubjectResolver.class).resolveOrThrow().getSubjectId()).isEqualTo("local-developer");
+            });
+    }
+
+    @Test
+    void 自定义DAO范围覆盖演示实现且不影响Gateway范围() {
+        EntityAccessScope scope = EntityAccessScope.of(RowConstraint.eq("tenantId", 1L));
+        EntityDaoScopeResolver resolver = entityType -> scope;
+        runner.withPropertyValues("ent.loom.crud.example.enabled=true")
+            .withBean(EntityDaoScopeResolver.class, () -> resolver).run(context -> {
+                assertThat(context).hasSingleBean(EntityDaoScopeResolver.class);
+                assertThat(context.getBean(EntityDaoScopeResolver.class)).isSameAs(resolver);
+                assertThat(context.getBean(EntityDaoScopeResolver.class).resolve(EntityType.of(String.class, Long.class)))
+                    .isSameAs(scope);
+                assertThat(context).hasSingleBean(AllowAllCrudDataScopeResolver.class);
             });
     }
 

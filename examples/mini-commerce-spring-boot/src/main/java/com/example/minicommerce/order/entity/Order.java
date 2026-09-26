@@ -27,9 +27,7 @@ import lombok.Setter;
 @EntEntity(value = "订单", description = "商城订单",
     service = "mini-commerce")
 @EntCrudEntity(idPolicy = CrudIdPolicy.GENERATED)
-@EntCrudActions({
-    @EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"),
-})
+@EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
 @Getter
 @Setter
 @NoArgsConstructor

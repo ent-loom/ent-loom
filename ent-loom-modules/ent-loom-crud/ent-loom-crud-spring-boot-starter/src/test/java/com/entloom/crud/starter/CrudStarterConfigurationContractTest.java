@@ -1,6 +1,9 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.api.enums.CrudReadResultMode;
+import com.entloom.crud.core.adapter.AccessEntryResolver;
+import com.entloom.crud.core.adapter.AttributeAccessEntryResolver;
+import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
@@ -28,6 +31,7 @@ import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import com.entloom.crud.starter.config.module.JdbcInsertScopeDatabaseStartupValidator;
 import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -49,6 +53,48 @@ class CrudStarterConfigurationContractTest {
             "ent.loom.crud.controller.enabled=true",
             "ent.loom.crud.import-export.storage-directory=target/entloom-crud-configuration-contract"
         );
+
+    @Test
+    void 未配置固定入口时沿用属性解析与默认入口() {
+        contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(AccessEntryResolver.class);
+            AccessEntryResolver resolver = context.getBean(AccessEntryResolver.class);
+            assertThat(resolver).isInstanceOf(AttributeAccessEntryResolver.class);
+            assertThat(resolver.resolveAccessEntry(null)).isEqualTo("base");
+            assertThat(resolver.resolveAccessEntry(QuerySpec.builder()
+                .attributes(Collections.<String, Object>singletonMap(AccessEntryResolver.ATTRIBUTE_KEY, "management"))
+                .build())).isEqualTo("management");
+        });
+    }
+
+    @Test
+    void 固定入口不能被调用属性覆盖() {
+        contextRunner.withPropertyValues("ent.loom.crud.governance.access-entry=consumer").run(context -> {
+            assertThat(context).hasSingleBean(AccessEntryResolver.class);
+            AccessEntryResolver resolver = context.getBean(AccessEntryResolver.class);
+            assertThat(resolver.resolveAccessEntry(null)).isEqualTo("consumer");
+            assertThat(resolver.resolveAccessEntry(QuerySpec.builder()
+                .attributes(Collections.<String, Object>singletonMap(AccessEntryResolver.ATTRIBUTE_KEY, "management"))
+                .build())).isEqualTo("consumer");
+        });
+    }
+
+    @Test
+    void 空入口配置应在启动时拒绝() {
+        contextRunner.withPropertyValues("ent.loom.crud.governance.access-entry=")
+            .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void 业务解析器覆盖固定入口配置() {
+        AccessEntryResolver resolver = spec -> "management";
+        contextRunner.withPropertyValues("ent.loom.crud.governance.access-entry=consumer")
+            .withBean(AccessEntryResolver.class, () -> resolver)
+            .run(context -> {
+                assertThat(context).hasSingleBean(AccessEntryResolver.class);
+                assertThat(context.getBean(AccessEntryResolver.class)).isSameAs(resolver);
+            });
+    }
 
     @Test
     void starter_configuration_keys_should_bind_to_typed_properties() {
