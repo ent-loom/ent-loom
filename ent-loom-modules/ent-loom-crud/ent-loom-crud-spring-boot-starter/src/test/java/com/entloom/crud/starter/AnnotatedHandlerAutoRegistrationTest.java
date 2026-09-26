@@ -11,7 +11,6 @@ import com.entloom.crud.core.adapter.PortalResolver;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
-import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.capability.query.scene.QueryDetailSceneHandler;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
@@ -212,29 +211,9 @@ class AnnotatedHandlerAutoRegistrationTest {
 
     @EntCrudCommandAction(
         entityClass = TestOrderEntity.class,
-        scene = "order.place",
-        requestType = PlaceOrderRequest.class,
-        responseType = PlaceOrderResponse.class
+        scene = "order.place"
     )
     static class PlaceOrderAction implements CommandActionSceneHandler<PlaceOrderRequest, PlaceOrderResponse> {
-        private static final Set<CrudRouteKey> ROUTE_KEYS = Collections.singleton(
-            new CrudRouteKey(
-                Collections.singletonList(TestOrderEntity.class.getName()),
-                CrudOperationKey.of(CommandOperation.ACTION),
-                RouteKeyFactory.normalizeScene("order.place")
-            )
-        );
-
-        @Override
-        public Set<CrudRouteKey> routeKeys() {
-            return ROUTE_KEYS;
-        }
-
-        @Override
-        public CommandActionContract contract() {
-            return new CommandActionContract(PlaceOrderRequest.class, PlaceOrderResponse.class);
-        }
-
         @Override
         public CommandResult<PlaceOrderResponse> handle(
             CommandSpec<PlaceOrderRequest> spec,

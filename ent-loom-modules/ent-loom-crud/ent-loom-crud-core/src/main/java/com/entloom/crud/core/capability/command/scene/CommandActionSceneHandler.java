@@ -1,20 +1,14 @@
 package com.entloom.crud.core.capability.command.scene;
 
-import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.CommandResult;
-import com.entloom.crud.core.capability.command.handler.CommandActionContract;
+import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.runtime.scene.SceneDelegate;
 
 /**
- * Command ACTION 场景处理器。
+ * Command ACTION 业务处理器，路由和类型契约由注册层提供。
  */
-public interface CommandActionSceneHandler<P, R> extends CommandSceneHandler<P, CommandResult<R>> {
-    @Override
-    default CommandOperation operation() {
-        return CommandOperation.ACTION;
-    }
-
-    /**
-     * ACTION 入参与出参契约。
-     */
-    CommandActionContract contract();
+@FunctionalInterface
+public interface CommandActionSceneHandler<P, R> {
+    CommandResult<R> handle(CommandSpec<P> spec,
+        SceneDelegate<CommandSpec<P>, CommandResult<R>> delegate);
 }

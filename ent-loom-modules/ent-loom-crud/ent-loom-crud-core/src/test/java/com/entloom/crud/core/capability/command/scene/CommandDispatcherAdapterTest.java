@@ -10,7 +10,6 @@ import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
-import com.entloom.crud.core.util.RouteKeyFactory;
 import java.util.Collections;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
@@ -246,7 +245,8 @@ class CommandDispatcherAdapterTest {
                 return null;
             }
         });
-        adapter.registerActionHandler(new PlaceActionHandler());
+        adapter.registerActionHandler(new CommandActionRegistration<String, String>(
+            TestEntity.class, "order.place", String.class, String.class, new PlaceActionHandler()));
 
         CommandSpec<Object> spec = CommandSpec.<Object>builder()
             .rootType(TestEntity.class)
@@ -288,27 +288,11 @@ class CommandDispatcherAdapterTest {
         Assertions.assertThrows(RouteNotFoundException.class, () -> adapter.route(spec));
     }
 
-    private static final class PlaceActionHandler implements CommandActionSceneHandler<Object, String> {
-        @Override
-        public Set<CrudRouteKey> routeKeys() {
-            return Collections.singleton(
-                new CrudRouteKey(
-                    Collections.singletonList(TestEntity.class.getName()),
-                    CrudOperationKey.of(CommandOperation.ACTION),
-                    RouteKeyFactory.normalizeScene("order.place")
-                )
-            );
-        }
-
-        @Override
-        public CommandActionContract contract() {
-            return new CommandActionContract(String.class, String.class);
-        }
-
+    private static final class PlaceActionHandler implements CommandActionSceneHandler<String, String> {
         @Override
         public CommandResult<String> handle(
-            CommandSpec<Object> spec,
-            SceneDelegate<CommandSpec<Object>, CommandResult<String>> delegate
+            CommandSpec<String> spec,
+            SceneDelegate<CommandSpec<String>, CommandResult<String>> delegate
         ) {
             return CommandResult.success(spec.getPayload() == null ? null : String.valueOf(spec.getPayload()));
         }

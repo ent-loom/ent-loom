@@ -1,6 +1,6 @@
 package com.entloom.crud.core.runtime.router;
 
-import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
+import com.entloom.crud.core.capability.command.scene.CommandActionRegistration;
 import com.entloom.crud.core.capability.command.scene.CommandDispatcherAdapter;
 import com.entloom.crud.core.capability.command.scene.CommandSceneHandler;
 import com.entloom.crud.core.capability.command.engine.CommandEngine;
@@ -22,8 +22,8 @@ public class DefaultCommandRouter implements CommandRouter, CommandActionSceneRe
         dispatcherAdapter.registerHandler(handler);
     }
 
-    public void registerActionSceneHandler(CommandActionSceneHandler<?, ?> handler) {
-        registerSceneHandler(handler);
+    public void registerActionSceneHandler(CommandActionRegistration<?, ?> registration) {
+        registerSceneHandler(registration);
     }
 
     public String canonicalizeActionScene(Class<?> rootType, List<Class<?>> entityClasses, String scene) {

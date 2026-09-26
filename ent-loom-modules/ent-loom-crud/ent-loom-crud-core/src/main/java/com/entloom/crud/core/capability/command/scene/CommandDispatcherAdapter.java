@@ -75,10 +75,10 @@ public class CommandDispatcherAdapter implements CommandRouter {
                 writeRuntime(operation).registry.register(castCommandHandler(handler));
                 break;
             case ACTION:
-                if (!(handler instanceof CommandActionSceneHandler)) {
-                    throw new ValidationException("ACTION handler 必须实现 CommandActionSceneHandler: " + handler.getClass().getName());
+                if (!(handler instanceof CommandActionRegistration)) {
+                    throw new ValidationException("ACTION 必须通过 CommandActionRegistration 注册: " + handler.getClass().getName());
                 }
-                actionRegistry.register(castActionHandler((CommandActionSceneHandler<?, ?>) handler));
+                actionRegistry.register(castActionHandler((CommandActionRegistration<?, ?>) handler));
                 break;
             default:
                 throw new ValidationException("不支持注册 Command scene handler op: " + operation);
@@ -104,8 +104,8 @@ public class CommandDispatcherAdapter implements CommandRouter {
         }
     }
 
-    public void registerActionHandler(CommandActionSceneHandler<?, ?> handler) {
-        registerHandler(handler);
+    public void registerActionHandler(CommandActionRegistration<?, ?> registration) {
+        registerHandler(registration);
     }
 
     public String canonicalizeActionScene(Class<?> rootType, List<Class<?>> entityClasses, String scene) {
@@ -238,20 +238,20 @@ public class CommandDispatcherAdapter implements CommandRouter {
     }
 
     @SuppressWarnings("unchecked")
-    private SceneHandler<CommandSpec<Object>, CommandResult<Object>> castActionHandler(CommandActionSceneHandler<?, ?> handler) {
+    private SceneHandler<CommandSpec<Object>, CommandResult<Object>> castActionHandler(CommandActionRegistration<?, ?> handler) {
         return (SceneHandler<CommandSpec<Object>, CommandResult<Object>>) (SceneHandler<?, ?>) handler;
     }
 
     @SuppressWarnings("unchecked")
-    private CommandActionSceneHandler<Object, Object> resolveActionHandler(CrudRouteKey routeKey) {
+    private CommandActionRegistration<Object, Object> resolveActionHandler(CrudRouteKey routeKey) {
         SceneHandler<CommandSpec<Object>, CommandResult<Object>> handler = actionRegistry.resolveOrNull(routeKey);
         if (handler == null) {
             throw new RouteNotFoundException("未找到命令路由: " + routeKey);
         }
-        if (!(handler instanceof CommandActionSceneHandler)) {
+        if (!(handler instanceof CommandActionRegistration)) {
             throw new ValidationException("ACTION 路由处理器类型非法: " + handler.getClass().getName());
         }
-        return (CommandActionSceneHandler<Object, Object>) (Object) handler;
+        return (CommandActionRegistration<Object, Object>) (Object) handler;
     }
 
     private CrudRouteKey buildActionRouteKey(Class<?> rootType, List<Class<?>> entityClasses, String scene) {

@@ -6,16 +6,13 @@ import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.annotations.EntCrudCommandAction;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
-import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.adapter.PortalResolver;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.governance.policy.ScenePolicy;
-import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
-import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.core.governance.permission.AllowAllCrudPermissionService;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.AllowAllCrudDataScopeResolver;
@@ -32,7 +29,6 @@ import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
 import com.entloom.e5.statictest.fixture.CustomerProfile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
-import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -280,27 +276,9 @@ class E5CrudMvcAcceptanceTest {
 
     @EntCrudCommandAction(
         entityClass = CustomerProfile.class,
-        scene = "profile.activate",
-        requestType = ProfileActionRequest.class,
-        responseType = ProfileActionResponse.class
+        scene = "profile.activate"
     )
     static final class ProfileActivateAction implements CommandActionSceneHandler<ProfileActionRequest, ProfileActionResponse> {
-        private static final Set<CrudRouteKey> ROUTE_KEYS = Collections.singleton(
-            new CrudRouteKey(
-                Collections.singletonList(CustomerProfile.class.getName()),
-                CrudOperationKey.of(CommandOperation.ACTION),
-                RouteKeyFactory.normalizeScene("profile.activate")
-            )
-        );
-
-        @Override
-        public Set<CrudRouteKey> routeKeys() { return ROUTE_KEYS; }
-
-        @Override
-        public CommandActionContract contract() {
-            return new CommandActionContract(ProfileActionRequest.class, ProfileActionResponse.class);
-        }
-
         @Override
         public CommandResult<ProfileActionResponse> handle(
             CommandSpec<ProfileActionRequest> spec,

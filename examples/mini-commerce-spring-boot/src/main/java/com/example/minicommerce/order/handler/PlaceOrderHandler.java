@@ -1,13 +1,9 @@
 package com.example.minicommerce.order.handler;
 
-import com.entloom.crud.api.enums.CommandOperation;
-import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.annotations.EntCrudCommandAction;
-import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
-import com.entloom.crud.core.runtime.router.CrudRouteKey;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.customer.entity.Customer;
@@ -38,9 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @EntCrudCommandAction(
     entityClass = Order.class,
-    scene = PlaceOrderHandler.SCENE,
-    requestType = PlaceOrderCommand.class,
-    responseType = PlaceOrderResult.class
+    scene = PlaceOrderHandler.SCENE
 )
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
     public static final String SCENE = "place";
@@ -49,16 +43,6 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
     private final ProductDao productDao;
     private final OrderDao orderDao;
     private final OrderItemDao orderItemDao;
-
-    @Override
-    public Set<CrudRouteKey> routeKeys() {
-        return Set.of(new CrudRouteKey(List.of(Order.class.getName()), CrudOperationKey.of(CommandOperation.ACTION), SCENE));
-    }
-
-    @Override
-    public CommandActionContract contract() {
-        return new CommandActionContract(PlaceOrderCommand.class, PlaceOrderResult.class);
-    }
 
     /** 校验客户和商品，保存当前价格快照，再一次性写入订单聚合。 */
     @Override

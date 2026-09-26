@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 命令场景动作注册。
+ * 命令场景动作路由声明，请求与响应类型由处理器泛型确定。
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
@@ -24,18 +24,4 @@ public @interface EntCrudCommandAction {
      * @return 场景码
      */
     String scene();
-
-    /**
-     * 请求 payload 类型。
-     *
-     * @return 请求类型
-     */
-    Class<?> requestType();
-
-    /**
-     * 响应 data 类型。
-     *
-     * @return 响应类型
-     */
-    Class<?> responseType();
 }

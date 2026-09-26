@@ -13,6 +13,7 @@ import com.entloom.crud.core.capability.importing.ImportHandler;
 import com.entloom.crud.core.capability.importing.ImportResult;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
+import com.entloom.crud.core.capability.command.scene.CommandActionRegistration;
 import com.entloom.crud.core.capability.command.scene.CommandSceneHandler;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.capability.query.scene.QueryDetailSceneHandler;
@@ -36,7 +37,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.util.ClassUtils;
 
@@ -122,7 +125,8 @@ public class SceneHandlerRegistrar implements InitializingBean {
     @SuppressWarnings("rawtypes")
     private void registerCommandHandlers() {
         Map<String, CommandSceneHandler> handlers = applicationContext.getBeansOfType(CommandSceneHandler.class);
-        if (handlers.isEmpty()) {
+        Map<String, CommandActionSceneHandler> actions = applicationContext.getBeansOfType(CommandActionSceneHandler.class);
+        if (handlers.isEmpty() && actions.isEmpty()) {
             return;
         }
         if (!(commandRouter instanceof DefaultCommandRouter)) {
@@ -136,13 +140,10 @@ public class SceneHandlerRegistrar implements InitializingBean {
                 throw new ValidationException("Command handler operation 不能为空: " + beanClass.getName());
             }
             validateCommandRouteKeys(handler.routeKeys(), operation, beanClass);
-            if (operation == CommandOperation.ACTION) {
-                if (!(handler instanceof CommandActionSceneHandler)) {
-                    throw new ValidationException("Command ACTION handler 必须实现 CommandActionSceneHandler: " + beanClass.getName());
-                }
-                validateCommandActionAnnotation((CommandActionSceneHandler<?, ?>) handler, beanClass);
-            }
             router.registerSceneHandler(handler);
+        }
+        for (CommandActionSceneHandler action : actions.values()) {
+            router.registerActionSceneHandler(resolveCommandActionRegistration(action));
         }
     }
 
@@ -306,39 +307,32 @@ public class SceneHandlerRegistrar implements InitializingBean {
         }
     }
 
-    private void validateCommandActionAnnotation(CommandActionSceneHandler<?, ?> handler, Class<?> beanClass) {
+    private <P, R> CommandActionRegistration<P, R> resolveCommandActionRegistration(CommandActionSceneHandler<P, R> handler) {
+        Class<?> beanClass = AopProxyUtils.ultimateTargetClass(handler);
         EntCrudCommandAction annotation = AnnotationUtils.findAnnotation(beanClass, EntCrudCommandAction.class);
         if (annotation == null) {
-            return;
+            throw new ValidationException("ACTION 处理器必须声明 @EntCrudCommandAction: " + beanClass.getName());
         }
         String expectedScene = RouteKeyFactory.normalizeScene(annotation.scene());
         if (expectedScene.isEmpty()) {
             throw new ValidationException("@EntCrudCommandAction.scene 不能为空: " + beanClass.getName());
         }
-        boolean matched = false;
-        for (CrudRouteKey routeKey : handler.routeKeys()) {
-            if (!CrudOperationKey.of(CommandOperation.ACTION).equals(routeKey.getOperationKey())) {
-                continue;
-            }
-            if (!expectedScene.equals(routeKey.getScene())) {
-                continue;
-            }
-            if (routeKey.getEntityTypeNames().isEmpty()
-                || !annotation.entityClass().getName().equals(routeKey.getEntityTypeNames().get(0))) {
-                continue;
-            }
-            matched = true;
-            break;
+        ResolvableType handlerType = ResolvableType.forClass(beanClass).as(CommandActionSceneHandler.class);
+        if (handlerType.hasUnresolvableGenerics()) {
+            throw new ValidationException("ACTION 处理器必须声明明确的请求与响应泛型: " + beanClass.getName());
         }
-        if (!matched) {
-            throw new ValidationException("注解与 routeKeys 冲突: " + beanClass.getName());
+        Class<P> requestType = resolveActionType(handlerType.getGeneric(0), beanClass);
+        Class<R> responseType = resolveActionType(handlerType.getGeneric(1), beanClass);
+        return new CommandActionRegistration<P, R>(annotation.entityClass(), expectedScene, requestType, responseType, handler);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Class<T> resolveActionType(ResolvableType type, Class<?> beanClass) {
+        Class<?> resolved = type.resolve();
+        if (resolved == null) {
+            throw new ValidationException("无法解析 ACTION 处理器泛型: " + beanClass.getName());
         }
-        if (!annotation.requestType().equals(handler.contract().getRequestType())) {
-            throw new ValidationException("注解 requestType 与 contract 冲突: " + beanClass.getName());
-        }
-        if (!annotation.responseType().equals(handler.contract().getResponseType())) {
-            throw new ValidationException("注解 responseType 与 contract 冲突: " + beanClass.getName());
-        }
+        return (Class<T>) resolved;
     }
 
     private void validateEntitiesMatch(CrudRouteKey routeKey, Class<?>[] entityClasses, Class<?> beanClass, String annotationName) {
