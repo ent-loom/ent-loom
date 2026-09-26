@@ -31,6 +31,28 @@ import org.junit.jupiter.api.Test;
 class JdbcStatsSqlCompilerTest {
 
     @Test
+    void 统计行总组数与汇总均包含实体可见性() {
+        StatsQueryPayload payload = new StatsQueryPayload();
+        payload.setGroupBy(Collections.singletonList(new StatsGroupBy("paymentChannel")));
+        payload.setMetrics(Collections.singletonList(new StatsMetric("COUNT", "id", "count")));
+        CrudDataScope scope = CrudDataScope.allowAll().withReadScopes(Collections.singletonMap(TestOrder.class.getName(),
+            com.entloom.crud.core.governance.scope.CrudReadScope.allow(Collections.<String, Object>singletonMap("paid", true))));
+        StatsSpec spec = StatsSpec.builder().rootType(TestOrder.class).payload(payload)
+            .mode(StatsQueryMode.PAGE).page(new PageRequest(1, 10)).governanceScope(scope).build();
+        CompiledStatsSql sql = new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder(StandardJdbcDialect.H2))
+            .compile(spec, entityMeta(), payload);
+        Assertions.assertTrue(sql.getRowsSql().contains("t.\"paid\" = ?"));
+        Assertions.assertTrue(sql.getTotalGroupsSql().contains("t.\"paid\" = ?"));
+        Assertions.assertTrue(sql.getSummarySql().contains("t.\"paid\" = ?"));
+        Assertions.assertEquals(Arrays.asList(2, Boolean.TRUE), sql.getSummaryArgs());
+        CrudDataScope denied = CrudDataScope.allowAll().withReadScopes(Collections.singletonMap(TestOrder.class.getName(),
+            com.entloom.crud.core.governance.scope.CrudReadScope.deny()));
+        Assertions.assertThrows(com.entloom.crud.core.exception.DataScopeDeniedException.class,
+            () -> new JdbcStatsSqlCompiler(StandardJdbcDialect.H2, new JdbcStatsPredicateBuilder(StandardJdbcDialect.H2))
+                .compile(spec.toBuilder().governanceScope(denied).build(), entityMeta(), payload));
+    }
+
+    @Test
     void should_compile_page_stats_sql_with_filters_having_sort_and_summary() {
         StatsQueryPayload payload = new StatsQueryPayload();
         StatsGroupBy groupBy = new StatsGroupBy("paymentChannel");

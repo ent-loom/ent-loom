@@ -127,6 +127,14 @@ public final class CrudIdempotencyFingerprint {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         put(result, "explicitAll", Boolean.valueOf(source.isExplicitAll()));
         put(result, "dimensions", normalize(source.getDimensions()));
+        Map<String, Object> readScopes = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, com.entloom.crud.core.governance.scope.CrudReadScope> entry : source.getReadScopes().entrySet()) {
+            Map<String, Object> scope = new LinkedHashMap<String, Object>();
+            scope.put("allowed", entry.getValue().isAllowed());
+            scope.put("conditions", normalize(entry.getValue().getConditions()));
+            readScopes.put(entry.getKey(), scope);
+        }
+        put(result, "readScopes", normalize(readScopes));
         return result;
     }
 

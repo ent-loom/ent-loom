@@ -57,20 +57,21 @@ Content-Type: application/json
 {"payload": {"customerId": {{customerId}}}}
 
 
-### 可售商品分页：场景补充 active=true，默认引擎执行过滤、排序和分页
-POST {{baseUrl}}/api/ent-crud/product/page/saleable
+### 可售商品分页：调用方通过 active=true 筛选启用商品
+POST {{baseUrl}}/api/ent-crud/product/page
 Content-Type: application/json
 
 {
   "options": {
+    "filter": {"active": true},
     "page": 1,
     "limit": 10,
     "sorts": [{"field": "price", "direction": "ASC"}]
   }
 }
 
-### 条件取交集：不能用 active=false 绕过可售场景，预期空页
-POST {{baseUrl}}/api/ent-crud/product/page/saleable
+### 停用商品分页：通过 active=false 筛选停用商品
+POST {{baseUrl}}/api/ent-crud/product/page
 Content-Type: application/json
 
 {"options": {"filter": {"active": false}}}

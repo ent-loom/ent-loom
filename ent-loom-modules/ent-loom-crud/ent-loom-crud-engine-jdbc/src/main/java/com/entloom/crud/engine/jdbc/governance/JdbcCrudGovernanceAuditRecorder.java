@@ -94,6 +94,7 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("explicitAll", scope.isExplicitAll());
         payload.put("dimensions", scope.getDimensions());
+        payload.put("readScopes", scope.getReadScopes());
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {

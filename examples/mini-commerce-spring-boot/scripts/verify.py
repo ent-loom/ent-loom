@@ -147,17 +147,19 @@ def verify(repository=None, skip_build=False):
             "displayName": "Ada Lovelace", "email": "ada@example.com",
         }, project + "-customer")
 
-        status, saleable = request(base_url + "/api/ent-crud/product/page/saleable", {
-            "options": {"page": 1, "limit": 1, "sorts": [{"field": "price", "direction": "ASC"}]},
+        status, saleable = request(base_url + "/api/ent-crud/product/page", {
+            "options": {"filter": {"active": True}, "page": 1, "limit": 1,
+                        "sorts": [{"field": "price", "direction": "ASC"}]},
         })
         check(status == 200 and saleable.get("data", {}).get("page", {}).get("total") == 1
               and saleable["data"]["items"][0]["id"] == product_id,
-              f"可售商品场景未命中或分页结果错误：{saleable}")
-        status, excluded = request(base_url + "/api/ent-crud/product/page/saleable", {
+              f"启用商品过滤或分页结果错误：{saleable}")
+        status, inactive = request(base_url + "/api/ent-crud/product/page", {
             "options": {"filter": {"active": False}},
         })
-        check(status == 200 and excluded.get("data", {}).get("page", {}).get("total") == 0,
-              f"可售商品场景未与调用方条件取交集：{excluded}")
+        check(status == 200 and inactive.get("data", {}).get("page", {}).get("total") == 1
+              and inactive["data"]["items"][0]["id"] == inactive_product_id,
+              f"停用商品过滤结果错误：{inactive}")
         status, all_products = request(base_url + "/api/ent-crud/product/page", {})
         check(status == 200 and all_products.get("data", {}).get("page", {}).get("total") == 2,
               f"默认商品分页不应排除停用商品：{all_products}")

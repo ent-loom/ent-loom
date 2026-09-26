@@ -11,7 +11,7 @@
 | 业务场景 | 接口 | 框架能力 |
 | --- | --- | --- |
 | 商品、客户维护 | `/api/ent-crud/{entity}/*` | 默认 CRUD，无需业务 Handler |
-| 可售商品分页 | `POST /api/ent-crud/product/page/saleable` | Handler 追加 `active=true`，委托默认引擎过滤、排序、分页 |
+| 可售商品分页 | `POST /api/ent-crud/product/page` | 调用方传入 `active=true`，默认引擎执行过滤、排序、分页 |
 | 下单 | `POST /api/ent-crud/order/action/place` | ACTION 强类型入出参契约、跨 DAO 事务与价格快照 |
 | 订单详情 | `POST /api/ent-crud/order/detail` | 默认 DETAIL 查询，通过 `expandRelations` 展开客户和订单明细 |
 
@@ -19,7 +19,32 @@
 
 详情请求使用 `options.resultMode: "ENTITY"` 保持实体字段名，通过 `options.expandRelations: ["customer", "orderItemList"]` 展开关联，返回 `data.item.customer.displayName` 和 `data.item.orderItemList`；不展开时只读取订单本身。明细中的商品名称、成交单价仍来自下单快照。详情未命中使用框架默认的 HTTP 404 与 `ROUTE_NOT_FOUND` 错误码，附加过滤条件由默认引擎统一执行。
 
-可售条件与调用方过滤条件取交集：传入 `active=false` 返回空页；普通商品管理分页仍可查看停用商品。可复制请求见 [commerce.http](requests/commerce.http)。
+商品分页通过 `options.filter.active` 筛选：`true` 查询启用商品，`false` 查询停用商品，不传则查询全部商品。下单 Handler 始终校验商品是否启用，停用商品不能下单。可复制请求见 [commerce.http](requests/commerce.http)。
+
+用户端需要服务端强制过滤时，可配置[读取可见性](../../docs/guides/读取可见性.md)并接入可信业务入口识别，无需新增查询 Handler。可运行的配置 Demo 见下节；正常 example Profile 仍保留管理查询行为。
+
+## 配置可见性 Demo
+
+`application-visibility.yml` 按「实体 → 入口 → 条件」声明：`product.consumer.active: true` 自动强制只读启用商品，`product.management: all` 显式不追加可见性条件。`VisibilityDemoConfiguration` 从服务端启动属性 `mini-commerce.access-entry` 固定识别入口，HTTP 请求不能切换入口；下单 Scene Policy 使用同一启动属性。
+
+准备好本地 MySQL 后，在本目录启动用户端 Demo：
+
+```bash
+../../mvnw spring-boot:run -Dspring-boot.run.profiles=dev,visibility
+```
+
+按 [visibility.http](requests/visibility.http) 创建启用、停用商品，再查询分页与详情。默认入口为 consumer：不传 active 也只返回启用商品，传 active=false 返回空页，停用商品详情返回 404，伪造 crudAccessEntry 返回 400。
+
+停止应用后，以管理入口重启并复用相同数据库：
+
+```bash
+../../mvnw spring-boot:run -Dspring-boot.run.profiles=dev,visibility \
+  -Dspring-boot.run.arguments=--mini-commerce.access-entry=management
+```
+
+同一份查询请求现在可以读取全部商品状态。将入口改为未绑定值（如 unknown），商品读取返回 403；去掉 visibility Profile 则恢复普通通用查询。
+
+Demo 沿用 local-developer 的演示权限，允许准备主数据，入口固定来自本机启动配置。生产接入应根据已认证身份与受保护路由识别入口，并独立检查管理权限。`ProductVisibilityIntegrationTest` 复用运行 YAML 验证约束，`VisibilityDemoConfigurationTest` 验证实际入口 Bean、自动过滤和下单闭环。
 
 
 ## 验收与运行
@@ -40,7 +65,7 @@ python3 scripts/verify.py
 # Windows: ./scripts/verify.ps1
 ```
 
-脚本覆盖主数据创建、可售商品过滤、下单、详情、价格快照、失败回滚和 SQL 核对。运行 `../../mvnw test` 可执行 H2 MySQL 模式回归，覆盖真实场景注册、授权拒绝、分页委托及第二条明细失败时整体回滚；测试本身不包裹事务。
+脚本覆盖主数据创建、商品启用状态过滤、下单、详情、价格快照、失败回滚和 SQL 核对。运行 `../../mvnw test` 可执行 H2 MySQL 模式回归，覆盖下单场景注册、授权拒绝、默认分页过滤与排序、停用商品拒绝下单及第二条明细失败时整体回滚；测试本身不包裹事务。
 
 使用当前工作区构件（版本号相同不代表 Maven Central 已包含这些能力）：先在仓库根目录使用 JDK 21 执行 `./mvnw -pl :ent-loom-crud-spring-boot-starter,:ent-loom-meta-spring-boot-starter -am -DskipTests -Dmaven.javadoc.skip=true install`，再执行示例测试或验收脚本。隔离仓库安装时，脚本需同时传入 `--maven-repository <临时目录>`。
 

@@ -62,6 +62,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 核心公共能力装配（元数据、校验、日志与基础 JDBC）。
  */
 @Configuration
+@org.springframework.context.annotation.Import(ReadVisibilityConfiguration.class)
 public class CrudCommonConfiguration {
     /**
      * 构建命令幂等校验策略，支持业务覆盖。

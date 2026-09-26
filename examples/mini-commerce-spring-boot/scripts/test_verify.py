@@ -69,12 +69,14 @@ class VerificationLifecycleTest(unittest.TestCase):
                     return 200, {"success": True, "data": {"id": entity_id}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
-                if url.endswith("/product/page/saleable"):
-                    excluded = body.get("options", {}).get("filter", {}).get("active") is False
-                    return 200, {"data": {"page": {"total": 0 if excluded else 1},
-                                          "items": [] if excluded else [{"id": 1001}]}}
                 if url.endswith("/product/page"):
-                    return 200, {"data": {"page": {"total": 2}, "items": [{"id": 1001}, {"id": 1002}]}}
+                    active = body.get("options", {}).get("filter", {}).get("active")
+                    items = [{"id": 1001}, {"id": 1002}]
+                    if active is True:
+                        items = [{"id": 1001}]
+                    elif active is False:
+                        items = [{"id": 1002}]
+                    return 200, {"data": {"page": {"total": len(items)}, "items": items}}
                 if url.endswith("/order/action/place"):
                     payload = body["payload"]
                     if payload["items"][0]["quantity"] == 3:

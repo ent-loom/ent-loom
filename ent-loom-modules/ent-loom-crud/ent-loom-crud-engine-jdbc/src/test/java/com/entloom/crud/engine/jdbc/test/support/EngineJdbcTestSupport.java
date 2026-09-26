@@ -141,7 +141,7 @@ public abstract class EngineJdbcTestSupport {
             },
             new AllowAllCrudPermissionService(),
             createDataScopeResolver(),
-            Collections.emptyList(),
+            createDataScopeContributors(),
             auditRecorder,
             new DefaultCrudSpecAttributeResolver(),
             new DefaultScenePolicyService(new ScenePolicyRegistry(null), new AttributeAccessEntryResolver())
@@ -166,6 +166,10 @@ public abstract class EngineJdbcTestSupport {
     /** 允许单测替换可信治理范围来源，验证 Gateway 到 DAO 的范围传递。 */
     protected CrudDataScopeResolver createDataScopeResolver() {
         return new AllowAllCrudDataScopeResolver();
+    }
+
+    protected List<com.entloom.crud.core.governance.scope.CrudDataScopeContributor> createDataScopeContributors() {
+        return Collections.emptyList();
     }
 
     /** 测试用审计记录器，保留完整事件供 Gateway 主链断言。 */

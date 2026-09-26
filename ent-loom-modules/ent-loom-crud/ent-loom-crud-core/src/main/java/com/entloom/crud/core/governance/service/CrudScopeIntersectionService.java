@@ -2,6 +2,7 @@ package com.entloom.crud.core.governance.service;
 
 import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.crud.core.governance.scope.CrudReadScope;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,24 +14,42 @@ import java.util.Map;
 /**
  * 数据范围交集计算器。
  */
-final class CrudScopeIntersectionService {
+public final class CrudScopeIntersectionService {
 
     /**
      * 计算治理范围与业务约束范围的交集。
      */
-    CrudDataScope intersect(CrudDataScope governanceScope, CrudDataScope businessScopeConstraint) {
+    public CrudDataScope intersect(CrudDataScope governanceScope, CrudDataScope businessScopeConstraint) {
         if (businessScopeConstraint == null) {
             return governanceScope;
         }
-        if (businessScopeConstraint.isExplicitAll() && businessScopeConstraint.getDimensions().isEmpty()) {
-            return governanceScope;
-        }
+        if (businessScopeConstraint.isExplicitAll() && businessScopeConstraint.getDimensions().isEmpty()
+            && businessScopeConstraint.getReadScopes().isEmpty()) return governanceScope;
         if (governanceScope == null) {
             throw new DataScopeDeniedException("治理范围不能为空");
         }
-        if (governanceScope.isExplicitAll()) {
-            return businessScopeConstraint;
+        if (governanceScope.isExplicitAll() && governanceScope.getReadScopes().isEmpty()) return businessScopeConstraint;
+        Map<String, CrudReadScope> readScopes = new LinkedHashMap<String, CrudReadScope>(governanceScope.getReadScopes());
+        for (Map.Entry<String, CrudReadScope> entry : businessScopeConstraint.getReadScopes().entrySet()) {
+            CrudReadScope current = readScopes.get(entry.getKey());
+            CrudReadScope next = entry.getValue();
+            if (current == null) {
+                readScopes.put(entry.getKey(), next);
+            } else if (!current.isAllowed() || !next.isAllowed()) {
+                readScopes.put(entry.getKey(), CrudReadScope.deny());
+            } else {
+                Map<String, Object> conditions = new LinkedHashMap<String, Object>(current.getConditions());
+                for (Map.Entry<String, Object> condition : next.getConditions().entrySet()) {
+                    Object value = conditions.containsKey(condition.getKey())
+                        ? intersectValue(conditions.get(condition.getKey()), condition.getValue(), condition.getKey())
+                        : condition.getValue();
+                    conditions.put(condition.getKey(), value);
+                }
+                readScopes.put(entry.getKey(), CrudReadScope.allow(conditions));
+            }
         }
+        if (businessScopeConstraint.isExplicitAll()) return governanceScope.withReadScopes(readScopes);
+        if (governanceScope.isExplicitAll()) return businessScopeConstraint.withReadScopes(readScopes);
 
         Map<String, Object> merged = new LinkedHashMap<String, Object>(governanceScope.getDimensions());
         for (Map.Entry<String, Object> entry : businessScopeConstraint.getDimensions().entrySet()) {
@@ -48,7 +67,7 @@ final class CrudScopeIntersectionService {
         if (merged.isEmpty()) {
             throw new DataScopeDeniedException("治理范围维度不能为空");
         }
-        return new CrudDataScope(false, merged);
+        return new CrudDataScope(false, merged, readScopes);
     }
 
     private Object intersectValue(Object currentValue, Object constraintValue, String dimension) {

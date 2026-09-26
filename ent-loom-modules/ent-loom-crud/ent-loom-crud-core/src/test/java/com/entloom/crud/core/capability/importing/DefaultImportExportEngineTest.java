@@ -57,6 +57,25 @@ import org.junit.jupiter.api.Test;
 
 class DefaultImportExportEngineTest {
     @Test
+    void 导出预览提交及任务快照保留实体可见性() {
+        StaticQueryEngine queries = new StaticQueryEngine();
+        DefaultExportEngine engine = new DefaultExportEngine(queries,
+            new DefaultExportFormatRegistry(Collections.singletonList(exportDescriptor())),
+            new InMemoryFileService(), new InMemoryTaskService(), new SingleMetaRegistry());
+        com.entloom.crud.core.governance.scope.CrudDataScope scope =
+            com.entloom.crud.core.governance.scope.CrudDataScope.allowAll().withReadScopes(Collections.singletonMap(
+                OrderEntity.class.getName(), com.entloom.crud.core.governance.scope.CrudReadScope.allow(
+                    Collections.<String, Object>singletonMap("enabled", 1))));
+        ExportSpec spec = ExportSpec.builder().rootType(OrderEntity.class).format("test")
+            .fields(Collections.singletonList("orderNo")).governanceScope(scope).build();
+        engine.execute(spec.toBuilder().operation(ExportOperation.PREVIEW).build());
+        assertEquals(scope.getReadScopes(), queries.lastSpec.getGovernanceScope().getReadScopes());
+        ExportResult submitted = engine.execute(spec.toBuilder().operation(ExportOperation.SUBMIT).build());
+        assertEquals(scope.getReadScopes(), queries.lastSpec.getGovernanceScope().getReadScopes());
+        assertEquals(scope.getReadScopes(), submitted.getTask().getContextSnapshot().getGovernanceScope().getReadScopes());
+    }
+
+    @Test
     void exportSubmitReadsAuthorizedFieldsAndStoresFile() {
         FileService fileService = new InMemoryFileService();
         TaskService taskService = new InMemoryTaskService();
@@ -372,6 +391,7 @@ class DefaultImportExportEngineTest {
     }
 
     private static final class StaticQueryEngine implements QueryEngine {
+        private QuerySpec<?> lastSpec;
         @Override
         public <R> PageResult<R> page(QuerySpec<R> spec) {
             return null;
@@ -380,6 +400,7 @@ class DefaultImportExportEngineTest {
         @SuppressWarnings("unchecked")
         @Override
         public <R> List<R> list(QuerySpec<R> spec) {
+            lastSpec = spec;
             assertEquals(QueryOperation.LIST, spec.getOp());
             Map<String, Object> row = new LinkedHashMap<String, Object>();
             row.put("id", Long.valueOf(1));

@@ -1,0 +1,12 @@
+mini-commerce:
+  access-entry: consumer
+
+ent:
+  loom:
+    crud:
+      governance:
+        read-visibility:
+          product:
+            consumer:
+              active: true
+            management: all

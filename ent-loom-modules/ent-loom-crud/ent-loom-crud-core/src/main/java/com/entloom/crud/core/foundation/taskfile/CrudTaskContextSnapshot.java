@@ -97,7 +97,7 @@ public final class CrudTaskContextSnapshot {
     }
 
     private static CrudDataScope copyScope(CrudDataScope source) {
-        return source == null ? null : new CrudDataScope(source.isExplicitAll(), source.getDimensions());
+        return source == null ? null : new CrudDataScope(source.isExplicitAll(), source.getDimensions(), source.getReadScopes());
     }
 
     private static Map<String, Object> copyAttributes(Map<String, Object> source) {

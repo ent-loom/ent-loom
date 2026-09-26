@@ -5,7 +5,6 @@ import com.entloom.crud.api.enums.PageCountMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
-import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -18,6 +17,7 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
+import com.entloom.crud.engine.jdbc.sql.JdbcReadScopePredicates;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -148,16 +148,7 @@ public class JdbcQueryCompiler implements QueryCompiler {
         String alias
     ) {
         List<String> predicates = new ArrayList<String>();
-        if (scope == null || scope.isExplicitAll()) {
-            return predicates;
-        }
-        for (java.util.Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
-            String column = entityMeta.resolveColumn(entry.getKey());
-            if (column == null) {
-                throw new DataScopeDeniedException("不支持的治理范围维度: " + entityMeta.getEntityName() + "." + entry.getKey());
-            }
-            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, qualified(alias, column), entry.getValue(), "governance scope");
-        }
+        JdbcReadScopePredicates.append(scope, entityMeta, alias, dialect, predicates, args);
         return predicates;
     }
 

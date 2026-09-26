@@ -8,13 +8,14 @@ import com.entloom.crud.core.governance.policy.ScenePolicyKey;
 import java.util.Set;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 /** 声明下单 ACTION 的准入场景；主体是否有权执行仍由统一权限服务决定。 */
 @Configuration(proxyBeanMethods = false)
 public class OrderSceneConfiguration {
     @Bean
-    ScenePolicy placeOrderScenePolicy() {
-        return new ScenePolicy(new ScenePolicyKey("base", "order",
+    ScenePolicy placeOrderScenePolicy(@Value("${mini-commerce.access-entry:base}") String accessEntry) {
+        return new ScenePolicy(new ScenePolicyKey(accessEntry, "order",
             CrudOperationKey.of(CommandOperation.ACTION), PlaceOrderHandler.SCENE), "place-order", Set.of());
     }
 }

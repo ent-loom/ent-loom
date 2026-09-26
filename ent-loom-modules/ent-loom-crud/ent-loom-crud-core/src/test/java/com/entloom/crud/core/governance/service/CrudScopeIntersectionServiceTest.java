@@ -12,6 +12,23 @@ class CrudScopeIntersectionServiceTest {
     private final CrudScopeIntersectionService service = new CrudScopeIntersectionService();
 
     @Test
+    void 实体可见性取交集且保留租户范围() {
+        String entity = String.class.getName();
+        CrudDataScope first = CrudDataScope.scoped(dimensions("tenantId", "tenant-a"))
+            .withReadScopes(java.util.Collections.singletonMap(entity,
+                com.entloom.crud.core.governance.scope.CrudReadScope.allow(dimensions("status", Arrays.asList("A", "B")))));
+        CrudDataScope second = CrudDataScope.allowAll().withReadScopes(java.util.Collections.singletonMap(entity,
+            com.entloom.crud.core.governance.scope.CrudReadScope.allow(dimensions("status", "B"))));
+        CrudDataScope result = service.intersect(first, second);
+        Assertions.assertEquals("tenant-a", result.getDimensions().get("tenantId"));
+        Assertions.assertEquals("B", result.readScope(String.class).getConditions().get("status"));
+        Assertions.assertNull(result.readScope(Long.class));
+        CrudDataScope denied = service.intersect(result, CrudDataScope.allowAll().withReadScopes(
+            java.util.Collections.singletonMap(entity, com.entloom.crud.core.governance.scope.CrudReadScope.deny())));
+        Assertions.assertFalse(denied.readScope(String.class).isAllowed());
+    }
+
+    @Test
     void should_keep_governance_scope_when_business_constraint_is_null_or_all() {
         CrudDataScope governance = CrudDataScope.scoped(dimensions("orgId", "org-a"));
 

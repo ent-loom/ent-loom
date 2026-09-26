@@ -29,6 +29,7 @@ const sidebars: SidebarsConfig = {
             'guides/crud/批量CRUD调用指南',
             'guides/crud/业务集成模板',
             'guides/crud/导出展示值配置',
+            'guides/读取可见性',
           ],
         },
         'guides/示例工程',

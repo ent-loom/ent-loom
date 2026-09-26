@@ -2,12 +2,12 @@ package com.entloom.crud.engine.jdbc.stats.query;
 
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.QueryFilter;
-import com.entloom.crud.core.exception.DataScopeDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
+import com.entloom.crud.engine.jdbc.sql.JdbcReadScopePredicates;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.stats.query.JdbcStatsSqlModel.HavingClause;
@@ -75,16 +75,7 @@ final class JdbcStatsPredicateBuilder {
 
     private List<String> buildGovernancePredicates(CrudDataScope scope, EntityMeta rootMeta, List<Object> args) {
         List<String> predicates = new ArrayList<String>();
-        if (scope == null || scope.isExplicitAll()) {
-            return predicates;
-        }
-        for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
-            String column = rootMeta.resolveColumn(entry.getKey());
-            if (column == null) {
-                throw new DataScopeDeniedException("不支持的治理范围维度: " + entry.getKey());
-            }
-            JdbcPredicateBuilder.appendEqualityOrIn(predicates, args, qualified(column), entry.getValue(), "governance scope");
-        }
+        JdbcReadScopePredicates.append(scope, rootMeta, "t", dialect, predicates, args);
         return predicates;
     }
 

@@ -631,6 +631,13 @@ public class CrudProperties {
      */
     @Getter
     public static class Governance {
+        /** 按实体和业务入口生效的读取可见性。 */
+        private Map<String, Map<String, Object>> readVisibility = new LinkedHashMap<>();
+
+        public void setReadVisibility(Map<String, Map<String, Object>> readVisibility) {
+            this.readVisibility = getOrDefault(readVisibility, LinkedHashMap::new);
+        }
+
         /** 权限规则列表。 */
         private List<PermissionRule> permissionRules = new ArrayList<>();
         /** 按主体集中声明的约定权限；键为主体标识，值为权限码。 */

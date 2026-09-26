@@ -129,25 +129,34 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void handlerAlsoValidatesCommandPayload() throws Exception {
+    void 下单校验数量且拒绝停用商品() throws Exception {
         placeOrder(0, status().isBadRequest());
+        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"payload":{"customerId":1,"items":[{"productId":30,"quantity":1}]}}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("PRODUCT_INACTIVE"));
         assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
     }
 
     @Test
-    void saleableScenePreservesPagingSortingAndIntersectsCallerFilters() throws Exception {
-        mvc.perform(post("/api/ent-crud/product/page/saleable").contentType(MediaType.APPLICATION_JSON)
+    void 默认商品分页按启用状态过滤并保留排序和分页() throws Exception {
+        mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"options":{"page":1,"limit":1,"sorts":[{"field":"price","direction":"DESC"}]}}
+                {"options":{"filter":{"active":true},"page":1,"limit":1,"sorts":[{"field":"price","direction":"DESC"}]}}
                 """))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(2))
             .andExpect(jsonPath("$.data.items.length()").value(1))
             .andExpect(jsonPath("$.data.items[0].id").value(20));
-        mvc.perform(post("/api/ent-crud/product/page/saleable").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"options":{"filters":[{"field":"active","op":"EQ","value":false}]}}
+                {"options":{"filter":{"active":false}}}
                 """))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(0));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(1))
+            .andExpect(jsonPath("$.data.items.length()").value(1))
+            .andExpect(jsonPath("$.data.items[0].id").value(30));
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(3));
     }

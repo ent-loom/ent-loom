@@ -235,6 +235,30 @@ public class LocalTaskService implements TaskService {
                 set(properties, prefix + "dimension." + entry.getKey(), entry.getValue());
             }
         }
+        set(properties, prefix + "read.count", scope.getReadScopes().size());
+        int index = 0;
+        for (Map.Entry<String, com.entloom.crud.core.governance.scope.CrudReadScope> entry : scope.getReadScopes().entrySet()) {
+            String itemPrefix = prefix + "read." + index++ + ".";
+            set(properties, itemPrefix + "entity", entry.getKey());
+            set(properties, itemPrefix + "allowed", entry.getValue().isAllowed());
+            set(properties, itemPrefix + "conditions", entry.getValue().getConditions().size());
+            int fieldIndex = 0;
+            for (Map.Entry<String, Object> condition : entry.getValue().getConditions().entrySet()) {
+                String fieldPrefix = itemPrefix + "field." + fieldIndex++ + ".";
+                set(properties, fieldPrefix + "name", condition.getKey());
+                boolean collection = condition.getValue() instanceof java.util.Collection<?>;
+                java.util.List<?> values = collection
+                    ? new java.util.ArrayList<Object>((java.util.Collection<?>) condition.getValue())
+                    : java.util.Collections.singletonList(condition.getValue());
+                set(properties, fieldPrefix + "collection", collection);
+                set(properties, fieldPrefix + "count", values.size());
+                for (int valueIndex = 0; valueIndex < values.size(); valueIndex++) {
+                    Object value = values.get(valueIndex);
+                    set(properties, fieldPrefix + "value." + valueIndex + ".type", attributeType(value));
+                    set(properties, fieldPrefix + "value." + valueIndex + ".data", value);
+                }
+            }
+        }
     }
 
     private static CrudDataScope readScope(Properties properties, String prefix) {
@@ -249,7 +273,35 @@ public class LocalTaskService implements TaskService {
         if (explicitAll == null && dimensions.isEmpty()) {
             return null;
         }
-        return new CrudDataScope(Boolean.parseBoolean(explicitAll), dimensions);
+        Map<String, com.entloom.crud.core.governance.scope.CrudReadScope> readScopes =
+            new LinkedHashMap<String, com.entloom.crud.core.governance.scope.CrudReadScope>();
+        int count = Integer.parseInt(properties.getProperty(prefix + "read.count", "0"));
+        if (count < 0) throw new IllegalArgumentException("实体读取范围数量非法");
+        for (int index = 0; index < count; index++) {
+            String itemPrefix = prefix + "read." + index + ".";
+            Map<String, Object> conditions = new LinkedHashMap<String, Object>();
+            int fieldCount = Integer.parseInt(properties.getProperty(itemPrefix + "conditions"));
+            if (fieldCount < 0) throw new IllegalArgumentException("可见性条件数量非法");
+            for (int fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
+                String fieldPrefix = itemPrefix + "field." + fieldIndex + ".";
+                String name = properties.getProperty(fieldPrefix + "name");
+                int valueCount = Integer.parseInt(properties.getProperty(fieldPrefix + "count"));
+                if (valueCount <= 0) throw new IllegalArgumentException("可见性条件值数量非法");
+                java.util.List<Object> values = new java.util.ArrayList<Object>();
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    String valuePrefix = fieldPrefix + "value." + valueIndex + ".";
+                    values.add(decodeAttribute(name, properties.getProperty(valuePrefix + "type"),
+                        properties.getProperty(valuePrefix + "data")));
+                }
+                boolean collection = Boolean.parseBoolean(properties.getProperty(fieldPrefix + "collection"));
+                if (!collection && valueCount != 1) throw new IllegalArgumentException("标量可见性条件必须只有一个值");
+                conditions.put(name, collection ? values : values.get(0));
+            }
+            readScopes.put(properties.getProperty(itemPrefix + "entity"),
+                new com.entloom.crud.core.governance.scope.CrudReadScope(
+                    Boolean.parseBoolean(properties.getProperty(itemPrefix + "allowed")), conditions));
+        }
+        return new CrudDataScope(Boolean.parseBoolean(explicitAll), dimensions, readScopes);
     }
 
     /**

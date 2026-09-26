@@ -26,6 +26,26 @@ import org.junit.jupiter.api.Test;
 
 class TaskFileContractTest {
     @Test
+    void 任务重载保留实体可见性标量集合和拒绝规则() throws IOException {
+        Path directory = Files.createTempDirectory("entloom-read-scope");
+        Map<String, Object> conditions = new java.util.LinkedHashMap<String, Object>();
+        conditions.put("active", Boolean.TRUE);
+        conditions.put("status", java.util.Arrays.asList("PUBLISHED", "ARCHIVED"));
+        conditions.put("ownerId", Long.valueOf(42));
+        Map<String, com.entloom.crud.core.governance.scope.CrudReadScope> scopes = new java.util.LinkedHashMap<>();
+        scopes.put(String.class.getName(), com.entloom.crud.core.governance.scope.CrudReadScope.allow(conditions));
+        scopes.put(Long.class.getName(), com.entloom.crud.core.governance.scope.CrudReadScope.deny());
+        LocalTaskService tasks = new LocalTaskService(directory.toString());
+        CrudTask created = tasks.create(CrudTask.builder().status(CrudTaskStatus.PENDING)
+            .contextSnapshot(CrudTaskContextSnapshot.builder()
+                .governanceScope(CrudDataScope.allowAll().withReadScopes(scopes)).build()).build());
+        CrudDataScope restored = new LocalTaskService(directory.toString()).getRequired(created.getTaskId())
+            .getContextSnapshot().getGovernanceScope();
+        Assertions.assertEquals(conditions, restored.readScope(String.class).getConditions());
+        Assertions.assertFalse(restored.readScope(Long.class).isAllowed());
+    }
+
+    @Test
     void snapshot_should_copy_subject_and_attributes_from_spec() {
         SubjectContext subject = new SubjectContext();
         subject.setSubjectId("tester");

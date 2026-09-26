@@ -16,11 +16,12 @@ import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryExecutor;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.crud.core.governance.scope.CrudReadScope;
+import com.entloom.crud.engine.jdbc.sql.JdbcReadScopePredicates;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import com.entloom.crud.enums.RelationScope;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
-import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import java.util.ArrayList;
@@ -273,26 +274,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
         List<String> predicates,
         List<Object> args
     ) {
-        if (scope == null || scope.isExplicitAll()) {
-            return;
-        }
-        for (Map.Entry<String, Object> entry : scope.getDimensions().entrySet()) {
-            String column = childMeta.resolveColumn(entry.getKey());
-            if (column == null) {
-                throw new DataScopeDeniedException(
-                    "关系目标实体不支持治理范围维度: " + childMeta.getEntityName() + "." + entry.getKey()
-                );
-            }
-            List<String> scopePredicates = new ArrayList<String>();
-            JdbcPredicateBuilder.appendEqualityOrIn(
-                scopePredicates,
-                args,
-                qualified("c", column),
-                entry.getValue(),
-                "relation expand governance scope"
-            );
-            predicates.addAll(scopePredicates);
-        }
+        JdbcReadScopePredicates.append(scope, childMeta, "c", dialect, predicates, args);
     }
 
     private List<Object> loadByRelationLoader(
@@ -301,6 +283,11 @@ public class JdbcQueryExecutor implements QueryExecutor {
         List<Object> parents,
         List<Object> parentIds
     ) {
+        CrudDataScope scope = query.getQueryPlan().getGovernanceScope();
+        CrudReadScope visibility = scope == null ? null : scope.readScope(edge.getToEntity());
+        if (visibility != null && (!visibility.isAllowed() || !visibility.getConditions().isEmpty())) {
+            throw new DataScopeDeniedException("自定义关系加载器尚不支持执行实体读取可见性约束");
+        }
         RelationLoader loader = relationLoaderRegistry.resolve(edge);
         if (loader == null) {
             throw new ValidationException("未找到可处理关系的 RelationLoader: " + edge.getRelationField());

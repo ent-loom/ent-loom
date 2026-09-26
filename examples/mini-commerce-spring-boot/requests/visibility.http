@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:8082
+# 改为创建停用商品后返回的 data.id。
+@inactiveProductId = 2
+
+### 准备启用商品，记录返回的 data.id
+POST {{baseUrl}}/api/ent-crud/product/create
+Content-Type: application/json
+
+{"payload": {"name": "可见性 Demo 启用商品", "price": 19.90, "active": true}}
+
+### 准备停用商品，记录返回的 data.id
+# 本地 local-developer 保留主数据写权限，便于准备 Demo 数据。
+POST {{baseUrl}}/api/ent-crud/product/create
+Content-Type: application/json
+
+{"payload": {"name": "可见性 Demo 停用商品", "price": 9.90, "active": false}}
+
+### 不传 active：consumer 只返回启用商品，management 返回全部状态
+POST {{baseUrl}}/api/ent-crud/product/page
+Content-Type: application/json
+
+{"options": {"page": 1, "limit": 10, "sorts": [{"field": "id", "direction": "DESC"}]}}
+
+### 反向筛选：consumer 返回空页，management 返回停用商品
+POST {{baseUrl}}/api/ent-crud/product/page
+Content-Type: application/json
+
+{"options": {"filter": {"active": false}}}
+
+### 停用商品详情：consumer 返回 404，management 返回详情
+POST {{baseUrl}}/api/ent-crud/product/detail
+Content-Type: application/json
+
+{"options": {"filter": {"id": {{inactiveProductId}}}}}
+
+### 尝试伪造管理入口：返回 400
+POST {{baseUrl}}/api/ent-crud/product/page
+Content-Type: application/json
+
+{"options": {"crudAccessEntry": "management"}}
