@@ -1,4 +1,5 @@
 @baseUrl = http://localhost:8082
+# 默认 consumer；管理端对照需用 access-entry=management 重启，无需切换 Profile。
 # 改为创建停用商品后返回的 data.id。
 @inactiveProductId = 2
 

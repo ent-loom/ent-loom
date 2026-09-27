@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:8082
+@customerId = 1
+# 创建后将返回的 data.id 填入 customerId；客户不受商品读取可见性规则影响。
+
+### 创建客户：元数据必填校验
+POST {{baseUrl}}/api/ent-crud/customer/create
+Content-Type: application/json
+
+{"payload": {"displayName": "CRUD 示例客户", "email": "crud@example.com"}}
+
+### 更新客户：主键用于定位，不允许改写
+POST {{baseUrl}}/api/ent-crud/customer/update
+Content-Type: application/json
+
+{"payload": {"id": {{customerId}}, "displayName": "已更新客户"}}
+
+### 分页查询：过滤、排序与分页
+POST {{baseUrl}}/api/ent-crud/customer/page
+Content-Type: application/json
+
+{"options": {"filter": {"id": {{customerId}}}, "page": 1, "limit": 10, "sorts": [{"field": "id", "direction": "DESC"}]}}
+
+### 查询详情：返回实体字段名
+POST {{baseUrl}}/api/ent-crud/customer/detail
+Content-Type: application/json
+
+{"options": {"resultMode": "ENTITY", "filter": {"id": {{customerId}}}}}
+
+### 删除客户：仅使用本场景创建、未关联订单的客户
+POST {{baseUrl}}/api/ent-crud/customer/delete
+Content-Type: application/json
+
+{"payload": {"id": {{customerId}}}}

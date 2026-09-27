@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,11 +21,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 从公开入口经过真实 Gateway、场景注册、DAO 与事务代理；测试自身不包裹事务。 */
 @SpringBootTest(properties = {
+    "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-handler;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password=", "spring.sql.init.mode=always"
 })
-@ActiveProfiles("example")
 @AutoConfigureMockMvc
 class OrderDaoIntegrationTest {
     @Autowired OrderItemDao orderItems;
@@ -42,6 +41,25 @@ class OrderDaoIntegrationTest {
         jdbc.update("delete from customer");
         jdbc.update("insert into customer values (1, '测试客户', 'test@example.com')");
         jdbc.update("insert into product values (10, '商品一', 10, true), (20, '商品二', 20, true), (30, '停用商品', 30, false)");
+    }
+
+    @Test
+    void 主数据创建回填主键且客户支持更新删除() throws Exception {
+        mvc.perform(post("/api/ent-crud/product/create").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"name\":\"新增商品\",\"price\":19.90,\"active\":true}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").isNumber());
+        mvc.perform(post("/api/ent-crud/customer/create").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"displayName\":\"新增客户\",\"email\":\"crud@example.com\"}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").isNumber());
+        Long customerId = jdbc.queryForObject("select id from customer where email='crud@example.com'", Long.class);
+        mvc.perform(post("/api/ent-crud/customer/update").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":%d,\"displayName\":\"已更新客户\"}}".formatted(customerId)))
+            .andExpect(status().isOk());
+        assertEquals("已更新客户", jdbc.queryForObject("select display_name from customer where id=?", String.class, customerId));
+        mvc.perform(post("/api/ent-crud/customer/delete").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":%d}}".formatted(customerId)))
+            .andExpect(status().isOk());
+        assertEquals(0, jdbc.queryForObject("select count(*) from customer where id=?", Integer.class, customerId));
     }
 
     @Test
@@ -142,7 +160,7 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void 默认商品分页按启用状态过滤并保留排序和分页() throws Exception {
+    void 默认消费者分页强制启用状态且保留排序和分页() throws Exception {
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {"options":{"filter":{"active":true},"page":1,"limit":1,"sorts":[{"field":"price","direction":"DESC"}]}}
@@ -154,11 +172,10 @@ class OrderDaoIntegrationTest {
             .content("""
                 {"options":{"filter":{"active":false}}}
                 """))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(1))
-            .andExpect(jsonPath("$.data.items.length()").value(1))
-            .andExpect(jsonPath("$.data.items[0].id").value(30));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(0))
+            .andExpect(jsonPath("$.data.items.length()").value(0));
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON).content("{}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(3));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(2));
     }
 
     @Test

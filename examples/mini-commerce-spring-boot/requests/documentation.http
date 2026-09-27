@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:8082
+
+### 实体文档契约：仅公开商品、客户与字段白名单
+GET {{baseUrl}}/api/ent-doc/contract
+Accept: application/json

@@ -7,7 +7,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,11 +15,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 使用实际入口 Bean 与运行配置验证 Demo，不替换治理组件。 */
 @SpringBootTest(properties = {
+    "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-visibility-demo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password=", "spring.sql.init.mode=always"
 })
-@ActiveProfiles({"example", "visibility"})
 @AutoConfigureMockMvc
 class ConfiguredAccessEntryIntegrationTest {
     @Autowired AccessEntryResolver accessEntryResolver;

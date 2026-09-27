@@ -1,3 +1,4 @@
+# 运行基础：本地与 Compose 使用同一组环境变量。
 spring:
   config:
     import: optional:file:./.env[.properties]
@@ -10,19 +11,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
-      mode: never
-  profiles:
-    group:
-      dev:
-        - example
-      verify:
-        - example
-
-ent:
-  loom:
-    crud:
-      governance:
-        access-entry: consumer
+      # 示例自动建表；schema.sql 可重复执行，不清空已有数据。
+      mode: always
 
 server:
   port: ${APP_PORT:8082}
@@ -32,3 +22,72 @@ management:
     web:
       exposure:
         include: health
+
+ent:
+  loom:
+    # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
+    meta:
+      base-packages:
+        - com.example.minicommerce.*.entity
+      crud:
+        enabled: true
+      doc:
+        enabled: true
+
+    crud:
+      # HTTP 接口：暴露已注册实体；OrderItem 通过实体注解关闭独立接口。
+      controller:
+        enabled: true
+        exposure-mode: ALL_REGISTERED
+      query:
+        enabled: true
+      command:
+        enabled: true
+
+      # 写入契约：创建必填项与更新禁改项。
+      contracts:
+        create:
+          input-required-fields:
+            product: [name, price, active]
+            customer: [displayName, email]
+        update:
+          forbidden-fields:
+            product: [id]
+            customer: [id]
+
+      # 演示主体 local-developer 与全量数据范围，由 Starter 提供。
+      # 读取可见性仍会进一步约束商品查询；生产接入应替换演示身份与数据范围。
+      example:
+        enabled: true
+      governance:
+        # 固定业务入口；管理端对照演示通过启动参数改为 management。
+        access-entry: consumer
+        # 主数据可维护；订单只允许读取与下单，place 动作另由实体注解限制入口。
+        grants:
+          local-developer:
+            - product:*
+            - customer:*
+            - order:read
+            - order:place
+        # 商品读取：消费者只看启用商品，管理端允许全部状态。
+        read-visibility:
+          product:
+            consumer:
+              active: true
+            management: all
+        # 示例无需额外审计表。
+        audit:
+          persist-to-jdbc: false
+
+    # 实体文档：限定访问主体、实体与公开字段。
+    doc:
+      contract:
+        enabled: true
+        exposure:
+          enabled: true
+          subject-ids: [local-developer]
+          fields:
+            product: [id, name, price, active]
+            customer: [id, displayName, email]
+        http:
+          enabled: true

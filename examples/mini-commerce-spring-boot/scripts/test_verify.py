@@ -23,6 +23,8 @@ class VerificationLifecycleTest(unittest.TestCase):
 
             def launch(command, **kwargs):
                 self.assertIn("--server.port=0", command)
+                self.assertIn("--spring.profiles.active=", command)
+                self.assertIn("--ent.loom.crud.governance.access-entry=consumer", command)
                 process = Mock()
                 process.poll.return_value = None
                 processes.append(process)
@@ -71,12 +73,10 @@ class VerificationLifecycleTest(unittest.TestCase):
                     return 200, {"success": True, "data": {"rows": 1}}
                 if url.endswith("/product/page"):
                     active = body.get("options", {}).get("filter", {}).get("active")
-                    items = [{"id": 1001}, {"id": 1002}]
-                    if active is True:
-                        items = [{"id": 1001}]
-                    elif active is False:
-                        items = [{"id": 1002}]
+                    items = [] if active is False else [{"id": 1001}]
                     return 200, {"data": {"page": {"total": len(items)}, "items": items}}
+                if url.endswith("/product/detail"):
+                    return 404, {"code": "ROUTE_NOT_FOUND"}
                 if url.endswith("/order/action/place"):
                     payload = body["payload"]
                     if payload["items"][0]["quantity"] == 3:

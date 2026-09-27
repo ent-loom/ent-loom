@@ -10,7 +10,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,11 +20,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 使用真实 YAML、Gateway 和 JDBC，仅替换可信入口识别。 */
 @SpringBootTest(properties = {
+    "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-visibility;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password=", "spring.sql.init.mode=always"
 })
-@ActiveProfiles({"example", "visibility"})
 @AutoConfigureMockMvc
 class ProductVisibilityIntegrationTest {
     @Autowired MockMvc mvc;
@@ -57,6 +56,13 @@ class ProductVisibilityIntegrationTest {
         when(accessEntryResolver.resolveAccessEntry(any())).thenReturn("management");
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(2));
+        mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"options\":{\"filter\":{\"active\":false}}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(1))
+            .andExpect(jsonPath("$.data.items[0].id").value(30));
+        mvc.perform(post("/api/ent-crud/product/detail").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"options\":{\"filter\":{\"id\":30}}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.id").value(30));
         when(accessEntryResolver.resolveAccessEntry(any())).thenReturn("unknown");
         mvc.perform(post("/api/ent-crud/product/page").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("DATA_SCOPE_DENIED"));

@@ -1,9 +1,0 @@
-ent:
-  loom:
-    crud:
-      governance:
-        read-visibility:
-          product:
-            consumer:
-              active: true
-            management: all

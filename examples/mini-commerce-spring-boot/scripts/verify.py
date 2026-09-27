@@ -100,8 +100,10 @@ def verify(repository=None, skip_build=False):
         java = str(Path(env["JAVA_HOME"]) / "bin" / "java") if env.get("JAVA_HOME") else "java"
         app_log = (logs / "application.log").open("w")
         app = subprocess.Popen([
-            java, "-jar", str(jar), "--spring.profiles.active=verify",
+            java, "-jar", str(jar), "--spring.profiles.active=",
             "--spring.config.import=", "--server.port=0", "--server.address=127.0.0.1",
+            "--spring.sql.init.mode=always",
+            "--ent.loom.crud.governance.access-entry=consumer",
             f"--spring.datasource.url=jdbc:mysql://127.0.0.1:{mysql_port}/mini_commerce"
             "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai",
             "--spring.datasource.username=mini_commerce",
@@ -157,12 +159,18 @@ def verify(repository=None, skip_build=False):
         status, inactive = request(base_url + "/api/ent-crud/product/page", {
             "options": {"filter": {"active": False}},
         })
-        check(status == 200 and inactive.get("data", {}).get("page", {}).get("total") == 1
-              and inactive["data"]["items"][0]["id"] == inactive_product_id,
-              f"停用商品过滤结果错误：{inactive}")
+        check(status == 200 and inactive.get("data", {}).get("page", {}).get("total") == 0
+              and inactive["data"]["items"] == [],
+              f"反向筛选不应绕过消费者读取范围：{inactive}")
         status, all_products = request(base_url + "/api/ent-crud/product/page", {})
-        check(status == 200 and all_products.get("data", {}).get("page", {}).get("total") == 2,
-              f"默认商品分页不应排除停用商品：{all_products}")
+        check(status == 200 and all_products.get("data", {}).get("page", {}).get("total") == 1
+              and all_products["data"]["items"][0]["id"] == product_id,
+              f"默认商品分页应只返回启用商品：{all_products}")
+        status, hidden_product = request(base_url + "/api/ent-crud/product/detail", {
+            "options": {"filter": {"id": inactive_product_id}},
+        })
+        check(status == 404 and hidden_product.get("code") == "ROUTE_NOT_FOUND",
+              f"消费者不应读取停用商品详情：{hidden_product}")
 
         status, place = request(base_url + "/api/ent-crud/order/action/place", {
             "payload": {"customerId": customer_id,

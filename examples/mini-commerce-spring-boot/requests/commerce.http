@@ -1,10 +1,8 @@
 @baseUrl = http://localhost:8082
 @productId = 1
 @customerId = 1
-
-### 读取当前主体可见的实体文档契约
-GET {{baseUrl}}/api/ent-doc/contract
-Accept: application/json
+@orderId = 1
+# 按响应 data.id、data.orderId 更新上方变量；默认 consumer 入口可完成整个流程。
 
 ### 创建商品：通用 CRUD
 POST {{baseUrl}}/api/ent-crud/product/create
@@ -48,7 +46,7 @@ Content-Type: application/json
 POST {{baseUrl}}/api/ent-crud/order/detail
 Content-Type: application/json
 
-{"options": {"resultMode": "ENTITY", "filter": {"id": 1}, "expandRelations": ["customer", "orderItemList"]}}
+{"options": {"resultMode": "ENTITY", "filter": {"id": {{orderId}}}, "expandRelations": ["customer", "orderItemList"]}}
 
 ### 默认订单创建未授权，预期 403
 POST {{baseUrl}}/api/ent-crud/order/create
@@ -56,8 +54,7 @@ Content-Type: application/json
 
 {"payload": {"customerId": {{customerId}}}}
 
-
-### 可售商品分页：调用方通过 active=true 筛选启用商品
+### 可售商品分页：服务端强制启用状态，并支持排序和分页
 POST {{baseUrl}}/api/ent-crud/product/page
 Content-Type: application/json
 
@@ -69,15 +66,3 @@ Content-Type: application/json
     "sorts": [{"field": "price", "direction": "ASC"}]
   }
 }
-
-### 停用商品分页：通过 active=false 筛选停用商品
-POST {{baseUrl}}/api/ent-crud/product/page
-Content-Type: application/json
-
-{"options": {"filter": {"active": false}}}
-
-### 普通管理分页：包含停用商品
-POST {{baseUrl}}/api/ent-crud/product/page
-Content-Type: application/json
-
-{"options": {"page": 1, "limit": 10}}

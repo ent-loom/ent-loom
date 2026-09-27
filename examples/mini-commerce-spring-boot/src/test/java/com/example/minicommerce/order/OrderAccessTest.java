@@ -22,7 +22,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,11 +33,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 真实 Gateway 管线的授权回归，只替换主体与权限实现。 */
 @SpringBootTest(properties = {
+    "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-access;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password=", "spring.sql.init.mode=always"
 })
-@ActiveProfiles("example")
 @AutoConfigureMockMvc
 class OrderAccessTest {
     @Autowired ExposedEntityRegistry exposedEntities;
