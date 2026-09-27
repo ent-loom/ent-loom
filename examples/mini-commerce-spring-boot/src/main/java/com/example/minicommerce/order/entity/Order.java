@@ -2,9 +2,7 @@ package com.example.minicommerce.order.entity;
 
 import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudAction;
-import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
-import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.RelationCardinality;
@@ -26,7 +24,6 @@ import lombok.Setter;
  */
 @EntEntity(value = "订单", description = "商城订单",
     service = "mini-commerce")
-@EntCrudEntity(idPolicy = CrudIdPolicy.GENERATED)
 @EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
 @Getter
 @Setter

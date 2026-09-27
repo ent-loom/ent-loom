@@ -26,6 +26,8 @@ public class ExposedEntityRegistry {
     private final Map<String, Class<?>> entityMapping = new HashMap<>();
     /** 允许暴露的实体集合。 */
     private final Set<String> includeEntities = new HashSet<>();
+    /** 禁止暴露的实体集合。 */
+    private final Set<String> excludeEntities = new HashSet<>();
 
     public ExposedEntityRegistry() {
         this(null);
@@ -97,6 +99,20 @@ public class ExposedEntityRegistry {
     }
 
     /**
+     * 设置黑名单。
+     *
+     * <p>黑名单适用于所有暴露模式，并且优先于实体注解和白名单。</p>
+     *
+     * @param excludes 禁止暴露实体列表
+     */
+    public void setExcludeEntities(Set<String> excludes) {
+        excludeEntities.clear();
+        if (excludes != null) {
+            excludes.forEach(code -> excludeEntities.add(normalize(code)));
+        }
+    }
+
+    /**
      * 按编码解析实体类型。
      *
      * @param code 实体编码
@@ -107,6 +123,12 @@ public class ExposedEntityRegistry {
         Class<?> type = entityMapping.get(normalized);
         if (type == null) {
             throw new CrudException(CrudErrorCode.TYPE_RESOLUTION_FAILED, "未找到实体类型: " + code);
+        }
+        if (excludeEntities.contains(normalized)
+            || excludeEntities.contains(normalize(entityCode(type)))
+            || excludeEntities.contains(normalize(type.getSimpleName()))
+            || excludeEntities.contains(normalize(type.getName()))) {
+            throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体未暴露: " + code);
         }
         EntCrudEntity annotation = AnnotatedElementUtils.findMergedAnnotation(type, EntCrudEntity.class);
         if (annotation != null && !annotation.httpExposed()) {

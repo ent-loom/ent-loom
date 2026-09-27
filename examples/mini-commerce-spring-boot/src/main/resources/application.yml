@@ -35,10 +35,15 @@ ent:
         enabled: true
 
     crud:
-      # HTTP 接口：暴露已注册实体；OrderItem 通过实体注解关闭独立接口。
+      # 所有未显式声明主键策略的实体默认使用数据库生成主键。
+      defaults:
+        id-policy: GENERATED
+      # HTTP 接口：暴露已注册实体；订单明细通过黑名单关闭独立接口。
       controller:
         enabled: true
         exposure-mode: ALL_REGISTERED
+        exclude-entities:
+          - orderItem
       query:
         enabled: true
       command:

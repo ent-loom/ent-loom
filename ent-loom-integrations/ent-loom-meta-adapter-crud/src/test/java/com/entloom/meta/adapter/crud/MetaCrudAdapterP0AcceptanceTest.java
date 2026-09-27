@@ -4,11 +4,14 @@ import com.baomidou.mybatisplus.annotations.IdType;
 import com.baomidou.mybatisplus.annotations.TableId;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
+import com.entloom.crud.api.enums.CrudIdPolicy;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.model.CrudRuntimeEntityModel;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeRelationModel;
 import com.entloom.meta.annotations.EntEntity;
@@ -17,6 +20,8 @@ import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
+import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
+import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
 import com.entloom.meta.enums.RelationCardinality;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -50,6 +55,24 @@ class MetaCrudAdapterP0AcceptanceTest {
     @Test
     void 无主键生成依据时应缺省为显式主键() {
         Assertions.assertEquals(EntityIdPolicy.EXPLICIT, idPolicy(DefaultValueEntity.class));
+    }
+
+    @Test
+    void 应用默认主键策略应作用于没有实体级覆盖的元实体() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(
+            Collections.<Class<?>>singletonList(DefaultValueEntity.class),
+            new ReflectiveEntMetaParser(),
+            Collections.emptyList(),
+            CrudInputContract.empty(),
+            DefaultMetaDiagnosticPolicy.failFast(),
+            new CrudIdPolicyDefaults(CrudIdPolicy.GENERATED)
+        );
+
+        Assertions.assertEquals(
+            EntityIdPolicy.GENERATED,
+            new CrudRuntimeModelBackedEntityMetaRegistry(adapter.runtimeModel())
+                .getEntityMeta(DefaultValueEntity.class).getIdPolicy()
+        );
     }
 
     @EntEntity(entity = "input_hint_entity")

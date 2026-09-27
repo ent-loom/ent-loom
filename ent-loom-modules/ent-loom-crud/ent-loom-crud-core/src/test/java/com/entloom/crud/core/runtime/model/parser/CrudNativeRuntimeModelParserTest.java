@@ -14,6 +14,7 @@ import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.contribution.Contribution;
@@ -68,6 +69,16 @@ class CrudNativeRuntimeModelParserTest {
     void native_parser_should_default_to_explicit_id_without_generation_metadata() {
         Assertions.assertEquals(EntityIdPolicy.EXPLICIT, registry(NativeDateTimeOrder.class)
             .getEntityMeta(NativeDateTimeOrder.class).getIdPolicy());
+    }
+
+    @Test
+    void native_parser_should_apply_configured_default_id_policy() {
+        EntityMetaRegistry registry = new CrudRuntimeModelBackedEntityMetaRegistry(
+            new CrudNativeRuntimeModelParser(new CrudIdPolicyDefaults(CrudIdPolicy.GENERATED))
+                .parse(Arrays.<Class<?>>asList(NativeDateTimeOrder.class))
+        );
+
+        Assertions.assertEquals(EntityIdPolicy.GENERATED, registry.getEntityMeta(NativeDateTimeOrder.class).getIdPolicy());
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.api.enums.CrudNullFieldMode;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
@@ -18,6 +19,18 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 class CrudPropertiesTest {
+    @Test
+    void defaults_should_bind_global_id_policy() {
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("ent.loom.crud.defaults.id-policy", "GENERATED");
+
+        CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
+            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
+            .get();
+
+        Assertions.assertEquals(CrudIdPolicy.GENERATED, properties.getDefaults().getIdPolicy());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"", " ", " consumer", "consumer "})
     void 固定入口配置拒绝空值及首尾空格(String entry) {

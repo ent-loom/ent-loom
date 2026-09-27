@@ -7,7 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 业务实体元数据注解。
+ * CRUD 专属实体覆盖配置。
+ *
+ * <p>实体已经声明 {@code @EntEntity} 时，该注解可以省略；只有需要覆盖 CRUD 默认行为时才需要声明。</p>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
@@ -38,7 +40,7 @@ public @interface EntCrudEntity {
 
     /**
      * 主键写入策略；未配置时先根据主键字段上的持久化注解推断，
-     * 没有生成依据时按调用方显式提供主键处理。
+     * 再使用应用级默认值，最终按调用方显式提供主键处理。
      *
      * @return 主键写入策略
      */

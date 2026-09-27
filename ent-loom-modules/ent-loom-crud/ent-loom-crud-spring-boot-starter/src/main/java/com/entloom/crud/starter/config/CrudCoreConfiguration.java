@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.runtime.contract.CrudInputContract;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.crud.starter.config.module.CrudCommandEngineConfiguration;
 import com.entloom.crud.starter.config.module.CrudCommonConfiguration;
 import com.entloom.crud.starter.config.module.CrudEntityDaoConfiguration;
@@ -42,5 +43,11 @@ public class CrudCoreConfiguration {
             properties.getContracts().getCreate().getInputRequiredFields(),
             properties.getContracts().getUpdate().getForbiddenFields()
         );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudIdPolicyDefaults crudIdPolicyDefaults(CrudProperties properties) {
+        return new CrudIdPolicyDefaults(properties.getDefaults().getIdPolicy());
     }
 }

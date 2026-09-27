@@ -3,6 +3,7 @@ package com.entloom.meta.starter;
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.crud.core.runtime.contract.CrudInputContract;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.crud.MetaCrudAdapter;
@@ -73,7 +74,8 @@ public class EntLoomMetaAutoConfiguration {
         EntMetaParser parser,
         ResourceLoader resourceLoader,
         ObjectProvider<CrudConvention> conventionProvider,
-        ObjectProvider<CrudInputContract> inputContractProvider
+        ObjectProvider<CrudInputContract> inputContractProvider,
+        ObjectProvider<CrudIdPolicyDefaults> idPolicyDefaultsProvider
     ) {
         List<CrudConvention> conventions = new ArrayList<CrudConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
@@ -83,7 +85,8 @@ public class EntLoomMetaAutoConfiguration {
             parser,
             conventions,
             inputContract == null ? CrudInputContract.empty() : inputContract,
-            diagnosticPolicy(properties)
+            diagnosticPolicy(properties),
+            idPolicyDefaultsProvider.getIfAvailable(CrudIdPolicyDefaults::new)
         );
     }
 

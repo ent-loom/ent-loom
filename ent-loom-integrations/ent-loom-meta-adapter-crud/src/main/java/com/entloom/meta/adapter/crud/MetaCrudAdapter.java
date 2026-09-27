@@ -12,6 +12,7 @@ import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.meta.adapter.crud.merge.CrudRuntimeModelMerger;
 import com.entloom.meta.adapter.crud.model.CrudEntityRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudFieldRuntimeModel;
@@ -55,6 +56,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
     private final MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
     private final CrudNativeAnnotationParser nativeParser;
     private final CrudRuntimeModelMerger merger;
+    private final CrudIdPolicyDefaults idPolicyDefaults;
     private CrudRuntimeModel runtimeModel;
 
     public MetaCrudAdapter(Collection<Class<?>> entityClasses) {
@@ -66,7 +68,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
     }
 
     public MetaCrudAdapter(Collection<Class<?>> entityClasses, EntMetaParser parser, MetaDiagnosticPolicy diagnosticPolicy) {
-        this(entityClasses, parser, new CrudNativeAnnotationParser(), new CrudRuntimeModelMerger(), diagnosticPolicy);
+        this(entityClasses, parser, new CrudNativeAnnotationParser(), new CrudRuntimeModelMerger(), diagnosticPolicy,
+            new CrudIdPolicyDefaults());
     }
 
     public MetaCrudAdapter(
@@ -80,7 +83,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             parser,
             new CrudNativeAnnotationParser(conventions),
             new CrudRuntimeModelMerger(),
-            diagnosticPolicy
+            diagnosticPolicy,
+            new CrudIdPolicyDefaults()
         );
     }
 
@@ -96,7 +100,26 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             parser,
             new CrudNativeAnnotationParser(conventions),
             new CrudRuntimeModelMerger(inputContract),
-            diagnosticPolicy
+            diagnosticPolicy,
+            new CrudIdPolicyDefaults()
+        );
+    }
+
+    public MetaCrudAdapter(
+        Collection<Class<?>> entityClasses,
+        EntMetaParser parser,
+        Collection<? extends CrudConvention> conventions,
+        CrudInputContract inputContract,
+        MetaDiagnosticPolicy diagnosticPolicy,
+        CrudIdPolicyDefaults idPolicyDefaults
+    ) {
+        this(
+            entityClasses,
+            parser,
+            new CrudNativeAnnotationParser(conventions),
+            new CrudRuntimeModelMerger(inputContract),
+            diagnosticPolicy,
+            idPolicyDefaults
         );
     }
 
@@ -106,6 +129,17 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         CrudNativeAnnotationParser nativeParser,
         CrudRuntimeModelMerger merger,
         MetaDiagnosticPolicy diagnosticPolicy
+    ) {
+        this(entityClasses, parser, nativeParser, merger, diagnosticPolicy, new CrudIdPolicyDefaults());
+    }
+
+    public MetaCrudAdapter(
+        Collection<Class<?>> entityClasses,
+        EntMetaParser parser,
+        CrudNativeAnnotationParser nativeParser,
+        CrudRuntimeModelMerger merger,
+        MetaDiagnosticPolicy diagnosticPolicy,
+        CrudIdPolicyDefaults idPolicyDefaults
     ) {
         if (parser == null) {
             throw new IllegalArgumentException("parser 不能为空");
@@ -118,6 +152,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         }
         this.nativeParser = nativeParser;
         this.merger = merger;
+        this.idPolicyDefaults = idPolicyDefaults == null ? new CrudIdPolicyDefaults() : idPolicyDefaults;
         MetaDiagnosticPolicy policy = diagnosticPolicy == null ? DefaultMetaDiagnosticPolicy.failFast() : diagnosticPolicy;
         List<CrudEntityRuntimeModel> models = parseAndMerge(entityClasses, parser);
         indexTypes(models);
@@ -250,7 +285,10 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             return metaPolicy;
         }
         EntityIdPolicy persistencePolicy = resolvePersistenceIdPolicy(field);
-        return persistencePolicy == null ? EntityIdPolicy.EXPLICIT : persistencePolicy;
+        if (persistencePolicy != null) {
+            return persistencePolicy;
+        }
+        return toEntityIdPolicy(idPolicyDefaults.idPolicy());
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {

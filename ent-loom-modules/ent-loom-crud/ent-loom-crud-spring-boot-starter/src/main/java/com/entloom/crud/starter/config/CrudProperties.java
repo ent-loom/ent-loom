@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudNullFieldMode;
 import com.entloom.crud.api.enums.CrudReadResultMode;
+import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
@@ -59,6 +60,8 @@ public class CrudProperties {
     private Dao dao = new Dao();
     /** 外部创建/更新输入契约。 */
     private Contracts contracts = new Contracts();
+    /** 实体默认行为。 */
+    private Defaults defaults = new Defaults();
 
     public void setRelation(Relation relation) {
         this.relation = getOrDefault(relation, Relation::new);
@@ -102,6 +105,10 @@ public class CrudProperties {
 
     public void setContracts(Contracts contracts) {
         this.contracts = getOrDefault(contracts, Contracts::new);
+    }
+
+    public void setDefaults(Defaults defaults) {
+        this.defaults = getOrDefault(defaults, Defaults::new);
     }
 
     private static <T> T getOrDefault(T value, Supplier<T> defaultSupplier) {
@@ -216,6 +223,14 @@ public class CrudProperties {
         private Map<String, List<String>> forbiddenFields = new java.util.LinkedHashMap<>();
     }
 
+    /** CRUD 实体默认行为。 */
+    @Getter
+    @Setter
+    public static class Defaults {
+        /** 未显式声明时的主键写入策略。 */
+        private CrudIdPolicy idPolicy = CrudIdPolicy.UNSET;
+    }
+
     /**
      * SQL 日志配置。
      */
@@ -307,6 +322,8 @@ public class CrudProperties {
         private EntityExposureMode exposureMode = EntityExposureMode.EXPLICIT;
         /** EXPLICIT 模式下允许暴露的实体集合。 */
         private Set<String> includeEntities = new HashSet<>();
+        /** ALL_REGISTERED 模式下禁止暴露的实体集合。 */
+        private Set<String> excludeEntities = new HashSet<>();
 
         public void setDefaultTimeField(String defaultTimeField) {
             this.defaultTimeField = trimToNull(defaultTimeField);
@@ -344,6 +361,10 @@ public class CrudProperties {
 
         public void setIncludeEntities(Set<String> includeEntities) {
             this.includeEntities = copySet(includeEntities);
+        }
+
+        public void setExcludeEntities(Set<String> excludeEntities) {
+            this.excludeEntities = copySet(excludeEntities);
         }
 
         public void setStringFilter(StringFilter stringFilter) {

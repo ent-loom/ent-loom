@@ -46,6 +46,17 @@ class ConfiguredExposedEntityRegistryTest {
     }
 
     @Test
+    void 全量模式支持通过配置黑名单关闭实体及其别名() {
+        CrudProperties properties = new CrudProperties();
+        properties.getController().setExposureMode(EntityExposureMode.ALL_REGISTERED);
+        properties.getController().setExcludeEntities(Collections.singleton("internal"));
+        ExposedEntityRegistry registry = new CrudWebAutoConfiguration().exposedEntityRegistry(properties, metadata);
+
+        assertThatThrownBy(() -> registry.resolveOrThrow("internal")).isInstanceOf(CrudException.class);
+        assertThatThrownBy(() -> registry.resolveOrThrow(Internal.class.getName())).isInstanceOf(CrudException.class);
+    }
+
+    @Test
     void 显式包含也不能覆盖实体关闭声明() {
         CrudProperties properties = new CrudProperties();
         properties.getController().setIncludeEntities(Collections.singleton("internal"));

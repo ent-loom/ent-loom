@@ -82,6 +82,7 @@ public class CrudWebAutoConfiguration {
         ExposedEntityRegistry registry = new ExposedEntityRegistry(
             entityMetaRegistry, properties.getController().getExposureMode());
         registry.setIncludeEntities(properties.getController().getIncludeEntities());
+        registry.setExcludeEntities(properties.getController().getExcludeEntities());
         entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
         return registry;
     }

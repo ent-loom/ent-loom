@@ -13,6 +13,7 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
+import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
 import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
 import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.crud.core.runtime.model.input.CrudNativeFieldModel;
@@ -38,13 +39,26 @@ import java.util.Set;
  */
 public class CrudNativeRuntimeModelParser {
     private final CrudNativeAnnotationParser annotationParser;
+    private final CrudIdPolicyDefaults idPolicyDefaults;
 
     public CrudNativeRuntimeModelParser() {
-        this(java.util.Collections.<CrudConvention>emptyList());
+        this(java.util.Collections.<CrudConvention>emptyList(), new CrudIdPolicyDefaults());
     }
 
     public CrudNativeRuntimeModelParser(Collection<? extends CrudConvention> conventions) {
+        this(conventions, new CrudIdPolicyDefaults());
+    }
+
+    public CrudNativeRuntimeModelParser(CrudIdPolicyDefaults idPolicyDefaults) {
+        this(java.util.Collections.<CrudConvention>emptyList(), idPolicyDefaults);
+    }
+
+    public CrudNativeRuntimeModelParser(
+        Collection<? extends CrudConvention> conventions,
+        CrudIdPolicyDefaults idPolicyDefaults
+    ) {
         this.annotationParser = new CrudNativeAnnotationParser(conventions);
+        this.idPolicyDefaults = idPolicyDefaults == null ? new CrudIdPolicyDefaults() : idPolicyDefaults;
     }
 
     public CrudRuntimeModel parse(Collection<Class<?>> entityClasses) {
@@ -277,7 +291,10 @@ public class CrudNativeRuntimeModelParser {
                 }
             }
         }
-        return EntityIdPolicy.EXPLICIT;
+        if (idPolicyDefaults.idPolicy() == CrudIdPolicy.UNSET) {
+            return EntityIdPolicy.EXPLICIT;
+        }
+        return toEntityIdPolicy(idPolicyDefaults.idPolicy());
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {
