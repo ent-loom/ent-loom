@@ -157,6 +157,14 @@ public final class DdlFieldMetadata {
         if (primaryKey && nullable) {
             throw new IllegalArgumentException("primary key field must not be nullable");
         }
+        if (generationStrategy == GenerationStrategy.AUTO_INCREMENT || generationStrategy == GenerationStrategy.IDENTITY) {
+            if (!primaryKey || !persisted || !(javaType == Long.class || javaType == long.class
+                || javaType == Integer.class || javaType == int.class
+                || javaType == Short.class || javaType == short.class
+                || javaType == Byte.class || javaType == byte.class)) {
+                throw new IllegalArgumentException("数据库自增只支持持久化的整数主键: " + fieldName);
+            }
+        }
     }
 
     private static String requireText(String value, String fieldName) {

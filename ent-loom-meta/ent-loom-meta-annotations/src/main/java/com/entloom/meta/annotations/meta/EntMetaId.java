@@ -1,5 +1,6 @@
 package com.entloom.meta.annotations.meta;
 
+import com.entloom.meta.enums.EntIdPolicy;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -13,6 +14,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface EntMetaId {
+    /** 主键值的提供方，UNSET 使用项目默认；指定生成器时推导为 APPLICATION。 */
+    EntIdPolicy policy() default EntIdPolicy.UNSET;
+
     /**
      * 主键生成策略。
      */

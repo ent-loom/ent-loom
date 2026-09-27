@@ -28,6 +28,22 @@ class DefaultDdlEngineTest {
     private final DefaultDdlEngine engine = new DefaultDdlEngine();
 
     @Test
+    @DisplayName("已有表也不能静默忽略 MySQL 不支持的生成策略")
+    void shouldValidateGenerationStrategyForExistingTable() {
+        DdlFieldMetadata id = new DdlFieldMetadata("id", "id", Long.class, "", false, false,
+                true, true, -1, -1, -1, "", "", "",
+                com.entloom.ddl.enums.GenerationStrategy.SEQUENCE);
+        DdlEntityMetadata entity = new DdlEntityMetadata("Account", "", "account", "", DdlTableSize.UNSET,
+                Collections.singletonList(id), Collections.emptyList());
+        RecordingExecutor executor = new RecordingExecutor();
+        DdlExecutionResult result = engine.execute(request(DdlExecutionMode.CREATE_TABLE, entity),
+                (schema, table) -> true, executor);
+        assertFalse(result.success());
+        assertTrue(result.errors().get(0).contains("尚不支持"));
+        assertTrue(executor.statements.isEmpty());
+    }
+
+    @Test
     @DisplayName("生成模式只返回稳定 SQL，不伪造已执行结果")
     void shouldSeparateGeneratedAndExecutedInGenerateMode() {
         DdlExecutionResult result = engine.execute(

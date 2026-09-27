@@ -1,12 +1,22 @@
 package com.entloom.meta.contract.descriptor;
 
 import com.entloom.base.util.value.TypedValueType;
+import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.enums.EntIdPolicy;
 import java.util.List;
 
 /**
  * 解析后的通用字段语义描述。
  */
 public interface EntFieldDescriptor extends SourcedDescriptor {
+    /** 主键值提供策略；非主键字段或未配置时为 UNSET。 */
+    default EntIdPolicy idPolicy() {
+        SourcedValue<?> value = sourcedValue(MetaDescriptorProperties.ID_POLICY);
+        return value == null || value.value() == null
+            ? EntIdPolicy.UNSET
+            : (EntIdPolicy) value.value();
+    }
+
     /**
      * Java 字段名。
      */

@@ -1,5 +1,6 @@
 package com.entloom.meta.starter;
 
+import com.entloom.meta.enums.EntIdPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -19,6 +20,8 @@ public class EntLoomMetaProperties {
     private Crud crud = new Crud();
     /** Meta 到 DOC 的适配开关。 */
     private Doc doc = new Doc();
+    /** Meta 到 DDL 的适配开关。 */
+    private Ddl ddl = new Ddl();
     /** 元数据诊断策略。 */
     private Diagnostics diagnostics = new Diagnostics();
     /** Meta 实体默认值。 */
@@ -58,6 +61,14 @@ public class EntLoomMetaProperties {
 
     public Doc getDoc() {
         return doc;
+    }
+
+    public Ddl getDdl() {
+        return ddl;
+    }
+
+    public void setDdl(Ddl ddl) {
+        this.ddl = ddl == null ? new Ddl() : ddl;
     }
 
     public void setDoc(Doc doc) {
@@ -128,6 +139,19 @@ public class EntLoomMetaProperties {
         }
     }
 
+    public static class Ddl {
+        /** DDL 在类路径中时，是否使用 Meta 统一投影。 */
+        private boolean enabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
     public static class Diagnostics {
         /** 发现元数据错误时是否快速失败。 */
         private boolean failFast = true;
@@ -144,6 +168,16 @@ public class EntLoomMetaProperties {
     public static class Defaults {
         /** 未显式声明时的实体所属服务。 */
         private String service;
+        /** 未显式声明时的主键值提供方。 */
+        private EntIdPolicy idPolicy = EntIdPolicy.UNSET;
+
+        public EntIdPolicy getIdPolicy() {
+            return idPolicy;
+        }
+
+        public void setIdPolicy(EntIdPolicy idPolicy) {
+            this.idPolicy = idPolicy == null ? EntIdPolicy.UNSET : idPolicy;
+        }
 
         public String getService() {
             return service;

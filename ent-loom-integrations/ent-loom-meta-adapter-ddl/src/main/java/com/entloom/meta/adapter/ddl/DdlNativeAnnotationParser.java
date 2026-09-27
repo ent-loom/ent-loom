@@ -55,7 +55,7 @@ final class DdlNativeAnnotationParser {
             entity == null || blankAsNull(entity.table()) == null
                 ? SourcedValue.inferred(entity != null && entity.namingStrategy() == NamingStrategy.AS_IS
                     ? entityClass.getSimpleName()
-                    : toSnake(entityClass.getSimpleName()))
+                    : defaultTable(entityClass))
                 : nativeValue(entity.table().trim()),
             entity == null || blankAsNull(entity.schema()) == null
                 ? SourcedValue.unknown(null)
@@ -197,6 +197,14 @@ final class DdlNativeAnnotationParser {
             return null;
         }
         return value.trim();
+    }
+
+    private static String defaultTable(Class<?> entityClass) {
+        String name = entityClass.getSimpleName();
+        if (name.endsWith("Entity")) {
+            name = name.substring(0, name.length() - "Entity".length());
+        }
+        return toSnake(name);
     }
 
     private static String toSnake(String value) {

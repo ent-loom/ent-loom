@@ -99,6 +99,32 @@ DOC 的展示名称、示例和关系备注也只在与 Meta 通用定义不同�
 
 ## 覆盖规则
 
+项目使用数据库生成主键时，统一声明：
+
+```yaml
+ent:
+  loom:
+    meta:
+      defaults:
+        id-policy: DATABASE
+```
+
+Meta 主键语义包含 `DATABASE`、`APPLICATION`、`ASSIGNED`；默认 `UNSET`。字段例外使用
+`@EntMetaId(policy = EntIdPolicy.ASSIGNED)`。已有应用生成器声明推导为 `APPLICATION`，与
+`DATABASE` 或 `ASSIGNED` 同时声明会产生错误诊断。策略描述不自动提供应用生成器实现。
+
+CRUD 将数据库生成映射为 `GENERATED` 并回填主键；MySQL DDL 将其映射为单列整数主键自增。
+优先级为模块原生显式声明、Meta 字段显式声明、模块全局默认、Meta 全局默认、框架约定。
+DDL 的 `NONE` 可显式关闭数据库生成；模块覆盖只改变自己的最终模型，SQL 执行前会校验
+已注册 CRUD 模型与 DDL 模型的主键契约。`MetaCrudAdapter.idPolicySource()` 与
+`MetaDdlAdapter.generationStrategySource()` 可查询最终策略的配置来源。
+
+`@EntEntity(entity = ...)` 定义逻辑资源名。物理表名按类名去掉 `Entity` 后缀并转下划线推导，
+可由原生 CRUD / DDL 表名配置分别覆盖；同时启用时两者必须一致。
+联合主键允许使用契约一致的手工赋值字段，逐字段校验列映射，不支持数据库自动生成。
+即使 `diagnostics.fail-fast=false`，DDL 模型中的 ERROR 诊断仍阻止输出可执行元数据；
+宽松模式可通过 `diagnostics()` 查询错误，警告不阻止建表。
+
 当前有效原则：
 
 1. 组件显式注解可覆盖 Meta 显式属性。
@@ -116,7 +142,7 @@ DOC 的展示名称、示例和关系备注也只在与 Meta 通用定义不同�
 - 权限、主体和数据范围属于治理层，不进入 Meta 注解。
 - DDL 方言、DOC 示例、UI 控件等组件专属信息不进入通用 Meta。
 - 当前 Starter 主要通过显式实体类名列表装配，不提供运行期动态实体发现。
-- DDL 静态 Adapter 已形成当前闭环；UI 尚无正式 Meta Adapter，不应按已实现能力使用。
+- DDL Adapter 已接入 Starter，共用 Meta 解析器；`ent.loom.meta.ddl.enabled=false` 可关闭该适配。UI 尚无正式 Meta Adapter，不应按已实现能力使用。
 
 迁移现有实体时按业务域逐步进行：先提取稳定业务事实到 Meta，再只保留必要的组件覆盖，并通过启动期诊断及
 对应 Adapter 集成测试验证结果。

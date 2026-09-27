@@ -133,6 +133,23 @@ class DdlSchemaDiffContractTest {
     }
 
     @Test
+    @DisplayName("显式取消自增应拒绝自动迁移，不能静默保留旧策略")
+    void shouldRejectRemovingAutoIncrement() {
+        DdlFieldMetadata id = new DdlFieldMetadata("id", "id", Long.class, "", false, false,
+                true, true, -1, -1, -1, "", "", "", GenerationStrategy.NONE);
+        DdlTableSnapshot current = new DdlTableSnapshot(true, "", "account", "",
+                Collections.singletonList(new DdlColumnMetadata("id", "bigint", false, "", "", true)),
+                Collections.singletonList("id"), Collections.<DdlIndexMetadata>emptyList());
+        RecordingExecutor executor = new RecordingExecutor();
+        DdlExecutionResult result = new DefaultDdlEngine().execute(
+                request(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS, entity(id), current),
+                new SnapshotQueryStrategy(current), executor);
+        assertFalse(result.success());
+        assertTrue(result.errors().stream().anyMatch(error -> error.contains("取消数据库自增")));
+        assertTrue(executor.statements.isEmpty());
+    }
+
+    @Test
     @DisplayName("危险差异不会执行部分 SQL，并保留中文拒绝原因")
     void shouldRejectDangerousPlanBeforeExecution() {
         DdlEntityMetadata desired = entity(

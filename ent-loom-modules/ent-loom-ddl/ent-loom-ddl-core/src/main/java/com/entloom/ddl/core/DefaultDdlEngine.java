@@ -67,20 +67,22 @@ public final class DefaultDdlEngine implements DdlEngine {
         for (DdlEntityMetadata entity : request.entities()) {
             String schema = resolveSchema(entity, globalSchema);
             try {
+                // 已有表也必须验证目标模型，不能因跳过建表而忽略不支持的生成策略。
+                String createSql = createTableSqlBuilder.build(entity, schema);
                 if (modifyMode) {
                     DdlTableSnapshot current = queryStrategy.readTable(schema, entity.tableName());
                     if (current == null) {
                         throw new IllegalStateException("QueryStrategy.readTable 返回了 null");
                     }
                     if (!current.exists()) {
-                        generatedSql.add(createTableSqlBuilder.build(entity, schema));
+                        generatedSql.add(createSql);
                     } else {
                         appendModifySql(entity, schema, current, generatedSql, errors);
                     }
                 } else {
                     boolean tableExists = queryStrategy != null && queryStrategy.tableExists(schema, entity.tableName());
                     if (!tableExists) {
-                        generatedSql.add(createTableSqlBuilder.build(entity, schema));
+                        generatedSql.add(createSql);
                     }
                 }
             } catch (RuntimeException ex) {

@@ -1,6 +1,7 @@
 package com.entloom.ddl.starter;
 
 import com.entloom.ddl.api.DdlExecutionMode;
+import com.entloom.ddl.enums.GenerationStrategy;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -22,6 +23,30 @@ public class EntDdlProperties {
     private List<String> basePackages = new ArrayList<String>();
     /** 直接声明的实体全限定类名。 */
     private List<String> entityClassNames = new ArrayList<String>();
+    /** DDL 专属默认值，实体显式声明优先。 */
+    private Defaults defaults = new Defaults();
+
+    public Defaults getDefaults() {
+        return defaults;
+    }
+
+    public void setDefaults(Defaults defaults) {
+        this.defaults = defaults == null ? new Defaults() : defaults;
+    }
+
+    public static class Defaults {
+        /** 未显式声明的主键生成策略。 */
+        private GenerationStrategy generationStrategy = GenerationStrategy.UNSET;
+
+        public GenerationStrategy getGenerationStrategy() {
+            return generationStrategy;
+        }
+
+        public void setGenerationStrategy(GenerationStrategy generationStrategy) {
+            this.generationStrategy = generationStrategy == null
+                ? GenerationStrategy.UNSET : generationStrategy;
+        }
+    }
 
     public boolean isEnabled() {
         return enabled;

@@ -2,6 +2,7 @@ package com.entloom.meta.adapter.ddl;
 
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
+import com.entloom.ddl.api.DdlGenerationDefaults;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
@@ -17,6 +18,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
 import com.entloom.meta.enums.EntFieldKind;
+import com.entloom.meta.enums.EntIdPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,6 +30,21 @@ import java.util.Map;
  * DDL 目标模型合并器。DDL native 显式属性优先，Meta 只提供通用语义和推断值。
  */
 final class DdlRuntimeModelMerger {
+    private final DdlGenerationDefaults defaults;
+    private final Map<String, SourcedValue<GenerationStrategy>> generationSources = new LinkedHashMap<String, SourcedValue<GenerationStrategy>>();
+
+    DdlRuntimeModelMerger() {
+        this(new DdlGenerationDefaults());
+    }
+
+    DdlRuntimeModelMerger(DdlGenerationDefaults defaults) {
+        this.defaults = defaults == null ? new DdlGenerationDefaults() : defaults;
+    }
+
+    SourcedValue<GenerationStrategy> generationSource(Class<?> entityClass, String fieldName) {
+        return generationSources.get(entityClass.getName() + "#" + fieldName);
+    }
+
     MetaDiagnosticResult<DdlEntityMetadata> merge(
         Class<?> entityClass,
         EntEntityDescriptor meta,
@@ -60,17 +77,18 @@ final class DdlRuntimeModelMerger {
         }
 
         List<DdlIndexMetadata> indexes = mergeIndexes(entityClass, meta, nativeModel, columnsByField, diagnostics);
-        SourcedValue<String> metaTable = meta == null
-            ? null
-            : sourced(meta, MetaDescriptorProperties.ENTITY_NAME, meta.entityName());
+        String name = entityClass.getSimpleName();
+        if (name.endsWith("Entity")) {
+            name = name.substring(0, name.length() - "Entity".length());
+        }
+        String defaultTable = toSnake(name);
         SourcedValue<String> nativeTable = nativeModel == null ? null : nativeModel.tableName();
         SourcedValue<String> table = choose(
             "tableName",
             entityClass,
             null,
             nativeTable,
-            metaTable,
-            SourcedValue.inferred(toSnake(entityClass.getSimpleName())),
+            SourcedValue.inferred(defaultTable),
             diagnostics
         );
         SourcedValue<String> schema = choose(
@@ -104,7 +122,7 @@ final class DdlRuntimeModelMerger {
                 new DdlEntityMetadata(
                     entityClass.getName(),
                     valueOrDefault(schema, ""),
-                    valueOrDefault(table, toSnake(entityClass.getSimpleName())),
+                    valueOrDefault(table, defaultTable),
                     valueOrDefault(comment, ""),
                     valueOrDefault(tableSize, DdlTableSize.UNSET),
                     fields,
@@ -214,10 +232,11 @@ final class DdlRuntimeModelMerger {
         SourcedValue<GenerationStrategy> generation = choose(
             "generationStrategy", entityClass, fieldName,
             nativeField == null ? null : nativeField.generationStrategy(),
-            metaGenerationStrategy(metaField),
+            metaGenerationStrategy(metaField, Boolean.TRUE.equals(primaryKey.value())),
             SourcedValue.defaulted(GenerationStrategy.UNSET),
             diagnostics
         );
+        generationSources.put(entityClass.getName() + "#" + fieldName, generation);
         try {
             return new DdlFieldMetadata(
                 fieldName,
@@ -409,9 +428,28 @@ final class DdlRuntimeModelMerger {
         return isId(field) ? sourced(field, MetaDescriptorProperties.FIELD_KIND, Boolean.TRUE) : null;
     }
 
-    private SourcedValue<GenerationStrategy> metaGenerationStrategy(EntFieldDescriptor field) {
-        // Meta 的生成器是通用应用语义；数据库自增必须由 DDL 原生属性显式声明。
-        return null;
+    private SourcedValue<GenerationStrategy> metaGenerationStrategy(EntFieldDescriptor field, boolean primaryKey) {
+        if (!primaryKey) {
+            return null;
+        }
+        SourcedValue<?> policy = field == null ? null : field.sourcedValue(MetaDescriptorProperties.ID_POLICY);
+        boolean declared = field != null && field.idPolicy() != EntIdPolicy.UNSET;
+        if (declared && (policy == null || policy.explicit())) {
+            return mapIdPolicy(field, policy);
+        }
+        if (defaults.generationStrategy() != GenerationStrategy.UNSET) {
+            return SourcedValue.of(defaults.generationStrategy(), MetaValueSource.BUSINESS_DEFAULT_CONFIG,
+                com.entloom.meta.contract.value.MetaValueState.DEFAULTED, false,
+                "ent.loom.ddl.defaults.generation-strategy");
+        }
+        return declared ? mapIdPolicy(field, policy) : null;
+    }
+
+    private SourcedValue<GenerationStrategy> mapIdPolicy(EntFieldDescriptor field, SourcedValue<?> source) {
+        GenerationStrategy strategy = field.idPolicy() == EntIdPolicy.DATABASE
+            ? GenerationStrategy.AUTO_INCREMENT : GenerationStrategy.NONE;
+        return source == null ? SourcedValue.metaExplicit(strategy)
+            : SourcedValue.of(strategy, source.source(), source.state(), source.explicit(), source.ruleId());
     }
 
     private SourcedValue<Integer> constraintInteger(EntFieldDescriptor field, String name) {

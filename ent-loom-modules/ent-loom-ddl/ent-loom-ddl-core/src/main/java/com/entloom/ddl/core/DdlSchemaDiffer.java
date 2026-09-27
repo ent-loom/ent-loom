@@ -127,7 +127,11 @@ public final class DdlSchemaDiffer {
         if (existing.nullable() && !desired.nullable()) {
             errors.add("字段由可空改为非空可能造成数据丢失，拒绝修改字段: " + desired.columnName());
         }
-        boolean autoIncrementAdded = desired.generationStrategy() == GenerationStrategy.AUTO_INCREMENT
+        if (existing.autoIncrement() && desired.generationStrategy() == GenerationStrategy.NONE) {
+            errors.add("取消数据库自增暂不支持自动迁移，请使用版本化迁移: " + desired.columnName());
+        }
+        boolean autoIncrementAdded = (desired.generationStrategy() == GenerationStrategy.AUTO_INCREMENT
+                || desired.generationStrategy() == GenerationStrategy.IDENTITY)
                 && !existing.autoIncrement();
         boolean changed = !currentType.equals(normalizedDesiredType)
                 || existing.nullable() != desired.nullable()

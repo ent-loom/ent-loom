@@ -30,7 +30,9 @@ ent:
 
     # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
     meta:
+      # CRUD 与 DDL 共用主键语义，MySQL 整数主键映射为自增。
       defaults:
+        id-policy: DATABASE
         service: mini-commerce
       base-packages:
         - com.example.minicommerce.*.entity
@@ -40,9 +42,6 @@ ent:
         enabled: true
 
     crud:
-      # 所有未显式声明主键策略的实体默认使用数据库生成主键。
-      defaults:
-        id-policy: GENERATED
       # HTTP 接口：暴露已注册实体；订单明细通过黑名单关闭独立接口。
       controller:
         enabled: true

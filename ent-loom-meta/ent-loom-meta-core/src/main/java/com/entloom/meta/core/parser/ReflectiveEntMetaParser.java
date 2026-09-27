@@ -49,6 +49,7 @@ import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.convention.MetaConventionContext;
 import com.entloom.meta.core.resolution.PropertyContributionResolver;
 import com.entloom.meta.enums.EntFieldKind;
+import com.entloom.meta.enums.EntIdPolicy;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -178,6 +179,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         SourcedValue<String> role = fieldRole(field, kind);
         List<EntFieldConstraintDescriptor> constraints = constraints(field);
         Map<String, SourcedValue<?>> sources = fieldSources(field, entField, kind, explicitField, defaultValue, role, constraints);
+        sources.put(MetaDescriptorProperties.ID_POLICY, idPolicy(entityClass, field, kind, diagnostics));
         EntityProperty property = EntityProperties.describe(field);
         boolean persisted = false;
         try {
@@ -219,6 +221,30 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             conventionValues.readOnly,
             sources
         );
+    }
+
+    private SourcedValue<EntIdPolicy> idPolicy(
+        Class<?> entityClass, Field field, EntFieldKind kind, MetaDiagnosticCollector diagnostics
+    ) {
+        if (kind != EntFieldKind.ID) {
+            return SourcedValue.unknown(EntIdPolicy.UNSET);
+        }
+        EntMetaId id = field.getAnnotation(EntMetaId.class);
+        if (id != null && id.generator() != EntMetaId.IdGenerator.UNSET) {
+            if (id.policy() != EntIdPolicy.UNSET && id.policy() != EntIdPolicy.APPLICATION) {
+                diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.INVALID_FIELD_CONSTRAINT)
+                    .entityClass(entityClass).field(field.getName()).property(MetaDescriptorProperties.ID_POLICY)
+                    .message("应用主键生成器只能与 APPLICATION 策略组合").build());
+            }
+            return SourcedValue.metaExplicit(EntIdPolicy.APPLICATION);
+        }
+        if (id != null && id.policy() != EntIdPolicy.UNSET) {
+            return SourcedValue.metaExplicit(id.policy());
+        }
+        return defaults.idPolicy() == EntIdPolicy.UNSET
+            ? SourcedValue.unknown(EntIdPolicy.UNSET)
+            : SourcedValue.of(defaults.idPolicy(), MetaValueSource.BUSINESS_DEFAULT_CONFIG,
+                MetaValueState.DEFAULTED, false, "ent.loom.meta.defaults.id-policy");
     }
 
     private FieldConventionValues applyConventions(

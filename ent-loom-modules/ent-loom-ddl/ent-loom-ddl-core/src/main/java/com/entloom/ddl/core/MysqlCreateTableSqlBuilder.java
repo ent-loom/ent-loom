@@ -43,6 +43,11 @@ public final class MysqlCreateTableSqlBuilder {
         }
 
         if (!primaryKeys.isEmpty()) {
+            if (primaryKeys.size() > 1 && entity.fields().stream().anyMatch(field ->
+                field.generationStrategy() == GenerationStrategy.AUTO_INCREMENT
+                    || field.generationStrategy() == GenerationStrategy.IDENTITY)) {
+                throw new IllegalArgumentException("复合主键不支持默认数据库自增: " + entity.tableName());
+            }
             parts.add("PRIMARY KEY (" + join(primaryKeys, ", ") + ")");
         }
         parts.addAll(uniqueKeys);
@@ -73,6 +78,10 @@ public final class MysqlCreateTableSqlBuilder {
     }
 
     String buildColumnDefinition(DdlFieldMetadata field, boolean existingAutoIncrement) {
+        GenerationStrategy strategy = field.generationStrategy();
+        if (strategy == GenerationStrategy.SEQUENCE || strategy == GenerationStrategy.UUID) {
+            throw new IllegalArgumentException("MySQL 尚不支持该数据库生成策略: " + field.fieldName() + " -> " + strategy);
+        }
         StringBuilder sb = new StringBuilder();
         if (!trim(field.columnDefinition()).isEmpty()) {
             sb.append(field.columnDefinition());
@@ -83,7 +92,12 @@ public final class MysqlCreateTableSqlBuilder {
         if (!trim(field.defaultValue()).isEmpty()) {
             sb.append(" DEFAULT ").append(defaultLiteral(field.defaultValue(), field.javaType()));
         }
-        if (field.generationStrategy() == GenerationStrategy.AUTO_INCREMENT || existingAutoIncrement) {
+        if (strategy == GenerationStrategy.AUTO_INCREMENT || strategy == GenerationStrategy.IDENTITY || existingAutoIncrement) {
+            String sqlType = trim(field.columnDefinition()).isEmpty()
+                ? typeMapper.toSqlType(field) : field.columnDefinition().trim();
+            if (!sqlType.toLowerCase(java.util.Locale.ROOT).matches("(?:tinyint|smallint|mediumint|int|integer|bigint)(?:\\(\\d+\\))?(?:\\s+unsigned)?")) {
+                throw new IllegalArgumentException("MySQL 自增列必须使用整数列类型: " + field.fieldName());
+            }
             sb.append(" AUTO_INCREMENT");
         }
         if (!trim(field.comment()).isEmpty()) {

@@ -27,6 +27,15 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-meta-adapter-ddl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-crud-core</artifactId>
         </dependency>
         <dependency>
@@ -59,7 +68,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-meta-enums</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

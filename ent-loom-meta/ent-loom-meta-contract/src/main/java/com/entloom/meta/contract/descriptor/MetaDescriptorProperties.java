@@ -15,6 +15,7 @@ public final class MetaDescriptorProperties {
     public static final String ELEMENT_TYPE = "elementType";
     public static final String PERSISTED = "persisted";
     public static final String FIELD_KIND = "fieldKind";
+    public static final String ID_POLICY = "idPolicy";
     public static final String ROLE = "role";
     public static final String EXAMPLES = "examples";
     public static final String CREATE_DEFAULT_VALUE = "createDefaultValue";

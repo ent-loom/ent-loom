@@ -41,7 +41,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertEquals(DdlTableSize.UNSET, model.tableSize());
         Assertions.assertEquals("id", model.fields().get(0).columnName());
         Assertions.assertTrue(model.fields().get(0).primaryKey());
-        Assertions.assertEquals(GenerationStrategy.UNSET, model.fields().get(0).generationStrategy());
+        Assertions.assertEquals(GenerationStrategy.NONE, model.fields().get(0).generationStrategy());
         DdlFieldMetadata displayName = field(model, "displayName");
         Assertions.assertEquals("display_name", displayName.columnName());
         Assertions.assertEquals(64, displayName.length());
@@ -88,7 +88,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertEquals("native_override_account", model.tableName());
         Assertions.assertEquals("native_display", field(model, "displayName").columnName());
         Assertions.assertEquals(24, field(model, "displayName").length());
-        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "tableName"));
+        Assertions.assertFalse(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "tableName"));
         Assertions.assertTrue(field(model, "displayName").nullable());
         Assertions.assertFalse(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, "nullable"));
         Assertions.assertEquals(2, adapter.models().size());
@@ -100,6 +100,14 @@ class MetaDdlAdapterP0AcceptanceTest {
         MetaDdlAdapter adapter = new MetaDdlAdapter(Arrays.<Class<?>>asList(MetaOnlyAccount.class, DdlOnlyAccount.class));
         Assertions.assertEquals(DdlOnlyAccount.class.getName(), adapter.models().get(0).entityClassName());
         Assertions.assertEquals(MetaOnlyAccount.class.getName(), adapter.models().get(1).entityClassName());
+    }
+
+    @Test
+    void 宽松模式可查询错误诊断但不能读取残缺模型() {
+        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(InvalidGeneratedId.class),
+            new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), DefaultMetaDiagnosticPolicy.lenient());
+        Assertions.assertFalse(adapter.diagnostics().isEmpty());
+        Assertions.assertThrows(com.entloom.meta.contract.diagnostic.MetaDiagnosticException.class, adapter::models);
     }
 
     @Test
@@ -201,7 +209,7 @@ class MetaDdlAdapterP0AcceptanceTest {
         return false;
     }
 
-    @EntEntity(entity = "meta_only_account")
+    @EntEntity(entity = "account-resource")
     @EntIndex(name = "uk_meta_account_display_name", fields = {"displayName"}, unique = true)
     private static final class MetaOnlyAccount {
         @EntField
@@ -219,6 +227,13 @@ class MetaDdlAdapterP0AcceptanceTest {
         @EntField
         @EntRelation(targetEntity = "tenant")
         private Long tenantId;
+    }
+
+    @EntEntity
+    private static final class InvalidGeneratedId {
+        @EntMetaId(policy = com.entloom.meta.enums.EntIdPolicy.DATABASE)
+        private String id;
+        private String name;
     }
 
     @EntDdlEntity(table = "native_account", schema = "account_schema", comment = "Native account", size = DdlTableSize.MEDIUM)
@@ -250,7 +265,8 @@ class MetaDdlAdapterP0AcceptanceTest {
     @EntDdlEntity(table = "meta_only_account")
     @EntDdlIndex(name = "uk_meta_account_display_name", fields = {"display_name"}, unique = OptionalBoolean.TRUE)
     private static final class EquivalentDdlAccount {
-        @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE)
+        @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
+            generationStrategy = GenerationStrategy.NONE)
         private Long id;
 
         @EntDdlField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE)

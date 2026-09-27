@@ -1,6 +1,7 @@
 package com.entloom.ddl.starter;
 
 import com.entloom.ddl.api.DdlEngine;
+import com.entloom.ddl.api.DdlGenerationDefaults;
 import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.SqlExecutor;
@@ -40,8 +41,9 @@ public class EntDdlAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MetadataLoader entDdlMetadataLoader() {
-        return new SpringAnnotationMetadataLoader(new SpringPackageEntityClassResolver(null));
+    public MetadataLoader entDdlMetadataLoader(EntDdlProperties properties) {
+        return new SpringAnnotationMetadataLoader(new SpringPackageEntityClassResolver(null),
+            new DdlGenerationDefaults(properties.getDefaults().getGenerationStrategy()));
     }
 
     @Bean

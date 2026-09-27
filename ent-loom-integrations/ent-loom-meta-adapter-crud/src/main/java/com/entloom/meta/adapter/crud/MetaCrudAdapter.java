@@ -24,6 +24,7 @@ import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
+import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
@@ -33,6 +34,8 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
+import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.enums.EntIdPolicy;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -57,6 +60,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
     private final CrudNativeAnnotationParser nativeParser;
     private final CrudRuntimeModelMerger merger;
     private final CrudIdPolicyDefaults idPolicyDefaults;
+    private final Map<Class<?>, EntEntityDescriptor> metaDescriptors = new LinkedHashMap<Class<?>, EntEntityDescriptor>();
+    private final Map<Class<?>, SourcedValue<EntityIdPolicy>> idPolicySources = new LinkedHashMap<Class<?>, SourcedValue<EntityIdPolicy>>();
     private CrudRuntimeModel runtimeModel;
 
     public MetaCrudAdapter(Collection<Class<?>> entityClasses) {
@@ -176,6 +181,11 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         return runtimeModel;
     }
 
+    /** 返回最终主键策略及其配置来源。 */
+    public SourcedValue<EntityIdPolicy> idPolicySource(Class<?> entityClass) {
+        return idPolicySources.get(entityClass);
+    }
+
     private List<CrudEntityRuntimeModel> parseAndMerge(Collection<Class<?>> entityClasses, EntMetaParser parser) {
         List<CrudEntityRuntimeModel> models = new ArrayList<CrudEntityRuntimeModel>();
         if (entityClasses == null) {
@@ -190,6 +200,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                 MetaDiagnosticResult<EntEntityDescriptor> metaResult = parser.parseWithDiagnostics(entityClass);
                 diagnostics.addAll(metaResult.diagnostics());
                 metaDescriptor = metaResult.value();
+                metaDescriptors.put(entityClass, metaDescriptor);
             }
             MetaDiagnosticResult<CrudNativeEntityModel> nativeResult = nativeParser.parseWithDiagnostics(entityClass);
             diagnostics.addAll(nativeResult.diagnostics());
@@ -274,21 +285,81 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);
         if (crudEntity != null && crudEntity.idPolicy() != null
             && crudEntity.idPolicy() != CrudIdPolicy.UNSET) {
-            return toEntityIdPolicy(crudEntity.idPolicy());
+            return rememberIdPolicy(entityClass, SourcedValue.nativeExplicit(toEntityIdPolicy(crudEntity.idPolicy())));
         }
         Field field = findField(entityClass, idField);
         if (field == null) {
-            return EntityIdPolicy.EXPLICIT;
+            return rememberIdPolicy(entityClass, SourcedValue.defaulted(EntityIdPolicy.EXPLICIT));
         }
-        EntityIdPolicy metaPolicy = resolveEntMetaIdPolicy(field);
-        if (metaPolicy != null) {
-            return metaPolicy;
-        }
+        EntFieldDescriptor metaField = metaIdField(entityClass, idField);
         EntityIdPolicy persistencePolicy = resolvePersistenceIdPolicy(field);
         if (persistencePolicy != null) {
-            return persistencePolicy;
+            if (persistencePolicy == EntityIdPolicy.EXPLICIT && hasDdlNone(field)) {
+                if (metaField != null && metaField.idPolicy() == EntIdPolicy.APPLICATION) {
+                    return rememberIdPolicy(entityClass, mappedIdPolicy(metaField));
+                }
+                if (resolveEntMetaIdPolicy(field) == EntityIdPolicy.APPLICATION) {
+                    return rememberIdPolicy(entityClass, SourcedValue.metaExplicit(EntityIdPolicy.APPLICATION));
+                }
+            }
+            return rememberIdPolicy(entityClass, SourcedValue.nativeExplicit(persistencePolicy));
         }
-        return toEntityIdPolicy(idPolicyDefaults.idPolicy());
+        if (metaField != null && metaField.idPolicy() != EntIdPolicy.UNSET) {
+            SourcedValue<?> source = metaField.sourcedValue(MetaDescriptorProperties.ID_POLICY);
+            if (source == null || source.explicit()) {
+                return rememberIdPolicy(entityClass, mappedIdPolicy(metaField));
+            }
+        }
+        EntityIdPolicy annotationPolicy = resolveEntMetaIdPolicy(field);
+        if (metaField == null && annotationPolicy != null) {
+            return rememberIdPolicy(entityClass, SourcedValue.metaExplicit(annotationPolicy));
+        }
+        if (idPolicyDefaults.idPolicy() != CrudIdPolicy.UNSET) {
+            return rememberIdPolicy(entityClass, SourcedValue.of(toEntityIdPolicy(idPolicyDefaults.idPolicy()),
+                com.entloom.meta.contract.value.MetaValueSource.BUSINESS_DEFAULT_CONFIG,
+                com.entloom.meta.contract.value.MetaValueState.DEFAULTED, false, "ent.loom.crud.defaults.id-policy"));
+        }
+        if (metaField != null && metaField.idPolicy() != EntIdPolicy.UNSET) {
+            return rememberIdPolicy(entityClass, mappedIdPolicy(metaField));
+        }
+        return rememberIdPolicy(entityClass, SourcedValue.defaulted(EntityIdPolicy.EXPLICIT));
+    }
+
+    private EntityIdPolicy rememberIdPolicy(Class<?> entityClass, SourcedValue<EntityIdPolicy> policy) {
+        idPolicySources.put(entityClass, policy);
+        return policy.value();
+    }
+
+    private SourcedValue<EntityIdPolicy> mappedIdPolicy(EntFieldDescriptor field) {
+        SourcedValue<?> source = field.sourcedValue(MetaDescriptorProperties.ID_POLICY);
+        EntityIdPolicy policy = toEntityIdPolicy(field.idPolicy());
+        return source == null ? SourcedValue.metaExplicit(policy)
+            : SourcedValue.of(policy, source.source(), source.state(), source.explicit(), source.ruleId());
+    }
+
+    private EntFieldDescriptor metaIdField(Class<?> entityClass, String idField) {
+        EntEntityDescriptor descriptor = metaDescriptors.get(entityClass);
+        if (descriptor != null) {
+            for (EntFieldDescriptor field : descriptor.fields()) {
+                if (idField.equals(field.fieldName())) {
+                    return field;
+                }
+            }
+        }
+        return null;
+    }
+
+    private EntityIdPolicy toEntityIdPolicy(EntIdPolicy policy) {
+        switch (policy) {
+            case DATABASE:
+                return EntityIdPolicy.GENERATED;
+            case APPLICATION:
+                return EntityIdPolicy.APPLICATION;
+            case ASSIGNED:
+            case UNSET:
+            default:
+                return EntityIdPolicy.EXPLICIT;
+        }
     }
 
     private EntityIdPolicy toEntityIdPolicy(CrudIdPolicy policy) {
@@ -311,6 +382,9 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         EntMetaId id = field.getAnnotation(EntMetaId.class);
         if (id == null) {
             return null;
+        }
+        if (id.policy() != EntIdPolicy.UNSET) {
+            return toEntityIdPolicy(id.policy());
         }
         EntMetaId.IdGenerator generator = id.generator();
         if (generator == EntMetaId.IdGenerator.UNSET) {
@@ -337,8 +411,22 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             if (isDdlGeneratedIdAnnotation(annotation)) {
                 return EntityIdPolicy.GENERATED;
             }
+            if ("com.entloom.ddl.annotations.EntDdlField".equals(annotationName)
+                && "NONE".equals(enumAttributeName(annotation, "generationStrategy"))) {
+                return EntityIdPolicy.EXPLICIT;
+            }
         }
         return null;
+    }
+
+    private boolean hasDdlNone(Field field) {
+        for (Annotation annotation : field.getAnnotations()) {
+            if ("com.entloom.ddl.annotations.EntDdlField".equals(annotation.annotationType().getName())
+                && "NONE".equals(enumAttributeName(annotation, "generationStrategy"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isGeneratedValueAnnotation(Annotation annotation) {

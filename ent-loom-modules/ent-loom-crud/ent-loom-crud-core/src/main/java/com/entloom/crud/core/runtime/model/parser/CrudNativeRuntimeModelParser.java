@@ -273,6 +273,7 @@ public class CrudNativeRuntimeModelParser {
         if (id == null) {
             return EntityIdPolicy.EXPLICIT;
         }
+        boolean ddlNone = false;
         for (Annotation annotation : id.getAnnotations()) {
             String annotationName = annotation.annotationType().getName();
             if (isGeneratedValueAnnotation(annotation)) {
@@ -284,12 +285,32 @@ public class CrudNativeRuntimeModelParser {
             if (isDdlGeneratedIdAnnotation(annotation)) {
                 return EntityIdPolicy.GENERATED;
             }
+            if ("com.entloom.ddl.annotations.EntDdlField".equals(annotationName)
+                && "NONE".equals(enumAttributeName(annotation, "generationStrategy"))) {
+                ddlNone = true;
+            }
+        }
+        for (Annotation annotation : id.getAnnotations()) {
+            String annotationName = annotation.annotationType().getName();
             if ("com.entloom.meta.annotations.meta.EntMetaId".equals(annotationName)) {
+                String policy = enumAttributeName(annotation, "policy");
+                if ("DATABASE".equals(policy)) {
+                    return ddlNone ? EntityIdPolicy.EXPLICIT : EntityIdPolicy.GENERATED;
+                }
+                if ("APPLICATION".equals(policy)) {
+                    return EntityIdPolicy.APPLICATION;
+                }
+                if ("ASSIGNED".equals(policy)) {
+                    return EntityIdPolicy.EXPLICIT;
+                }
                 String generator = enumAttributeName(annotation, "generator");
                 if (generator != null && !"UNSET".equals(generator)) {
                     return EntityIdPolicy.APPLICATION;
                 }
             }
+        }
+        if (ddlNone) {
+            return EntityIdPolicy.EXPLICIT;
         }
         if (idPolicyDefaults.idPolicy() == CrudIdPolicy.UNSET) {
             return EntityIdPolicy.EXPLICIT;

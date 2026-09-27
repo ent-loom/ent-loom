@@ -16,7 +16,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 连接已有 MySQL 时，修改 `.env` 中的 `MYSQL_HOST`、`MYSQL_PORT`、数据库和账号，然后直接启动应用。默认应用端口为 8082、Compose 数据库端口为 3308。应用读取当前目录的 `.env`，启动时由 `ent-loom-ddl` 按实体注解自动建表，不清空已有数据；数据库需预先存在，账号需具有建表权限。停止 Compose 使用 `docker compose down`，加 `-v` 会删除数据卷。
 
-表结构统一由 `@EntDdlEntity`、`@EntDdlField` 和 `@EntDdlIndex` 声明，采用 `CREATE_TABLE` 模式，仅创建缺失的表，不更新已有表结构。示例新建表不使用物理外键：下单校验客户、商品，并在同一事务内保存订单及明细；默认权限关闭客户删除和订单直接写入，明细不开放独立 HTTP 接口。绕过这些业务入口直接写库不受上述保障。已有库中的外键不会自动删除；生产结构变更使用版本化迁移。
+表结构由 Meta 共享字段语义、`@EntDdlEntity` 和 `@EntDdlIndex` 定义。`ent.loom.meta.defaults.id-policy: DATABASE` 统一驱动 CRUD 的主键回填与 MySQL 整数主键自增；字段使用缺省类型：字符串 `varchar(200)`、金额 `decimal(20,6)`、枚举 `varchar(64)`，无需 `@EntDdlField`。采用 `CREATE_TABLE` 模式，仅创建缺失的表，不更新已有表结构。示例新建表不使用物理外键：下单校验客户、商品，并在同一事务内保存订单及明细；默认权限关闭客户删除和订单直接写入，明细不开放独立 HTTP 接口。绕过这些业务入口直接写库不受上述保障。已有库中的外键不会自动删除；生产结构变更使用版本化迁移。
 
 使用当前工作区构件时，先在 ent-loom 仓库根目录执行：
 
@@ -79,4 +79,4 @@ MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时
 
 实体使用 `@EntEntity("订单")` 等简写，统一通过 `ent.loom.meta.defaults.service: mini-commerce` 设置所属服务。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时保持为空。`description` 仅在需要额外说明时填写。
 
-实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.crud.defaults.id-policy: GENERATED` 设置 CRUD 全局主键默认策略，DDL 主键字段声明 `AUTO_INCREMENT`；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。字段默认非空，实体仅补充长度、金额精度等差异及关联查询索引。
+实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.meta.defaults.id-policy: DATABASE` 统一设置主键策略，无需在字段重复声明自增；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。字段默认非空，字符串长度与金额精度使用缺省配置，实体仅补充关联查询索引。

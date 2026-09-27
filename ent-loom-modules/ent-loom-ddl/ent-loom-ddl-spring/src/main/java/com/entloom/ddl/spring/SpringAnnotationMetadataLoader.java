@@ -8,6 +8,7 @@ import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
+import com.entloom.ddl.api.DdlGenerationDefaults;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
@@ -27,9 +28,16 @@ import java.util.Map;
  */
 public final class SpringAnnotationMetadataLoader implements MetadataLoader {
     private final SpringPackageEntityClassResolver classResolver;
+    private final DdlGenerationDefaults defaults;
 
     public SpringAnnotationMetadataLoader(SpringPackageEntityClassResolver classResolver) {
+        this(classResolver, new DdlGenerationDefaults());
+    }
+
+    public SpringAnnotationMetadataLoader(SpringPackageEntityClassResolver classResolver,
+                                         DdlGenerationDefaults defaults) {
         this.classResolver = classResolver;
+        this.defaults = defaults == null ? new DdlGenerationDefaults() : defaults;
     }
 
     @Override
@@ -104,10 +112,8 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             boolean persisted = EntityProperties.describe(field).persisted(
                 ann == null ? OptionalBoolean.UNSET : ann.persisted());
             String columnName = ann == null || trim(ann.column()).isEmpty() ? toSnake(field.getName()) : ann.column().trim();
-            boolean primaryKey = ann != null && ann.primaryKey() == OptionalBoolean.TRUE;
-            if (!primaryKey && "id".equals(field.getName())) {
-                primaryKey = true;
-            }
+            boolean primaryKey = ann == null || ann.primaryKey() == OptionalBoolean.UNSET
+                ? "id".equals(field.getName()) : ann.primaryKey() == OptionalBoolean.TRUE;
             boolean nullable = ann != null && ann.nullable() == OptionalBoolean.TRUE;
             if (primaryKey && (ann == null || ann.nullable() != OptionalBoolean.TRUE)) {
                 nullable = false;
@@ -128,7 +134,9 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
                     ann == null ? "" : ann.defaultValue(),
                     ann == null ? "" : ann.comment(),
                     ann == null ? "" : ann.renameFrom(),
-                    ann == null ? GenerationStrategy.UNSET : ann.generationStrategy()));
+                    ann != null && ann.generationStrategy() != GenerationStrategy.UNSET
+                        ? ann.generationStrategy()
+                        : primaryKey ? defaults.generationStrategy() : GenerationStrategy.UNSET));
         }
         return fields;
     }
@@ -185,6 +193,9 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
     private static String toTableName(String simpleName, NamingStrategy strategy) {
         if (strategy == NamingStrategy.AS_IS) {
             return simpleName;
+        }
+        if (simpleName.endsWith("Entity")) {
+            simpleName = simpleName.substring(0, simpleName.length() - "Entity".length());
         }
         return toSnake(simpleName);
     }

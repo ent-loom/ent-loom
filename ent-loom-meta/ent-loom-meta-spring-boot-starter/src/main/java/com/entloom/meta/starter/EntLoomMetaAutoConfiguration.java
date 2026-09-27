@@ -58,7 +58,7 @@ public class EntLoomMetaAutoConfiguration {
         conventionProvider.orderedStream().forEach(conventions::add);
         return new ReflectiveEntMetaParser(
             conventions,
-            new MetaEntityDefaults(properties.getDefaults().getService())
+            new MetaEntityDefaults(properties.getDefaults().getService(), properties.getDefaults().getIdPolicy())
         );
     }
 
@@ -120,14 +120,14 @@ public class EntLoomMetaAutoConfiguration {
         );
     }
 
-    private static MetaDiagnosticPolicy diagnosticPolicy(EntLoomMetaProperties properties) {
+    static MetaDiagnosticPolicy diagnosticPolicy(EntLoomMetaProperties properties) {
         if (properties.getDiagnostics().isFailFast()) {
             return DefaultMetaDiagnosticPolicy.failFast();
         }
         return DefaultMetaDiagnosticPolicy.lenient();
     }
 
-    private static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties, ResourceLoader resourceLoader) {
+    static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties, ResourceLoader resourceLoader) {
         List<Class<?>> classes = new ArrayList<Class<?>>();
         ClassLoader classLoader = resourceLoader.getClassLoader();
         if (classLoader == null) {

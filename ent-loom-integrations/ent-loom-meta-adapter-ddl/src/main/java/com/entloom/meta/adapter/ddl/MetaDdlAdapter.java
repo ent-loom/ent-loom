@@ -1,6 +1,9 @@
 package com.entloom.meta.adapter.ddl;
 
 import com.entloom.ddl.api.DdlEntityMetadata;
+import com.entloom.ddl.api.DdlGenerationDefaults;
+import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.meta.contract.value.SourcedValue;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
@@ -27,7 +30,7 @@ import java.util.Map;
 public final class MetaDdlAdapter {
     private final MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
     private final DdlNativeAnnotationParser nativeParser = new DdlNativeAnnotationParser();
-    private final DdlRuntimeModelMerger merger = new DdlRuntimeModelMerger();
+    private final DdlRuntimeModelMerger merger;
     private final List<DdlEntityMetadata> models;
 
     public MetaDdlAdapter(Collection<Class<?>> entityClasses) {
@@ -43,6 +46,16 @@ public final class MetaDdlAdapter {
         EntMetaParser parser,
         MetaDiagnosticPolicy diagnosticPolicy
     ) {
+        this(entityClasses, parser, diagnosticPolicy, new DdlGenerationDefaults());
+    }
+
+    public MetaDdlAdapter(
+        Collection<Class<?>> entityClasses,
+        EntMetaParser parser,
+        MetaDiagnosticPolicy diagnosticPolicy,
+        DdlGenerationDefaults defaults
+    ) {
+        this.merger = new DdlRuntimeModelMerger(defaults);
         if (parser == null) {
             throw new IllegalArgumentException("parser 不能为空");
         }
@@ -77,9 +90,10 @@ public final class MetaDdlAdapter {
     }
 
     /**
-     * 返回稳定排序且不可变的 DDL 元数据。
+     * 返回稳定排序且不可变的 DDL 元数据；错误诊断始终阻止输出可执行模型。
      */
     public List<DdlEntityMetadata> models() {
+        DefaultMetaDiagnosticPolicy.failFast().evaluate(diagnostics.diagnostics());
         return models;
     }
 
@@ -88,6 +102,11 @@ public final class MetaDdlAdapter {
      */
     public List<MetaDiagnostic> diagnostics() {
         return diagnostics.diagnostics();
+    }
+
+    /** 返回最终数据库生成策略及其配置来源。 */
+    public SourcedValue<GenerationStrategy> generationStrategySource(Class<?> entityClass, String fieldName) {
+        return merger.generationSource(entityClass, fieldName);
     }
 
     private List<Class<?>> stableClasses(Collection<Class<?>> entityClasses) {
