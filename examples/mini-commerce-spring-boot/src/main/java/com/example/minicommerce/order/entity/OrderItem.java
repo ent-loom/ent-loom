@@ -1,5 +1,9 @@
 package com.example.minicommerce.order.entity;
 
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
+import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
@@ -10,16 +14,19 @@ import lombok.Setter;
 /** 订单明细持久化实体，由订单业务服务经 OrderItemDao 保存。 */
 @EntEntity(value = "订单明细", description = "商城订单明细",
     service = "mini-commerce")
+@EntDdlEntity
 @Getter
 @Setter
 @NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
     @EntField("明细 ID")
+    @EntDdlField(generationStrategy = GenerationStrategy.AUTO_INCREMENT)
     private Long id;
 
     /** 所属订单主键，由订单聚合保存时填充。 */
     @EntField("订单 ID")
+    @EntDdlIndex(name = "idx_order_item_order")
     private Long orderId;
 
     @EntField("商品 ID")
@@ -27,10 +34,12 @@ public class OrderItem {
 
     /** 下单时的商品名称快照，不随商品主数据变化。 */
     @EntField("商品名称")
+    @EntDdlField(length = 128)
     private String productName;
 
     /** 下单时的商品单价快照。 */
     @EntField("成交单价")
+    @EntDdlField(precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
     /** 购买数量，业务层校验为正数。 */
@@ -39,6 +48,7 @@ public class OrderItem {
 
     /** 成交单价乘以购买数量，由业务层计算。 */
     @EntField("明细金额")
+    @EntDdlField(precision = 12, scale = 2)
     private BigDecimal lineAmount;
 
 }

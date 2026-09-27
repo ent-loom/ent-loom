@@ -26,7 +26,7 @@ Content-Type: application/json
 
 {"options": {"resultMode": "ENTITY", "filter": {"id": {{customerId}}}}}
 
-### 删除客户：仅使用本场景创建、未关联订单的客户
+### 删除客户：预期 403，示例统一关闭客户删除以保护订单关联
 POST {{baseUrl}}/api/ent-crud/customer/delete
 Content-Type: application/json
 

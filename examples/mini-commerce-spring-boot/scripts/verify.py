@@ -102,7 +102,6 @@ def verify(repository=None, skip_build=False):
         app = subprocess.Popen([
             java, "-jar", str(jar), "--spring.profiles.active=",
             "--spring.config.import=", "--server.port=0", "--server.address=127.0.0.1",
-            "--spring.sql.init.mode=always",
             "--ent.loom.crud.governance.access-entry=consumer",
             f"--spring.datasource.url=jdbc:mysql://127.0.0.1:{mysql_port}/mini_commerce"
             "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai",
@@ -180,6 +179,12 @@ def verify(repository=None, skip_build=False):
         check(status == 200 and "orderId" in place.get("data", {}), f"下单失败：{place}")
         order_id = int(place["data"]["orderId"])
         check(Decimal(str(place["data"]["totalAmount"])) == Decimal("39.80"), "订单总额不匹配")
+
+        status, denied = request(base_url + "/api/ent-crud/customer/delete", {
+            "payload": {"id": customer_id},
+        })
+        check(status == 403 and denied.get("code") == "PERMISSION_DENIED",
+              f"客户删除应被拒绝以保护订单关联：{status} {denied}")
 
         status, detail_response = request(base_url + "/api/ent-crud/order/detail", {
             "options": {"resultMode": "ENTITY", "filter": {"id": order_id},

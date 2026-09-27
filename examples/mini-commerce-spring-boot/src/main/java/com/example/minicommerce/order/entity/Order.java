@@ -1,5 +1,9 @@
 package com.example.minicommerce.order.entity;
 
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlField;
+import com.entloom.ddl.annotations.EntDdlIndex;
+import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.annotations.EntCrudField;
@@ -25,6 +29,7 @@ import lombok.Setter;
 @EntEntity(value = "订单", description = "商城订单",
     service = "mini-commerce")
 @EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
+@EntDdlEntity
 @Getter
 @Setter
 @NoArgsConstructor
@@ -33,9 +38,11 @@ public class Order {
 
     /** 订单主键，由数据库自增生成。 */
     @EntField("订单 ID")
+    @EntDdlField(generationStrategy = GenerationStrategy.AUTO_INCREMENT)
     private Long id;
 
     @EntField("客户 ID")
+    @EntDdlIndex(name = "idx_order_customer")
     private Long customerId;
 
     @EntField("客户")
@@ -44,10 +51,12 @@ public class Order {
 
     /** 订单生命周期状态，参见 {@link OrderStatus}。 */
     @EntField("订单状态")
+    @EntDdlField(columnDefinition = "varchar(32)")
     private OrderStatus status;
 
     /** 下单时各明细金额的合计。 */
     @EntField("订单总金额")
+    @EntDdlField(precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
     /** 订单创建时间，使用应用配置的本地时间。 */

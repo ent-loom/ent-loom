@@ -79,6 +79,11 @@
         </dependency>
         <dependency>
             <groupId>io.github.ent-loom</groupId>
+            <artifactId>ent-loom-ddl-spring-boot-starter</artifactId>
+            <version>${ent-loom.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.ent-loom</groupId>
             <artifactId>ent-loom-meta-annotations</artifactId>
             <version>${ent-loom.version}</version>
         </dependency>

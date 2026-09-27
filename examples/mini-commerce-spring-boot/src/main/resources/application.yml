@@ -9,10 +9,6 @@ spring:
     username: ${MYSQL_USER:mini_commerce}
     password: ${MYSQL_PASSWORD:mini_commerce_dev}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  sql:
-    init:
-      # 示例自动建表；schema.sql 可重复执行，不清空已有数据。
-      mode: always
 
 server:
   port: ${APP_PORT:8082}
@@ -25,6 +21,13 @@ management:
 
 ent:
   loom:
+    # 按实体定义创建缺失的表；不修改已有表结构或清空数据。
+    ddl:
+      enabled: true
+      mode: CREATE_TABLE
+      base-packages:
+        - com.example.minicommerce.*.entity
+
     # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
     meta:
       base-packages:
@@ -67,11 +70,13 @@ ent:
       governance:
         # 固定业务入口；管理端对照演示通过启动参数改为 management。
         access-entry: consumer
-        # 主数据可维护；订单只允许读取与下单，place 动作另由实体注解限制入口。
+        # 客户不开放删除，避免订单失去关联；订单只允许读取与下单。
         grants:
           local-developer:
             - product:*
-            - customer:*
+            - customer:read
+            - customer:create
+            - customer:update
             - order:read
             - order:place
         # 商品读取：消费者只看启用商品，管理端允许全部状态。

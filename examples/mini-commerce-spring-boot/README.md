@@ -14,12 +14,14 @@ docker compose up -d --wait mysql
 
 Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run`。
 
-连接已有 MySQL 时，修改 `.env` 中的 `MYSQL_HOST`、`MYSQL_PORT`、数据库和账号，然后直接启动应用。默认应用端口为 8082、Compose 数据库端口为 3308。应用读取当前目录的 `.env`，启动时通过 `schema.sql` 自动建表，不清空已有数据；数据库需预先存在，账号需具有建表权限。停止 Compose 使用 `docker compose down`，加 `-v` 会删除数据卷。
+连接已有 MySQL 时，修改 `.env` 中的 `MYSQL_HOST`、`MYSQL_PORT`、数据库和账号，然后直接启动应用。默认应用端口为 8082、Compose 数据库端口为 3308。应用读取当前目录的 `.env`，启动时由 `ent-loom-ddl` 按实体注解自动建表，不清空已有数据；数据库需预先存在，账号需具有建表权限。停止 Compose 使用 `docker compose down`，加 `-v` 会删除数据卷。
+
+表结构统一由 `@EntDdlEntity`、`@EntDdlField` 和 `@EntDdlIndex` 声明，采用 `CREATE_TABLE` 模式，仅创建缺失的表，不更新已有表结构。示例新建表不使用物理外键：下单校验客户、商品，并在同一事务内保存订单及明细；默认权限关闭客户删除和订单直接写入，明细不开放独立 HTTP 接口。绕过这些业务入口直接写库不受上述保障。已有库中的外键不会自动删除；生产结构变更使用版本化迁移。
 
 使用当前工作区构件时，先在 ent-loom 仓库根目录执行：
 
 ```bash
-./mvnw -pl :ent-loom-crud-spring-boot-starter,:ent-loom-meta-spring-boot-starter -am -DskipTests -Dmaven.javadoc.skip=true install
+./mvnw -pl :ent-loom-crud-spring-boot-starter,:ent-loom-meta-spring-boot-starter,:ent-loom-ddl-spring-boot-starter -am -DskipTests -Dmaven.javadoc.skip=true install
 ```
 
 版本号相同不代表 Maven Central 已包含工作区能力。
@@ -31,7 +33,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 | 场景 | 请求文件 | 展示内容 |
 | --- | --- | --- |
 | 商城业务闭环 | [commerce.http](requests/commerce.http) | 创建商品与客户、下单、展开订单关联、订单直接写入拒绝、商品分页 |
-| 通用 CRUD | [crud.http](requests/crud.http) | 客户创建、更新、分页、详情、删除，使用独立客户避免影响订单 |
+| 通用 CRUD | [crud.http](requests/crud.http) | 客户创建、更新、分页、详情，以及删除拒绝 |
 | 读取可见性 | [visibility.http](requests/visibility.http) | 自动过滤、反向条件约束、隐藏详情、入口伪造拒绝、管理端对照 |
 | 实体文档 | [documentation.http](requests/documentation.http) | 商品与客户的实体契约、主体和字段白名单 |
 
@@ -41,9 +43,9 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 ## 配置与业务入口
 
-[application.yml](src/main/resources/application.yml) 按运行基础、实体元数据、CRUD 接口与写入契约、演示主体与访问治理、实体文档组织。数据库、端口通过环境变量覆盖；业务能力统一启用，导入导出沿用框架默认关闭。
+[application.yml](src/main/resources/application.yml) 按运行基础、DDL 建表、实体元数据、CRUD 接口与写入契约、演示主体与访问治理、实体文档组织。数据库、端口通过环境变量覆盖；业务能力统一启用，导入导出沿用框架默认关闭。
 
-默认主体为 `local-developer`，允许维护商品、客户，以及读取订单和下单。订单直接创建、修改、删除未授权；`OrderItem` 通过 HTTP 实体黑名单关闭独立接口，订单不进入公共文档白名单。
+默认主体为 `local-developer`，允许维护商品，创建、更新和读取客户，以及读取订单和下单。客户删除及订单直接创建、修改、删除未授权；`OrderItem` 通过 HTTP 实体黑名单关闭独立接口，订单不进入公共文档白名单。
 
 默认业务入口为 `consumer`。商品读取可见性按「实体 → 入口 → 条件」配置：消费者只看 `active=true` 商品；不传筛选条件仍自动过滤，传 `active=false` 返回空页，停用商品详情返回 404。下单动作通过 `@EntCrudActions` 限定为消费者入口，Handler 另行校验商品启用状态、数量和客户。
 
@@ -75,4 +77,4 @@ python3 scripts/verify.py
 
 MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
-实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.crud.defaults.id-policy: GENERATED` 设置全局主键默认策略，实体只保留 `@EntEntity`；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。
+实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.crud.defaults.id-policy: GENERATED` 设置 CRUD 全局主键默认策略，DDL 主键字段声明 `AUTO_INCREMENT`；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。字段默认非空，实体仅补充长度、金额精度等差异及关联查询索引。

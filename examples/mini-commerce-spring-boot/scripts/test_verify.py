@@ -71,6 +71,8 @@ class VerificationLifecycleTest(unittest.TestCase):
                     return 200, {"success": True, "data": {"id": entity_id}}
                 if url.endswith("/update"):
                     return 200, {"success": True, "data": {"rows": 1}}
+                if url.endswith("/customer/delete"):
+                    return 403, {"code": "PERMISSION_DENIED"}
                 if url.endswith("/product/page"):
                     active = body.get("options", {}).get("filter", {}).get("active")
                     items = [] if active is False else [{"id": 1001}]

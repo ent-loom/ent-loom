@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-handler;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
-    "spring.datasource.password=", "spring.sql.init.mode=always"
+    "spring.datasource.password="
 })
 @AutoConfigureMockMvc
 class OrderDaoIntegrationTest {
@@ -44,7 +44,7 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void 主数据创建回填主键且客户支持更新删除() throws Exception {
+    void 主数据创建回填主键且客户允许更新但拒绝删除() throws Exception {
         mvc.perform(post("/api/ent-crud/product/create").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"name\":\"新增商品\",\"price\":19.90,\"active\":true}}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").isNumber());
@@ -58,8 +58,8 @@ class OrderDaoIntegrationTest {
         assertEquals("已更新客户", jdbc.queryForObject("select display_name from customer where id=?", String.class, customerId));
         mvc.perform(post("/api/ent-crud/customer/delete").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"id\":%d}}".formatted(customerId)))
-            .andExpect(status().isOk());
-        assertEquals(0, jdbc.queryForObject("select count(*) from customer where id=?", Integer.class, customerId));
+            .andExpect(status().isForbidden());
+        assertEquals(1, jdbc.queryForObject("select count(*) from customer where id=?", Integer.class, customerId));
     }
 
     @Test
@@ -108,6 +108,9 @@ class OrderDaoIntegrationTest {
     @Test
     void 默认详情展开客户和明细且保留价格快照() throws Exception {
         placeOrder(1);
+        mvc.perform(post("/api/ent-crud/customer/delete").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":1}}"))
+            .andExpect(status().isForbidden());
         Long orderId = jdbc.queryForObject("select max(id) from `order`", Long.class);
         jdbc.update("update product set price=99, name='改名商品' where id=10");
         mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON)
