@@ -77,4 +77,6 @@ python3 scripts/verify.py
 
 MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
+实体使用 `@EntEntity("订单")` 等简写，统一通过 `ent.loom.meta.defaults.service: mini-commerce` 设置所属服务。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时保持为空。`description` 仅在需要额外说明时填写。
+
 实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.crud.defaults.id-policy: GENERATED` 设置 CRUD 全局主键默认策略，DDL 主键字段声明 `AUTO_INCREMENT`；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。字段默认非空，实体仅补充长度、金额精度等差异及关联查询索引。

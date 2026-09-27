@@ -26,8 +26,7 @@ import lombok.Setter;
  * <p>订单是流程实体：标准 CRUD 沿用项目全局权限，本实体仅将业务动作限制为下单，
  * 避免其他动作绕过订单流程。</p>
  */
-@EntEntity(value = "订单", description = "商城订单",
-    service = "mini-commerce")
+@EntEntity("订单")
 @EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
 @EntDdlEntity
 @Getter

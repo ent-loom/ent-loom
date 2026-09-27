@@ -40,6 +40,7 @@ import com.entloom.meta.core.descriptor.DefaultEntFieldConstraintDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntFieldDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntIndexDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntRelationDescriptor;
+import com.entloom.meta.core.model.MetaEntityDefaults;
 import com.entloom.meta.contract.value.SourcedValue;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.MetaValueState;
@@ -73,12 +74,20 @@ import java.util.Set;
 public class ReflectiveEntMetaParser implements EntMetaParser {
     private final List<MetaConvention> conventions;
     private final PropertyContributionResolver contributionResolver;
+    private final MetaEntityDefaults defaults;
 
     public ReflectiveEntMetaParser() {
-        this(Collections.<MetaConvention>emptyList());
+        this(Collections.<MetaConvention>emptyList(), new MetaEntityDefaults());
     }
 
     public ReflectiveEntMetaParser(Collection<? extends MetaConvention> conventions) {
+        this(conventions, new MetaEntityDefaults());
+    }
+
+    public ReflectiveEntMetaParser(
+        Collection<? extends MetaConvention> conventions,
+        MetaEntityDefaults defaults
+    ) {
         this.conventions = new ArrayList<MetaConvention>();
         this.conventions.add(new BuiltInDateTimeConvention());
         if (conventions != null) {
@@ -89,6 +98,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             }
         }
         this.contributionResolver = new PropertyContributionResolver();
+        this.defaults = defaults == null ? new MetaEntityDefaults() : defaults;
     }
 
     @Override
@@ -137,17 +147,21 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         collectRelationDiagnostics(entityClass, entityName, relations, javaFieldNames, diagnostics);
         collectIndexDiagnostics(entityClass, entityName, indexes, javaFieldNames, diagnostics);
 
+        String service = emptyToNull(entity.service());
+        if (service == null) {
+            service = defaults.service();
+        }
         EntEntityDescriptor descriptor = new DefaultEntEntityDescriptor(
             entityClass,
             entityName,
-            emptyToNull(entity.service()),
+            service,
             emptyToNull(entity.value()),
             emptyToNull(entity.description()),
             entity.plannedVolume() < 0L ? null : Long.valueOf(entity.plannedVolume()),
             fields,
             relations,
             indexes,
-            entitySources(entityClass, entity, entityName)
+            entitySources(entityClass, entity, entityName, service)
         );
         return MetaDiagnosticResult.of(descriptor, diagnostics.diagnostics());
     }
@@ -900,11 +914,20 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             + simpleName.substring(prefixLength);
     }
 
-    private Map<String, SourcedValue<?>> entitySources(Class<?> entityClass, EntEntity entity, String entityName) {
+    private Map<String, SourcedValue<?>> entitySources(
+        Class<?> entityClass,
+        EntEntity entity,
+        String entityName,
+        String service
+    ) {
         Map<String, SourcedValue<?>> sources = new LinkedHashMap<String, SourcedValue<?>>();
         sources.put(MetaDescriptorProperties.ENTITY_CLASS, SourcedValue.inferred(entityClass));
         sources.put(MetaDescriptorProperties.ENTITY_NAME, isBlank(entity.entity()) ? SourcedValue.inferred(entityName) : SourcedValue.metaExplicit(entityName));
-        sources.put(MetaDescriptorProperties.SERVICE_NAME, stringSource(emptyToNull(entity.service())));
+        String explicitService = emptyToNull(entity.service());
+        sources.put(
+            MetaDescriptorProperties.SERVICE_NAME,
+            explicitService == null && service != null ? SourcedValue.businessDefaultConfig(service) : stringSource(explicitService)
+        );
         sources.put(MetaDescriptorProperties.LABEL, stringSource(emptyToNull(entity.value())));
         sources.put(MetaDescriptorProperties.DESCRIPTION, stringSource(emptyToNull(entity.description())));
         Long plannedVolume = entity.plannedVolume() < 0L ? null : Long.valueOf(entity.plannedVolume());

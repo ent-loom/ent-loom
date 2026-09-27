@@ -30,6 +30,8 @@ ent:
 
     # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
     meta:
+      defaults:
+        service: mini-commerce
       base-packages:
         - com.example.minicommerce.*.entity
       crud:

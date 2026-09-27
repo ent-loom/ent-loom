@@ -29,11 +29,38 @@ import com.entloom.meta.enums.RelationCardinality;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
+import com.entloom.meta.core.model.MetaEntityDefaults;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CrudNativeParserAndMergerTest {
+
+    @Test
+    void 默认服务合并应保留来源且原生显式覆盖不产生冲突() {
+        ReflectiveEntMetaParser parser = new ReflectiveEntMetaParser(
+            Collections.emptyList(), new MetaEntityDefaults("mini-commerce"));
+        CrudNativeAnnotationParser nativeParser = new CrudNativeAnnotationParser();
+        CrudRuntimeModelMerger merger = new CrudRuntimeModelMerger();
+        CrudEntityRuntimeModel inherited = merger.merge(MetaOnlyOrder.class, parser.parse(MetaOnlyOrder.class),
+            nativeParser.parseWithDiagnostics(MetaOnlyOrder.class).value()).value();
+        Assertions.assertEquals("mini-commerce", inherited.ownerService().value());
+        Assertions.assertEquals(MetaValueSource.BUSINESS_DEFAULT_CONFIG, inherited.ownerService().source());
+        Assertions.assertFalse(inherited.ownerService().explicit());
+
+        MetaDiagnosticResult<CrudEntityRuntimeModel> overridden = merger.merge(ServiceOverride.class,
+            parser.parse(ServiceOverride.class), nativeParser.parseWithDiagnostics(ServiceOverride.class).value());
+        Assertions.assertEquals("warehouse", overridden.value().ownerService().value());
+        Assertions.assertEquals(MetaValueSource.NATIVE_EXPLICIT, overridden.value().ownerService().source());
+        Assertions.assertTrue(overridden.diagnostics().isEmpty());
+    }
+
+    @EntEntity
+    @EntCrudEntity(ownerService = "warehouse")
+    private static class ServiceOverride {
+        Long id;
+    }
 
     @Test
     void native_convention_should_protect_created_time_and_allow_project_override() {

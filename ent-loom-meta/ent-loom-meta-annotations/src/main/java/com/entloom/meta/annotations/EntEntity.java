@@ -30,7 +30,7 @@ public @interface EntEntity {
     String description() default "";
 
     /**
-     * 所属服务名，跨服务引用时使用。
+     * 所属服务名，跨服务引用时使用；为空时使用 Meta 解析器的应用级默认服务。
      */
     String service() default "";
 

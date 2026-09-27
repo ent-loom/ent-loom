@@ -44,6 +44,7 @@ public class MetaDocAdapter {
     private final DocNativeAnnotationParser nativeParser;
     private final DocRuntimeModelMerger merger;
     private final DocRuntimeModelOverrideApplier overrideApplier;
+    private final EntMetaParser parser;
     private final EntityDocumentationProjector documentationProjector = new EntityDocumentationProjector();
     private final MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
     private final List<DocEntityModel> models;
@@ -105,6 +106,7 @@ public class MetaDocAdapter {
             throw new IllegalArgumentException("merger 不能为空");
         }
         this.entityMetaResolver = entityMetaResolver;
+        this.parser = parser;
         this.nativeParser = new DocNativeAnnotationParser(entityMetaResolver, indexProvider);
         this.merger = merger;
         this.overrideApplier = new DocRuntimeModelOverrideApplier(overrideProvider);
@@ -126,7 +128,7 @@ public class MetaDocAdapter {
         }
         DocEntityModel model = entityModels.get(entityClass.getName().toLowerCase(Locale.ROOT));
         if (model == null) {
-            List<DocEntityModel> parsed = parseAndMerge(Collections.<Class<?>>singletonList(entityClass), new ReflectiveEntMetaParser());
+            List<DocEntityModel> parsed = parseAndMerge(Collections.<Class<?>>singletonList(entityClass), parser);
             if (parsed.isEmpty()) {
                 return null;
             }
@@ -148,7 +150,7 @@ public class MetaDocAdapter {
             if (model != null) {
                 selected.add(model);
             } else {
-                List<DocEntityModel> parsed = parseAndMerge(Collections.<Class<?>>singletonList(entityClass), new ReflectiveEntMetaParser());
+                List<DocEntityModel> parsed = parseAndMerge(Collections.<Class<?>>singletonList(entityClass), parser);
                 selected.addAll(parsed);
             }
         }

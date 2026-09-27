@@ -10,11 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /** 客户主数据实体，交由 ent-loom 通用 CRUD 维护。 */
-@EntEntity(
-    value = "客户",
-    description = "商城客户主数据",
-    service = "mini-commerce"
-)
+@EntEntity("客户")
 @EntDdlEntity
 @Getter
 @Setter

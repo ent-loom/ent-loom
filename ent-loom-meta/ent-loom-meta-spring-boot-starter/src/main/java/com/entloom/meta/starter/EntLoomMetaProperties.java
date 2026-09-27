@@ -21,6 +21,8 @@ public class EntLoomMetaProperties {
     private Doc doc = new Doc();
     /** 元数据诊断策略。 */
     private Diagnostics diagnostics = new Diagnostics();
+    /** Meta 实体默认值。 */
+    private Defaults defaults = new Defaults();
 
     public boolean isEnabled() {
         return enabled;
@@ -68,6 +70,14 @@ public class EntLoomMetaProperties {
 
     public void setDiagnostics(Diagnostics diagnostics) {
         this.diagnostics = diagnostics == null ? new Diagnostics() : diagnostics;
+    }
+
+    public Defaults getDefaults() {
+        return defaults;
+    }
+
+    public void setDefaults(Defaults defaults) {
+        this.defaults = defaults == null ? new Defaults() : defaults;
     }
 
     private static List<String> nonBlankList(List<String> values) {
@@ -128,6 +138,19 @@ public class EntLoomMetaProperties {
 
         public void setFailFast(boolean failFast) {
             this.failFast = failFast;
+        }
+    }
+
+    public static class Defaults {
+        /** 未显式声明时的实体所属服务。 */
+        private String service;
+
+        public String getService() {
+            return service;
+        }
+
+        public void setService(String service) {
+            this.service = trimToNull(service);
         }
     }
 }

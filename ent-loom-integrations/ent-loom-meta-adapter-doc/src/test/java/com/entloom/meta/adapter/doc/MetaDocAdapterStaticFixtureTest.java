@@ -16,6 +16,12 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
 import com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy;
 import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.core.model.MetaEntityDefaults;
+import com.entloom.meta.core.parser.EntMetaParser;
+import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
+import com.entloom.meta.contract.descriptor.EntEntityDescriptor;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +29,25 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class MetaDocAdapterStaticFixtureTest {
+
+    @Test
+    void 动态文档解析应复用携带应用默认服务的解析器() {
+        List<EntEntityDescriptor> descriptors = new ArrayList<EntEntityDescriptor>();
+        ReflectiveEntMetaParser configured = new ReflectiveEntMetaParser(
+            Collections.emptyList(), new MetaEntityDefaults("mini-commerce"));
+        EntMetaParser parser = type -> {
+            EntEntityDescriptor descriptor = configured.parse(type);
+            descriptors.add(descriptor);
+            return descriptor;
+        };
+        MetaDocAdapter adapter = new MetaDocAdapter(new SimpleDocMetaResolver(), parser);
+        Assertions.assertNotNull(adapter.buildOne(Customer.class));
+        Assertions.assertEquals(1, adapter.buildAll(Collections.<Class<?>>singletonList(Customer.class)).size());
+        Assertions.assertEquals(2, descriptors.size());
+        for (EntEntityDescriptor descriptor : descriptors) {
+            Assertions.assertEquals("mini-commerce", descriptor.serviceName());
+        }
+    }
 
     @Test
     void order_static_fixture_should_output_entity_fields_relations_indexes_and_final_map_only_at_boundary() {

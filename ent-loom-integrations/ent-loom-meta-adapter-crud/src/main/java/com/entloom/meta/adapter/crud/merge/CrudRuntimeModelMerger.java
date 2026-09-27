@@ -91,11 +91,21 @@ public class CrudRuntimeModelMerger {
             resolveProperty(CrudRuntimeProperties.LOGIC_DELETE_DELETED_VALUE, entityClass, null, diagnostics,
                 nativeModel == null ? null : nativeModel.logicDeleteDeletedValue(), SourcedValue.defaulted("")),
             resolveProperty(CrudRuntimeProperties.OWNER_SERVICE, entityClass, null, diagnostics, nativeModel == null ? null : nativeModel.ownerService(),
-                meta == null ? null : stringMeta(meta.serviceName())),
+                serviceSource(meta)),
             mergeFields(entityClass, meta, nativeModel, resourceCode.value(), diagnostics),
             mergeRelations(entityClass, meta, nativeModel, idField.value(), diagnostics)
         );
         return MetaDiagnosticResult.of(model, diagnostics.diagnostics());
+    }
+
+    private SourcedValue<String> serviceSource(EntEntityDescriptor meta) {
+        if (meta == null) {
+            return null;
+        }
+        SourcedValue<?> source = meta.sourcedValue(MetaDescriptorProperties.SERVICE_NAME);
+        return source == null ? stringMeta(meta.serviceName()) : SourcedValue.of(
+            meta.serviceName(), source.source(), source.state(), source.explicit(), source.ruleId(), source.reason()
+        );
     }
 
     private List<CrudFieldRuntimeModel> mergeFields(

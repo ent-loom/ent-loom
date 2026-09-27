@@ -48,6 +48,24 @@ class EntLoomMetaAutoConfigurationTest {
         .withUserConfiguration(MinimalCrudRegistryConfiguration.class, EntLoomMetaAutoConfiguration.class);
 
     @Test
+    void 全局服务配置应传递到共享解析器和Crud且允许实体覆盖() {
+        contextRunner.withPropertyValues(entityClasses(ScannedEntities.MetaEntity.class, MetaOrder.class, MetaCustomer.class))
+            .withPropertyValues("ent.loom.meta.defaults.service=mini-commerce")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                EntMetaParser parser = context.getBean(EntMetaParser.class);
+                EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+                Assertions.assertEquals("mini-commerce", parser.parse(ScannedEntities.MetaEntity.class).serviceName());
+                Assertions.assertEquals("mini-commerce",
+                    registry.getResourceDescriptor(ScannedEntities.MetaEntity.class).getOwnerService());
+                Assertions.assertEquals("order-service", parser.parse(MetaOrder.class).serviceName());
+                Assertions.assertEquals("order-service", registry.getResourceDescriptor(MetaOrder.class).getOwnerService());
+                Assertions.assertEquals("Meta Order", context.getBean(MetaDocAdapter.class)
+                    .buildOne(MetaOrder.class).get("entityName"));
+            });
+    }
+
+    @Test
     void packagesShouldDiscoverEntitiesRecursively() {
         for (String property : Arrays.asList("ent.loom.meta.base-packages", "ent.loom.meta.base-packages[0]")) {
             contextRunner.withPropertyValues(property + "=com.entloom.meta.starter.scanfixture")

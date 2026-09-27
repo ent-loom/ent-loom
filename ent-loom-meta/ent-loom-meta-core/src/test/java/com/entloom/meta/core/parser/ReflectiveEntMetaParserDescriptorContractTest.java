@@ -26,8 +26,10 @@ import com.entloom.meta.contract.value.SourcedValue;
 import com.entloom.meta.enums.role.NumberRole;
 import com.entloom.meta.enums.role.RefIdRole;
 import com.entloom.meta.enums.role.TextRole;
+import com.entloom.meta.core.model.MetaEntityDefaults;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,34 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class ReflectiveEntMetaParserDescriptorContractTest {
+
+    @Test
+    void 默认服务应用于未声明实体且记录配置来源() {
+        ReflectiveEntMetaParser parser = new ReflectiveEntMetaParser(
+            Collections.emptyList(), new MetaEntityDefaults(" mini-commerce "));
+        for (Class<?> type : new Class<?>[]{OrderItem.class, BlankService.class}) {
+            EntEntityDescriptor descriptor = parser.parse(type);
+            Assertions.assertEquals("mini-commerce", descriptor.serviceName());
+            assertSource(descriptor.sourcedValue(MetaDescriptorProperties.SERVICE_NAME),
+                MetaValueSource.BUSINESS_DEFAULT_CONFIG, MetaValueState.DEFAULTED, false);
+        }
+        Assertions.assertNull(new ReflectiveEntMetaParser().parse(OrderItem.class).serviceName());
+        Assertions.assertNull(new ReflectiveEntMetaParser(
+            Collections.emptyList(), new MetaEntityDefaults(" ")).parse(OrderItem.class).serviceName());
+    }
+
+    @Test
+    void 实体显式服务覆盖应用默认值() {
+        EntEntityDescriptor descriptor = new ReflectiveEntMetaParser(
+            Collections.emptyList(), new MetaEntityDefaults("mini-commerce")).parse(ContractEntity.class);
+        Assertions.assertEquals("contract-service", descriptor.serviceName());
+        assertSource(descriptor.sourcedValue(MetaDescriptorProperties.SERVICE_NAME),
+            MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
+    }
+
+    @EntEntity(service = " ")
+    private static class BlankService {
+    }
 
     @Test
     void parser_should_infer_entity_name_and_record_its_source() {

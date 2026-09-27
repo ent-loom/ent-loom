@@ -14,6 +14,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy;
 import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.parser.EntMetaParser;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
+import com.entloom.meta.core.model.MetaEntityDefaults;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -50,11 +51,15 @@ public class EntLoomMetaAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public EntMetaParser entLoomMetaParser(
-        ObjectProvider<MetaConvention> conventionProvider
+        ObjectProvider<MetaConvention> conventionProvider,
+        EntLoomMetaProperties properties
     ) {
         List<MetaConvention> conventions = new ArrayList<MetaConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
-        return new ReflectiveEntMetaParser(conventions);
+        return new ReflectiveEntMetaParser(
+            conventions,
+            new MetaEntityDefaults(properties.getDefaults().getService())
+        );
     }
 
     @Bean
