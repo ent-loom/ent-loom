@@ -139,52 +139,25 @@ public final class AnnotationMetadataLoader implements MetadataLoader {
 
     private List<DdlIndexMetadata> resolveIndexes(Class<?> entityClass, List<DdlFieldMetadata> fields) {
         List<DdlIndexMetadata> indexes = new ArrayList<DdlIndexMetadata>();
-        EntDdlIndex[] classIndexes = entityClass.getAnnotationsByType(EntDdlIndex.class);
-        for (EntDdlIndex classIndex : classIndexes) {
-            indexes.add(new DdlIndexMetadata(classIndex.name(),
-                    toList(classIndex.fields()),
-                    classIndex.unique() == OptionalBoolean.TRUE,
-                    classIndex.expression()));
-        }
-
         Map<String, String> fieldToColumn = new LinkedHashMap<String, String>();
         for (DdlFieldMetadata field : fields) {
-            fieldToColumn.put(field.fieldName(), field.columnName());
+            if (field.persisted()) {
+                fieldToColumn.put(field.fieldName(), field.columnName());
+            }
         }
-        for (Field field : EntityProperties.fields(entityClass)) {
-            EntDdlIndex[] fieldIndexes = field.getAnnotationsByType(EntDdlIndex.class);
-            if (fieldIndexes.length == 0) {
-                continue;
-            }
-            String defaultColumn = fieldToColumn.containsKey(field.getName())
-                    ? fieldToColumn.get(field.getName())
-                    : toSnake(field.getName());
-            for (EntDdlIndex fieldIndex : fieldIndexes) {
-                List<String> indexFields = toList(fieldIndex.fields());
-                if (indexFields.isEmpty()) {
-                    indexFields.add(defaultColumn);
+        for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
+            List<String> columns = new ArrayList<String>();
+            for (String property : index.fields()) {
+                String column = fieldToColumn.get(trim(property));
+                if (column == null) {
+                    throw new IllegalArgumentException(entityClass.getName() + " 索引引用了不存在或不持久化的 Java 属性: " + property);
                 }
-                indexes.add(new DdlIndexMetadata(fieldIndex.name(),
-                        indexFields,
-                        fieldIndex.unique() == OptionalBoolean.TRUE,
-                        fieldIndex.expression()));
+                columns.add(column);
             }
+            indexes.add(new DdlIndexMetadata(index.name(), columns,
+                    index.unique() == OptionalBoolean.TRUE, index.expression()));
         }
         return indexes;
-    }
-
-    private static List<String> toList(String[] values) {
-        List<String> list = new ArrayList<String>();
-        if (values == null || values.length == 0) {
-            return list;
-        }
-        for (String value : values) {
-            if (trim(value).isEmpty()) {
-                continue;
-            }
-            list.add(value.trim());
-        }
-        return list;
     }
 
     private static String toTableName(String simpleName, NamingStrategy strategy) {

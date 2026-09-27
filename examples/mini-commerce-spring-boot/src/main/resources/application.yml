@@ -21,13 +21,10 @@ management:
 
 ent:
   loom:
-    # 按实体定义创建缺失的表；不修改已有表结构或清空数据。
+    # 默认复用 Meta 扫描的实体创建缺失的表；不修改已有表结构或清空数据。
     ddl:
       enabled: true
       mode: CREATE_TABLE
-      base-packages:
-        - com.example.minicommerce.*.entity
-
     # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
     meta:
       # CRUD 与 DDL 共用主键语义，MySQL 整数主键映射为自增。

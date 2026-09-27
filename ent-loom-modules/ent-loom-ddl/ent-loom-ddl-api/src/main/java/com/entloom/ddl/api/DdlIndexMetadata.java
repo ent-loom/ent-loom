@@ -10,8 +10,7 @@ import java.util.Set;
 /**
  * DDL 索引元数据。
  *
- * <p>索引必须至少包含一个物理列或一个原生表达式。两者同时提供时，
- * 表达式优先，兼容注解层的既有语义。未提供索引名时由 SQL 生成器根据
+ * <p>索引必须且只能提供物理列列表或原生表达式中的一个。未提供索引名时由 SQL 生成器根据
  * 内容计算确定性名称。</p>
  */
 public final class DdlIndexMetadata {
@@ -25,8 +24,8 @@ public final class DdlIndexMetadata {
         this.fields = immutableCopy(fields);
         this.unique = unique;
         this.expression = expression == null ? "" : expression.trim();
-        if (this.fields.isEmpty() && this.expression.isEmpty()) {
-            throw new IllegalArgumentException("index must define fields or expression");
+        if (this.fields.isEmpty() == this.expression.isEmpty()) {
+            throw new IllegalArgumentException("索引必须且只能定义 fields 或 expression 中的一个");
         }
     }
 

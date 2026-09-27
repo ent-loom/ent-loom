@@ -1,6 +1,5 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
@@ -11,7 +10,7 @@ import lombok.Setter;
 
 /** 订单明细持久化实体，由订单业务服务经 OrderItemDao 保存。 */
 @EntEntity("订单明细")
-@EntDdlEntity
+@EntDdlIndex(name = "idx_order_item_order", fields = "orderId")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,7 +21,6 @@ public class OrderItem {
 
     /** 所属订单主键，由订单聚合保存时填充。 */
     @EntField("订单 ID")
-    @EntDdlIndex(name = "idx_order_item_order")
     private Long orderId;
 
     @EntField("商品 ID")

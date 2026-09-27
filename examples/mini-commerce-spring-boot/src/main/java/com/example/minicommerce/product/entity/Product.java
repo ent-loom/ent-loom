@@ -1,6 +1,5 @@
 package com.example.minicommerce.product.entity;
 
-import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
@@ -10,7 +9,6 @@ import lombok.Setter;
 
 /** 商品主数据实体，交由 ent-loom 通用 CRUD 维护。 */
 @EntEntity("商品")
-@EntDdlEntity
 @Getter
 @Setter
 @NoArgsConstructor

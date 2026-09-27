@@ -82,9 +82,9 @@ class SpringEntityDiscoveryContractTest {
         assertEquals("uk_order_no", classIndex.name());
         assertEquals(Collections.singletonList("order_no"), classIndex.fields());
         assertTrue(classIndex.unique());
-        DdlIndexMetadata fieldIndex = entity.indexes().get(1);
-        assertEquals("idx_amount", fieldIndex.name());
-        assertEquals(Collections.singletonList("amount"), fieldIndex.fields());
+        DdlIndexMetadata amountIndex = entity.indexes().get(1);
+        assertEquals("idx_amount", amountIndex.name());
+        assertEquals(Collections.singletonList("amount"), amountIndex.fields());
     }
 
     @Test
@@ -114,7 +114,8 @@ class SpringEntityDiscoveryContractTest {
 
     @EntDdlEntity(table = "ddl_order", schema = "biz", comment = "订单实体",
             size = DdlTableSize.MEDIUM, namingStrategy = NamingStrategy.SNAKE_CASE)
-    @EntDdlIndex(name = "uk_order_no", fields = {"order_no"}, unique = com.entloom.base.common.OptionalBoolean.TRUE)
+    @EntDdlIndex(name = "uk_order_no", fields = {"orderNumber"}, unique = com.entloom.base.common.OptionalBoolean.TRUE)
+    @EntDdlIndex(name = "idx_amount", fields = "amount")
     private static final class OrderEntity {
         /**
          * 订单主键。
@@ -134,7 +135,6 @@ class SpringEntityDiscoveryContractTest {
          * 订单金额。
          */
         @EntDdlField(precision = 18, scale = 2, defaultValue = "0")
-        @EntDdlIndex(name = "idx_amount")
         private java.math.BigDecimal amount;
 
         /**

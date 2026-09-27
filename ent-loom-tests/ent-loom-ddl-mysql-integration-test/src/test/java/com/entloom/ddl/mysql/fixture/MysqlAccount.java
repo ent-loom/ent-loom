@@ -8,7 +8,7 @@ import com.entloom.ddl.enums.GenerationStrategy;
 
 /** MySQL 8 集成测试使用的最小业务实体。 */
 @EntDdlEntity(table = "mysql_account", namingStrategy = NamingStrategy.AS_IS)
-@EntDdlIndex(name = "idx_mysql_account_display_name", fields = {"display_name"})
+@EntDdlIndex(name = "idx_mysql_account_display_name", fields = {"displayName"})
 @EntDdlIndex(name = "idx_mysql_account_lower_name", expression = "lower(`display_name`)")
 public final class MysqlAccount {
     /** 主键。 */

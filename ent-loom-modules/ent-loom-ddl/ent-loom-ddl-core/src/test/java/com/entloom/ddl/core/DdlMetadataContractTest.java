@@ -37,6 +37,8 @@ class DdlMetadataContractTest {
     @DisplayName("索引必须有列或表达式，且列不能重复")
     void shouldRejectIllegalIndexInput() {
         assertThrows(IllegalArgumentException.class, () -> new DdlIndexMetadata(
+                "idx_conflict", Collections.singletonList("id"), false, "lower(id)"));
+        assertThrows(IllegalArgumentException.class, () -> new DdlIndexMetadata(
                 "idx_empty", Collections.<String>emptyList(), false, ""));
         assertThrows(IllegalArgumentException.class, () -> new DdlIndexMetadata(
                 "idx_blank", Arrays.asList("id", " "), false, ""));

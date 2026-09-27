@@ -11,11 +11,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 实体的 DDL 索引定义。
+ * 仅在实体类型上声明的 DDL 索引定义。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.FIELD})
+@Target(ElementType.TYPE)
 @Repeatable(EntDdlIndexes.class)
 public @interface EntDdlIndex {
     /**
@@ -24,13 +24,14 @@ public @interface EntDdlIndex {
     String name() default "";
 
     /**
-     * 索引字段列表，按顺序生效。
-     * 字段级使用时可留空，表示当前字段参与单列索引。
+     * 索引的 Java 属性名列表，按顺序映射为持久化列；不接受数据库列名。
+     * 与 expression 必须且只能填写一个。
      */
     String[] fields() default {};
 
     /**
-     * 原生表达式索引定义。与 fields 二选一，优先使用 expression。
+     * 原生 SQL 表达式索引定义，使用数据库列名，不进行属性名转换。
+     * 与 fields 必须且只能填写一个。
      */
     String expression() default "";
 

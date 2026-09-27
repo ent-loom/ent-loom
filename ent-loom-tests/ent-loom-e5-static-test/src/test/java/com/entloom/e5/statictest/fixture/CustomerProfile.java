@@ -34,7 +34,7 @@ import java.time.LocalDateTime;
 @EntDdlEntity(table = "customer_profile", comment = "客户档案")
 @EntDdlIndex(
     name = "uk_customer_profile_display_name",
-    fields = {"display_name"},
+    fields = {"displayName"},
     unique = OptionalBoolean.TRUE
 )
 @EntCrudEntity(

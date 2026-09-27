@@ -16,7 +16,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 连接已有 MySQL 时，修改 `.env` 中的 `MYSQL_HOST`、`MYSQL_PORT`、数据库和账号，然后直接启动应用。默认应用端口为 8082、Compose 数据库端口为 3308。应用读取当前目录的 `.env`，启动时由 `ent-loom-ddl` 按实体注解自动建表，不清空已有数据；数据库需预先存在，账号需具有建表权限。停止 Compose 使用 `docker compose down`，加 `-v` 会删除数据卷。
 
-表结构由 Meta 共享字段语义、`@EntDdlEntity` 和 `@EntDdlIndex` 定义。`ent.loom.meta.defaults.id-policy: DATABASE` 统一驱动 CRUD 的主键回填与 MySQL 整数主键自增；字段使用缺省类型：字符串 `varchar(200)`、金额 `decimal(20,6)`、枚举 `varchar(64)`，无需 `@EntDdlField`。采用 `CREATE_TABLE` 模式，仅创建缺失的表，不更新已有表结构。示例新建表不使用物理外键：下单校验客户、商品，并在同一事务内保存订单及明细；默认权限关闭客户删除和订单直接写入，明细不开放独立 HTTP 接口。绕过这些业务入口直接写库不受上述保障。已有库中的外键不会自动删除；生产结构变更使用版本化迁移。
+表结构由 `@EntEntity`、Meta 共享字段语义和 `@EntDdlIndex` 定义。DDL 默认复用 Meta 扫描的实体，无需重复配置 `ddl.base-packages`；仅需 DDL 专属配置或覆盖时添加 `@EntDdlEntity(...)`，省略空注解。`ent.loom.meta.defaults.id-policy: DATABASE` 统一驱动 CRUD 的主键回填与 MySQL 整数主键自增；字段使用缺省类型：字符串 `varchar(200)`、金额 `decimal(20,6)`、枚举 `varchar(64)`，无需 `@EntDdlField`。采用 `CREATE_TABLE` 模式，仅创建缺失的表，不更新已有表结构。示例新建表不使用物理外键：下单校验客户、商品，并在同一事务内保存订单及明细；默认权限关闭客户删除和订单直接写入，明细不开放独立 HTTP 接口。绕过这些业务入口直接写库不受上述保障。已有库中的外键不会自动删除；生产结构变更使用版本化迁移。
 
 使用当前工作区构件时，先在 ent-loom 仓库根目录执行：
 

@@ -44,11 +44,9 @@ final class DdlNativeAnnotationParser {
         }
         List<DdlNativeIndexModel> indexes = new ArrayList<DdlNativeIndexModel>();
         for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
-            indexes.add(toIndex(entityClass, index, fields, null, diagnostics));
-        }
-        for (Field field : EntityProperties.fields(entityClass)) {
-            for (EntDdlIndex index : field.getAnnotationsByType(EntDdlIndex.class)) {
-                indexes.add(toIndex(entityClass, index, fields, field.getName(), diagnostics));
+            DdlNativeIndexModel model = toIndex(entityClass, index, fields, diagnostics);
+            if (model != null) {
+                indexes.add(model);
             }
         }
         return new DdlNativeEntityModel(
@@ -144,21 +142,20 @@ final class DdlNativeAnnotationParser {
     private DdlNativeIndexModel toIndex(Class<?> entityClass,
                                         EntDdlIndex annotation,
                                         Map<String, DdlNativeFieldModel> fields,
-                                        String fieldName,
                                         MetaDiagnosticCollector diagnostics) {
         warnUnsupported(entityClass, null, "uniqueScope", annotation.uniqueScope() != UniqueScope.ALL_ROWS, diagnostics);
         warnUnsupported(entityClass, null, "type", annotation.type() != IndexType.BTREE, diagnostics);
         List<String> indexFields = new ArrayList<String>();
         for (String field : annotation.fields()) {
-            if (field != null && !field.trim().isEmpty()) {
-                String value = field.trim();
-                DdlNativeFieldModel nativeField = fields.get(value);
-                indexFields.add(nativeField == null ? value : nativeField.columnName().value());
+            DdlNativeFieldModel nativeField = fields.get(field.trim());
+            if (nativeField == null || !Boolean.TRUE.equals(nativeField.persisted().value())) {
+                diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.NON_PERSISTENT_FIELD)
+                    .entityClass(entityClass).field(field).property("fields")
+                    .location(entityClass.getName() + "#" + field)
+                    .message("索引引用了不存在或不持久化的 Java 属性: " + field).build());
+                return null;
             }
-        }
-        if (indexFields.isEmpty() && blankAsNull(annotation.expression()) == null && fieldName != null) {
-            DdlNativeFieldModel nativeField = fields.get(fieldName);
-            indexFields.add(nativeField == null ? toSnake(fieldName) : nativeField.columnName().value());
+            indexFields.add(nativeField.columnName().value());
         }
         return new DdlNativeIndexModel(
             blankAsNull(annotation.name()) == null ? SourcedValue.unknown(null) : nativeValue(annotation.name().trim()),

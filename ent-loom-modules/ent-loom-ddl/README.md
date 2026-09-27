@@ -56,7 +56,7 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 
 1. `@EntDdlEntity`：`table`、`schema`、`comment`、命名策略
 2. `@EntDdlField`：类型、长度、nullable、unique、default、comment、持久化开关、生成策略
-3. `@EntDdlIndex/@EntDdlIndexes`：索引名、字段、唯一、索引类型
+3. `@EntDdlIndex/@EntDdlIndexes`：仅在实体类型上定义索引。`fields` 按声明顺序填写 Java 属性名，由框架映射为持久化列；与原生 SQL `expression` 必须且只能填写一个，表达式内使用数据库列名。
 
 建议补充（支撑 R3/R4/R5/R9 的关键缺口）：
 

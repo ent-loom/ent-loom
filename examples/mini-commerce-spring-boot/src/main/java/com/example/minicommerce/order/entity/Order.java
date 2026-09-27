@@ -1,6 +1,5 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.annotations.EntCrudAction;
@@ -26,7 +25,7 @@ import lombok.Setter;
  */
 @EntEntity("订单")
 @EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
-@EntDdlEntity
+@EntDdlIndex(name = "idx_order_customer", fields = "customerId")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,7 +37,6 @@ public class Order {
     private Long id;
 
     @EntField("客户 ID")
-    @EntDdlIndex(name = "idx_order_customer")
     private Long customerId;
 
     @EntField("客户")

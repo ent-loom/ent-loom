@@ -263,7 +263,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity(table = "meta_only_account")
-    @EntDdlIndex(name = "uk_meta_account_display_name", fields = {"display_name"}, unique = OptionalBoolean.TRUE)
+    @EntDdlIndex(name = "uk_meta_account_display_name", fields = {"displayName"}, unique = OptionalBoolean.TRUE)
     private static final class EquivalentDdlAccount {
         @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.NONE)
