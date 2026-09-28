@@ -27,10 +27,12 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # HTTP 接口：只开放主数据与订单，订单明细保留内部 DAO 能力。
+      # HTTP 接口：默认开放全部已注册实体，仅排除订单明细；新增实体会自动获得路由。
       controller:
         enabled: true
-        include-entities: [product, customer, order]
+        exposure-mode: ALL_REGISTERED
+        exclude-entities:
+          - order_item
       # 写入契约：创建请求必须显式提供的字段。
       contracts:
         create:
@@ -38,14 +40,17 @@ ent:
             product: [name, price, active]
             customer: [displayName, email]
 
-      # 演示主体 local-developer 与全量数据范围，由 Starter 提供。
-      # 读取可见性仍会进一步约束商品查询；生产接入应替换演示身份与数据范围。
+      # 仅为本示例提供一个固定请求主体和全量数据范围，便于直接运行。
+      # 这不是登录、角色或生产授权配置；生产接入应替换主体解析和数据范围实现。
       example:
         enabled: true
       governance:
-        # 固定业务入口；管理端对照演示通过启动参数改为 management。
+        # 当前请求使用的业务入口。切换为 management 只用于管理侧读取对照。
+        # 完整商城的 consumer / merchant / management 三端由业务应用自行规划。
         access-entry: consumer
-        # 客户不开放删除，避免订单失去关联；订单只允许读取与下单。
+        # 示例主体的业务权限清单：subject -> resource:action。
+        # * 表示该资源的标准 CRUD 操作；place 是显式下单动作。
+        # 这组 grants 仅用于演示，不等于三端角色模型。
         grants:
           local-developer:
             - product:*
@@ -54,7 +59,8 @@ ent:
             - customer:update
             - order:read
             - order:place
-        # 商品读取：消费者只看启用商品，管理端允许全部状态。
+        # 读取可见性按入口限制商品状态：消费者只看启用商品，管理入口可看全部。
+        # 可见性不会授予权限；请求仍须先通过 grants 和动作准入。
         read-visibility:
           product:
             consumer:

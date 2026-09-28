@@ -1,6 +1,6 @@
 # Mini Commerce Spring Boot 示例
 
-通过商品、客户、下单和订单详情展示实体编程的完整业务闭环。所有能力随应用默认启用，无需选择 Profile。订单在事务中保存商品名称、成交单价和金额快照。
+通过商品、客户、下单和订单详情展示实体编程的最小业务闭环。完整商城可在业务应用层扩展消费者、商家、运营三端；本示例只演示消费者入口及管理侧读取对照，不是三端后台模板。所有能力随应用默认启用，无需选择 Profile。订单在事务中保存商品名称、成交单价和金额快照。
 
 ## 启动
 
@@ -58,7 +58,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 管理入口允许读取所有商品状态，下单返回 403；未绑定入口（如 unknown）读取商品与下单均返回 403。入口由 Starter 从启动配置固定识别，HTTP 请求不能切换入口；请求伪造 `crudAccessEntry` 返回 400。
 
-本地演示主体保留主数据写权限，便于准备场景数据。示例不包含登录、租户、订单归属限制、支付、库存和前端管理台。生产接入需替换演示主体与全量数据范围，根据已认证身份和受保护路由识别入口，并接入正式权限、数据库迁移与审计。
+本地演示主体保留主数据写权限，便于准备场景数据。示例不包含登录、租户、订单归属限制、支付、库存和前端管理台。生产接入需替换演示主体与全量数据范围，根据已认证身份和受保护路由识别入口，并接入正式权限、数据库迁移与审计；消费者、商家、运营三端的角色、权限和数据范围由业务应用自行规划和实现。
 
 全部配置与扩展方式见[配置参考](../../docs/guides/配置参考.md)、[默认装配与定制](../../docs/guides/默认装配与定制.md)、[读取可见性](../../docs/guides/读取可见性.md)。
 
@@ -77,7 +77,7 @@ python3 scripts/verify.py
 
 MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
-实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用默认 `EXPLICIT` 模式，只开放商品、客户和订单，订单明细保留内部 DAO 能力。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档保留主体白名单，未配置展示范围时展示全部 Meta 实体。对外契约可独立配置 `exposure.include-entities`、`exclude-entities` 和 `fields`。
+实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用 `ALL_REGISTERED` 模式，默认开放全部已注册实体，仅排除订单明细，新增实体会自动获得路由。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档保留主体白名单，未配置展示范围时展示全部 Meta 实体。对外契约可独立配置 `exposure.include-entities`、`exclude-entities` 和 `fields`。
 
 示例通过 `ent.loom.meta.defaults.service: mini-commerce` 设置业务服务名，与应用名 `mini-commerce-spring-boot` 区分。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时使用 `spring.application.name`，应用名也未提供时才保持为空。`description` 仅在需要额外说明时填写。
 
