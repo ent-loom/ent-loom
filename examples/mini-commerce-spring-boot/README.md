@@ -35,7 +35,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 | 商城业务闭环 | [commerce.http](requests/commerce.http) | 创建商品与客户、下单、展开订单关联、订单直接写入拒绝、商品分页 |
 | 通用 CRUD | [crud.http](requests/crud.http) | 客户创建、更新、分页、详情，以及删除拒绝 |
 | 读取可见性 | [visibility.http](requests/visibility.http) | 自动过滤、反向条件约束、隐藏详情、入口伪造拒绝、管理端对照 |
-| 实体文档 | [documentation.http](requests/documentation.http) | 商品与客户的实体契约、主体和字段白名单 |
+| 实体文档 | [documentation.http](requests/documentation.http) | Meta 全部实体契约、独立主体授权 |
 
 代码按 customer、product、order 业务分包。调用方向为 `内置 Controller → Gateway → 统一治理与场景分发 → Handler / 查询引擎 → DAO`。应用实现实体、DAO、必要的 DTO 和下单 Handler，配置集中声明框架能力与治理规则。
 
@@ -45,7 +45,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 [application.yml](src/main/resources/application.yml) 按运行基础、DDL 建表、实体元数据、CRUD 接口与写入契约、演示主体与访问治理、实体文档组织。数据库、端口通过环境变量覆盖；业务能力统一启用，导入导出沿用框架默认关闭。
 
-默认主体为 `local-developer`，允许维护商品，创建、更新和读取客户，以及读取订单和下单。客户删除及订单直接创建、修改、删除未授权；`OrderItem` 通过 HTTP 实体黑名单关闭独立接口，订单不进入公共文档白名单。
+默认主体为 `local-developer`，允许维护商品，创建、更新和读取客户，以及读取订单和下单。客户删除及订单直接创建、修改、删除未授权；`OrderItem` 未列入 HTTP 包含清单，不开放独立接口。文档复用 Meta 全量实体与非隐藏字段，包括订单和订单明细；文档访问不授予 CRUD 权限。
 
 默认业务入口为 `consumer`。商品读取可见性按「实体 → 入口 → 条件」配置：消费者只看 `active=true` 商品；不传筛选条件仍自动过滤，传 `active=false` 返回空页，停用商品详情返回 404。下单动作通过 `@EntCrudActions` 限定为消费者入口，Handler 另行校验商品启用状态、数量和客户。
 
@@ -77,7 +77,7 @@ python3 scripts/verify.py
 
 MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
-实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用默认 `EXPLICIT` 模式，只开放商品、客户和订单，订单明细保留内部 DAO 能力。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档公开范围由主体与字段白名单决定。
+实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用默认 `EXPLICIT` 模式，只开放商品、客户和订单，订单明细保留内部 DAO 能力。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档保留主体白名单，未配置展示范围时展示全部 Meta 实体。对外契约可独立配置 `exposure.include-entities`、`exclude-entities` 和 `fields`。
 
 示例通过 `ent.loom.meta.defaults.service: mini-commerce` 设置业务服务名，与应用名 `mini-commerce-spring-boot` 区分。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时使用 `spring.application.name`，应用名也未提供时才保持为空。`description` 仅在需要额外说明时填写。
 

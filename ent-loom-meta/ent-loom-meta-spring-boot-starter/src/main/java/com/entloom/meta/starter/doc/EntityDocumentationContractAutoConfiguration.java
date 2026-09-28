@@ -25,11 +25,13 @@ import org.springframework.context.annotation.Configuration;
 public class EntityDocumentationContractAutoConfiguration {
 
     @Bean
+    @ConditionalOnBean(MetaDocAdapter.class)
     @ConditionalOnMissingBean(EntityDocumentationExposurePolicyResolver.class)
     public EntityDocumentationExposurePolicyResolver entityDocumentationExposurePolicyResolver(
-        EntityDocumentationContractProperties properties
+        EntityDocumentationContractProperties properties,
+        MetaDocAdapter metaDocAdapter
     ) {
-        return new ConfiguredEntityDocumentationExposurePolicyResolver(properties.getExposure());
+        return new ConfiguredEntityDocumentationExposurePolicyResolver(properties.getExposure(), metaDocAdapter.models());
     }
 
     @Bean

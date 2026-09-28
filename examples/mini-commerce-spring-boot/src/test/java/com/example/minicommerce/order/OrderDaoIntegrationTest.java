@@ -63,13 +63,17 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void 配置装配文档白名单且订单仍不进入公共文档() throws Exception {
+    void 文档默认复用Meta全部实体及字段() throws Exception {
         mvc.perform(get("/api/ent-doc/contract"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
-                org.hamcrest.Matchers.containsInAnyOrder("product", "customer")))
+                org.hamcrest.Matchers.containsInAnyOrder("product", "customer", "order", "orderItem")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'customer')].fields[*].property",
-                org.hamcrest.Matchers.containsInAnyOrder("id", "displayName", "email")));
+                org.hamcrest.Matchers.containsInAnyOrder("id", "displayName", "email")))
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'product')].fields[*].property",
+                org.hamcrest.Matchers.containsInAnyOrder("id", "name", "price", "active")))
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'orderItem')].fields[*].property",
+                org.hamcrest.Matchers.hasItems("orderId", "productName", "unitPrice")));
     }
 
     @Test

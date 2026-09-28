@@ -13,7 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class EntityDocumentationContractProperties {
     /** 公共契约服务默认关闭，避免应用无意间暴露实体目录。 */
     private boolean enabled = false;
-    /** 文档暴露白名单；与 CRUD 路由及操作权限独立。 */
+    /** 文档访问主体与展示范围；与 CRUD 路由及操作权限独立。 */
     private Exposure exposure = new Exposure();
     /** HTTP 入口配置，默认关闭。 */
     private Http http = new Http();
@@ -42,12 +42,32 @@ public class EntityDocumentationContractProperties {
         this.http = http == null ? new Http() : http;
     }
 
-    /** 未列出的主体、实体和字段均不公开；实体键使用正式资源编码。 */
+    /** 主体必须显式授权；展示范围默认复用 Meta 实体，实体键使用正式资源编码。 */
     public static class Exposure {
         /** 允许访问文档契约的主体标识。 */
         private Set<String> subjectIds = new LinkedHashSet<>();
-        /** 按资源限制对外暴露的字段。 */
+        /** 包含的实体；空集合表示全部已注册实体。 */
+        private Set<String> includeEntities = new LinkedHashSet<>();
+        /** 排除的实体，优先于包含清单。 */
+        private Set<String> excludeEntities = new LinkedHashSet<>();
+        /** 按资源限制字段；未配置的实体展示全部字段，空集合不展示字段。 */
         private Map<String, Set<String>> fields = new LinkedHashMap<>();
+
+        public Set<String> getIncludeEntities() {
+            return includeEntities;
+        }
+
+        public void setIncludeEntities(Set<String> includeEntities) {
+            this.includeEntities = includeEntities == null ? new LinkedHashSet<>() : includeEntities;
+        }
+
+        public Set<String> getExcludeEntities() {
+            return excludeEntities;
+        }
+
+        public void setExcludeEntities(Set<String> excludeEntities) {
+            this.excludeEntities = excludeEntities == null ? new LinkedHashSet<>() : excludeEntities;
+        }
 
         public Set<String> getSubjectIds() {
             return subjectIds;

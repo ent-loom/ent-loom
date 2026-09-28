@@ -13,6 +13,7 @@ ent:
         enabled: true
         exposure:
           subject-ids: [local-developer]
+          include-entities: [customer_profile]
           fields:
             customer_profile: [id, displayName, email]
         http:

@@ -64,14 +64,11 @@ ent:
         audit:
           persist-to-jdbc: false
 
-    # 实体文档：限定访问主体、实体与公开字段。
+    # 实体文档：限定访问主体，默认展示 Meta 注册的全部实体与非隐藏字段。
     doc:
       contract:
         enabled: true
         exposure:
           subject-ids: [local-developer]
-          fields:
-            product: [id, name, price, active]
-            customer: [id, displayName, email]
         http:
           enabled: true

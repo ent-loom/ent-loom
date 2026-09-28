@@ -133,7 +133,7 @@ def verify(repository=None, skip_build=False):
               f"实体文档契约响应不匹配：{contract_status} {contract}")
         entities = contract.get("entities")
         check(isinstance(entities, list) and {entity.get("resourceCode") for entity in entities}
-              == {"customer", "product"}, f"实体文档实体范围不匹配：{contract}")
+              == {"customer", "product", "order", "orderItem"}, f"实体文档实体范围不匹配：{contract}")
         contract_text = json.dumps(contract, ensure_ascii=False)
         for forbidden in ("entityClass", "tableName", "column", "visibleFor"):
             check(forbidden not in contract_text, f"实体文档泄露敏感字段：{forbidden}")
