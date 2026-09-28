@@ -8,24 +8,16 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3308}/${MYSQL_DATABASE:mini_commerce}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USER:mini_commerce}
     password: ${MYSQL_PASSWORD:mini_commerce_dev}
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
 server:
   port: ${APP_PORT:8082}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health
 
 ent:
   loom:
     # 默认复用 Meta 扫描的实体创建缺失的表；不修改已有表结构或清空数据。
     ddl:
-      enabled: true
       mode: CREATE_TABLE
-    # 实体元数据：扫描业务实体，为 CRUD 与文档提供统一定义。
+    # 实体元数据：只扫描业务实体包，为 CRUD、DDL 与文档提供统一定义。
     meta:
       # CRUD 与 DDL 共用主键语义，MySQL 整数主键映射为自增。
       defaults:
@@ -33,33 +25,18 @@ ent:
         service: mini-commerce
       base-packages:
         - com.example.minicommerce.*.entity
-      crud:
-        enabled: true
-      doc:
-        enabled: true
 
     crud:
-      # HTTP 接口：暴露已注册实体；订单明细通过黑名单关闭独立接口。
+      # HTTP 接口：只开放主数据与订单，订单明细保留内部 DAO 能力。
       controller:
         enabled: true
-        exposure-mode: ALL_REGISTERED
-        exclude-entities:
-          - orderItem
-      query:
-        enabled: true
-      command:
-        enabled: true
-
-      # 写入契约：创建必填项与更新禁改项。
+        include-entities: [product, customer, order]
+      # 写入契约：创建请求必须显式提供的字段。
       contracts:
         create:
           input-required-fields:
             product: [name, price, active]
             customer: [displayName, email]
-        update:
-          forbidden-fields:
-            product: [id]
-            customer: [id]
 
       # 演示主体 local-developer 与全量数据范围，由 Starter 提供。
       # 读取可见性仍会进一步约束商品查询；生产接入应替换演示身份与数据范围。
@@ -92,7 +69,6 @@ ent:
       contract:
         enabled: true
         exposure:
-          enabled: true
           subject-ids: [local-developer]
           fields:
             product: [id, name, price, active]

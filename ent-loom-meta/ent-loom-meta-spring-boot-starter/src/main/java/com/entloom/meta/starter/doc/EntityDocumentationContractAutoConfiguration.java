@@ -26,7 +26,6 @@ public class EntityDocumentationContractAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(EntityDocumentationExposurePolicyResolver.class)
-    @ConditionalOnProperty(prefix = "ent.loom.doc.contract.exposure", name = "enabled", havingValue = "true")
     public EntityDocumentationExposurePolicyResolver entityDocumentationExposurePolicyResolver(
         EntityDocumentationContractProperties properties
     ) {

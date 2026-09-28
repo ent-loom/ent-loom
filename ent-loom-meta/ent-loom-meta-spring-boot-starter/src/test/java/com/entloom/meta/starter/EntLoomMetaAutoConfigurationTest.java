@@ -36,6 +36,8 @@ import java.util.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,12 +47,13 @@ import org.springframework.core.annotation.Order;
 
 class EntLoomMetaAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-        .withUserConfiguration(MinimalCrudRegistryConfiguration.class, EntLoomMetaAutoConfiguration.class);
+        .withUserConfiguration(MinimalCrudRegistryConfiguration.class)
+        .withConfiguration(AutoConfigurations.of(EntLoomMetaAutoConfiguration.class));
 
     @Test
     void 全局服务配置应传递到共享解析器和Crud且允许实体覆盖() {
         contextRunner.withPropertyValues(entityClasses(ScannedEntities.MetaEntity.class, MetaOrder.class, MetaCustomer.class))
-            .withPropertyValues("ent.loom.meta.defaults.service=mini-commerce")
+            .withPropertyValues("ent.loom.meta.defaults.service=mini-commerce", "spring.application.name=commerce-app")
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
                 EntMetaParser parser = context.getBean(EntMetaParser.class);
@@ -63,6 +66,74 @@ class EntLoomMetaAutoConfigurationTest {
                 Assertions.assertEquals("Meta Order", context.getBean(MetaDocAdapter.class)
                     .buildOne(MetaOrder.class).get("entityName"));
             });
+    }
+
+    @Test
+    void 服务缺省使用应用名且实体声明优先() {
+        contextRunner.withPropertyValues(entityClasses(ScannedEntities.MetaEntity.class, MetaOrder.class, MetaCustomer.class))
+            .withPropertyValues("spring.application.name=commerce-app")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                EntMetaParser parser = context.getBean(EntMetaParser.class);
+                EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+                Assertions.assertEquals("commerce-app", parser.parse(ScannedEntities.MetaEntity.class).serviceName());
+                Assertions.assertEquals("commerce-app",
+                    registry.getResourceDescriptor(ScannedEntities.MetaEntity.class).getOwnerService());
+                Assertions.assertEquals("order-service", parser.parse(MetaOrder.class).serviceName());
+            });
+    }
+
+    @Test
+    void 无实体来源配置时扫描Boot启动包且只发现实体() {
+        withBootPackages().run(context -> {
+            Assertions.assertNull(context.getStartupFailure());
+            EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+            Assertions.assertEquals(2, registry.getEntityMetas().size());
+            Assertions.assertEquals("scanned_entity",
+                registry.getResourceDescriptor(ScannedEntities.MetaEntity.class).getResourceCode());
+            Assertions.assertThrows(ValidationException.class,
+                () -> registry.getResourceDescriptor(ScannedEntities.PlainClass.class));
+            Assertions.assertNotNull(context.getBean(MetaDocAdapter.class).buildOne(ScannedEntities.DocEntity.class));
+            Assertions.assertTrue(context.getBeansOfType(ScannedEntities.MetaEntity.class).isEmpty());
+        });
+    }
+
+    @Test
+    void 显式实体类或包优先且空扫描结果不回退Boot包() {
+        withBootPackages().withPropertyValues(entityClasses(ScannedEntities.MetaEntity.class)).run(context -> {
+            Assertions.assertNull(context.getStartupFailure());
+            EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+            Assertions.assertEquals(1, registry.getEntityMetas().size());
+            Assertions.assertThrows(ValidationException.class,
+                () -> registry.getResourceDescriptor(ScannedEntities.CrudEntity.class));
+        });
+        withBootPackages().withPropertyValues("ent.loom.meta.base-packages=com.example.missing")
+            .run(context -> {
+                Assertions.assertNotNull(context.getStartupFailure());
+                Assertions.assertTrue(context.getStartupFailure().getMessage()
+                    .contains("CrudRuntimeModel 未提供任何实体元数据"));
+            });
+    }
+
+    @Test
+    void 关闭Meta时不扫描Boot包() {
+        new ApplicationContextRunner().withUserConfiguration(BootPackagesConfiguration.class)
+            .withConfiguration(AutoConfigurations.of(EntLoomMetaAutoConfiguration.class))
+            .withPropertyValues("ent.loom.meta.enabled=false")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertTrue(context.getBeansOfType(ResourceCatalogAdapter.class).isEmpty());
+                Assertions.assertTrue(context.getBeansOfType(MetaDocAdapter.class).isEmpty());
+            });
+    }
+
+    private ApplicationContextRunner withBootPackages() {
+        return contextRunner.withUserConfiguration(BootPackagesConfiguration.class);
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @AutoConfigurationPackage(basePackageClasses = ScannedEntities.class)
+    static class BootPackagesConfiguration {
     }
 
     @Test

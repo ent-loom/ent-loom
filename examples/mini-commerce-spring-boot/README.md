@@ -77,6 +77,8 @@ python3 scripts/verify.py
 
 MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
-实体使用 `@EntEntity("订单")` 等简写，统一通过 `ent.loom.meta.defaults.service: mini-commerce` 设置所属服务。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时保持为空。`description` 仅在需要额外说明时填写。
+实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用默认 `EXPLICIT` 模式，只开放商品、客户和订单，订单明细保留内部 DAO 能力。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档公开范围由主体与字段白名单决定。
+
+示例通过 `ent.loom.meta.defaults.service: mini-commerce` 设置业务服务名，与应用名 `mini-commerce-spring-boot` 区分。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时使用 `spring.application.name`，应用名也未提供时才保持为空。`description` 仅在需要额外说明时填写。
 
 实体与表名沿用框架默认命名：`Order → order`、`OrderItem → order_item`。示例通过 `ent.loom.meta.defaults.id-policy: DATABASE` 统一设置主键策略，无需在字段重复声明自增；手写 SQL 使用反引号引用关键字表名 `order`，框架生成的 SQL 自动引用标识符。字段默认非空，字符串长度与金额精度使用缺省配置，实体仅补充关联查询索引。

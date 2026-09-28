@@ -23,8 +23,11 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.doc.annotations.EntDocEntity;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.env.Environment;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -52,13 +55,18 @@ public class EntLoomMetaAutoConfiguration {
     @ConditionalOnMissingBean
     public EntMetaParser entLoomMetaParser(
         ObjectProvider<MetaConvention> conventionProvider,
-        EntLoomMetaProperties properties
+        EntLoomMetaProperties properties,
+        Environment environment
     ) {
         List<MetaConvention> conventions = new ArrayList<MetaConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
+        String service = properties.getDefaults().getService();
+        if (service == null) {
+            service = EntLoomMetaProperties.trimToNull(environment.getProperty("spring.application.name"));
+        }
         return new ReflectiveEntMetaParser(
             conventions,
-            new MetaEntityDefaults(properties.getDefaults().getService(), properties.getDefaults().getIdPolicy())
+            new MetaEntityDefaults(service, properties.getDefaults().getIdPolicy())
         );
     }
 
@@ -78,6 +86,7 @@ public class EntLoomMetaAutoConfiguration {
         EntLoomMetaProperties properties,
         EntMetaParser parser,
         ResourceLoader resourceLoader,
+        BeanFactory beanFactory,
         ObjectProvider<CrudConvention> conventionProvider,
         ObjectProvider<CrudInputContract> inputContractProvider,
         ObjectProvider<CrudIdPolicyDefaults> idPolicyDefaultsProvider
@@ -86,7 +95,7 @@ public class EntLoomMetaAutoConfiguration {
         conventionProvider.orderedStream().forEach(conventions::add);
         CrudInputContract inputContract = inputContractProvider.getIfAvailable();
         return new MetaCrudAdapter(
-            resolveEntityClasses(properties, resourceLoader),
+            resolveEntityClasses(properties, resourceLoader, beanFactory),
             parser,
             conventions,
             inputContract == null ? CrudInputContract.empty() : inputContract,
@@ -104,6 +113,7 @@ public class EntLoomMetaAutoConfiguration {
         EntLoomMetaProperties properties,
         EntMetaParser parser,
         ResourceLoader resourceLoader,
+        BeanFactory beanFactory,
         DocEntityMetaResolver entityMetaResolver,
         ObjectProvider<DocOverrideProvider> overrideProvider,
         ObjectProvider<CrudInputContract> inputContractProvider
@@ -112,7 +122,7 @@ public class EntLoomMetaAutoConfiguration {
         return new MetaDocAdapter(
             entityMetaResolver,
             com.entloom.doc.core.spi.DocIndexProvider.noop(),
-            resolveEntityClasses(properties, resourceLoader),
+            resolveEntityClasses(properties, resourceLoader, beanFactory),
             parser,
             new DocRuntimeModelMerger(inputContractProvider.getIfAvailable()),
             provider == null ? DocOverrideProvider.noop() : provider,
@@ -127,20 +137,25 @@ public class EntLoomMetaAutoConfiguration {
         return DefaultMetaDiagnosticPolicy.lenient();
     }
 
-    static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties, ResourceLoader resourceLoader) {
+    static List<Class<?>> resolveEntityClasses(EntLoomMetaProperties properties, ResourceLoader resourceLoader,
+                                              BeanFactory beanFactory) {
         List<Class<?>> classes = new ArrayList<Class<?>>();
         ClassLoader classLoader = resourceLoader.getClassLoader();
         if (classLoader == null) {
             classLoader = EntLoomMetaAutoConfiguration.class.getClassLoader();
         }
         Set<String> classNames = new TreeSet<String>(properties.getEntityClassNames());
+        List<String> basePackages = properties.getBasePackages();
+        if (classNames.isEmpty() && basePackages.isEmpty() && AutoConfigurationPackages.has(beanFactory)) {
+            basePackages = AutoConfigurationPackages.get(beanFactory);
+        }
         ClassPathScanningCandidateComponentProvider scanner =
             new ClassPathScanningCandidateComponentProvider(false);
         scanner.setResourceLoader(resourceLoader);
         scanner.addIncludeFilter(new AnnotationTypeFilter(EntEntity.class));
         scanner.addIncludeFilter(new AnnotationTypeFilter(EntCrudEntity.class));
         scanner.addIncludeFilter(new AnnotationTypeFilter(EntDocEntity.class));
-        for (String basePackage : properties.getBasePackages()) {
+        for (String basePackage : basePackages) {
             for (BeanDefinition candidate : scanner.findCandidateComponents(basePackage)) {
                 classNames.add(candidate.getBeanClassName());
             }

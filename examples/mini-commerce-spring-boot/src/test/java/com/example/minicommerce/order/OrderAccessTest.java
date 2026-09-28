@@ -1,7 +1,11 @@
 package com.example.minicommerce.order;
 
 import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
+import com.entloom.crud.starter.web.registry.EntityExposureMode;
 import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.starter.config.CrudProperties;
 import com.example.minicommerce.product.entity.Product;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.Order;
@@ -15,6 +19,7 @@ import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.governance.subject.FailClosedCrudSubjectResolver;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class OrderAccessTest {
     @Autowired ExposedEntityRegistry exposedEntities;
+    @Autowired EntityMetaRegistry entityMetaRegistry;
+    @Autowired CrudProperties crudProperties;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean CrudSubjectResolver subjectResolver;
@@ -56,7 +63,10 @@ class OrderAccessTest {
     }
 
     @Test
-    void allRegisteredExposesBusinessEntitiesButKeepsOrderItemsInternal() {
+    void 实体只从业务包注册且Http只开放显式白名单() {
+        assertEquals(Set.of(Product.class, Customer.class, Order.class, OrderItem.class),
+            entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
+        assertEquals(EntityExposureMode.EXPLICIT, crudProperties.getController().getExposureMode());
         assertEquals(Product.class, exposedEntities.resolveOrThrow("product"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
@@ -153,4 +163,5 @@ class OrderAccessTest {
             {"options":{"resultMode":"ENTITY","filter":{"id":1},"expandRelations":["customer","orderItemList"]}}
             """;
     }
+
 }

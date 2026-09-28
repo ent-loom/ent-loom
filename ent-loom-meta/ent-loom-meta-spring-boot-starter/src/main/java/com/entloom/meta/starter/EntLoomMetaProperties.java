@@ -14,7 +14,7 @@ public class EntLoomMetaProperties {
     private boolean enabled = true;
     /** 参与 Meta 投影的实体全限定类名；未提供自定义目录适配器时使用。 */
     private List<String> entityClassNames = new ArrayList<String>();
-    /** 递归扫描实体的包名，识别 EntEntity、EntCrudEntity、EntDocEntity。 */
+    /** 递归扫描实体的包名；实体类名与包名均未指定时使用 Boot 自动配置包。 */
     private List<String> basePackages = new ArrayList<String>();
     /** Meta 到 CRUD 的适配开关。 */
     private Crud crud = new Crud();
@@ -166,7 +166,7 @@ public class EntLoomMetaProperties {
     }
 
     public static class Defaults {
-        /** 未显式声明时的实体所属服务。 */
+        /** 未显式声明时的实体所属服务；缺省使用 spring.application.name。 */
         private String service;
         /** 未显式声明时的主键值提供方。 */
         private EntIdPolicy idPolicy = EntIdPolicy.UNSET;

@@ -44,20 +44,10 @@ public class EntityDocumentationContractProperties {
 
     /** 未列出的主体、实体和字段均不公开；实体键使用正式资源编码。 */
     public static class Exposure {
-        /** 是否启用文档契约暴露。 */
-        private boolean enabled;
         /** 允许访问文档契约的主体标识。 */
         private Set<String> subjectIds = new LinkedHashSet<>();
         /** 按资源限制对外暴露的字段。 */
         private Map<String, Set<String>> fields = new LinkedHashMap<>();
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
 
         public Set<String> getSubjectIds() {
             return subjectIds;

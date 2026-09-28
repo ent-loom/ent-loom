@@ -12,7 +12,6 @@ ent:
       contract:
         enabled: true
         exposure:
-          enabled: true
           subject-ids: [local-developer]
           fields:
             customer_profile: [id, displayName, email]

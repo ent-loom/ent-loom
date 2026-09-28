@@ -58,7 +58,6 @@ class SpringAnnotationMetadataLoaderTest {
     @DisplayName("启用 DDL 但未配置 SPI 时必须快速失败")
     void shouldFailWhenEnabledWithoutSpi() {
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setEnabled(true);
         options.setMode(DdlExecutionMode.CREATE_TABLE);
         EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
                 new EmptyDdlEngine(),
@@ -76,7 +75,6 @@ class SpringAnnotationMetadataLoaderTest {
     void shouldSkipWhenDisabled() {
         CountingDdlEngine engine = new CountingDdlEngine();
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setMode(DdlExecutionMode.CREATE_TABLE);
         EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
                 engine,
                 request -> {
@@ -96,7 +94,6 @@ class SpringAnnotationMetadataLoaderTest {
     void shouldExecuteOnlyOnceAfterRepeatedRefreshEvents() {
         CountingDdlEngine engine = new CountingDdlEngine();
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setEnabled(true);
         options.setMode(DdlExecutionMode.CREATE_TABLE);
         EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
                 engine,
@@ -116,7 +113,6 @@ class SpringAnnotationMetadataLoaderTest {
     @DisplayName("引擎失败结果保留错误信息并向 Spring 暴露诊断")
     void shouldPreserveEngineErrors() {
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setEnabled(true);
         options.setMode(DdlExecutionMode.CREATE_TABLE);
         EntDdlSpringExecutor executor = new EntDdlSpringExecutor(
                 (request, queryStrategy, sqlExecutor) -> new DdlExecutionResult(

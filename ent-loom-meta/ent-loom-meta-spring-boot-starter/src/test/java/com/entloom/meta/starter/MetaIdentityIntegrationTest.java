@@ -25,6 +25,7 @@ import com.entloom.meta.enums.EntIdPolicy;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import com.entloom.meta.starter.scanfixture.nested.ScannedEntities;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -39,6 +40,24 @@ class MetaIdentityIntegrationTest {
             EntLoomMetaDdlAutoConfiguration.class, EntDdlAutoConfiguration.class))
         .withUserConfiguration(CrudRegistryConfiguration.class)
         .withPropertyValues("ent.loom.meta.defaults.id-policy=DATABASE", "ent.loom.meta.doc.enabled=false");
+
+    @Test
+    void Ddl缺省复用Boot包扫描得到的Meta实体() {
+        runner.withUserConfiguration(EntLoomMetaAutoConfigurationTest.BootPackagesConfiguration.class)
+            .run(context -> {
+                assertNull(context.getStartupFailure());
+                java.util.List<DdlEntityMetadata> models = context.getBean(MetadataLoader.class)
+                    .load(new MetadataLoadRequest(Collections.emptyList(), Collections.emptyList()));
+                DdlEntityMetadata entity = models.stream()
+                    .filter(model -> model.entityClassName().equals(ScannedEntities.MetaEntity.class.getName()))
+                    .findFirst().orElseThrow();
+                assertEquals(context.getBean(EntityMetaRegistry.class)
+                    .getEntityMeta(ScannedEntities.MetaEntity.class).getTable(), entity.tableName());
+                assertEquals(GenerationStrategy.AUTO_INCREMENT, entity.fields().get(0).generationStrategy());
+                assertEquals(EntityIdPolicy.GENERATED, context.getBean(EntityMetaRegistry.class)
+                    .getEntityMeta(ScannedEntities.MetaEntity.class).getIdPolicy());
+            });
+    }
 
     @Test
     void 统一默认配置驱动Crud和Ddl且允许实体例外() {

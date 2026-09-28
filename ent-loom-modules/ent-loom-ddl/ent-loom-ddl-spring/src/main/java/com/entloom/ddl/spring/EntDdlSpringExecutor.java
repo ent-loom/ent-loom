@@ -40,10 +40,7 @@ public final class EntDdlSpringExecutor implements ApplicationListener<ContextRe
         if (!executed.compareAndSet(false, true)) {
             return;
         }
-        if (options == null || !options.isEnabled()) {
-            return;
-        }
-        if (options.getMode() == DdlExecutionMode.NONE) {
+        if (options == null || options.getMode() == DdlExecutionMode.NONE) {
             return;
         }
         if (queryStrategy == null || sqlExecutor == null) {

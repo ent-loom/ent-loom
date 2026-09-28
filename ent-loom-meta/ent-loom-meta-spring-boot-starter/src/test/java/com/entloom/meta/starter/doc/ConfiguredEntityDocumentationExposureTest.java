@@ -23,7 +23,7 @@ class ConfiguredEntityDocumentationExposureTest {
         .withBean(DocOverrideProvider.class, () -> (entityClass, resourceCode) ->
             DocEntityOverride.builder().field(DocFieldOverride.builder("secret").hidden(true).build()).build())
         .withPropertyValues("ent.loom.meta.entity-class-names[0]=" + Customer.class.getName(),
-            "ent.loom.doc.contract.enabled=true", "ent.loom.doc.contract.exposure.enabled=true",
+            "ent.loom.doc.contract.enabled=true",
             "ent.loom.doc.contract.exposure.subject-ids[0]=reader",
             "ent.loom.doc.contract.exposure.fields.customer[0]=id",
             "ent.loom.doc.contract.exposure.fields.customer[1]=secret");
@@ -63,11 +63,30 @@ class ConfiguredEntityDocumentationExposureTest {
     }
 
     @Test
-    void 单独关闭配置策略后不创建服务() {
-        runner.withPropertyValues("ent.loom.doc.contract.exposure.enabled=false").run(context -> {
+    void 关闭文档契约后不创建策略和服务() {
+        runner.withPropertyValues("ent.loom.doc.contract.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(EntityDocumentationExposurePolicyResolver.class);
             assertThat(context).doesNotHaveBean(EntityDocumentationContractService.class);
         });
+    }
+
+    @Test
+    void 缺省主体或实体白名单时服务不公开实体() {
+        for (String whitelist : List.of("ent.loom.doc.contract.exposure.subject-ids[0]=reader",
+            "ent.loom.doc.contract.exposure.fields.customer[0]=id")) {
+            new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(EntLoomMetaAutoConfiguration.class,
+                    EntityDocumentationContractAutoConfiguration.class))
+                .withBean(CrudSubjectResolver.class, () -> () -> subject("reader"))
+                .withPropertyValues("ent.loom.meta.entity-class-names[0]=" + Customer.class.getName(),
+                    "ent.loom.doc.contract.enabled=true", whitelist)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(EntityDocumentationContractService.class);
+                    assertThat((List<?>) context.getBean(EntityDocumentationContractService.class)
+                        .build().get("entities")).isEmpty();
+                });
+        }
     }
 
     private static SubjectContext subject(String id) {

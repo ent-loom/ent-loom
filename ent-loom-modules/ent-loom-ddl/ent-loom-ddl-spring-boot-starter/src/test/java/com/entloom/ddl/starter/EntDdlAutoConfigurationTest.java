@@ -52,7 +52,7 @@ class EntDdlAutoConfigurationTest {
     @DisplayName("关闭配置时 Starter 上下文正常启动且不需要 SPI")
     void shouldStartWhenDisabledWithoutSpi() {
         contextRunner
-                .withPropertyValues("ent.loom.ddl.enabled=false", "ent.loom.ddl.mode=CREATE_TABLE")
+                .withPropertyValues("ent.loom.ddl.mode=NONE")
                 .run(context -> {
                     assertTrue(context.getStartupFailure() == null);
                     assertTrue(context.getBeansOfType(QueryStrategy.class).isEmpty());
@@ -64,7 +64,7 @@ class EntDdlAutoConfigurationTest {
     @DisplayName("启用配置但缺少 SPI 时提供明确诊断")
     void shouldDiagnoseMissingSpiWhenEnabled() {
         contextRunner
-                .withPropertyValues("ent.loom.ddl.enabled=true", "ent.loom.ddl.mode=CREATE_TABLE")
+                .withPropertyValues("ent.loom.ddl.mode=CREATE_TABLE")
                 .run(context -> {
                     assertTrue(context.getStartupFailure() != null);
                     assertTrue(context.getStartupFailure().toString()

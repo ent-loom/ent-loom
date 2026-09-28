@@ -64,7 +64,6 @@ public class EntDdlAutoConfiguration {
     @ConditionalOnMissingBean
     public EntDdlSpringOptions entDdlSpringOptions(EntDdlProperties properties) {
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setEnabled(properties.isEnabled());
         options.setSchema(properties.getSchema());
         options.setCreateDatabaseIfMissing(properties.isCreateDatabaseIfMissing());
         options.setMode(properties.getMode());

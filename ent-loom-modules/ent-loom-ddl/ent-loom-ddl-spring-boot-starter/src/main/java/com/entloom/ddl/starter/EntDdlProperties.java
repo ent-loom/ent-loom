@@ -11,13 +11,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "ent.loom.ddl")
 public class EntDdlProperties {
-    /** DDL starter 总开关。 */
-    private boolean enabled = false;
     /** 目标数据库 schema；空值使用数据源默认 schema。 */
     private String schema = "";
     /** 是否允许启动时创建数据库。 */
     private boolean createDatabaseIfMissing = false;
-    /** DDL 执行级别。 */
+    /** DDL 执行级别；NONE 关闭启动时执行。 */
     private DdlExecutionMode mode = DdlExecutionMode.NONE;
     /** 扫描实体包。 */
     private List<String> basePackages = new ArrayList<String>();
@@ -46,14 +44,6 @@ public class EntDdlProperties {
             this.generationStrategy = generationStrategy == null
                 ? GenerationStrategy.UNSET : generationStrategy;
         }
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
     }
 
     public String getSchema() {

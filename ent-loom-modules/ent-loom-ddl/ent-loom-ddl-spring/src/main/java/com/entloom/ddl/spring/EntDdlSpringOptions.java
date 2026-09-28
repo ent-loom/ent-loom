@@ -9,20 +9,11 @@ import java.util.List;
  * Spring 侧 DDL 运行选项。
  */
 public final class EntDdlSpringOptions {
-    private boolean enabled = false;
     private String schema = "";
     private boolean createDatabaseIfMissing = false;
     private DdlExecutionMode mode = DdlExecutionMode.NONE;
     private List<String> basePackages = Collections.emptyList();
     private List<Class<?>> entityClasses = Collections.emptyList();
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
 
     public String getSchema() {
         return schema;

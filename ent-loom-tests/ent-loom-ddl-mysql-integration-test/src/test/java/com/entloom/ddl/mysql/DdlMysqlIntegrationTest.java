@@ -87,7 +87,6 @@ class DdlMysqlIntegrationTest {
 
     private static EntDdlSpringOptions options(String schema) {
         EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setEnabled(true);
         options.setSchema(schema);
         options.setCreateDatabaseIfMissing(true);
         options.setMode(DdlExecutionMode.CREATE_TABLE);

@@ -7,6 +7,7 @@ import com.entloom.ddl.spring.SpringPackageEntityClassResolver;
 import com.entloom.ddl.starter.EntDdlProperties;
 import com.entloom.meta.core.parser.EntMetaParser;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -30,10 +31,11 @@ public class EntLoomMetaDdlAutoConfiguration {
         EntDdlProperties ddlProperties,
         EntMetaParser parser,
         ResourceLoader resourceLoader,
+        BeanFactory beanFactory,
         ObjectProvider<EntityMetaRegistry> registryProvider
     ) {
         return new MetaDdlMetadataLoader(
-            EntLoomMetaAutoConfiguration.resolveEntityClasses(properties, resourceLoader),
+            EntLoomMetaAutoConfiguration.resolveEntityClasses(properties, resourceLoader, beanFactory),
             new SpringPackageEntityClassResolver(resourceLoader.getClassLoader()),
             parser,
             new DdlGenerationDefaults(ddlProperties.getDefaults().getGenerationStrategy()),

@@ -37,11 +37,12 @@ class EntityDocumentationContractAutoConfigurationTest {
     }
 
     @Test
-    void enabledServiceShouldRequireSubjectAndPolicyResolver() {
+    void enabledServiceShouldProvidePolicyButRequireSubjectResolver() {
         contextRunner
             .withPropertyValues("ent.loom.doc.contract.enabled=true")
             .run(context -> {
                 Assertions.assertNull(context.getStartupFailure());
+                Assertions.assertTrue(context.containsBean("entityDocumentationExposurePolicyResolver"));
                 Assertions.assertFalse(context.containsBean("entityDocumentationContractService"));
             });
     }
