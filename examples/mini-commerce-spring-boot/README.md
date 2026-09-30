@@ -62,6 +62,30 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 全部配置与扩展方式见[配置参考](../../docs/guides/配置参考.md)、[默认装配与定制](../../docs/guides/默认装配与定制.md)、[读取可见性](../../docs/guides/读取可见性.md)。
 
+### 三端、登录身份与数据范围如何配合
+
+`consumer / merchant / management` 是业务入口名称，由应用约定；框架不会据此创建账号、登录接口或角色。当前配置中的 `example.subject-id: local-developer` 对所有请求生效，`access-entry: consumer` 对整个应用生效，两者互不替代。切换到 `management` 后仍是同一个主体、同一份 grants，只改变入口相关的可见性和动作准入。
+
+完整商城可按下面的业务边界接入；表中为目标设计，当前示例尚未实现三端登录和数据归属隔离。
+
+| 入口 | 登录后需确定的信息 | 典型操作权限 | 数据范围 |
+| --- | --- | --- | --- |
+| `consumer` 消费者 | 账号主体、绑定的客户 ID | 商品读取、本人资料维护、下单、订单读取 | 启用商品、本人资料和本人订单 |
+| `merchant` 商家 | 员工主体、所属商家、已验证的店铺成员关系 | 商品维护、本店订单读取；发货等需另建业务动作 | 本店商品（含停用）、本店订单 |
+| `management` 平台管理 | 员工主体、平台岗位及授权范围 | 按岗位授予商品管理、订单查询等权限 | 被授权的平台数据；进入管理端不代表拥有全部权限 |
+
+一次请求需要分别确定和检查：
+
+1. **登录认证：你是谁。** 业务应用验证 Session 或 Token，再通过 `CrudSubjectResolver` 映射为 `SubjectContext`。框架现有字段为 `subjectId / tenantId / orgId`；客户、商家、店铺关系由业务服务维护，不要把前端提交的归属 ID 直接当作已认证身份。同一账号可以拥有多个身份，但必须验证当前身份及店铺成员关系。
+2. **业务入口：从哪一端办理业务。** 三端独立部署时，各应用可使用固定 `access-entry`，同时校验该端登录资格。同一应用承载三端时，替换 `AccessEntryResolver`，从服务端受保护路由和已认证上下文解析并校验入口；不能仅信任客户端 Header 或请求参数。`/consumer/**`、`/merchant/**`、`/management/**` 可作为应用路由设计，当前示例并未生成这些路由。
+3. **操作授权：能做什么。** 当前 `grants` 的键是主体 ID，不是入口或角色。新增 `merchant:` 键只会给名为 `merchant` 的主体授权。正式应用可通过 `CrudPermissionService` 接入账号、角色和权限关系，并结合入口判断；消费者不应获得本例用于准备数据的 `product:*`。通配 `*` 会匹配该资源的操作和场景，不仅限于标准 CRUD，仍须通过其他准入检查。
+4. **数据范围：能操作谁的数据。** 使用 `CrudDataScopeResolver` 限制 Gateway 数据范围；Handler 直接使用 DAO 时，还需通过 `EntityDaoScopeResolver` 落实相应范围。消费者订单按已认证账号绑定的 `customerId` 限制；商家商品和订单按店铺归属限制。创建时由服务端确定归属，更新时禁止任意迁移归属，下单时校验客户属于当前主体。只限制查询不能保证写入安全。
+5. **读取可见性与业务动作：当前入口能看到、办理什么。** `read-visibility.product.consumer.active: true` 追加商品状态条件；`management: all` 仅表示不追加该状态条件，不能突破已授权的数据范围。`@EntCrudAction(accessEntry = "consumer")` 使 `place` 只对消费者入口开放，即使管理主体拥有 `order:place` 也不能从管理入口下单；动作内仍需校验业务规则。
+
+当前商品没有商家或店铺归属字段，订单只有 `customerId`，尚未绑定登录账号。因此不能仅靠补充三份 YAML 获得三端隔离。接入商家前应补齐商品和订单归属模型，并处理跨店订单的拆分或明细归属；之后才适合增加 `merchant: all`，让商家在自己的数据范围内读取启用和停用商品。当前未绑定 `merchant`，该入口读取商品会返回 403。
+
+生产接入时关闭 `ent.loom.crud.example.enabled`，实现上述认证、入口、权限和数据范围扩展。关闭演示模式本身不会自动生成登录和授权实现。`ent.loom.doc.contract.exposure.subject-ids` 是独立的文档访问白名单，更换演示主体也不会自动获得文档权限。
+
 ## 验证
 
 在本目录使用 JDK 21 执行：

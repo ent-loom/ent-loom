@@ -44,13 +44,20 @@ ent:
       # 这不是登录、角色或生产授权配置；生产接入应替换主体解析和数据范围实现。
       example:
         enabled: true
+        # 所有请求共用此主体，无需登录；须与下方 grants 的主体键对应。
+        subject-id: local-developer
+        # 显式展示演示默认值：Gateway 与 DAO 不限制数据归属，读取可见性仍单独生效。
+        allow-all-data-scope: true
       governance:
-        # 当前请求使用的业务入口。切换为 management 只用于管理侧读取对照。
-        # 完整商城的 consumer / merchant / management 三端由业务应用自行规划。
+        # 整个应用固定使用的业务入口，不是登录身份或角色；切换入口不会切换主体及其权限。
+        # consumer=消费者，merchant=商家，management=平台管理；名称由业务应用约定。
+        # 当前仅配置 consumer / management；merchant 读取商品会因缺少可见性绑定而拒绝。
+        # 多端同时访问时，应由服务端根据已认证身份与受保护路由解析入口，详见 README。
         access-entry: consumer
         # 示例主体的业务权限清单：subject -> resource:action。
-        # * 表示该资源的标准 CRUD 操作；place 是显式下单动作。
-        # 这组 grants 仅用于演示，不等于三端角色模型。
+        # * 通配该资源的操作与场景，仍受动作准入等约束；place 是显式下单动作。
+        # grants 按主体匹配，不会按 access-entry 自动分组；消费者入口也保留演示商品写权限。
+        # 正式接入应按登录主体解析角色权限，避免把这里的演示权限当作消费者角色。
         grants:
           local-developer:
             - product:*
@@ -61,6 +68,8 @@ ent:
             - order:place
         # 读取可见性按入口限制商品状态：消费者只看启用商品，管理入口可看全部。
         # 可见性不会授予权限；请求仍须先通过 grants 和动作准入。
+        # all 仅表示不追加商品状态限制，不会绕过数据归属范围；此处也不控制商品写入。
+        # 商家“只看自己的商品”需补充商品归属字段和动态数据范围，不能仅增加 merchant: all。
         read-visibility:
           product:
             consumer:
