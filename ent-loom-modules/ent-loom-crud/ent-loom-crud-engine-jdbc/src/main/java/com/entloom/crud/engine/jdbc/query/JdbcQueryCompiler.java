@@ -6,6 +6,7 @@ import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.governance.scope.CrudDataScope;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
@@ -15,6 +16,7 @@ import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.foundation.read.relation.ResolvedExistsRelationFilter;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.sql.JdbcAuthorizationScopeCompiler;
 import com.entloom.crud.engine.jdbc.sql.JdbcLogicDeleteValues;
 import com.entloom.crud.engine.jdbc.sql.JdbcPredicateBuilder;
 import com.entloom.crud.engine.jdbc.sql.JdbcReadScopePredicates;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 public class JdbcQueryCompiler implements QueryCompiler {
     /** 数据库方言。 */
     private final JdbcDialect dialect;
+    private final JdbcAuthorizationScopeCompiler authorizationScopes = new JdbcAuthorizationScopeCompiler();
 
     public JdbcQueryCompiler() {
         this(StandardJdbcDialect.GENERIC);
@@ -45,11 +48,21 @@ public class JdbcQueryCompiler implements QueryCompiler {
      */
     @Override
     public CompiledQuery compile(QueryPlan plan) {
+        return compile(plan, null);
+    }
+
+    /** 仅供受治理执行路径调用；调用方负责校验结果与本次请求的绑定。 */
+    CompiledQuery compileAuthorized(QueryPlan plan, AuthorizationScope scope) {
+        if (scope == null) throw new ValidationException("受治理查询缺少授权范围");
+        return compile(plan, scope);
+    }
+
+    private CompiledQuery compile(QueryPlan plan, AuthorizationScope authorizationScope) {
         EntityMeta rootMeta = plan.getRootMeta();
         CompiledQuery compiled = new CompiledQuery();
         compiled.setQueryPlan(plan);
 
-        WhereClause whereClause = buildWhereClause(plan, rootMeta);
+        WhereClause whereClause = buildWhereClause(plan, rootMeta, authorizationScope);
         String where = whereClause.sql();
         List<Object> dataArgs = new ArrayList<Object>(whereClause.args());
 
@@ -92,11 +105,17 @@ public class JdbcQueryCompiler implements QueryCompiler {
         return compiled;
     }
 
-    private WhereClause buildWhereClause(QueryPlan plan, EntityMeta rootMeta) {
+    private WhereClause buildWhereClause(QueryPlan plan, EntityMeta rootMeta, AuthorizationScope authorizationScope) {
         List<Object> args = new ArrayList<Object>();
         List<String> predicates = new ArrayList<>();
         predicates.addAll(buildBasePredicates(rootMeta, "t", args));
         predicates.addAll(buildGovernancePredicates(plan.getGovernanceScope(), rootMeta, args, "t"));
+        if (authorizationScope != null) {
+            JdbcAuthorizationScopeCompiler.Predicate predicate = authorizationScopes.compile(
+                authorizationScope, rootMeta, "t", dialect);
+            predicates.add(predicate.getSql());
+            args.addAll(predicate.getArgs());
+        }
         predicates.addAll(buildCallerFilterPredicates(plan.getFilters(), rootMeta, args));
         String existsPredicate = buildExistsRelationPredicate(plan, rootMeta, args);
         if (existsPredicate != null) {

@@ -6,6 +6,7 @@ import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityDaoScopeResolver;
 import com.entloom.crud.core.capability.dao.RowConstraint;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -143,6 +144,29 @@ class EntDaoTest {
             verify(factory).validateCustomMethod(any(), argThat(method -> method.getName().equals("findByName")));
             verify(factory).invokeCustom(any(), argThat(scope -> scope.getRowConstraint().isUnrestricted()),
                 argThat(method -> method.getName().equals("findByName")), any());
+        });
+    }
+
+    @Test
+    void rejects_all_direct_dao_shapes_inside_authorization_scope() {
+        direct(TestCustomerDao.class).run(context -> {
+            TestCustomerDao dao = context.getBean(TestCustomerDao.class);
+            try (AccessContextScope.Scope ignored = AccessContextScope.requireAuthorization()) {
+                assertThatThrownBy(() -> dao.findById(1L))
+                    .hasMessageContaining("没有单次业务授权");
+                assertThatThrownBy(() -> dao.insertAll(java.util.Collections.singletonList("客户")))
+                    .hasMessageContaining("没有单次业务授权");
+            }
+            verifyNoInteractions(factory, resolver);
+        });
+        direct(CustomDao.class).run(context -> {
+            CustomDao dao = context.getBean(CustomDao.class);
+            try (AccessContextScope.Scope ignored = AccessContextScope.requireAuthorization()) {
+                assertThatThrownBy(() -> dao.findByName("客户"))
+                    .hasMessageContaining("没有单次业务授权");
+            }
+            verify(factory, times(2)).validateCustomMethod(any(), any());
+            verifyNoMoreInteractions(factory, resolver);
         });
     }
 

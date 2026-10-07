@@ -3,6 +3,7 @@ package com.entloom.crud.engine.jdbc.dao;
 import com.entloom.crud.core.capability.command.patch.NormalizedUpdatePatch;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAtomicity;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.InsertConstraintValueBinder;
 import com.entloom.crud.core.capability.dao.RowConstraint;
@@ -652,6 +653,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
                 "JDBC DAO 批量写入必须配置 CrudWriteTransactionExecutor，避免部分提交"
             );
         }
+        EntityDaoBatchAtomicity.ALL_OR_NOTHING.requireSupportedBy(transactionExecutor);
         return transactionExecutor.execute(CrudWriteTransactionPolicy.SINGLE_TRANSACTION, callback);
     }
 

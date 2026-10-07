@@ -5,6 +5,9 @@ import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.exception.CrudExceptionContext;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.exception.PermissionDeniedException;
+import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
 import com.entloom.crud.core.execution.ExecutionPipeline;
 import com.entloom.crud.core.governance.service.CrudGovernanceResult;
 import com.entloom.crud.core.runtime.router.QueryRoute;
@@ -25,14 +28,26 @@ public class QueryGatewayImpl implements QueryGateway {
     private final QueryRouter queryRouter;
     /** 统一执行管线。 */
     private final ExecutionPipeline executionPipeline;
+    private final AuthorizedQueryExecutor authorizedQueries;
 
     public QueryGatewayImpl(QueryRouter queryRouter, ExecutionPipeline executionPipeline) {
+        this(queryRouter, executionPipeline, null);
+    }
+
+    public QueryGatewayImpl(QueryRouter queryRouter, ExecutionPipeline executionPipeline,
+                            AuthorizedQueryExecutor authorizedQueries) {
         this.queryRouter = Objects.requireNonNull(queryRouter, "queryRouter 不能为空");
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
+        this.authorizedQueries = authorizedQueries;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <R> PageResult<R> page(QuerySpec<R> spec) {
+        if (executionPipeline.requiresBusinessAuthorization(spec)) {
+            return (PageResult<R>) (PageResult<?>) requireAuthorizedQueries().page(
+                AccessContextScope.currentVisitor().orElse(null), spec);
+        }
         return executionPipeline.execute(
             () -> prepareRequestSpec(spec, QueryOperation.PAGE),
             governQueryStep(),
@@ -45,7 +60,12 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <R> List<R> list(QuerySpec<R> spec) {
+        if (executionPipeline.requiresBusinessAuthorization(spec)) {
+            return (List<R>) (List<?>) requireAuthorizedQueries().list(
+                AccessContextScope.currentVisitor().orElse(null), spec);
+        }
         return executionPipeline.execute(
             () -> prepareRequestSpec(spec, QueryOperation.LIST),
             governQueryStep(),
@@ -58,7 +78,12 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <R> R findOne(QuerySpec<R> spec) {
+        if (executionPipeline.requiresBusinessAuthorization(spec)) {
+            return (R) requireAuthorizedQueries().findOne(
+                AccessContextScope.currentVisitor().orElse(null), spec);
+        }
         return executionPipeline.execute(
             () -> prepareRequestSpec(spec, QueryOperation.FIND_ONE),
             governQueryStep(),
@@ -71,7 +96,12 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <R> R detail(QuerySpec<R> spec) {
+        if (executionPipeline.requiresBusinessAuthorization(spec)) {
+            return (R) requireAuthorizedQueries().detail(
+                AccessContextScope.currentVisitor().orElse(null), spec);
+        }
         return executionPipeline.execute(
             () -> prepareRequestSpec(spec, QueryOperation.DETAIL),
             governQueryStep(),
@@ -81,6 +111,13 @@ public class QueryGatewayImpl implements QueryGateway {
                 return context.route().handler().detail(context.executionSpec());
             }
         );
+    }
+
+    private AuthorizedQueryExecutor requireAuthorizedQueries() {
+        if (authorizedQueries == null) {
+            throw new PermissionDeniedException("缺少受授权查询执行适配器");
+        }
+        return authorizedQueries;
     }
 
     private <R> QuerySpec<R> prepareRequestSpec(QuerySpec<R> spec, QueryOperation op) {

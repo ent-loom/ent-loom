@@ -1,6 +1,6 @@
 # Mini Commerce Spring Boot 示例
 
-通过商品、客户、下单和订单详情展示实体编程的最小业务闭环。完整商城可在业务应用层扩展消费者、商家、运营三端；本示例只演示消费者入口及管理侧读取对照，不是三端后台模板。所有能力随应用默认启用，无需选择 Profile。订单在事务中保存商品名称、成交单价和金额快照。
+通过商品、客户、下单、订单详情、商家批量改价和双端订单分页展示实体编程的业务闭环。所有能力随应用默认启用，无需选择 Profile。订单在事务中保存商品名称、成交单价和金额快照；商家报价演示身份、数据归属、字段权限和批量乐观锁；商家子订单演示同一实体按用户端、商家端开放不同数据范围。
 
 ## 启动
 
@@ -35,17 +35,103 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 | 商城业务闭环 | [commerce.http](requests/commerce.http) | 创建商品与客户、下单、展开订单关联、订单直接写入拒绝、商品分页 |
 | 通用 CRUD | [crud.http](requests/crud.http) | 客户创建、更新、分页、详情，以及删除拒绝 |
 | 读取可见性 | [visibility.http](requests/visibility.http) | 自动过滤、反向条件约束、隐藏详情、入口伪造拒绝、管理端对照 |
+| 商家报价治理 | [merchant.http](requests/merchant.http) | 两个商家读取隔离、批量改价、跨商家拒绝、旧版本整批回滚 |
+| 双端订单分页 | [order-entries.http](requests/order-entries.http) | 用户本人范围、商家本店范围、额外筛选、稳定分页与总数、跨端凭证拒绝 |
 | 实体文档 | [documentation.http](requests/documentation.http) | Meta 全部实体契约、独立主体授权 |
 
-代码按 customer、product、order 业务分包。调用方向为 `内置 Controller → Gateway → 统一治理与场景分发 → Handler / 查询引擎 → DAO`。应用实现实体、DAO、必要的 DTO 和下单 Handler，配置集中声明框架能力与治理规则。
+代码按 customer、product、order、merchant 业务分包，access 集中提供双端可信认证和权限判定。原商城调用方向为 `内置 Controller → Gateway → 统一治理与场景分发 → Handler / 查询引擎 → DAO`；商家报价与双端分页使用 `自定义 Controller → EntAccess → AuthorizedQueryExecutor / EntityDaoAuthorizationProvider → JDBC`。应用实现实体、DAO、必要的 DTO 和下单 Handler，配置集中声明框架能力与治理规则。
 
 商品、客户使用 `/api/ent-crud/{entity}/*` 默认 CRUD。下单使用 `POST /api/ent-crud/order/action/place`，订单详情使用 `POST /api/ent-crud/order/detail`。详情通过 `options.resultMode: "ENTITY"` 保留实体字段名，通过 `expandRelations: ["customer", "orderItemList"]` 展开关联；不展开时只读取订单本身。明细始终使用下单快照。
 
 ## 配置与业务入口
 
+### 可运行的商家批量改价
+
+启动应用后，另一个终端在本目录执行初始化 SQL（也可用数据库客户端执行同一文件）：
+
+```bash
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"' < scripts/merchant-demo.sql
+```
+
+脚本只插入缺失数据，不重置价格或版本。新报价表不影响已有表结构；报价创建暂由初始化 SQL 完成。`Product` 是主数据，`MerchantProduct` 是商家报价，原下单流程仍使用主数据价格。
+
+| 演示令牌 | 实际主体 | 当前商家 | 可读写报价 |
+| --- | --- | --- | --- |
+| `demo-merchant-a` | `merchant-user-a` | `1001` | `101`、`102` |
+| `demo-merchant-b` | `merchant-user-b` | `2001` | `201` |
+
+令牌与账号归属配置在 `application.yml` 的 `demo.merchant.accounts`。这些令牌只供本地演示，正式应用需接入实际登录。先读取报价，再以读取到的版本改价：
+
+```bash
+curl -H 'Authorization: Bearer demo-merchant-a' http://localhost:8082/api/merchant/products
+curl -X POST http://localhost:8082/api/merchant/products/prices \
+  -H 'Authorization: Bearer demo-merchant-a' -H 'Content-Type: application/json' \
+  -d '{"items":[{"id":101,"price":11.50,"version":0},{"id":102,"price":22.00,"version":0}]}'
+```
+
+成功返回 `data: [101,102]`，对应版本均加一。按 [merchant.http](requests/merchant.http) 顺序执行，能验证跨商家和过期版本均返回 `409 / PRICE_UPDATE_REJECTED`，首项价格、版本也回滚。不存在记录使用相同响应，避免泄露其他商家数据；无凭证或无效凭证返回 403；通用报价 CRUD 返回 404。
+
+具体配置和框架的分工：
+
+- `DemoAccessConfiguration` 共用可信认证来源和权限判定；报价授权给出 `merchantId=当前商家` 的范围，`WRITE` 仅允许 `price`。`MerchantAccessConfiguration` 注册商家身份、`view/update` 操作和实体策略。
+- `MerchantProduct` 的 `scopeFields=merchantId` 禁止 Patch 修改归属，`productId` 只读，`httpExposed=false` 禁止通用 HTTP 绕过专用入口。
+- `MerchantPricingController` 用 `@EntAccess` 要求商家身份及 HUMAN 主体；请求只绑定 `id/price/version`，单批 1～100 条，重复 ID 拒绝。
+- `MerchantPricingService` 调用受授权查询和批量 DAO；JDBC 批量 UPDATE 先校验全部 Patch，再在同一事务内逐目标执行 `WHERE id=? AND merchant_id=? AND version=?`，任一目标影响行数非 1 时回滚。
+- 框架拥有最终提交边界，禁止嵌套外层事务；提交后才记录成功审计。审计存储故障只写日志，不把已提交业务误报为失败；本轮未提供持久审计重试。
+
+读取上限为 100 条，本轮批量存储实现支持 UPDATE；批量 DELETE 仍默认拒绝。商家报价接口与原演示 CRUD 使用各自显式的治理入口。
+
+### 同一实体的用户端与商家端分页
+
+两个端都使用 `page`，查询同一张 `merchant_order` 表。当前归属来自已认证身份，额外筛选与授权范围以 AND 合并；数据和 `total` 使用同一范围。
+
+| 入口 | 固定授权范围 | 可选业务筛选 |
+| --- | --- | --- |
+| `POST /api/consumer/orders/page` | `customerId=当前客户` | `merchantId` |
+| `POST /api/merchant/orders/page` | `merchantId=当前商家` | `customerId` |
+
+启动应用后，在本目录准备演示子订单：
+
+```bash
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"' < scripts/order-entry-demo.sql
+```
+
+脚本只插入缺失记录。一个客户可跨商家购买，同一主订单可有多个商家子订单。本轮只验证分页治理，原下单流程尚未自动生成商家子订单。
+
+| 演示令牌 | 当前身份 | 可见子订单 ID |
+| --- | --- | --- |
+| `demo-customer-a` | 客户 `301` | `501`、`502`、`504` |
+| `demo-customer-b` | 客户 `302` | `503`、`505` |
+| `demo-merchant-a` | 商家 `1001` | `501`、`503`、`504` |
+| `demo-merchant-b` | 商家 `2001` | `502`、`505` |
+
+账号分别配置在 `application.yml` 的 `demo.customer.accounts` 和 `demo.merchant.accounts`。例如：
+
+```bash
+# 用户 A 查询本人订单，并筛选商家 1001：501、504，total=2
+curl -X POST http://localhost:8082/api/consumer/orders/page \
+  -H 'Authorization: Bearer demo-customer-a' -H 'Content-Type: application/json' \
+  -d '{"pageNumber":1,"pageSize":20,"merchantId":1001}'
+# 商家 A 查询本店订单：501、503、504，total=3
+curl -X POST http://localhost:8082/api/merchant/orders/page \
+  -H 'Authorization: Bearer demo-merchant-a' -H 'Content-Type: application/json' \
+  -d '{"pageNumber":1,"pageSize":20}'
+```
+
+响应包含 `data.items / total / pageNumber / pageSize`。页码从 1 开始，缺省单页 20 条、上限 100，固定按 `id ASC` 排序；参数非法返回 400，无效凭证、跨端令牌返回 403。按 [order-entries.http](requests/order-entries.http) 可继续验证额外筛选、第二页和伪造归属：用户提交 `customerId`、商家提交 `merchantId` 返回 `400 / VALIDATION_ERROR`；伪造入口 Header 也不能切换端。
+
+配置与框架分工：
+
+- `DemoAccessConfiguration` 将 Token 绑定主体与身份，由服务端路由确定入口，权限判定输出固定归属范围与字段权限。
+- `OrderAccessConfiguration` 将两端身份分支绑定同一 `MerchantOrder` 实体策略，`PAGE` 统一映射 `merchantOrder.view`。
+- 两个 Controller 用 `@EntAccess` 声明当前身份和入口；`OrderPageService` 只构建分页和额外筛选，复用框架 `AuthorizedQueryExecutor.page`，不手写范围 SQL。
+- `MerchantOrder` 声明两个 `scopeFields`，并以 `httpExposed=false` 禁止通过通用 CRUD 路由访问；`POST /api/ent-crud/merchantOrder/page` 返回 404。
+
+详细接入见[双端分页入口与范围](../../docs/guides/crud/双端分页入口与范围.md)。
+
 [application.yml](src/main/resources/application.yml) 按运行基础、DDL 建表、实体元数据、CRUD 接口与写入契约、演示主体与访问治理、实体文档组织。数据库、端口通过环境变量覆盖；业务能力统一启用，导入导出沿用框架默认关闭。
 
-默认主体为 `local-developer`，允许维护商品，创建、更新和读取客户，以及读取订单和下单。客户删除及订单直接创建、修改、删除未授权；`OrderItem` 未列入 HTTP 包含清单，不开放独立接口。文档复用 Meta 全量实体与非隐藏字段，包括订单和订单明细；文档访问不授予 CRUD 权限。
+原通用 CRUD 演示主体为 `local-developer`，允许维护商品，创建、更新和读取客户，以及读取订单和下单。客户删除及订单直接创建、修改、删除未授权；`OrderItem` 被 HTTP 排除，`MerchantProduct` 和 `MerchantOrder` 通过实体声明 `httpExposed=false` 关闭通用路由。文档复用 Meta 全量实体与非隐藏字段；文档访问不授予 CRUD 权限。两端自定义接口独立使用认证后的 `AccessSubject` 与 `MerchantIdentity / CustomerIdentity`。
 
 默认业务入口为 `consumer`。商品读取可见性按「实体 → 入口 → 条件」配置：消费者只看 `active=true` 商品；不传筛选条件仍自动过滤，传 `active=false` 返回空页，停用商品详情返回 404。下单动作通过 `@EntCrudActions` 限定为消费者入口，Handler 另行校验商品启用状态、数量和客户。
 
@@ -58,15 +144,15 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 管理入口允许读取所有商品状态，下单返回 403；未绑定入口（如 unknown）读取商品与下单均返回 403。入口由 Starter 从启动配置固定识别，HTTP 请求不能切换入口；请求伪造 `crudAccessEntry` 返回 400。
 
-本地演示主体保留主数据写权限，便于准备场景数据。示例不包含登录、租户、订单归属限制、支付、库存和前端管理台。生产接入需替换演示主体与全量数据范围，根据已认证身份和受保护路由识别入口，并接入正式权限、数据库迁移与审计；消费者、商家、运营三端的角色、权限和数据范围由业务应用自行规划和实现。
+本地演示主体保留主数据写权限，便于准备场景数据。示例已实现双端商家子订单读取归属，不包含正式登录、租户、支付、库存和前端管理台；原主订单通用接口仍是开发演示入口。生产接入需替换演示主体与全量数据范围，根据已认证身份和受保护路由识别入口，并接入正式权限、数据库迁移与审计；消费者、商家、运营三端的角色、权限和数据范围由业务应用自行规划和实现。
 
 全部配置与扩展方式见[配置参考](../../docs/guides/配置参考.md)、[默认装配与定制](../../docs/guides/默认装配与定制.md)、[读取可见性](../../docs/guides/读取可见性.md)。
 
 ### 三端、登录身份与数据范围如何配合
 
-`consumer / merchant / management` 是业务入口名称，由应用约定；框架不会据此创建账号、登录接口或角色。当前配置中的 `example.subject-id: local-developer` 对所有请求生效，`access-entry: consumer` 对整个应用生效，两者互不替代。切换到 `management` 后仍是同一个主体、同一份 grants，只改变入口相关的可见性和动作准入。
+`consumer / merchant / management` 是业务入口名称，由应用约定；框架不会据此创建账号、登录接口或角色。原通用 CRUD 使用 `example.subject-id: local-developer` 和固定 `access-entry`。两端自定义接口使用上节的可信认证和身份注册，入口由服务端路由确定。原通用 CRUD 切换到 `management` 后仍使用原主体和 grants，只改变入口相关的可见性和动作准入。
 
-完整商城可按下面的业务边界接入；表中为目标设计，当前示例尚未实现三端登录和数据归属隔离。
+完整商城可按下面的业务边界扩展；当前示例已实现商家报价隔离和双端子订单读取范围，尚未实现三端正式登录和自动拆单。
 
 | 入口 | 登录后需确定的信息 | 典型操作权限 | 数据范围 |
 | --- | --- | --- | --- |
@@ -76,13 +162,13 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 一次请求需要分别确定和检查：
 
-1. **登录认证：你是谁。** 业务应用验证 Session 或 Token，再通过 `CrudSubjectResolver` 映射为 `SubjectContext`。框架现有字段为 `subjectId / tenantId / orgId`；客户、商家、店铺关系由业务服务维护，不要把前端提交的归属 ID 直接当作已认证身份。同一账号可以拥有多个身份，但必须验证当前身份及店铺成员关系。
-2. **业务入口：从哪一端办理业务。** 三端独立部署时，各应用可使用固定 `access-entry`，同时校验该端登录资格。同一应用承载三端时，替换 `AccessEntryResolver`，从服务端受保护路由和已认证上下文解析并校验入口；不能仅信任客户端 Header 或请求参数。`/consumer/**`、`/merchant/**`、`/management/**` 可作为应用路由设计，当前示例并未生成这些路由。
+1. **登录认证：你是谁。** 两端演示通过 `CrudHttpAuthenticationSource` 验证 Token，再由 `BusinessIdentityRegistration` 校验主体的商家或客户归属并形成身份快照；旧通用 CRUD 保留 `CrudSubjectResolver / SubjectContext` 演示路径。不要把前端提交的归属 ID 当作已认证身份。
+2. **业务入口：从哪一端办理业务。** 两端接口的可信入口由服务端 `/api/merchant/`、`/api/consumer/` 路由确定；原通用 CRUD 使用配置中的固定入口。正式应用按受保护路由和已认证上下文识别入口，不能信任客户端 Header 或请求参数。
 3. **操作授权：能做什么。** 当前 `grants` 的键是主体 ID，不是入口或角色。新增 `merchant:` 键只会给名为 `merchant` 的主体授权。正式应用可通过 `CrudPermissionService` 接入账号、角色和权限关系，并结合入口判断；消费者不应获得本例用于准备数据的 `product:*`。通配 `*` 会匹配该资源的操作和场景，不仅限于标准 CRUD，仍须通过其他准入检查。
-4. **数据范围：能操作谁的数据。** 使用 `CrudDataScopeResolver` 限制 Gateway 数据范围；Handler 直接使用 DAO 时，还需通过 `EntityDaoScopeResolver` 落实相应范围。消费者订单按已认证账号绑定的 `customerId` 限制；商家商品和订单按店铺归属限制。创建时由服务端确定归属，更新时禁止任意迁移归属，下单时校验客户属于当前主体。只限制查询不能保证写入安全。
+4. **数据范围：能操作谁的数据。** 商家报价和双端分页通过 `BusinessPermissionEvaluator` 输出范围，由受授权查询和 DAO 落实到 SQL；双端分页的数据与总数同时受限。原通用 CRUD 的旧范围入口为 `CrudDataScopeResolver / EntityDaoScopeResolver`。正式应用创建时由服务端确定归属，更新时禁止任意迁移归属；只限制查询不能保证写入安全。
 5. **读取可见性与业务动作：当前入口能看到、办理什么。** `read-visibility.product.consumer.active: true` 追加商品状态条件；`management: all` 仅表示不追加该状态条件，不能突破已授权的数据范围。`@EntCrudAction(accessEntry = "consumer")` 使 `place` 只对消费者入口开放，即使管理主体拥有 `order:place` 也不能从管理入口下单；动作内仍需校验业务规则。
 
-当前商品没有商家或店铺归属字段，订单只有 `customerId`，尚未绑定登录账号。因此不能仅靠补充三份 YAML 获得三端隔离。接入商家前应补齐商品和订单归属模型，并处理跨店订单的拆分或明细归属；之后才适合增加 `merchant: all`，让商家在自己的数据范围内读取启用和停用商品。当前未绑定 `merchant`，该入口读取商品会返回 403。
+商品主数据没有商家归属，商家报价已有 `merchantId` 并落实读写隔离；`MerchantOrder` 已有 `customerId / merchantId`，两端凭证绑定归属并落实读取范围。原 `Order` 仍是开发演示模型，下单尚未生成子订单。完整商城需继续接入真实登录与拆单规则。商家报价和子订单通过专用授权查询读取，不依赖 `read-visibility.product`；原主数据未绑定 `merchant` 可见性，仍不能从该入口直接读取商品。
 
 生产接入时关闭 `ent.loom.crud.example.enabled`，实现上述认证、入口、权限和数据范围扩展。关闭演示模式本身不会自动生成登录和授权实现。`ent.loom.doc.contract.exposure.subject-ids` 是独立的文档访问白名单，更换演示主体也不会自动获得文档权限。
 
@@ -97,11 +183,11 @@ python3 scripts/verify.py
 # Windows: ./scripts/verify.ps1
 ```
 
-集成测试在 H2 MySQL 模式验证默认配置、主体授权、消费者与管理入口、分页过滤与排序、下单校验、关联展开、价格快照和事务回滚，测试自身不包裹事务。Python 单元测试验证验收脚本的资源清理。
+集成测试在 H2 MySQL 模式验证默认配置、主体授权、消费者与管理入口、分页过滤与排序、下单校验、关联展开、价格快照，以及商家报价隔离、批量乐观锁和整批回滚。双端分页通过真实 HTTP 验证身份范围、额外筛选 AND、count、分页和越权拒绝；测试自身不包裹事务。Python 单元测试验证验收脚本的就绪等待、断言和资源清理。
 
-MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目、临时端口和固定消费者入口，覆盖文档契约、主数据创建、默认读取可见性、下单、详情、价格快照、失败回滚和 SQL 核对；不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
+MySQL 验收需要 Docker 和 Python 3.9+，使用独立 Compose 项目及临时端口，等待应用 readiness 和六张业务表就绪。覆盖文档契约、主数据创建、读取可见性、下单、详情、价格快照，以及商家读取隔离、整批提交、跨商家/不存在/旧版本/第二项 SQL 错误回滚和 SQL 核对；双端分页另核对固定范围、额外筛选、分页总数、伪造归属和跨端拒绝。不读取本机 `.env`。结束后停止应用并清理验收数据卷，日志保留在 `target/verification-logs/`。隔离仓库安装时传入 `--maven-repository <临时目录>`。
 
-实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用 `ALL_REGISTERED` 模式，默认开放全部已注册实体，仅排除订单明细，新增实体会自动获得路由。其他应用未指定实体来源时，Meta 仍默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用，无需重复开启；文档保留主体白名单，未配置展示范围时展示全部 Meta 实体。对外契约可独立配置 `exposure.include-entities`、`exclude-entities` 和 `fields`。
+实体使用 `@EntEntity("订单")` 等简写。示例通过 `meta.base-packages` 限定业务实体包，CRUD、DDL 和 DOC 共用该来源；HTTP 使用 `ALL_REGISTERED` 模式，排除资源 `orderItem`，实体 `httpExposed=false` 始终优先拒绝通用路由。资源码 `merchantProduct / merchantOrder` 对应表名 `merchant_product / merchant_order`，配置按资源码填写。其他应用未指定实体来源时，Meta 默认扫描 Boot 启动包。DDL 仅需配置 `mode: CREATE_TABLE`，不执行 DDL 时使用 `NONE`。查询、命令与 Meta 适配默认启用；文档保留主体白名单，未配置展示范围时展示全部 Meta 实体。对外契约可独立配置 `exposure.include-entities`、`exclude-entities` 和 `fields`。
 
 示例通过 `ent.loom.meta.defaults.service: mini-commerce` 设置业务服务名，与应用名 `mini-commerce-spring-boot` 区分。单个实体可用 `@EntEntity(service = "其他服务")` 覆盖；未配置默认值和实体服务时使用 `spring.application.name`，应用名也未提供时才保持为空。`description` 仅在需要额外说明时填写。
 

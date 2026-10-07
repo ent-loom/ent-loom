@@ -1,0 +1,34 @@
+package com.example.minicommerce.order.web;
+
+import com.entloom.crud.annotations.EntAccess;
+import com.entloom.crud.api.access.AccessContext;
+import com.entloom.crud.api.access.AccessSubjectType;
+import com.entloom.crud.api.model.CrudRecord;
+import com.entloom.crud.api.model.CrudResponse;
+import com.entloom.crud.api.model.PageResult;
+import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.example.minicommerce.merchant.access.MerchantIdentity;
+import com.example.minicommerce.order.dto.OrderPageQueries;
+import com.example.minicommerce.order.service.OrderPageService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/** 商家端分页：仅查询本商家子订单，允许进一步按客户筛选。 */
+@RestController
+@RequestMapping("/api/merchant/orders")
+@EntAccess(identity = MerchantIdentity.class, accessEntries = "merchant", subjectTypes = AccessSubjectType.HUMAN)
+@RequiredArgsConstructor
+public class MerchantOrderController {
+    private final OrderPageService orders;
+    private final CrudResponseBuilder responses;
+
+    @PostMapping("/page")
+    public CrudResponse<PageResult<CrudRecord>> page(AccessContext<MerchantIdentity> access,
+        @Valid @RequestBody OrderPageQueries.Merchant query) {
+        return responses.success(orders.merchantPage(access.getVisitorContext(), query));
+    }
+}

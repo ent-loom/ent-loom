@@ -29,6 +29,7 @@ import com.entloom.crud.core.runtime.router.CommandRouter;
 import com.entloom.crud.core.runtime.router.QueryRouter;
 import com.entloom.crud.core.runtime.validation.SpecValidator;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import com.entloom.crud.engine.jdbc.command.CrudCommandRegistry;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandHandler;
 import com.entloom.crud.engine.jdbc.command.JdbcEntityDaoCommandHandler;
@@ -39,6 +40,7 @@ import com.entloom.crud.engine.jdbc.query.JdbcQueryEngine;
 import com.entloom.crud.engine.jdbc.query.JdbcQueryExecutor;
 import com.entloom.crud.engine.jdbc.query.JdbcQueryCompiler;
 import com.entloom.crud.engine.jdbc.query.RootFirstQueryPlanner;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
@@ -97,7 +99,18 @@ public abstract class EngineJdbcTestSupport {
         SqlSafetyGuard sqlSecurityGuard = new SqlSafetyGuard(whitelist, paramLimiter);
         SqlExecutionLogger sqlExecutionLogger = new SqlExecutionLogger();
         JdbcGuardedSqlExecutor guardedSqlExecutor = new JdbcGuardedSqlExecutor(jdbcTemplate, sqlSecurityGuard, sqlExecutionLogger);
-        this.entityDaoFactory = new JdbcEntityDaoFactory(metaRegistry, guardedSqlExecutor);
+        this.auditRecorder = new RecordingAuditRecorder();
+        this.entityDaoFactory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            guardedSqlExecutor,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            null,
+            null,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            auditRecorder
+        );
 
         JdbcQueryEngine defaultQueryEngine = new JdbcQueryEngine(
             metaRegistry,
@@ -129,7 +142,6 @@ public abstract class EngineJdbcTestSupport {
         );
         ((JdbcIdempotencyStore) idempotencyStore).initializeSchema();
         this.idempotencyManager = new IdempotencyManager(idempotencyStore);
-        this.auditRecorder = new RecordingAuditRecorder();
         CrudGovernanceService governanceService = new DefaultCrudGovernanceService(
             metaRegistry,
             specValidator,

@@ -11,6 +11,9 @@ import com.entloom.crud.core.runtime.router.CommandRoute;
 import com.entloom.crud.core.runtime.router.CommandRouter;
 import com.entloom.crud.core.capability.command.spec.CommandExecutionSpec;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.runtime.spec.SpecSnapshotFactory;
 import com.entloom.crud.core.util.RouteKeyFactory;
 import java.util.Objects;
@@ -27,6 +30,8 @@ public class CommandGatewayImpl implements CommandGateway {
     private final IdempotencyPolicy idempotencyPolicy;
     /** 统一执行管线。 */
     private final ExecutionPipeline executionPipeline;
+    /** 新策略单目标命令执行器。 */
+    private final AuthorizedCommandExecutor authorizedCommands;
 
     public CommandGatewayImpl(
         CommandRouter commandRouter,
@@ -34,10 +39,21 @@ public class CommandGatewayImpl implements CommandGateway {
         IdempotencyPolicy idempotencyPolicy,
         ExecutionPipeline executionPipeline
     ) {
+        this(commandRouter, idempotencyManager, idempotencyPolicy, executionPipeline, null);
+    }
+
+    public CommandGatewayImpl(
+        CommandRouter commandRouter,
+        IdempotencyManager idempotencyManager,
+        IdempotencyPolicy idempotencyPolicy,
+        ExecutionPipeline executionPipeline,
+        AuthorizedCommandExecutor authorizedCommands
+    ) {
         this.commandRouter = Objects.requireNonNull(commandRouter, "commandRouter 不能为空");
         this.idempotencyManager = idempotencyManager;
         this.idempotencyPolicy = idempotencyPolicy == null ? new IdempotencyPolicy() : idempotencyPolicy;
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
+        this.authorizedCommands = authorizedCommands;
     }
 
     /**
@@ -45,6 +61,13 @@ public class CommandGatewayImpl implements CommandGateway {
      */
     @Override
     public <P, R> R action(CommandSpec<P> spec) {
+        if (executionPipeline.requiresBusinessAuthorization(spec)) {
+            if (authorizedCommands == null) {
+                throw new PermissionDeniedException("缺少受授权命令执行适配器");
+            }
+            return authorizedCommands.action(
+                AccessContextScope.currentVisitor().orElse(null), spec);
+        }
         return executionPipeline.execute(
             () -> prepareRequestSpec(spec),
             requestSpec -> executionPipeline.governCommand(requestSpec),

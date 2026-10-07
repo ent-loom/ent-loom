@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.dao;
 
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationGuard;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityDaoScopeResolver;
 import com.entloom.crud.core.capability.dao.EntityType;
@@ -93,6 +94,7 @@ public final class EntDaoFactoryBean<T> implements SmartFactoryBean<T>, BeanFact
                 if (method.isDefault()) {
                     return InvocationHandler.invokeDefault(instance, method, args);
                 }
+                EntityDaoAuthorizationGuard.requireDirectAccessAllowed(entityType);
                 var scope = Objects.requireNonNull(scopeResolver.resolve(entityType), "DAO 范围解析结果不能为空");
                 try {
                     if (method.isAnnotationPresent(EntQuery.class) || method.isAnnotationPresent(EntCommand.class)) {

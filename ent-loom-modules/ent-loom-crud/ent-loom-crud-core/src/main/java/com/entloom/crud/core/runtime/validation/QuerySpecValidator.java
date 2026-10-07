@@ -25,7 +25,15 @@ public class QuerySpecValidator {
      * 校验查询规格并返回规范化副本。
      */
     public <R> QuerySpec<R> validate(QuerySpec<R> spec) {
-        QuerySpec<R> base = baseValidator.validateBase(spec);
+        return normalize(baseValidator.validateBase(spec));
+    }
+
+    /** 校验并规范化查询结构；调用方须另行完成可信访问者授权。 */
+    public <R> QuerySpec<R> validateStructure(QuerySpec<R> spec) {
+        return normalize(baseValidator.validateBaseStructure(spec));
+    }
+
+    private <R> QuerySpec<R> normalize(QuerySpec<R> base) {
         QueryOperation op = base.getOp();
         if (op == null) {
             throw new ValidationException("查询操作不能为空");

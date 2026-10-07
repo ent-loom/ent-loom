@@ -2,13 +2,22 @@ package com.entloom.crud.engine.jdbc.dao;
 
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationContext;
+import com.entloom.crud.core.capability.dao.EntityDaoBatch;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAtomicity;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchWrite;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAuthorizationContext;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
+import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationGuard;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
 import com.entloom.crud.core.capability.dao.RowConstraintOperator;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
+import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -37,6 +46,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     private final CrudWriteTransactionExecutor transactionExecutor;
     private final int maxBatchSize;
     private final JdbcPaginationPolicy paginationPolicy;
+    private final CrudGovernanceAuditRecorder auditRecorder;
 
     public JdbcEntityDaoFactory(EntityMetaRegistry metaRegistry, GuardedSqlExecutor guardedSqlExecutor) {
         this(
@@ -156,7 +166,8 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             insertScopeDatabaseValidator,
             transactionExecutor,
             maxBatchSize,
-            new JdbcPaginationPolicy()
+            new JdbcPaginationPolicy(),
+            null
         );
     }
 
@@ -170,6 +181,31 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         CrudWriteTransactionExecutor transactionExecutor,
         int maxBatchSize,
         JdbcPaginationPolicy paginationPolicy
+    ) {
+        this(
+            metaRegistry,
+            guardedSqlExecutor,
+            dialect,
+            maxParameters,
+            insertScopeDatabaseValidator,
+            transactionExecutor,
+            maxBatchSize,
+            paginationPolicy,
+            null
+        );
+    }
+
+    /** 创建带分页保护及治理审计记录器的 JDBC DAO 工厂。 */
+    public JdbcEntityDaoFactory(
+        EntityMetaRegistry metaRegistry,
+        GuardedSqlExecutor guardedSqlExecutor,
+        JdbcDialect dialect,
+        int maxParameters,
+        JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
+        CrudWriteTransactionExecutor transactionExecutor,
+        int maxBatchSize,
+        JdbcPaginationPolicy paginationPolicy,
+        CrudGovernanceAuditRecorder auditRecorder
     ) {
         if (metaRegistry == null || guardedSqlExecutor == null) {
             throw new ValidationException("EntityMetaRegistry 和 GuardedSqlExecutor 不能为空");
@@ -192,10 +228,12 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
             : transactionExecutor;
         this.maxBatchSize = maxBatchSize;
         this.paginationPolicy = paginationPolicy == null ? new JdbcPaginationPolicy() : paginationPolicy;
+        this.auditRecorder = auditRecorder == null ? new LoggingCrudGovernanceAuditRecorder() : auditRecorder;
     }
 
     @Override
     public <T, ID> EntityDao<T, ID> scoped(EntityType<T, ID> entityType, EntityAccessScope scope) {
+        EntityDaoAuthorizationGuard.requireDirectAccessAllowed(entityType);
         ScopedEntity scoped = resolveScopedEntity(entityType, scope);
         return new JdbcEntityDao<T, ID>(
             entityType,
@@ -209,6 +247,40 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         );
     }
 
+    @Override
+    public <T, ID> EntityDao<T, ID> scopedAuthorized(
+        EntityType<T, ID> entityType,
+        EntityDaoAuthorizationContext authorization
+    ) {
+        if (entityType == null || authorization == null) {
+            throw new ValidationException("EntityType 和 DAO 授权上下文不能为空");
+        }
+        authorization.requireSingleTarget();
+        EntityMeta meta = metaRegistry.getEntityMeta(entityType.getEntityClass());
+        validateEntityType(entityType, meta);
+        validateDatabaseStructure(meta);
+        return new JdbcAuthorizedEntityDao<T, ID>(
+            entityType, meta, authorization, guardedSqlExecutor, dialect, auditRecorder, transactionExecutor
+        );
+    }
+
+    @Override
+    public <T, ID> EntityDaoBatch<T, ID> scopedAuthorizedBatch(
+        EntityType<T, ID> entityType,
+        EntityDaoBatchAuthorizationContext authorization
+    ) {
+        if (entityType == null || authorization == null) {
+            throw new ValidationException("EntityType 和批量 DAO 授权上下文不能为空");
+        }
+        EntityMeta meta = metaRegistry.getEntityMeta(entityType.getEntityClass());
+        validateEntityType(entityType, meta);
+        authorization.requireResource(meta.getResourceDescriptor().getResourceCode());
+        validateDatabaseStructure(meta);
+        return new JdbcAuthorizedEntityDaoBatch<T, ID>(
+            entityType, meta, authorization, guardedSqlExecutor, dialect, auditRecorder, transactionExecutor
+        );
+    }
+
     /**
      * 返回当前 Factory 使用的批量事务执行器，供同一 JDBC Command 入口复用。
      *
@@ -216,6 +288,29 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
      */
     public CrudWriteTransactionExecutor getTransactionExecutor() {
         return transactionExecutor;
+    }
+
+    @Override
+    public <T, ID> EntityDaoBatchWrite<T, ID> scopedAuthorizedBatchWrite(
+        EntityType<T, ID> type, EntityDaoBatchAuthorizationContext authorization
+    ) {
+        if (type == null || authorization == null) {
+            throw new ValidationException("EntityType 和批量写入授权上下文不能为空");
+        }
+        if (!"update".equals(authorization.getOperation().getOperationCode())) {
+            throw new PermissionDeniedException("JDBC 批量写入当前只支持 update 授权");
+        }
+        if (authorization.size() > maxBatchSize) {
+            throw new ValidationException("批量写入目标数量超过 JDBC 上限 " + maxBatchSize);
+        }
+        EntityDaoBatchAtomicity.ALL_OR_NOTHING.requireSupportedBy(transactionExecutor);
+        EntityMeta meta = metaRegistry.getEntityMeta(type.getEntityClass());
+        validateEntityType(type, meta);
+        authorization.requireResource(meta.getResourceDescriptor().getResourceCode());
+        validateDatabaseStructure(meta);
+        return new JdbcAuthorizedEntityDaoBatchWrite<T, ID>(
+            type, meta, authorization, guardedSqlExecutor, dialect, auditRecorder, transactionExecutor
+        );
     }
 
     /** 返回当前 Factory 的分页保护策略。 */
@@ -241,6 +336,7 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         Method method,
         Object[] args
     ) {
+        EntityDaoAuthorizationGuard.requireDirectAccessAllowed(entityType);
         ScopedEntity scoped = resolveScopedEntity(entityType, scope);
         return new JdbcEntityDaoCustomMethodExecutor(
             scoped.meta,

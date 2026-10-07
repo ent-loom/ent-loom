@@ -2,6 +2,7 @@ package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
@@ -32,7 +33,8 @@ public class CrudEntityDaoConfiguration {
         JdbcDialect jdbcDialect,
         JdbcInsertScopeDatabaseValidator insertScopeDatabaseValidator,
         ObjectProvider<CrudWriteTransactionExecutor> transactionExecutorProvider,
-        CrudProperties properties
+        CrudProperties properties,
+        CrudGovernanceAuditRecorder auditRecorder
     ) {
         JdbcPaginationPolicy paginationPolicy = properties.getDao().getPagination().toPolicy();
         return new JdbcEntityDaoFactory(
@@ -43,7 +45,8 @@ public class CrudEntityDaoConfiguration {
             insertScopeDatabaseValidator,
             transactionExecutorProvider.getIfAvailable(),
             JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
-            paginationPolicy
+            paginationPolicy,
+            auditRecorder
         );
     }
 }

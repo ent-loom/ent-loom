@@ -88,14 +88,20 @@ public class SpecValidator {
      * 校验通用协议字段并返回副本。
      */
     public <S extends BaseSpec> S validateBase(S spec) {
+        validateBaseStructure(spec);
+        if (spec.getSubject() == null) {
+            throw new ValidationException("操作主体(subject)不能为空");
+        }
+        return spec;
+    }
+
+    /** 校验通用结构；可信访问者执行路径不要求旧 Spec 携带主体。 */
+    public <S extends BaseSpec> S validateBaseStructure(S spec) {
         if (spec == null) {
             throw new ValidationException("请求规范(spec)不能为空");
         }
         if (spec.getRootType() == null) {
             throw new ValidationException("根类型(rootType)不能为空");
-        }
-        if (spec.getSubject() == null) {
-            throw new ValidationException("操作主体(subject)不能为空");
         }
         if (spec.getEntityClasses() != null && !spec.getEntityClasses().isEmpty()) {
             if (!spec.getEntityClasses().get(0).equals(spec.getRootType())) {

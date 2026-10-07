@@ -28,10 +28,10 @@ def run(command, env, **kwargs):
     return subprocess.run(command, cwd=EXAMPLE, env=env, check=True, **kwargs)
 
 
-def request(url, body=None, method=None):
+def request(url, body=None, method=None, headers=None):
     data = None if body is None else json.dumps(body).encode()
     req = Request(url, data=data, method=method or ("POST" if body is not None else "GET"),
-                  headers={"Content-Type": "application/json"})
+                  headers={"Content-Type": "application/json", **(headers or {})})
     try:
         with urlopen(req, timeout=5) as response:
             return response.status, json.load(response)
@@ -55,9 +55,234 @@ def crud_update(base_url, entity, payload, request_id):
 
 
 def sql_query(compose, env, sql):
-    return run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
-                          "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e", sql],
-               env, capture_output=True, text=True).stdout.strip()
+    try:
+        return run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
+                              "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e", sql],
+                   env, capture_output=True, text=True).stdout.strip()
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(f"SQL 执行失败：{sql}\n{error.stderr or error.stdout or error}") from error
+
+
+def verify_merchant(base_url, compose, env, logs):
+    """订单验收结束后补种商家数据，逐场景核对独立 SQL 连接看到的提交结果。"""
+    seed = (EXAMPLE / "scripts" / "merchant-demo.sql").read_text()
+    (logs / "merchant-seed.sql").write_text(seed)
+    (logs / "merchant-seed.sql.tsv").write_text(sql_query(compose, env, seed) + "\n")
+    headers_a = {"Authorization": "Bearer demo-merchant-a"}
+    headers_b = {"Authorization": "Bearer demo-merchant-b"}
+    products_url = base_url + "/api/merchant/products"
+    snapshot_sql = "select id, product_id, merchant_id, price, version from merchant_product order by id"
+
+    def snapshot(label):
+        (logs / f"merchant-{label}.sql").write_text(snapshot_sql + ";\n")
+        result = sql_query(compose, env, snapshot_sql)
+        (logs / f"merchant-{label}.sql.tsv").write_text(result + "\n")
+        return result
+
+    def saved_request(label, url, body=None, headers=None):
+        status, response = request(url, body, headers=headers)
+        (logs / f"merchant-{label}.json").write_text(
+            json.dumps(response, ensure_ascii=False, indent=2))
+        return status, response
+
+    def check_prices(result, prices, version):
+        rows = [line.split("\t") for line in result.splitlines()]
+        expected = [(101, 900010, 1001, Decimal(prices[0]), version),
+                    (102, 900020, 1001, Decimal(prices[1]), version),
+                    (201, 900010, 2001, Decimal("30"), 0)]
+        check(len(rows) == 3 and all(len(row) == 5 for row in rows),
+              f"商家报价 SQL 行数或字段不匹配：{result}")
+        actual = [(int(row[0]), int(row[1]), int(row[2]), Decimal(row[3]), int(row[4]))
+                  for row in rows]
+        check(actual == expected, f"商家报价 SQL 价格、版本或归属不匹配：{result}")
+
+    def check_list(label, headers, merchant_id, expected):
+        status, response = saved_request(label, products_url, headers=headers)
+        items = response.get("data")
+        check(status == 200 and response.get("success") is True and isinstance(items, list),
+              f"商家读取失败：{status} {response}")
+        check(len(items) == len(expected) and {item.get("id") for item in items} == set(expected),
+              f"商家报价读取范围不匹配：{response}")
+        for item in items:
+            product_id, price, version = expected[item["id"]]
+            check(item.get("merchantId") == merchant_id and item.get("productId") == product_id
+                  and Decimal(str(item.get("price"))) == Decimal(price)
+                  and item.get("version") == version, f"商家报价字段不匹配：{item}")
+
+    check_prices(snapshot("initial"), ("10", "20"), 0)
+    check_list("a-initial", headers_a, 1001, {101: (900010, "10", 0), 102: (900020, "20", 0)})
+    check_list("b-initial", headers_b, 2001, {201: (900010, "30", 0)})
+    changes = {"items": [{"id": 101, "price": 11.50, "version": 0},
+                         {"id": 102, "price": 22.00, "version": 0}]}
+    status, response = saved_request("commit", products_url + "/prices", changes, headers_a)
+    committed = snapshot("commit")
+    check(status == 200 and response.get("success") is True and response.get("data") == [101, 102],
+          f"商家整批改价失败：{status} {response}")
+    check_prices(committed, ("11.50", "22.00"), 1)
+
+    for label, second_id, second_version in [("cross-merchant-rollback", 201, 0),
+                                             ("missing-rollback", 999999, 0),
+                                             ("version-rollback", 102, 0)]:
+        status, response = saved_request(label, products_url + "/prices", {
+            "items": [{"id": 101, "price": 99, "version": 1},
+                      {"id": second_id, "price": 99, "version": second_version}],
+        }, headers_a)
+        after = snapshot(label)
+        check(status == 409 and response.get("code") == "PRICE_UPDATE_REJECTED",
+              f"{label} 拒绝响应不匹配：{status} {response}")
+        check(after == committed, f"{label} 整批回滚失败，价格、版本或归属变化：{after}")
+
+    # 第一项合法写入，第二项才触发数据库约束错误；MySQL CHECK 不引用自增主键。
+    constraint = ("alter table merchant_product add constraint verify_merchant_price_failure "
+                  "check (price <> 77)")
+    (logs / "merchant-sql-error-constraint.sql").write_text(constraint + ";\n")
+    sql_query(compose, env, constraint)
+    try:
+        status, response = saved_request("sql-error-rollback", products_url + "/prices", {
+            "items": [{"id": 101, "price": 66, "version": 1},
+                      {"id": 102, "price": 77, "version": 1}],
+        }, headers_a)
+        after = snapshot("sql-error-rollback")
+        check(status == 500, f"商家第二项 SQL 错误未按预期发生：{status} {response}")
+        check(after == committed, f"商家第二项 SQL 错误后整批回滚失败：{after}")
+    finally:
+        sql_query(compose, env, "alter table merchant_product drop check verify_merchant_price_failure")
+
+    for label, headers in [("no-token", None), ("invalid-token", {"Authorization": "Bearer invalid"})]:
+        for operation, body in [("read", None), ("write", changes)]:
+            url = products_url if body is None else products_url + "/prices"
+            status, response = saved_request(f"{label}-{operation}", url, body, headers)
+            check(status == 403, f"商家 {label} {operation} 应被拒绝：{status} {response}")
+    status, response = saved_request("generic-update-denied", base_url + "/api/ent-crud/merchantProduct/update", {
+        "payload": {"id": 101, "price": 1, "version": 1, "merchantId": 2001},
+    }, headers_a)
+    check(status == 404 and response.get("code") == "ENTITY_NOT_EXPOSED",
+          f"商家报价通用更新路由应关闭：{status} {response}")
+    check(snapshot("final") == committed, "拒绝无凭证、无效凭证或通用路由更新后报价发生变化")
+    check_list("a-final", headers_a, 1001, {101: (900010, "11.50", 1), 102: (900020, "22.00", 1)})
+    check_list("b-final", headers_b, 2001, {201: (900010, "30", 0)})
+
+
+def verify_order_entries(base_url, compose, env, logs):
+    """最后补种子订单，独立核对双入口 scope、AND 筛选、分页与拒绝结果。"""
+    seed = (EXAMPLE / "scripts" / "order-entry-demo.sql").read_text()
+    (logs / "order-entry-seed.sql").write_text(seed)
+    (logs / "order-entry-seed.sql.tsv").write_text(sql_query(compose, env, seed) + "\n")
+    expected_rows = [
+        (501, 9001, 301, 1001, Decimal("10")),
+        (502, 9001, 301, 2001, Decimal("20")),
+        (503, 9002, 302, 1001, Decimal("30")),
+        (504, 9003, 301, 1001, Decimal("40")),
+        (505, 9004, 302, 2001, Decimal("50")),
+    ]
+    select_sql = "select id, order_id, customer_id, merchant_id, total_amount from merchant_order"
+
+    def saved_sql(label, sql):
+        (logs / f"order-entry-{label}.sql").write_text(sql + ";\n")
+        result = sql_query(compose, env, sql)
+        (logs / f"order-entry-{label}.sql.tsv").write_text(result + "\n")
+        return result
+
+    def rows(result):
+        fields = [line.split("\t") for line in result.splitlines()]
+        check(all(len(row) == 5 for row in fields), f"子订单 SQL 字段不匹配：{result}")
+        return [tuple(int(value) for value in row[:4]) + (Decimal(row[4]),) for row in fields]
+
+    def snapshot(label):
+        result = saved_sql(label, select_sql + " order by id")
+        check(rows(result) == expected_rows, f"子订单种子或拒绝后 SQL 数据不匹配：{result}")
+        return result
+
+    def saved_request(label, path, body, token, extra_headers=None):
+        headers = dict(extra_headers or {})
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        status, response = request(base_url + path, body, headers=headers)
+        (logs / f"order-entry-{label}.json").write_text(
+            json.dumps(response, ensure_ascii=False, indent=2))
+        (logs / f"order-entry-{label}.http.json").write_text(json.dumps({
+            "path": path, "request": body, "headers": extra_headers or {}, "status": status,
+        }, ensure_ascii=False, indent=2))
+        return status, response
+
+    def check_page(label, entry, token, scope, expected_ids, total, body=None, headers=None):
+        body = {} if body is None else body
+        page_number, page_size = body.get("pageNumber", 1), body.get("pageSize", 20)
+        where = " where " + " and ".join(f"{field} = {value}" for field, value in scope)
+        status, response = saved_request(label, f"/api/{entry}/orders/page", body, token, headers)
+        sql_total = saved_sql(label + "-count", "select count(*) from merchant_order" + where)
+        sql_rows = rows(saved_sql(label, select_sql + where + " order by id"
+                                  + f" limit {page_size} offset {(page_number - 1) * page_size}"))
+        check(sql_total == str(total) and [row[0] for row in sql_rows] == expected_ids,
+              f"{label} 子订单独立 SQL scope、筛选或分页结果不匹配：{sql_total} {sql_rows}")
+        data = response.get("data")
+        check(status == 200 and response.get("success") is True and isinstance(data, dict),
+              f"{label} 子订单分页失败：{status} {response}")
+        items = data.get("items")
+        check(isinstance(items, list) and [item.get("id") for item in items] == expected_ids
+              and data.get("total") == total, f"{label} 子订单分页范围或总数不匹配：{response}")
+        check(data.get("pageNumber") == page_number and data.get("pageSize") == page_size
+              and data.get("page") == page_number and data.get("limit") == page_size,
+              f"{label} 子订单页码、大小或别名不匹配：{response}")
+        for item, sql_row in zip(items, sql_rows):
+            actual = tuple(item.get(field) for field in ("id", "orderId", "customerId", "merchantId"))
+            check(actual == sql_row[:4] and Decimal(str(item.get("totalAmount"))) == sql_row[4],
+                  f"{label} 子订单 HTTP 与独立 SQL 字段不匹配：{item} {sql_row}")
+
+    initial = snapshot("initial")
+    check_page("consumer-a", "consumer", "demo-customer-a", [("customer_id", 301)], [501, 502, 504], 3)
+    check_page("consumer-b", "consumer", "demo-customer-b", [("customer_id", 302)], [503, 505], 2)
+    check_page("consumer-a-merchant", "consumer", "demo-customer-a",
+               [("customer_id", 301), ("merchant_id", 1001)], [501, 504], 2, {"merchantId": 1001})
+    check_page("merchant-a", "merchant", "demo-merchant-a", [("merchant_id", 1001)], [501, 503, 504], 3)
+    check_page("merchant-b", "merchant", "demo-merchant-b", [("merchant_id", 2001)], [502, 505], 2)
+    check_page("merchant-a-customer", "merchant", "demo-merchant-a",
+               [("merchant_id", 1001), ("customer_id", 301)], [501, 504], 2, {"customerId": 301})
+    for page_number, order_id in [(1, 501), (2, 502)]:
+        check_page(f"consumer-a-page-{page_number}", "consumer", "demo-customer-a",
+                   [("customer_id", 301)], [order_id], 3, {"pageNumber": page_number, "pageSize": 1})
+    check_page("consumer-a-empty", "consumer", "demo-customer-a",
+               [("customer_id", 301), ("merchant_id", 999)], [], 0, {"merchantId": 999})
+
+    forged_headers = {
+        "X-Customer-Id": "302", "X-Merchant-Id": "2001", "X-Subject-Id": "customer-user-b",
+        "X-Access-Entry": "management", "X-Crud-Access-Entry": "management",
+    }
+    for entry, token, scope, expected_ids, unknown, filter_body in [
+        ("consumer", "demo-customer-a", ("customer_id", 301), [501, 502, 504],
+         {"customerId": 302}, {"merchantId": 1001}),
+        ("merchant", "demo-merchant-a", ("merchant_id", 1001), [501, 503, 504],
+         {"merchantId": 2001}, {"customerId": 301}),
+    ]:
+        check_page(f"{entry}-forged-header", entry, token, [scope], expected_ids, 3, headers=forged_headers)
+        filter_scope = ("merchant_id", 1001) if entry == "consumer" else ("customer_id", 301)
+        check_page(f"{entry}-forged-header-filter", entry, token, [scope, filter_scope], [501, 504], 2,
+                   filter_body, forged_headers)
+        for reason, body, headers in [
+            ("unknown-owner", unknown, None),
+            ("unknown-owner-header", unknown, forged_headers),
+            ("unknown-owner-filter", {**unknown, **filter_body}, forged_headers),
+        ]:
+            label = f"{entry}-{reason}"
+            status, response = saved_request(label, f"/api/{entry}/orders/page", body, token, headers)
+            after = snapshot(label)
+            check(status == 400 and response.get("code") == "VALIDATION_ERROR",
+                  f"{label} 子订单未知归属字段应被严格 DTO 拒绝：{status} {response}")
+            check(after == initial, f"{label} 拒绝后子订单发生变化")
+
+    for entry, wrong_token in [("consumer", "demo-merchant-a"), ("merchant", "demo-customer-a")]:
+        for reason, token in [("cross-entry", wrong_token), ("no-token", None), ("invalid-token", "invalid")]:
+            label = f"{entry}-{reason}"
+            status, response = saved_request(label, f"/api/{entry}/orders/page", {}, token)
+            after = snapshot(label)
+            check(status == 403, f"{label} 子订单分页应被拒绝：{status} {response}")
+            check(after == initial, f"{label} 拒绝后子订单发生变化")
+    status, response = saved_request("generic-page-denied", "/api/ent-crud/merchantOrder/page", {},
+                                     "demo-customer-a")
+    after = snapshot("generic-page-denied")
+    check(status == 404 and response.get("code") == "ENTITY_NOT_EXPOSED",
+          f"子订单通用分页路由应关闭：{status} {response}")
+    check(after == initial, "通用路由拒绝后子订单发生变化")
 
 
 def verify(repository=None, skip_build=False):
@@ -102,6 +327,7 @@ def verify(repository=None, skip_build=False):
         app = subprocess.Popen([
             java, "-jar", str(jar), "--spring.profiles.active=",
             "--spring.config.import=", "--server.port=0", "--server.address=127.0.0.1",
+            "--management.endpoint.health.probes.enabled=true",
             "--ent.loom.crud.governance.access-entry=consumer",
             f"--spring.datasource.url=jdbc:mysql://127.0.0.1:{mysql_port}/mini_commerce"
             "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai",
@@ -110,6 +336,11 @@ def verify(repository=None, skip_build=False):
         ], cwd=EXAMPLE, env=env, stdout=app_log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 120
         base_url = None
+        expected_tables = {"customer", "product", "order", "order_item", "merchant_product", "merchant_order"}
+        schema_sql = ("select table_name from information_schema.tables where table_schema = 'mini_commerce' "
+                      "and table_name in ('customer', 'product', 'order', 'order_item', 'merchant_product', 'merchant_order') "
+                      "order by table_name")
+        (logs / "schema-readiness.sql").write_text(schema_sql + ";\n")
         while time.monotonic() < deadline:
             check(app.poll() is None, "应用在就绪前退出")
             content = (logs / "application.log").read_text(errors="replace")
@@ -117,13 +348,21 @@ def verify(repository=None, skip_build=False):
             if match:
                 base_url = f"http://127.0.0.1:{match.group(1)}"
                 try:
-                    if request(base_url + "/actuator/health")[1].get("status") == "UP":
-                        break
+                    # Tomcat 可在 ContextRefreshedEvent 的 DDL 完成前接收 HTTP 请求；
+                    # readiness 由 ApplicationReadyEvent 切换，再检查框架创建的业务表。
+                    status, readiness = request(base_url + "/actuator/health/readiness")
+                    (logs / "application-readiness.json").write_text(
+                        json.dumps(readiness, ensure_ascii=False, indent=2))
+                    if status == 200 and readiness.get("status") == "UP":
+                        tables = sql_query(compose, env, schema_sql)
+                        (logs / "schema-readiness.sql.tsv").write_text(tables + "\n")
+                        if set(tables.splitlines()) == expected_tables:
+                            break
                 except (URLError, TimeoutError):
                     pass
             time.sleep(1)
         else:
-            raise RuntimeError("应用健康检查超时")
+            raise RuntimeError("应用 readiness 或六张业务表就绪检查超时")
 
         contract_status, contract = request(base_url + "/api/ent-doc/contract")
         (logs / "entity-documentation-contract.json").write_text(
@@ -133,7 +372,8 @@ def verify(repository=None, skip_build=False):
               f"实体文档契约响应不匹配：{contract_status} {contract}")
         entities = contract.get("entities")
         check(isinstance(entities, list) and {entity.get("resourceCode") for entity in entities}
-              == {"customer", "product", "order", "orderItem"}, f"实体文档实体范围不匹配：{contract}")
+              == {"customer", "product", "order", "orderItem", "merchantProduct", "merchantOrder"},
+              f"实体文档实体范围不匹配：{contract}")
         contract_text = json.dumps(contract, ensure_ascii=False)
         for forbidden in ("entityClass", "tableName", "column", "visibleFor"):
             check(forbidden not in contract_text, f"实体文档泄露敏感字段：{forbidden}")
@@ -253,7 +493,10 @@ def verify(repository=None, skip_build=False):
                                    "select id, customer_id, status, total_amount from `order` "
                                    f"where id = {order_id}"], env, capture_output=True, text=True).stdout.strip()
         (logs / "order.sql.tsv").write_text(order_sql + "\n")
-        check(order_sql.split("\t") == [str(order_id), str(customer_id), "CREATED", "39.80"],
+        order_fields = order_sql.split("\t")
+        check(len(order_fields) == 4
+              and order_fields[:3] == [str(order_id), str(customer_id), "CREATED"]
+              and Decimal(order_fields[3]) == Decimal("39.80"),
               f"订单 SQL 字段不匹配：{order_sql}")
         item_sql = run(compose + ["exec", "-T", "-e", "MYSQL_PWD=mini_commerce_verify", "mysql",
                                   "mysql", "-umini_commerce", "-N", "-B", "mini_commerce", "-e",
@@ -261,8 +504,15 @@ def verify(repository=None, skip_build=False):
                                   f"from order_item where order_id = {order_id}"],
                        env, capture_output=True, text=True).stdout.strip()
         (logs / "order-item.sql.tsv").write_text(item_sql + "\n")
-        check(item_sql.split("\t") == [str(order_id), str(product_id), "Entity Book", "19.90", "2", "39.80"],
+        item_fields = item_sql.split("\t")
+        check(len(item_fields) == 6
+              and item_fields[:3] == [str(order_id), str(product_id), "Entity Book"]
+              and Decimal(item_fields[3]) == Decimal("19.90") and item_fields[4] == "2"
+              and Decimal(item_fields[5]) == Decimal("39.80"),
               f"订单明细 SQL 字段不匹配：{item_sql}")
+
+        verify_merchant(base_url, compose, env, logs)
+        verify_order_entries(base_url, compose, env, logs)
 
     except Exception as error:
         failed = True
@@ -293,7 +543,7 @@ def verify(repository=None, skip_build=False):
                     failed = True
                     print(f"{filename} 执行失败：{error}", file=sys.stderr)
     if not failed:
-        print(f"验收通过并完成清理：商品 -> 客户 -> 下单 -> 详情 -> SQL，订单 ID={order_id}", flush=True)
+        print(f"验收通过并完成清理：订单快照、商家隔离、整批改价、事务回滚与双入口子订单分页，订单 ID={order_id}", flush=True)
     return 1 if failed else 0
 
 

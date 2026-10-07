@@ -1,20 +1,28 @@
 package com.entloom.crud.core.execution;
 
+import com.entloom.crud.api.access.AuthenticationMode;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.SubjectContext;
-import com.entloom.crud.core.governance.model.CrudResourceAction;
-import com.entloom.crud.core.governance.scope.CrudDataScope;
-import com.entloom.crud.core.governance.service.CrudGovernanceResult;
-import com.entloom.crud.core.governance.service.CrudGovernanceService;
 import com.entloom.crud.core.capability.command.spec.CommandExecutionSpec;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.exporting.ExportSpec;
 import com.entloom.crud.core.capability.importing.ImportSpec;
-import com.entloom.crud.core.runtime.spec.BaseSpec;
-import com.entloom.crud.core.runtime.spec.GovernableSpec;
 import com.entloom.crud.core.capability.query.spec.QueryExecutionSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.exception.PermissionDeniedException;
+import com.entloom.crud.core.governance.admission.AccessAdmissionService;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
+import com.entloom.crud.core.governance.admission.CredentialAuthentication;
+import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
+import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
+import com.entloom.crud.core.governance.model.CrudResourceAction;
+import com.entloom.crud.core.governance.scope.CrudDataScope;
+import com.entloom.crud.core.governance.service.CrudGovernanceResult;
+import com.entloom.crud.core.governance.service.CrudGovernanceService;
+import com.entloom.crud.core.runtime.spec.BaseSpec;
+import com.entloom.crud.core.runtime.spec.GovernableSpec;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -56,6 +64,24 @@ class ExecutionPipelineTest {
         Assertions.assertSame(expected, governanceService.lastFailure);
     }
 
+    @Test
+    void trusted_scope_without_authorization_adapter_should_stop_before_legacy_governance() {
+        RecordingGovernanceService governanceService = new RecordingGovernanceService();
+        ExecutionPipeline pipeline = new ExecutionPipeline(governanceService);
+        AccessAdmissionService admission = new AccessAdmissionService(new BusinessIdentityRegistry(Collections.emptyList()));
+
+        AccessContextScope.withAdmission(admission.admit(AuthenticationMode.ANONYMOUS,
+            CredentialAuthentication::absent, "trusted-entry", null, null), () -> {
+            PermissionDeniedException failure = Assertions.assertThrows(PermissionDeniedException.class,
+                () -> pipeline.governQuery(querySpec()));
+            Assertions.assertTrue(failure.getMessage().contains("缺少 CRUD 业务授权适配器"));
+        });
+        Assertions.assertEquals(0, governanceService.governCount.get());
+        Assertions.assertEquals(0, governanceService.allowCount.get());
+        Assertions.assertEquals(0, governanceService.failureCount.get());
+        Assertions.assertEquals(AccessDecision.ALLOW, pipeline.governQuery(querySpec()).getAccessDecision());
+    }
+
     private QuerySpec<Object> querySpec() {
         return QuerySpec.<Object>builder()
             .rootType(Object.class)
@@ -67,10 +93,12 @@ class ExecutionPipelineTest {
     private static final class RecordingGovernanceService implements CrudGovernanceService {
         private final AtomicInteger allowCount = new AtomicInteger();
         private final AtomicInteger failureCount = new AtomicInteger();
+        private final AtomicInteger governCount = new AtomicInteger();
         private Throwable lastFailure;
 
         @Override
         public <R> CrudGovernanceResult<QueryExecutionSpec<R>> governQuery(QuerySpec<R> spec) {
+            governCount.incrementAndGet();
             QueryExecutionSpec<R> effectiveSpec = QueryExecutionSpec.from(spec);
             return new CrudGovernanceResult<QueryExecutionSpec<R>>(
                 subject(),

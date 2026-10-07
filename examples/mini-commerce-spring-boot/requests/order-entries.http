@@ -1,0 +1,100 @@
+@baseUrl = http://localhost:8082
+@customerA = demo-customer-a
+@customerB = demo-customer-b
+@merchantA = demo-merchant-a
+@merchantB = demo-merchant-b
+
+### 准备：应用建表后执行 scripts/order-entry-demo.sql，两个端访问同一批子订单。
+### 用户甲：本人子订单 501、502、504，total=3
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{"pageNumber":1,"pageSize":20}
+
+### 用户甲按商家甲筛选：501、504，total=2；不返回用户乙的 503
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{"merchantId":1001,"pageNumber":1,"pageSize":20}
+
+### 用户甲按商家乙筛选：502，total=1
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{"merchantId":2001}
+
+### 商家甲：本商家子订单 501、503、504，total=3
+POST {{baseUrl}}/api/merchant/orders/page
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"pageNumber":1,"pageSize":20}
+
+### 商家甲按用户甲筛选：501、504，total=2；不返回商家乙的 502
+POST {{baseUrl}}/api/merchant/orders/page
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"customerId":301}
+
+### 用户乙：503、505，total=2
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerB}}
+Content-Type: application/json
+
+{}
+
+### 商家乙：502、505，total=2
+POST {{baseUrl}}/api/merchant/orders/page
+Authorization: Bearer {{merchantB}}
+Content-Type: application/json
+
+{}
+
+### 用户甲第二页：502，total仍为3；固定按子订单ID升序
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{"pageNumber":2,"pageSize":1}
+
+### 用户令牌不能进入商家端：403
+POST {{baseUrl}}/api/merchant/orders/page
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{}
+
+### 商家令牌不能进入用户端：403
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{}
+
+### 用户甲伪造 customerId 和入口 Header：400 VALIDATION_ERROR，未知归属字段拒绝
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+X-Customer-Id: 302
+X-Access-Entry: merchant
+Content-Type: application/json
+
+{"customerId":302}
+
+### 用户甲仅伪造入口 Header：仍仅本人 501、502、504，total=3
+POST {{baseUrl}}/api/consumer/orders/page
+Authorization: Bearer {{customerA}}
+X-Customer-Id: 302
+X-Access-Entry: merchant
+Content-Type: application/json
+
+{}
+
+### 通用子订单分页禁用：404 ENTITY_NOT_EXPOSED
+POST {{baseUrl}}/api/ent-crud/merchantOrder/page
+Content-Type: application/json
+
+{}

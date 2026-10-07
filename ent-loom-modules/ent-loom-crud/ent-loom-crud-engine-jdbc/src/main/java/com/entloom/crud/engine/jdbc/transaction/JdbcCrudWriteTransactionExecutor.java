@@ -1,5 +1,8 @@
 package com.entloom.crud.engine.jdbc.transaction;
 
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAtomicity;
+import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.foundation.write.CrudBatchTransactionCapability;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
@@ -7,12 +10,14 @@ import java.util.Objects;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 基于 JDBC 数据源的 CRUD 写入事务执行器。
  */
-public final class JdbcCrudWriteTransactionExecutor implements CrudWriteTransactionExecutor {
+public final class JdbcCrudWriteTransactionExecutor
+    implements CrudWriteTransactionExecutor, CrudBatchTransactionCapability {
     private final TransactionTemplate requiredTransactionTemplate;
     private final TransactionTemplate requiresNewTransactionTemplate;
 
@@ -38,5 +43,20 @@ public final class JdbcCrudWriteTransactionExecutor implements CrudWriteTransact
             return requiresNewTransactionTemplate.execute(status -> callback.execute());
         }
         throw new IllegalArgumentException("不支持的写入事务策略: " + policy);
+    }
+
+    @Override
+    public boolean supportsBatchAtomicity(EntityDaoBatchAtomicity atomicity) {
+        return atomicity == EntityDaoBatchAtomicity.ALL_OR_NOTHING;
+    }
+
+    @Override
+    public <T> T executeCommittedBatch(CrudWriteTransactionCallback<T> callback) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new ValidationException(
+                "逐目标批量写入必须拥有最终提交边界，不能嵌套在外层事务中"
+            );
+        }
+        return execute(CrudWriteTransactionPolicy.SINGLE_TRANSACTION, callback);
     }
 }

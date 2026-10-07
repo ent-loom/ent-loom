@@ -1,6 +1,9 @@
 package com.entloom.crud.core.governance.audit;
 
 import com.entloom.crud.api.enums.AccessDecision;
+import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.access.AccessSubject;
+import com.entloom.crud.core.governance.authorization.AuthorizationResult;
 import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.model.CrudResourceAction;
@@ -12,6 +15,10 @@ import lombok.Getter;
  */
 @Getter
 public class CrudGovernanceAuditEvent {
+    /** 业务授权的有效访问者；旧治理事件为空。 */
+    private final VisitorContext visitor;
+    /** 本次业务授权结果；未签发结果的拒绝事件为空，不伪装为旧 Map 范围。 */
+    private final AuthorizationResult authorizationResult;
     /** 请求主体。 */
     private final SubjectContext subject;
     /** 命令动作实现。 */
@@ -64,6 +71,18 @@ public class CrudGovernanceAuditEvent {
         String requestId,
         String traceId
     ) {
+        this(subject, action, accessDecision, grantedScope, governanceScope, outcome, reason,
+            costMs, stage, routeKey, requestId, traceId, null, null);
+    }
+
+    private CrudGovernanceAuditEvent(
+        SubjectContext subject, CrudResourceAction action, AccessDecision accessDecision,
+        CrudDataScope grantedScope, CrudDataScope governanceScope, CrudGovernanceAuditOutcome outcome,
+        CrudGovernanceAuditReasonCode reason, long costMs, CrudErrorStage stage, String routeKey,
+        String requestId, String traceId, VisitorContext visitor, AuthorizationResult authorizationResult
+    ) {
+        this.visitor = visitor;
+        this.authorizationResult = authorizationResult;
         this.subject = subject;
         this.action = action;
         this.accessDecision = accessDecision == null ? AccessDecision.ALLOW : accessDecision;
@@ -133,6 +152,41 @@ public class CrudGovernanceAuditEvent {
         CrudGovernanceAuditReasonCode reason = CrudGovernanceAuditReasonCode.fromName(reasonCode);
         CrudGovernanceAuditOutcome outcome = deriveOutcome(accessDecision, reason);
         return of(subject, action, accessDecision, grantedScope, governanceScope, outcome, reason, costMs);
+    }
+
+    /** 业务查询复用现有审计记录器，保留真实范围和字段结果，不转换为旧 Map。 */
+    public static CrudGovernanceAuditEvent forBusinessQuery(
+        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationResult result, CrudResourceAction action,
+        CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
+        long costMs, CrudErrorStage stage, String routeKey
+    ) {
+        return forBusiness(visitor, authenticatedSubject, result, action, outcome, reason, costMs, stage, routeKey);
+    }
+
+    /** 业务命令复用同一审计结构，保留本次授权请求及目标绑定。 */
+    public static CrudGovernanceAuditEvent forBusinessCommand(
+        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationResult result, CrudResourceAction action,
+        CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
+        long costMs, CrudErrorStage stage, String routeKey
+    ) {
+        return forBusiness(visitor, authenticatedSubject, result, action, outcome, reason, costMs, stage, routeKey);
+    }
+
+    private static CrudGovernanceAuditEvent forBusiness(
+        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationResult result, CrudResourceAction action,
+        CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
+        long costMs, CrudErrorStage stage, String routeKey
+    ) {
+        SubjectContext subject = null;
+        if (authenticatedSubject != null) {
+            subject = new SubjectContext();
+            subject.setSubjectId(authenticatedSubject.getSubjectId());
+        }
+        return new CrudGovernanceAuditEvent(subject, action,
+            outcome == CrudGovernanceAuditOutcome.GOVERNANCE_DENIED ? AccessDecision.DENY : AccessDecision.ALLOW,
+            null, null, outcome, reason, costMs, stage, routeKey,
+            visitor == null ? null : visitor.getRequestId(), visitor == null ? null : visitor.getTraceId(),
+            visitor, result);
     }
 
     public String getReasonCode() {

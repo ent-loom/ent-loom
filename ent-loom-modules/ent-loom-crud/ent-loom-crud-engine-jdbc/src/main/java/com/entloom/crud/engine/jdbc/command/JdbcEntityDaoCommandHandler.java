@@ -14,6 +14,7 @@ import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityType;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAtomicity;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
@@ -183,6 +184,7 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
                 "JDBC DAO 批量命令必须配置 CrudWriteTransactionExecutor，避免部分提交"
             );
         }
+        EntityDaoBatchAtomicity.ALL_OR_NOTHING.requireSupportedBy(transactionExecutor);
         return transactionExecutor.execute(
             CrudWriteTransactionPolicy.SINGLE_TRANSACTION,
             new CrudWriteTransactionCallback<R>() {

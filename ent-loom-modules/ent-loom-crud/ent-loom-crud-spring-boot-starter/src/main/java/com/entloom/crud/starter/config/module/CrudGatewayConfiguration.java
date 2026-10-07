@@ -28,6 +28,7 @@ import com.entloom.crud.core.capability.importing.ImportPayloadCustomizerRegistr
 import com.entloom.crud.core.capability.importing.ImportResult;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.capability.query.engine.QueryEngine;
+import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.execution.ExecutionPipeline;
 import com.entloom.crud.core.foundation.taskfile.FileService;
 import com.entloom.crud.core.foundation.taskfile.LocalFileService;
@@ -36,12 +37,14 @@ import com.entloom.crud.core.foundation.taskfile.TaskFileAccessGuard;
 import com.entloom.crud.core.foundation.taskfile.TaskService;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.foundation.write.DirectCrudWriteTransactionExecutor;
+import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
 import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.gateway.CommandGatewayImpl;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.query.gateway.QueryGatewayImpl;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
+import com.entloom.crud.core.governance.adapter.CrudBusinessAuthorizationAdapter;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
 import com.entloom.crud.core.governance.scope.CrudDataScopeContributor;
 import com.entloom.crud.core.governance.scope.CrudDataScopeResolver;
@@ -175,8 +178,9 @@ public class CrudGatewayConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public ExecutionPipeline executionPipeline(CrudGovernanceService crudGovernanceService) {
-        return new ExecutionPipeline(crudGovernanceService);
+    public ExecutionPipeline executionPipeline(CrudGovernanceService crudGovernanceService,
+                                               ObjectProvider<CrudBusinessAuthorizationAdapter> authorizationAdapters) {
+        return new ExecutionPipeline(crudGovernanceService, authorizationAdapters.getIfAvailable());
     }
 
     /**
@@ -187,9 +191,10 @@ public class CrudGatewayConfiguration {
     @ConditionalOnProperty(name = "ent.loom.crud.query.enabled", havingValue = "true", matchIfMissing = true)
     public QueryGateway queryGateway(
         QueryRouter queryRouter,
-        ExecutionPipeline executionPipeline
+        ExecutionPipeline executionPipeline,
+        ObjectProvider<AuthorizedQueryExecutor> authorizedQueries
     ) {
-        return new QueryGatewayImpl(queryRouter, executionPipeline);
+        return new QueryGatewayImpl(queryRouter, executionPipeline, authorizedQueries.getIfAvailable());
     }
 
     /**
@@ -202,9 +207,11 @@ public class CrudGatewayConfiguration {
         CommandRouter commandRouter,
         IdempotencyManager idempotencyManager,
         IdempotencyPolicy idempotencyPolicy,
-        ExecutionPipeline executionPipeline
+        ExecutionPipeline executionPipeline,
+        ObjectProvider<AuthorizedCommandExecutor> authorizedCommands
     ) {
-        return new CommandGatewayImpl(commandRouter, idempotencyManager, idempotencyPolicy, executionPipeline);
+        return new CommandGatewayImpl(commandRouter, idempotencyManager, idempotencyPolicy, executionPipeline,
+            authorizedCommands.getIfAvailable());
     }
 
     @Bean

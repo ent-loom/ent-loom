@@ -1,3 +1,5 @@
 com.entloom.crud.starter.config.CrudExampleAutoConfiguration
 com.entloom.crud.starter.config.CrudAutoConfiguration
 com.entloom.crud.starter.config.EntDaoAutoConfiguration
+com.entloom.crud.starter.config.CrudAccessWebAutoConfiguration
+com.entloom.crud.starter.config.CrudPolicyAutoConfiguration

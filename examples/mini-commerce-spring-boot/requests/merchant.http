@@ -1,0 +1,50 @@
+@baseUrl = http://localhost:8082
+@merchantA = demo-merchant-a
+@merchantB = demo-merchant-b
+
+### 准备：应用启动建表后执行 scripts/merchant-demo.sql；版本按 GET 结果填写。
+### 商家 A 只读自己的两条报价
+GET {{baseUrl}}/api/merchant/products
+Authorization: Bearer {{merchantA}}
+
+### 商家 B 只读自己的报价 201
+GET {{baseUrl}}/api/merchant/products
+Authorization: Bearer {{merchantB}}
+
+### 整批成功；两条报价版本各加一，data 返回 [101,102]
+POST {{baseUrl}}/api/merchant/products/prices
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"items":[{"id":101,"price":11.50,"version":0},{"id":102,"price":22.00,"version":0}]}
+
+### 第二项跨商家；409，报价 101 的价格和版本也回滚
+POST {{baseUrl}}/api/merchant/products/prices
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"items":[{"id":101,"price":99,"version":1},{"id":201,"price":99,"version":0}]}
+
+### 第二项使用旧版本；409，整批回滚
+POST {{baseUrl}}/api/merchant/products/prices
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"items":[{"id":101,"price":99,"version":1},{"id":102,"price":99,"version":0}]}
+
+### 确认两条报价仍为 11.50 / 22.00、版本均为 1
+GET {{baseUrl}}/api/merchant/products
+Authorization: Bearer {{merchantA}}
+
+### 无凭证：403
+GET {{baseUrl}}/api/merchant/products
+
+### 无效凭证：403
+GET {{baseUrl}}/api/merchant/products
+Authorization: Bearer invalid
+
+### 报价实体禁止通用 HTTP 路由：404
+POST {{baseUrl}}/api/ent-crud/merchantProduct/update
+Content-Type: application/json
+
+{"payload":{"id":101,"price":1,"version":1,"merchantId":2001}}

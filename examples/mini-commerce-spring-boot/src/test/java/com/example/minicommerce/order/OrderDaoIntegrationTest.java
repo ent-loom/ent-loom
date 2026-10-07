@@ -67,7 +67,7 @@ class OrderDaoIntegrationTest {
         mvc.perform(get("/api/ent-doc/contract"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
-                org.hamcrest.Matchers.containsInAnyOrder("product", "customer", "order", "orderItem")))
+                org.hamcrest.Matchers.containsInAnyOrder("product", "customer", "order", "orderItem", "merchantProduct", "merchantOrder")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'customer')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "displayName", "email")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'product')].fields[*].property",

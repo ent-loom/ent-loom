@@ -4,11 +4,25 @@ import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinde
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityAccessScope;
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationContext;
+import com.entloom.crud.core.capability.dao.EntityDaoBatch;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAuthorizationContext;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchAtomicity;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchExecutionResult;
+import com.entloom.crud.core.capability.dao.EntityDaoBatchReadResult;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionCallback;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
+import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
+import com.entloom.crud.api.access.AuthorizationRequest;
+import com.entloom.crud.api.access.BusinessOperation;
+import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.core.exception.EntityDaoConstraintException;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.runtime.context.CrudExecutionContext;
@@ -17,16 +31,25 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
+import com.entloom.crud.core.governance.authorization.AuthorizationFields;
+import com.entloom.crud.core.governance.authorization.AuthorizationResult;
+import com.entloom.crud.core.governance.authorization.AuthorizationScope;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditOutcome;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditReasonCode;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaRegistry;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.security.JdbcGuardedSqlExecutor;
+import com.entloom.crud.engine.jdbc.security.JdbcInsertScopeDatabaseValidator;
 import com.entloom.crud.engine.jdbc.security.SqlIdentifierAllowlistValidator;
 import com.entloom.crud.engine.jdbc.security.SqlParameterLimiter;
 import com.entloom.crud.engine.jdbc.security.SqlSafetyGuard;
+import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
+import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import com.entloom.crud.engine.jdbc.test.entity.OrderTestEntity;
 import com.entloom.crud.engine.jdbc.test.support.EngineJdbcTestSupport;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -39,8 +62,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     private static final EntityType<OrderTestEntity, Long> ORDER_TYPE =
@@ -124,6 +152,676 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         );
 
         Assertions.assertTrue(exception.getMessage().contains("必须配置"), exception.getMessage());
+    }
+
+    @Test
+    void direct_jdbc_dao_rejects_when_business_authorization_scope_is_open() {
+        try (AccessContextScope.Scope ignored = AccessContextScope.requireAuthorization()) {
+            PermissionDeniedException exception = Assertions.assertThrows(
+                PermissionDeniedException.class,
+                () -> entityDaoFactory.scoped(ORDER_TYPE, EntityAccessScope.unrestricted())
+            );
+            Assertions.assertTrue(exception.getMessage().contains("没有单次业务授权"), exception.getMessage());
+        }
+    }
+
+    @Test
+    void authorized_jdbc_dao_applies_target_scope_logic_delete_and_return_fields() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            1L, "AUTHORIZED", 10L, "tenant-a", 0
+        );
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            2L, "WRONG-TENANT", 10L, "tenant-b", 0
+        );
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            3L, "DELETED", 10L, "tenant-a", 1
+        );
+
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("1", "tenant-a")
+        );
+        Optional<OrderTestEntity> found = dao.findById(1L);
+        Assertions.assertTrue(found.isPresent());
+        Assertions.assertEquals("AUTHORIZED", found.get().getOrderNo());
+        Assertions.assertNull(found.get().getTenantId());
+        Assertions.assertThrows(PermissionDeniedException.class, () -> dao.findById(2L));
+        EntityDao<OrderTestEntity, Long> wrongTenant = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("2", "tenant-a")
+        );
+        Assertions.assertFalse(wrongTenant.findById(2L).isPresent());
+        EntityDao<OrderTestEntity, Long> deleted = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("3", "tenant-a")
+        );
+        Assertions.assertFalse(deleted.findById(3L).isPresent());
+        Assertions.assertThrows(PermissionDeniedException.class, () -> dao.findAllById(Collections.singletonList(1L)));
+
+        Assertions.assertEquals(5, auditRecorder.getEvents().size());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS, auditRecorder.getEvents().get(0).getOutcome());
+        Assertions.assertEquals("1", auditRecorder.getEvents().get(0).getAuthorizationResult().getRequest().getTargetId());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED, auditRecorder.getEvents().get(1).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditReasonCode.PERMISSION_DENIED, auditRecorder.getEvents().get(1).getReason());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS, auditRecorder.getEvents().get(2).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS, auditRecorder.getEvents().get(3).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED,
+            auditRecorder.getEvents().get(4).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditReasonCode.UNSUPPORTED_OPERATION,
+            auditRecorder.getEvents().get(4).getReason());
+    }
+
+    @Test
+    void authorized_jdbc_dao_rejects_batch_shapes_before_storage_access() {
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("1", "tenant-a", "view", "orderNo")
+        );
+        OrderTestEntity entity = order(1L, "批量拒绝");
+        List<OrderTestEntity> entities = Collections.singletonList(entity);
+
+        for (Executable call : Arrays.<Executable>asList(
+            () -> dao.findAllById(Collections.singletonList(1L)),
+            () -> dao.findAllByIdAsMap(Collections.singletonList(1L)),
+            () -> dao.insertAll(entities),
+            () -> dao.updateAll(entities),
+            () -> dao.deleteAll(entities)
+        )) {
+            PermissionDeniedException failure = Assertions.assertThrows(
+                PermissionDeniedException.class, call
+            );
+            Assertions.assertTrue(failure.getMessage().contains("逐目标授权"), failure.getMessage());
+        }
+        Assertions.assertEquals(5, auditRecorder.getEvents().size());
+        for (int i = 0; i < auditRecorder.getEvents().size(); i++) {
+            Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED,
+                auditRecorder.getEvents().get(i).getOutcome());
+            Assertions.assertEquals(CrudGovernanceAuditReasonCode.UNSUPPORTED_OPERATION,
+                auditRecorder.getEvents().get(i).getReason());
+        }
+    }
+
+    @Test
+    void authorized_jdbc_dao_requires_target_bound_authorization_before_creation() {
+        EntityDaoAuthorizationContext targetless = authorizationContext(null, "tenant-a");
+
+        PermissionDeniedException failure = Assertions.assertThrows(
+            PermissionDeniedException.class,
+            () -> entityDaoFactory.scopedAuthorized(ORDER_TYPE, targetless)
+        );
+        Assertions.assertTrue(failure.getMessage().contains("单一目标"), failure.getMessage());
+    }
+
+    @Test
+    void authorized_jdbc_batch_reads_each_target_with_its_own_scope() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            1L, "BATCH-A", 10L, "tenant-a", 0
+        );
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            2L, "BATCH-B", 10L, "tenant-b", 0
+        );
+        VisitorContext visitor = VisitorContext.anonymous("dao-batch", "request-1", null);
+        EntityDaoBatchAuthorizationContext authorization = EntityDaoBatchAuthorizationContext.of(
+            Arrays.asList(
+                authorizationContext(visitor, "1", "tenant-a"),
+                authorizationContext(visitor, "2", "tenant-b")
+            )
+        );
+
+        EntityDaoBatch<OrderTestEntity, Long> batch = entityDaoFactory.scopedAuthorizedBatch(
+            ORDER_TYPE, authorization
+        );
+        Map<Long, OrderTestEntity> values = batch.findAllByIdAsMap(Arrays.asList(1L, 2L));
+
+        Assertions.assertEquals(Arrays.asList("1", "2"), batch.getTargetIds());
+        Assertions.assertEquals("BATCH-A", values.get(1L).getOrderNo());
+        Assertions.assertEquals("BATCH-B", values.get(2L).getOrderNo());
+        Assertions.assertThrows(PermissionDeniedException.class,
+            () -> batch.findAllById(Collections.singletonList(3L)));
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> values.clear());
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_reports_success_for_each_target() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            11L, "READ-OK-A", 10L, "tenant-a", 0
+        );
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            12L, "READ-OK-B", 10L, "tenant-b", 0
+        );
+        VisitorContext visitor = VisitorContext.anonymous("dao-batch-read", "request-1", null);
+        EntityDaoBatch<OrderTestEntity, Long> batch = entityDaoFactory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Arrays.asList(
+                authorizationContext(visitor, "11", "tenant-a"),
+                authorizationContext(visitor, "12", "tenant-b")
+            ))
+        );
+
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result = batch.readById(Arrays.asList(11L, 12L));
+
+        Assertions.assertEquals(EntityDaoBatchAtomicity.ALL_OR_NOTHING, result.getExecution().getAtomicity());
+        Assertions.assertEquals(
+            Arrays.asList(EntityDaoBatchExecutionResult.Status.SUCCEEDED,
+                EntityDaoBatchExecutionResult.Status.SUCCEEDED),
+            statuses(result)
+        );
+        Assertions.assertEquals(Arrays.asList(11L, 12L), new ArrayList<Long>(result.getValues().keySet()));
+        Assertions.assertEquals("READ-OK-A", result.getValues().get(11L).getOrderNo());
+        Assertions.assertEquals("READ-OK-B", result.getValues().get(12L).getOrderNo());
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> result.getValues().clear());
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_consumes_return_fields_per_target() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            41L, "FIELD-A", 10L, "tenant-a", 0
+        );
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            42L, "FIELD-B", 10L, "tenant-a", 0
+        );
+        VisitorContext visitor = VisitorContext.anonymous("dao-batch-fields", "request-1", null);
+        EntityDaoBatch<OrderTestEntity, Long> batch = entityDaoFactory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Arrays.asList(
+                authorizationContextWithReturnFields(visitor, "41", "tenant-a", "id", "orderNo"),
+                authorizationContextWithReturnFields(visitor, "42", "tenant-a", "id")
+            ))
+        );
+
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result = batch.readById(Arrays.asList(41L, 42L));
+
+        Assertions.assertEquals("FIELD-A", result.getValues().get(41L).getOrderNo());
+        Assertions.assertNull(result.getValues().get(42L).getOrderNo());
+        Assertions.assertEquals(Long.valueOf(42L), result.getValues().get(42L).getId());
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_rejects_invalid_ids_before_storage() {
+        GuardedSqlExecutor storageForbidden = new GuardedSqlExecutor() {
+            @Override
+            public List<Map<String, Object>> queryForList(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                throw new AssertionError("非法批量主键不应进入查询");
+            }
+
+            @Override
+            public Map<String, Object> queryForMap(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                throw new AssertionError("非法批量主键不应进入查询");
+            }
+
+            @Override
+            public Object queryForObject(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                throw new AssertionError("非法批量主键不应进入查询");
+            }
+
+            @Override
+            public int update(String sql, List<Object> args, CrudExecutionContext context) {
+                throw new AssertionError("非法批量主键不应进入更新");
+            }
+        };
+        JdbcEntityDaoFactory factory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            storageForbidden,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            new JdbcInsertScopeDatabaseValidator(dataSource, metaRegistry),
+            null,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            auditRecorder
+        );
+        VisitorContext visitor = VisitorContext.anonymous("dao-batch-read", "request-1", null);
+        EntityDaoBatch<OrderTestEntity, Long> batch = factory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Arrays.asList(
+                authorizationContext(visitor, "21", "tenant-a"),
+                authorizationContext(visitor, "22", "tenant-a")
+            ))
+        );
+
+        Assertions.assertThrows(ValidationException.class, () -> batch.readById(null));
+        Assertions.assertThrows(ValidationException.class,
+            () -> batch.readById(Collections.singletonList(21L)));
+        Assertions.assertThrows(PermissionDeniedException.class,
+            () -> batch.readById(Arrays.asList(21L, 21L)));
+        Assertions.assertThrows(PermissionDeniedException.class,
+            () -> batch.readById(Arrays.asList(21L, 99L)));
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_reports_no_data_without_failure() {
+        EntityDaoBatch<OrderTestEntity, Long> batch = entityDaoFactory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Collections.singletonList(
+                authorizationContext("13", "tenant-a")
+            ))
+        );
+
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result = batch.readById(Collections.singletonList(13L));
+
+        Assertions.assertEquals(EntityDaoBatchExecutionResult.Status.NO_DATA,
+            result.getExecution().getItems().get(0).getStatus());
+        Assertions.assertFalse(result.getExecution().hasFailure());
+        Assertions.assertTrue(result.getValues().isEmpty());
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_reports_sql_failure_without_throwing() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            14L, "READ-SQL-FAILURE", 10L, "tenant-a", 0
+        );
+        EntityDaoBatch<OrderTestEntity, Long> batch = entityDaoFactory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Collections.singletonList(
+                authorizationContext("14", "tenant-a")
+            ))
+        );
+        jdbcTemplate.execute("drop table t_order");
+
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result = batch.readById(Collections.singletonList(14L));
+
+        Assertions.assertEquals(EntityDaoBatchExecutionResult.Status.EXECUTION_FAILED,
+            result.getExecution().getItems().get(0).getStatus());
+        Assertions.assertTrue(result.getExecution().hasFailure());
+        Assertions.assertTrue(result.getValues().isEmpty());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(0).getOutcome());
+    }
+
+    @Test
+    void authorized_jdbc_batch_read_declares_explicit_partial_for_mixed_results() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            15L, "READ-MIXED-OK", 10L, "tenant-a", 0
+        );
+        SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
+            new SqlIdentifierAllowlistValidator(metaRegistry), new SqlParameterLimiter()
+        );
+        JdbcGuardedSqlExecutor delegate = new JdbcGuardedSqlExecutor(
+            jdbcTemplate, safetyGuard, new SqlExecutionLogger()
+        );
+        GuardedSqlExecutor failingExecutor = new GuardedSqlExecutor() {
+            @Override
+            public List<Map<String, Object>> queryForList(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                if (args.contains(Long.valueOf(16L))) {
+                    throw new IllegalStateException("模拟目标 16 查询失败");
+                }
+                return delegate.queryForList(sql, args, context);
+            }
+
+            @Override
+            public Map<String, Object> queryForMap(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                return delegate.queryForMap(sql, args, context);
+            }
+
+            @Override
+            public Object queryForObject(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                return delegate.queryForObject(sql, args, context);
+            }
+
+            @Override
+            public int update(String sql, List<Object> args, CrudExecutionContext context) {
+                return delegate.update(sql, args, context);
+            }
+        };
+        JdbcEntityDaoFactory factory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            failingExecutor,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            new JdbcInsertScopeDatabaseValidator(dataSource, metaRegistry),
+            null,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            auditRecorder
+        );
+        VisitorContext visitor = VisitorContext.anonymous("dao-batch-read", "request-1", null);
+        EntityDaoBatch<OrderTestEntity, Long> batch = factory.scopedAuthorizedBatch(
+            ORDER_TYPE,
+            EntityDaoBatchAuthorizationContext.of(Arrays.asList(
+                authorizationContext(visitor, "15", "tenant-a"),
+                authorizationContext(visitor, "16", "tenant-a")
+            ))
+        );
+
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result = batch.readById(Arrays.asList(15L, 16L));
+
+        Assertions.assertEquals(EntityDaoBatchAtomicity.EXPLICIT_PARTIAL, result.getExecution().getAtomicity());
+        Assertions.assertEquals(
+            Arrays.asList(EntityDaoBatchExecutionResult.Status.SUCCEEDED,
+                EntityDaoBatchExecutionResult.Status.EXECUTION_FAILED),
+            statuses(result)
+        );
+        Assertions.assertEquals("READ-MIXED-OK", result.getValues().get(15L).getOrderNo());
+        Assertions.assertFalse(result.getValues().containsKey(16L));
+        Assertions.assertEquals(2, auditRecorder.getEvents().size());
+        Assertions.assertEquals("15", auditRecorder.getEvents().get(0)
+            .getAuthorizationResult().getRequest().getTargetId());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS,
+            auditRecorder.getEvents().get(0).getOutcome());
+        Assertions.assertEquals("16", auditRecorder.getEvents().get(1)
+            .getAuthorizationResult().getRequest().getTargetId());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(1).getOutcome());
+    }
+
+    @Test
+    void unsupported_shape_keeps_permission_denied_when_audit_fails() {
+        JdbcEntityDaoFactory factory = newFactory(
+            metaRegistry,
+            event -> { throw new IllegalStateException("审计记录器故障"); }
+        );
+        EntityDao<OrderTestEntity, Long> dao = factory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("1", "tenant-a")
+        );
+
+        PermissionDeniedException failure = Assertions.assertThrows(
+            PermissionDeniedException.class,
+            () -> dao.findAllById(Collections.singletonList(1L))
+        );
+        Assertions.assertTrue(failure.getMessage().contains("findAllById"), failure.getMessage());
+    }
+
+    @Test
+    void authorized_jdbc_dao_records_sql_failure_as_execution_failure() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            4L, "SQL-FAILURE", 10L, "tenant-a", 0
+        );
+        EntityDao<OrderTestEntity, Long> dao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("4", "tenant-a")
+        );
+        jdbcTemplate.execute("drop table t_order");
+
+        Assertions.assertThrows(RuntimeException.class, () -> dao.findById(4L));
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(0).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditReasonCode.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(0).getReason());
+    }
+
+    @Test
+    void authorized_jdbc_dao_supports_single_target_update_and_delete() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            5L, "DAO-WRITE", 10L, "tenant-a", 0
+        );
+
+        EntityDao<OrderTestEntity, Long> updateDao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("5", "tenant-a", "update", "orderNo")
+        );
+        Assertions.assertEquals(1, updateDao.updateById(5L, patch(5L, "DAO-WRITE-UPDATED")));
+        Assertions.assertEquals("DAO-WRITE-UPDATED", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id=?", String.class, 5L
+        ));
+
+        EntityDao<OrderTestEntity, Long> deleteDao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("5", "tenant-a", "delete")
+        );
+        Assertions.assertEquals(1, deleteDao.deleteById(5L));
+        Assertions.assertEquals(1, jdbcTemplate.queryForObject(
+            "select is_deleted from t_order where id=?", Integer.class, 5L
+        ).intValue());
+        Assertions.assertEquals(2, auditRecorder.getEvents().size());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS,
+            auditRecorder.getEvents().get(0).getOutcome());
+        Assertions.assertEquals("update", auditRecorder.getEvents().get(0)
+            .getAuthorizationResult().getRequest().getOperation().getOperationCode());
+        Assertions.assertEquals("delete", auditRecorder.getEvents().get(1)
+            .getAuthorizationResult().getRequest().getOperation().getOperationCode());
+    }
+
+    @Test
+    void authorized_jdbc_dao_rejects_write_without_operation_or_field_grant() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            6L, "DAO-WRITE-DENIED", 10L, "tenant-a", 0
+        );
+
+        EntityDao<OrderTestEntity, Long> noFieldDao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("6", "tenant-a", "update")
+        );
+        Assertions.assertThrows(
+            PermissionDeniedException.class,
+            () -> noFieldDao.updateById(6L, patch(6L, "FORGED"))
+        );
+        EntityDao<OrderTestEntity, Long> viewDao = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("6", "tenant-a", "view", "orderNo")
+        );
+        Assertions.assertThrows(
+            PermissionDeniedException.class,
+            () -> viewDao.updateById(6L, patch(6L, "FORGED"))
+        );
+        Assertions.assertEquals("DAO-WRITE-DENIED", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id=?", String.class, 6L
+        ));
+        Assertions.assertEquals(2, auditRecorder.getEvents().size());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED,
+            auditRecorder.getEvents().get(0).getOutcome());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED,
+            auditRecorder.getEvents().get(1).getOutcome());
+    }
+
+    @Test
+    void authorized_jdbc_dao_rejects_scope_miss() {
+        jdbcTemplate.update(
+            "insert into t_order(id, order_no, school_id, tenant_id, is_deleted) values (?,?,?,?,?)",
+            7L, "DAO-SCOPE", 10L, "tenant-b", 0
+        );
+        EntityDao<OrderTestEntity, Long> wrongScope = entityDaoFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("7", "tenant-a", "update", "orderNo")
+        );
+        Assertions.assertThrows(
+            EntityDaoWriteMissException.class,
+            () -> wrongScope.updateById(7L, patch(7L, "NO-MATCH"))
+        );
+        Assertions.assertEquals("DAO-SCOPE", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id=?", String.class, 7L
+        ));
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(0).getOutcome());
+    }
+
+    @Test
+    void authorized_jdbc_dao_requires_transaction_before_storage_access() {
+        SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
+            new SqlIdentifierAllowlistValidator(metaRegistry), new SqlParameterLimiter()
+        );
+        final JdbcGuardedSqlExecutor delegate = new JdbcGuardedSqlExecutor(
+            jdbcTemplate, safetyGuard, new SqlExecutionLogger()
+        );
+        GuardedSqlExecutor customExecutor = new GuardedSqlExecutor() {
+            @Override
+            public List<Map<String, Object>> queryForList(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                return delegate.queryForList(sql, args, context);
+            }
+
+            @Override
+            public Map<String, Object> queryForMap(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                return delegate.queryForMap(sql, args, context);
+            }
+
+            @Override
+            public Object queryForObject(
+                String sql, List<Object> args, CrudExecutionContext context
+            ) {
+                return delegate.queryForObject(sql, args, context);
+            }
+
+            @Override
+            public int update(String sql, List<Object> args, CrudExecutionContext context) {
+                throw new AssertionError("缺少事务时不应访问 SQL 执行器");
+            }
+        };
+        JdbcEntityDaoFactory noTransactionFactory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            customExecutor,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            new JdbcInsertScopeDatabaseValidator(dataSource, metaRegistry),
+            null,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            auditRecorder
+        );
+        EntityDao<OrderTestEntity, Long> dao = noTransactionFactory.scopedAuthorized(
+            ORDER_TYPE, authorizationContext("8", "tenant-a", "delete")
+        );
+        Assertions.assertThrows(PermissionDeniedException.class, () -> dao.deleteById(8L));
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED,
+            auditRecorder.getEvents().get(0).getOutcome());
+    }
+
+    @Test
+    void batch_jdbc_dao_requires_declared_atomicity_before_transaction_callback() {
+        SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
+            new SqlIdentifierAllowlistValidator(metaRegistry), new SqlParameterLimiter()
+        );
+        JdbcGuardedSqlExecutor guarded = new JdbcGuardedSqlExecutor(
+            jdbcTemplate, safetyGuard, new SqlExecutionLogger()
+        );
+        AtomicBoolean callbackCalled = new AtomicBoolean();
+        CrudWriteTransactionExecutor unsupported = new CrudWriteTransactionExecutor() {
+            @Override
+            public <T> T execute(
+                CrudWriteTransactionPolicy policy,
+                CrudWriteTransactionCallback<T> callback
+            ) {
+                callbackCalled.set(true);
+                return callback.execute();
+            }
+        };
+        JdbcEntityDaoFactory factory = new JdbcEntityDaoFactory(
+            metaRegistry,
+            guarded,
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            new JdbcInsertScopeDatabaseValidator(dataSource, metaRegistry),
+            unsupported,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            auditRecorder
+        );
+        EntityDao<OrderTestEntity, Long> dao = factory.scoped(
+            ORDER_TYPE, EntityAccessScope.unrestricted()
+        );
+        OrderTestEntity entity = order(3901L, "能力门禁");
+
+        ValidationException exception = Assertions.assertThrows(
+            ValidationException.class,
+            () -> dao.insertAll(Collections.singletonList(entity))
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("未声明支持批量原子性"));
+        Assertions.assertFalse(callbackCalled.get());
+        Assertions.assertEquals(0, countById(3901L));
+    }
+
+    private EntityDaoAuthorizationContext authorizationContext(String targetId, String tenantId) {
+        return authorizationContext(VisitorContext.anonymous("dao-test", "request-1", null),
+            targetId, tenantId, "view");
+    }
+
+    private EntityDaoAuthorizationContext authorizationContext(
+        String targetId, String tenantId, String operation, String... writeFields
+    ) {
+        return authorizationContext(VisitorContext.anonymous("dao-test", "request-1", null),
+            targetId, tenantId, operation, writeFields);
+    }
+
+    private EntityDaoAuthorizationContext authorizationContext(
+        VisitorContext visitor, String targetId, String tenantId
+    ) {
+        return authorizationContext(visitor, targetId, tenantId, "view");
+    }
+
+    private EntityDaoAuthorizationContext authorizationContext(
+        VisitorContext visitor, String targetId, String tenantId, String operation, String... writeFields
+    ) {
+        EntityMeta meta = metaRegistry.getEntityMeta(OrderTestEntity.class);
+        AuthorizationRequest request = new AuthorizationRequest(
+            visitor,
+            new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), operation),
+            targetId
+        );
+        AuthorizationResult result = mock(AuthorizationResult.class);
+        when(result.getDecision()).thenReturn(AccessDecision.ALLOW);
+        when(result.getRequest()).thenReturn(request);
+        when(result.getScope()).thenReturn(AuthorizationScope.equal("tenantId", tenantId));
+        Map<AuthorizationFields.Use, java.util.Collection<String>> allowed =
+            new java.util.EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);
+        allowed.put(AuthorizationFields.Use.RETURN, Arrays.asList("id", "orderNo"));
+        if (writeFields != null && writeFields.length > 0) {
+            allowed.put(AuthorizationFields.Use.WRITE, Arrays.asList(writeFields));
+        }
+        when(result.getFields()).thenReturn(AuthorizationFields.of(allowed));
+        return EntityDaoAuthorizationContext.of(request, result);
+    }
+
+    private EntityDaoAuthorizationContext authorizationContextWithReturnFields(
+        VisitorContext visitor, String targetId, String tenantId, String... returnFields
+    ) {
+        EntityMeta meta = metaRegistry.getEntityMeta(OrderTestEntity.class);
+        AuthorizationRequest request = new AuthorizationRequest(
+            visitor,
+            new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), "view"),
+            targetId
+        );
+        AuthorizationResult result = mock(AuthorizationResult.class);
+        when(result.getDecision()).thenReturn(AccessDecision.ALLOW);
+        when(result.getRequest()).thenReturn(request);
+        when(result.getScope()).thenReturn(AuthorizationScope.equal("tenantId", tenantId));
+        Map<AuthorizationFields.Use, java.util.Collection<String>> allowed =
+            new java.util.EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);
+        allowed.put(AuthorizationFields.Use.RETURN, Arrays.asList(returnFields));
+        when(result.getFields()).thenReturn(AuthorizationFields.of(allowed));
+        return EntityDaoAuthorizationContext.of(request, result);
+    }
+
+    private EntityDaoAuthorizationContext versionedAuthorizationContext(
+        EntityMetaRegistry registry, String targetId, String operation, String... writeFields
+    ) {
+        EntityMeta meta = registry.getEntityMeta(VersionedEntity.class);
+        VisitorContext visitor = VisitorContext.anonymous("dao-versioned", "request-1", null);
+        AuthorizationRequest request = new AuthorizationRequest(
+            visitor,
+            new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), operation),
+            targetId
+        );
+        AuthorizationResult result = mock(AuthorizationResult.class);
+        when(result.getDecision()).thenReturn(AccessDecision.ALLOW);
+        when(result.getRequest()).thenReturn(request);
+        when(result.getScope()).thenReturn(AuthorizationScope.equal("tenantId", "tenant-a"));
+        Map<AuthorizationFields.Use, java.util.Collection<String>> allowed =
+            new java.util.EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);
+        allowed.put(AuthorizationFields.Use.RETURN, Arrays.asList("id", "name"));
+        if (writeFields != null && writeFields.length > 0) {
+            allowed.put(AuthorizationFields.Use.WRITE, Arrays.asList(writeFields));
+        }
+        when(result.getFields()).thenReturn(AuthorizationFields.of(allowed));
+        return EntityDaoAuthorizationContext.of(request, result);
     }
 
     @Test
@@ -484,6 +1182,65 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         Assertions.assertThrows(ValidationException.class, () -> dao.update(entity));
     }
 
+    @Test
+    void authorized_jdbc_dao_supports_optimistic_lock_update_and_delete() {
+        jdbcTemplate.execute("drop table if exists t_versioned_order");
+        jdbcTemplate.execute(
+            "create table t_versioned_order(" +
+                "id bigint primary key, name varchar(64), tenant_id varchar(64) not null, version bigint not null)"
+        );
+        jdbcTemplate.update(
+            "insert into t_versioned_order(id, name, tenant_id, version) values (?,?,?,?)",
+            3L, "授权初始", "tenant-a", 0L
+        );
+        EntityMetaRegistry registry = versionedRegistry();
+        JdbcEntityDaoFactory factory = newFactory(registry, auditRecorder);
+        EntityDao<VersionedEntity, Long> updateDao = factory.scopedAuthorized(
+            EntityType.of(VersionedEntity.class, Long.class),
+            versionedAuthorizationContext(registry, "3", "update", "name")
+        );
+        Map<String, Object> missingVersionPayload = new LinkedHashMap<String, Object>();
+        missingVersionPayload.put("id", 3L);
+        missingVersionPayload.put("name", "缺失版本");
+        UpdatePatch<VersionedEntity> missingVersion = new DefaultCommandPayloadBinder().bindUpdatePatch(
+            missingVersionPayload, VersionedEntity.class, registry.getEntityMeta(VersionedEntity.class)
+        );
+        Assertions.assertThrows(ValidationException.class,
+            () -> updateDao.updateById(3L, missingVersion));
+        UpdatePatch<VersionedEntity> patch = versionedPatch(registry, 3L, "授权更新");
+        Assertions.assertEquals(1, updateDao.updateById(3L, patch));
+        Assertions.assertEquals("授权更新", jdbcTemplate.queryForObject(
+            "select name from t_versioned_order where id=?", String.class, 3L
+        ));
+        Assertions.assertEquals(Long.valueOf(1L), jdbcTemplate.queryForObject(
+            "select version from t_versioned_order where id=?", Long.class, 3L
+        ));
+        Assertions.assertEquals(Long.valueOf(1L), patch.getEntity().version);
+
+        EntityDao<VersionedEntity, Long> staleDao = factory.scopedAuthorized(
+            EntityType.of(VersionedEntity.class, Long.class),
+            versionedAuthorizationContext(registry, "3", "update", "name")
+        );
+        UpdatePatch<VersionedEntity> stale = versionedPatch(registry, 3L, "过期更新");
+        Assertions.assertThrows(EntityDaoWriteMissException.class,
+            () -> staleDao.updateById(3L, stale));
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED,
+            auditRecorder.getEvents().get(2).getOutcome());
+
+        EntityDao<VersionedEntity, Long> deleteDao = factory.scopedAuthorized(
+            EntityType.of(VersionedEntity.class, Long.class),
+            versionedAuthorizationContext(registry, "3", "delete")
+        );
+        Assertions.assertThrows(ValidationException.class, () -> deleteDao.deleteById(3L));
+        Assertions.assertEquals(1, deleteDao.deleteById(3L, 1L));
+        Assertions.assertEquals(0, jdbcTemplate.queryForObject(
+            "select count(*) from t_versioned_order where id=?", Integer.class, 3L
+        ).intValue());
+        Assertions.assertEquals(5, auditRecorder.getEvents().size());
+        Assertions.assertEquals(CrudGovernanceAuditOutcome.SUCCESS,
+            auditRecorder.getEvents().get(4).getOutcome());
+    }
+
     private OrderTestEntity order(Long id, String orderNo) {
         OrderTestEntity order = new OrderTestEntity();
         order.setId(id);
@@ -500,12 +1257,35 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
         );
     }
 
+    private UpdatePatch<VersionedEntity> versionedPatch(
+        EntityMetaRegistry registry, Long id, String name
+    ) {
+        java.util.Map<String, Object> payload = new java.util.LinkedHashMap<String, Object>();
+        payload.put("id", id);
+        payload.put("name", name);
+        payload.put("version", 0L);
+        return new DefaultCommandPayloadBinder().bindUpdatePatch(
+            payload, VersionedEntity.class, registry.getEntityMeta(VersionedEntity.class)
+        );
+    }
+
     private List<Long> ids(List<OrderTestEntity> entities) {
         List<Long> result = new ArrayList<Long>();
         for (OrderTestEntity entity : entities) {
             result.add(entity.getId());
         }
         return result;
+    }
+
+    private List<EntityDaoBatchExecutionResult.Status> statuses(
+        EntityDaoBatchReadResult<OrderTestEntity, Long> result
+    ) {
+        List<EntityDaoBatchExecutionResult.Status> statuses =
+            new ArrayList<EntityDaoBatchExecutionResult.Status>();
+        for (EntityDaoBatchExecutionResult.Item item : result.getExecution().getItems()) {
+            statuses.add(item.getStatus());
+        }
+        return statuses;
     }
 
     private int countById(Long id) {
@@ -632,13 +1412,26 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     }
 
     private JdbcEntityDaoFactory newFactory(EntityMetaRegistry registry) {
+        return newFactory(registry, null);
+    }
+
+    private JdbcEntityDaoFactory newFactory(
+        EntityMetaRegistry registry, com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder recorder
+    ) {
         SqlSafetyGuard safetyGuard = new SqlSafetyGuard(
             new SqlIdentifierAllowlistValidator(registry),
             new SqlParameterLimiter()
         );
         return new JdbcEntityDaoFactory(
             registry,
-            new JdbcGuardedSqlExecutor(jdbcTemplate, safetyGuard, new SqlExecutionLogger())
+            new JdbcGuardedSqlExecutor(jdbcTemplate, safetyGuard, new SqlExecutionLogger()),
+            StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS,
+            null,
+            null,
+            JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(),
+            recorder
         );
     }
 }

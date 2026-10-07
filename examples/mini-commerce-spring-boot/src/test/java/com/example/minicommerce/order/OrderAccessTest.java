@@ -10,6 +10,8 @@ import com.example.minicommerce.product.entity.Product;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
+import com.example.minicommerce.order.entity.MerchantOrder;
+import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
@@ -63,10 +65,11 @@ class OrderAccessTest {
     }
 
     @Test
-    void 实体只从业务包注册且Http只开放显式白名单() {
-        assertEquals(Set.of(Product.class, Customer.class, Order.class, OrderItem.class),
+    void 实体只从业务包注册且Http遵循排除和实体禁用配置() {
+        assertEquals(Set.of(Product.class, Customer.class, Order.class, OrderItem.class, MerchantProduct.class, MerchantOrder.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
-        assertEquals(EntityExposureMode.EXPLICIT, crudProperties.getController().getExposureMode());
+        assertEquals(EntityExposureMode.ALL_REGISTERED, crudProperties.getController().getExposureMode());
+        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantProduct"));
         assertEquals(Product.class, exposedEntities.resolveOrThrow("product"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));

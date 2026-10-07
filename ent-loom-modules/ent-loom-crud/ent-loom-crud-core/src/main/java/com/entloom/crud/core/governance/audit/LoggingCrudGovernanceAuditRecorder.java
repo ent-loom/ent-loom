@@ -17,7 +17,7 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
             return;
         }
         log.info(
-            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} accessEntry={} portal={} capability={} policyMatched={} policyRejectionReason={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={}",
+            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} accessEntry={} portal={} capability={} policyMatched={} policyRejectionReason={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={} identityCode={} identityId={} invocationId={} authorizationScope={} authorizationFields={}",
             event.getOutcome(),
             event.isAllowed(),
             event.isSuccess(),
@@ -42,7 +42,14 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
             event.getSubject() == null ? null : event.getSubject().getOrgId(),
             summarize(event.getGrantedScope()),
             summarize(event.getGovernanceScope()),
-            event.getCostMs()
+            event.getCostMs(),
+            event.getVisitor() == null ? null : event.getVisitor().getIdentity()
+                .map(identity -> identity.getIdentityCode()).orElse(null),
+            event.getVisitor() == null ? null : event.getVisitor().getIdentity()
+                .map(identity -> identity.getIdentityId()).orElse(null),
+            event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getRequest().getInvocationId(),
+            event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getScope().getKind(),
+            event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getFields().snapshot()
         );
     }
 
