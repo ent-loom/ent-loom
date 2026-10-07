@@ -1,11 +1,23 @@
 # 实体 DAO
 
-> 状态：In Progress（D0-D4.3 主键 CRUD 闭环及 D4.1 数据库类型矩阵已完成；D5 待后续）<br />
-> 最近核验：2026-09-18
+> 状态：In Progress（D0-D4.3 主键 CRUD 闭环、D4.1 数据库类型矩阵及业务访问治理 G4.31 已完成；D5 待后续）<br />
+> 最近核验：2026-10-07（G4.31 真实 JDBC、HTTP、回归与 Docker MySQL 均已通过）
 > 实施跟踪：[实体 DAO 实施清单](../../../evolution/roadmap/crud/实体DAO实施清单.md)
 > 自定义方法目标：[实体 DAO 自定义方法](./实体DAO自定义方法.md)
 
 当前实现已落地 `crud-core` 的 `EntityDao<T, ID>`、`EntityDaoFactory`、`EntityType`、`EntityAccessScope`、不可变 `RowConstraint` 及 Patch 规范化模型，并在 `crud-engine-jdbc` 提供 `JdbcEntityDaoFactory` 的 H2 与 MySQL 8 主键 CRUD 验收闭环。逻辑删除的未删除值和已删除值由实体元数据显式声明并在注册时校验。EntityDao 直接支持显式主键和数据库生成主键，生成主键会回填实体；Starter 默认命令链仍对显式主键实体使用 DAO，单条、批量和 save-or-update 均不再调用旧主键 SQL，数据库生成主键实体在该默认命令链中继续由回退处理器承接。批量由 Handler 逐项复用 DAO，未扩张 DAO 公共合同。空/非空 Scene、租户/组织范围拒绝、普通目标条件拒绝、完整审计、幂等、外层事务回滚、H2 并发和 MySQL 8 全链路证据已补齐；Starter 仅在元数据、JDBC 安全执行器和 Factory 齐备时装配默认命令链，不注册裸 DAO。MySQL 启动期会检查范围字段的生成列、AUTO_INCREMENT、ON UPDATE、触发器和字符串排序规则，失败时记录告警但不阻塞主应用启动；相关实体创建 scoped DAO 时仍会严格校验并拒绝使用。字符串范围列必须采用 `_bin` 二进制排序规则，避免数据库把 Java 中不同的范围值判为相等；数据库默认值可以存在，但 DAO insert 始终显式绑定最终范围值。触发器检查要求校验账号对目标表具备 `TRIGGER` 或 `ALL PRIVILEGES` 元数据可见性；常用字段、字符集、精度、范围字段类型转换和无时区日期时间矩阵已在 H2 与 MySQL 8.0.45 验收。数据库生成主键已完成 H2 真实代理与事务回归；MySQL 8 生成键验收、未覆盖的时间类型和其他数据库生成策略仍按实施清单推进。
+
+## 按次业务授权 DAO 的当前事实
+
+基础 `EntityAccessScope` / `RowConstraint` 描述已经确定的行范围；受业务访问治理的调用使用 `EntityDaoAuthorizationProvider` 桥接统一授权服务，不能在可信治理作用域内退回普通 `scoped` DAO。单目标授权 DAO 已支持 `findById`、UPDATE/DELETE 与预期版本；独立 `EntityDaoBatch` 支持逐目标只读结果。
+
+G4.31 由 `JdbcEntityDaoFactory.scopedAuthorizedBatchWrite` 接通独立 `EntityDaoBatchWrite`，当前仅支持 `update` 授权和 `UPDATE` Patch。请求绑定本次批次授权对象及完整目标顺序；全部目标在任何写入前完成主键、Patch 版本快照、`WRITE` 与实体静态可写字段交集校验，再 prepare 参数化 SQL。范围、适用的逻辑未删除、主键和预期版本共同进入每目标写入谓词，启用版本时数据库自增；每目标影响行数必须恰为 1。
+
+`CrudBatchTransactionCapability.executeCommittedBatch` 的默认实现拒绝。实现原子性声明不足以保证最终提交；JDBC 实现拒绝外层活动事务，自身开启单一事务并在最终 commit 后返回全部 `SUCCEEDED` / `ALL_OR_NOTHING`。任一目标或事务失败整批回滚并抛原异常，不返回部分成功，也不回填 Patch 实体版本。0 行统一为 `EntityDaoWriteMissException`，不查询区分不存在、范围外或版本冲突，避免泄露存在性。
+
+最终审计按每个目标保留原授权请求：prepare 拒绝记 `GOVERNANCE_DENIED`，执行/事务失败记 `EXECUTION_FAILED`，`SUCCESS` 只在 commit 后记录。失败审计故障不能覆盖原异常；commit 后审计故障只记日志并继续其他目标，不将已提交写入改成可重试失败。当前无持久 outbox，不承诺数据提交与审计持久化原子一致。
+
+真实 JDBC 批量集成测试 `JdbcAuthorizedEntityDaoBatchWriteIntegrationTest` 14 项、商家 HTTP 集成测试 7 项、示例全回归 30 项已通过，Core/JDBC/Starter 上游完整测试返回 0；Docker 真实 MySQL 整轮验收 exit 0，脚本单测 5 项通过。具体业务配置见[商家批量改价演示](../../../guides/crud/商家批量改价演示.md)：默认资源码 `merchantProduct`、表 `merchant_product`，授权范围 `merchantId` 等于当前商家、`WRITE` 仅 `price`。批量 DELETE/INSERT、归属变更、部分成功、框架统一 write miss HTTP 映射与持久审计尚未支持，完整证据见[实施记录 G4.31](../../../evolution/roadmap/crud/业务实体访问治理/实施记录.md#55-g431-jdbc-逐目标批量-update-全量原子与商家改价演示)。
 
 ## 定位
 
@@ -292,7 +304,7 @@ int deleteBatchByIdNonAtomic(Collection<ID> ids);
 - 空集合不访问数据库并返回空结果或 `0`；`null` 入参视为编程错误。
 - 方法正常返回表示所有项均已执行，不表示 DAO 曾创建事务。
 
-如果未来提供 DAO 自己保证原子性的批量入口，应使用不同名称和明确的事务合同，不能静默改变上述语义。
+上述 `NonAtomic` 方法是扩展目标示意。当前逐目标按次授权批量 UPDATE 使用独立 `EntityDaoBatchWrite.execute` 与最终提交合同，见本文“按次业务授权 DAO 的当前事实”；不能把本节目标方法、已有基础 DAO 批量入口和该授权入口的事务语义混用。
 
 ### 主键 upsert
 
