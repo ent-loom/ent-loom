@@ -13,8 +13,11 @@ import com.example.minicommerce.merchant.access.MerchantDemoProperties;
 import com.example.minicommerce.merchant.access.MerchantIdentity;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,21 +28,7 @@ import org.springframework.context.annotation.Configuration;
 public class DemoAccessConfiguration {
     @Bean
     CrudHttpAuthenticationSource demoAuthentication(MerchantDemoProperties merchants, CustomerDemoProperties customers) {
-        Map<String, CredentialAuthentication> credentials = new HashMap<>();
-        var merchantSubjects = new HashSet<String>();
-        for (var account : merchants.accounts()) {
-            if (!merchantSubjects.add(account.subjectId())) {
-                throw new IllegalArgumentException("演示商家账号主体必须唯一");
-            }
-            register(credentials, account.token(), account.subjectId(), MerchantIdentity.CODE, account.merchantId());
-        }
-        var customerSubjects = new HashSet<String>();
-        for (var account : customers.accounts()) {
-            if (!customerSubjects.add(account.subjectId())) {
-                throw new IllegalArgumentException("演示用户账号主体必须唯一");
-            }
-            register(credentials, account.token(), account.subjectId(), CustomerIdentity.CODE, account.customerId());
-        }
+        Map<String, CredentialAuthentication> credentials = credentials(merchants, customers);
         return request -> {
             String header = request.getHeader("Authorization");
             var authentication = header == null ? CredentialAuthentication.absent()
@@ -54,8 +43,7 @@ public class DemoAccessConfiguration {
     BusinessIdentityRegistration<CustomerIdentity> customerIdentity(CustomerDemoProperties properties) {
         return new BusinessIdentityRegistration<>(CustomerIdentity.CODE, CustomerIdentity.class, (subject, id) ->
             properties.accounts().stream()
-                .filter(account -> subject.getType() == AccessSubjectType.HUMAN
-                    && account.subjectId().equals(subject.getSubjectId()) && account.customerId().toString().equals(id))
+                .filter(account -> belongsTo(subject, account.subjectId(), account.customerId(), id))
                 .findFirst().map(account -> new CustomerIdentity(account.customerId()))
                 .orElseThrow(() -> new PermissionDeniedException("账号不属于当前客户")));
     }
@@ -64,18 +52,47 @@ public class DemoAccessConfiguration {
     BusinessIdentityRegistration<MerchantIdentity> merchantIdentity(MerchantDemoProperties properties) {
         return new BusinessIdentityRegistration<>(MerchantIdentity.CODE, MerchantIdentity.class, (subject, id) ->
             properties.accounts().stream()
-                .filter(account -> subject.getType() == AccessSubjectType.HUMAN
-                    && account.subjectId().equals(subject.getSubjectId()) && account.merchantId().toString().equals(id))
+                .filter(account -> belongsTo(subject, account.subjectId(), account.merchantId(), id))
                 .findFirst().map(account -> new MerchantIdentity(account.merchantId()))
                 .orElseThrow(() -> new PermissionDeniedException("账号不属于当前商家")));
     }
 
-    private static void register(Map<String, CredentialAuthentication> credentials, String token, String subjectId,
-        String identityCode, Long identityId) {
+    private static Map<String, CredentialAuthentication> credentials(MerchantDemoProperties merchants,
+        CustomerDemoProperties customers) {
+        Map<String, CredentialAuthentication> credentials = new HashMap<>();
+        Set<String> subjects = new HashSet<>();
+        demoAccounts(merchants, customers).forEach(account -> {
+            if (!subjects.add(account.subjectId())) {
+                throw new IllegalArgumentException("演示账号主体必须唯一");
+            }
+            register(credentials, account);
+        });
+        return credentials;
+    }
+
+    private static List<DemoAccount> demoAccounts(MerchantDemoProperties merchants,
+        CustomerDemoProperties customers) {
+        return Stream.concat(
+            merchants.accounts().stream().map(account ->
+                new DemoAccount(account.token(), account.subjectId(), MerchantIdentity.CODE, account.merchantId())),
+            customers.accounts().stream().map(account ->
+                new DemoAccount(account.token(), account.subjectId(), CustomerIdentity.CODE, account.customerId()))
+        ).toList();
+    }
+
+    private static void register(Map<String, CredentialAuthentication> credentials, DemoAccount account) {
         var authentication = CredentialAuthentication.authenticated(
-            new AccessSubject(subjectId, AccessSubjectType.HUMAN), identityCode, identityId.toString());
-        if (credentials.putIfAbsent("Bearer " + token, authentication) != null) {
+            new AccessSubject(account.subjectId(), AccessSubjectType.HUMAN), account.identityCode(),
+            account.identityId().toString());
+        if (credentials.putIfAbsent("Bearer " + account.token(), authentication) != null) {
             throw new IllegalArgumentException("两端演示账号的令牌必须唯一");
         }
     }
+
+    private static boolean belongsTo(AccessSubject subject, String subjectId, Long identityId, String requestedId) {
+        return subject.getType() == AccessSubjectType.HUMAN
+            && subjectId.equals(subject.getSubjectId()) && identityId.toString().equals(requestedId);
+    }
+
+    private record DemoAccount(String token, String subjectId, String identityCode, Long identityId) {}
 }
