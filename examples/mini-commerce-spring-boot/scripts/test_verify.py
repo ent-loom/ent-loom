@@ -65,9 +65,11 @@ class VerificationLifecycleTest(unittest.TestCase):
                     self.assertGreaterEqual(readiness_checks, 2, "readiness UP 后才能检查业务表")
                     schema_queries += 1
                     self.assertIn("'merchant_order'", command[-1])
+                    self.assertIn("'customer_address'", command[-1])
+                    self.assertIn("'merchant_poster'", command[-1])
                     output = "customer\norder\norder_item\nproduct\nmerchant_product\n"
                     if schema_queries > 1:
-                        output += "merchant_order\n"
+                        output += "merchant_order\ncustomer_address\nmerchant_poster\n"
                 elif "exec" in command and "INSERT IGNORE INTO merchant_product" in command[-1]:
                     self.assertTrue(any("select id, customer_id" in part
                                         for previous in commands[:-1] for part in previous))
@@ -140,12 +142,12 @@ class VerificationLifecycleTest(unittest.TestCase):
                     if readiness_checks == 1:
                         return 503, {"status": "OUT_OF_SERVICE"}
                     return 200, {"status": "UP"}
-                self.assertGreaterEqual(schema_queries, 2, "六张表全部就绪前不能发送业务请求")
+                self.assertGreaterEqual(schema_queries, 2, "八张表全部就绪前不能发送业务请求")
                 if url.endswith("/api/ent-doc/contract"):
                     return 200, {
                         "contractVersion": "1.0.0",
                         "entities": [{"resourceCode": code, "fields": []}
-                                     for code in ("customer", "product", "order", "orderItem", "merchantProduct", "merchantOrder")],
+                                     for code in ("customer", "customerAddress", "product", "order", "orderItem", "merchantProduct", "merchantPoster", "merchantOrder")],
                     }
                 if url.endswith("/orders/page"):
                     self.assertTrue(order_rows, "双入口分页验收必须先从脚本补种子订单")

@@ -336,9 +336,9 @@ def verify(repository=None, skip_build=False):
         ], cwd=EXAMPLE, env=env, stdout=app_log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 120
         base_url = None
-        expected_tables = {"customer", "product", "order", "order_item", "merchant_product", "merchant_order"}
+        expected_tables = {"customer", "customer_address", "product", "order", "order_item", "merchant_product", "merchant_poster", "merchant_order"}
         schema_sql = ("select table_name from information_schema.tables where table_schema = 'mini_commerce' "
-                      "and table_name in ('customer', 'product', 'order', 'order_item', 'merchant_product', 'merchant_order') "
+                      "and table_name in ('customer', 'customer_address', 'product', 'order', 'order_item', 'merchant_product', 'merchant_poster', 'merchant_order') "
                       "order by table_name")
         (logs / "schema-readiness.sql").write_text(schema_sql + ";\n")
         while time.monotonic() < deadline:
@@ -362,7 +362,7 @@ def verify(repository=None, skip_build=False):
                     pass
             time.sleep(1)
         else:
-            raise RuntimeError("应用 readiness 或六张业务表就绪检查超时")
+            raise RuntimeError("应用 readiness 或八张业务表就绪检查超时")
 
         contract_status, contract = request(base_url + "/api/ent-doc/contract")
         (logs / "entity-documentation-contract.json").write_text(
@@ -372,7 +372,7 @@ def verify(repository=None, skip_build=False):
               f"实体文档契约响应不匹配：{contract_status} {contract}")
         entities = contract.get("entities")
         check(isinstance(entities, list) and {entity.get("resourceCode") for entity in entities}
-              == {"customer", "product", "order", "orderItem", "merchantProduct", "merchantOrder"},
+              == {"customer", "customerAddress", "product", "order", "orderItem", "merchantProduct", "merchantPoster", "merchantOrder"},
               f"实体文档实体范围不匹配：{contract}")
         contract_text = json.dumps(contract, ensure_ascii=False)
         for forbidden in ("entityClass", "tableName", "column", "visibleFor"):

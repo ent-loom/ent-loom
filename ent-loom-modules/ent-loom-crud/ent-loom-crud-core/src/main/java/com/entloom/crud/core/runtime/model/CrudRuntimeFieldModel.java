@@ -135,4 +135,11 @@ public final class CrudRuntimeFieldModel {
             fieldMeta.getCreateDefaultValue()
         );
     }
+
+    /** 归属字段禁止普通写入，其他字段能力与展示元数据保持不变。 */
+    public CrudRuntimeFieldModel withScopeField(boolean scope) {
+        return new CrudRuntimeFieldModel(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
+            writable && !scope, scope, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, label, inputRequired, createDefaultValue);
+    }
 }

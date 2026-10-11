@@ -11,7 +11,7 @@ import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.example.minicommerce.merchant.access.MerchantAccessConfiguration;
+import com.entloom.crud.api.access.BusinessOperation;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.merchant.dto.ChangePricesCommand.PriceChange;
 import java.util.List;
@@ -36,7 +36,7 @@ public class MerchantPricingService {
     // 此方法不加入外层事务；框架必须拥有最终提交边界，才能返回成功并记录成功审计。
     public List<Long> changePrices(VisitorContext visitor, List<PriceChange> changes) {
         var type = EntityType.of(MerchantProduct.class, Long.class);
-        var writer = daos.openBatchWrite(type, visitor, MerchantAccessConfiguration.UPDATE,
+        var writer = daos.openBatchWrite(type, visitor, new BusinessOperation("merchantProduct", "update"),
             changes.stream().map(change -> change.id().toString()).toList());
         var meta = entities.getEntityMeta(MerchantProduct.class);
         var items = changes.stream().map(change -> EntityDaoBatchWriteRequest.Item.update(

@@ -9,7 +9,6 @@ import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationProvider;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
-import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.fact.RelationFactResolver;
 import com.entloom.crud.core.governance.fact.RelationFactService;
@@ -46,10 +45,19 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-/** 汇总项目 Java 声明与实体注解，在启动期交由同一 Core 编译器校验。 */
+/** 汇总 YAML、Java 声明与实体注解，在启动期交由同一 Core 编译器校验。 */
 @AutoConfiguration(after = CrudAutoConfiguration.class, before = CrudAccessWebAutoConfiguration.class)
+@EnableConfigurationProperties(CrudAccessProperties.class)
 public class CrudPolicyAutoConfiguration {
+    @Bean
+    @ConditionalOnBean(EntityMetaRegistry.class)
+    public ConfiguredAccessPolicies configuredAccessPolicies(CrudAccessProperties properties,
+        EntityMetaRegistry entities, BusinessIdentityRegistry identities) {
+        return new ConfiguredAccessPolicies(properties, entities, identities);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public BusinessIdentityRegistry businessIdentityRegistry(ObjectProvider<BusinessIdentityRegistration<?>> registrations) {
@@ -61,13 +69,16 @@ public class CrudPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public BusinessOperationCatalog businessOperationCatalog(
         EntityMetaRegistry entities,
-        ObjectProvider<BusinessOperationDeclaration> declarations
+        ObjectProvider<BusinessOperationDeclaration> declarations,
+        ConfiguredAccessPolicies configured
     ) {
         List<ResourceDescriptor> resources = new ArrayList<ResourceDescriptor>();
         for (EntityMeta meta : entities.getEntityMetas()) {
             resources.add(meta.getResourceDescriptor());
         }
-        return new BusinessOperationCatalog(resources, declarations.orderedStream().collect(Collectors.toList()));
+        List<BusinessOperationDeclaration> all = new ArrayList<>(declarations.orderedStream().collect(Collectors.toList()));
+        all.addAll(configured.operations());
+        return new BusinessOperationCatalog(resources, all);
     }
 
     @Bean
@@ -76,10 +87,12 @@ public class CrudPolicyAutoConfiguration {
     public CrudOperationMappingRegistry crudOperationMappingRegistry(
         EntityMetaRegistry entities,
         BusinessOperationCatalog operations,
-        ObjectProvider<CrudOperationMapping> mappings
+        ObjectProvider<CrudOperationMapping> mappings,
+        ConfiguredAccessPolicies configured
     ) {
-        return new CrudOperationMappingRegistry(entities.getEntityMetas(), operations,
-            mappings.orderedStream().collect(Collectors.toList()));
+        List<CrudOperationMapping> all = new ArrayList<>(mappings.orderedStream().collect(Collectors.toList()));
+        all.addAll(configured.mappings());
+        return new CrudOperationMappingRegistry(entities.getEntityMetas(), operations, all);
     }
 
     @Bean
@@ -89,10 +102,10 @@ public class CrudPolicyAutoConfiguration {
         BusinessOperationCatalog operations,
         EntityPolicyRegistry policies,
         ObjectProvider<BusinessPermissionEvaluator> evaluators,
-        ObjectProvider<RelationFactService> facts
+        ObjectProvider<RelationFactService> facts,
+        ConfiguredAccessPolicies configured
     ) {
-        BusinessPermissionEvaluator evaluator = evaluators.getIfAvailable(() ->
-            (visitor, operation, rule, targetId) -> BusinessPermissionDecision.deny());
+        BusinessPermissionEvaluator evaluator = configured.evaluator(evaluators.getIfAvailable());
         return new BusinessAuthorizationService(operations, policies, evaluator, facts.getIfAvailable());
     }
 
@@ -121,10 +134,11 @@ public class CrudPolicyAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(RelationFactResolver.class)
+    @ConditionalOnBean(EntityMetaRegistry.class)
     @ConditionalOnMissingBean
-    public RelationFactService relationFactService(RelationFactResolver resolver) {
-        return new RelationFactService(resolver, 256);
+    public RelationFactService relationFactService(ObjectProvider<RelationFactResolver> resolver,
+        ConfiguredAccessPolicies configured) {
+        return new RelationFactService(configured.relations(resolver.getIfAvailable()), 256);
     }
 
     @Bean
@@ -162,7 +176,8 @@ public class CrudPolicyAutoConfiguration {
         BusinessOperationCatalog operations,
         BusinessIdentityRegistry identities,
         ObjectProvider<EntityPolicyTemplate> templates,
-        ObjectProvider<EntityPolicyBinding> javaBindings
+        ObjectProvider<EntityPolicyBinding> javaBindings,
+        ConfiguredAccessPolicies configured
     ) {
         Collection<EntityMeta> metas = entities.getEntityMetas();
         List<EntityPolicyBinding> bindings = new ArrayList<EntityPolicyBinding>();
@@ -187,8 +202,10 @@ public class CrudPolicyAutoConfiguration {
                 "@EntPolicy:" + selection.declaringType.getName(), relations));
         }
         bindings.addAll(javaBindings.orderedStream().collect(Collectors.toList()));
-        return new EntityPolicyRegistry(metas, templates.orderedStream().collect(Collectors.toList()),
-            bindings, operations, identities);
+        bindings.addAll(configured.bindings());
+        List<EntityPolicyTemplate> all = new ArrayList<>(templates.orderedStream().collect(Collectors.toList()));
+        all.addAll(configured.templates());
+        return new EntityPolicyRegistry(metas, all, bindings, operations, identities);
     }
 
     private static PolicySelection selectPolicy(Class<?> entityType) {

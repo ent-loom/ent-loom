@@ -74,6 +74,9 @@ public @interface EntCrudEntity {
      */
     String[] scopeFields() default {};
 
+    /** 排除全局候选归属字段；字段必须存在，不能同时显式登记为范围字段。 */
+    String[] excludeScopeFields() default {};
+
     /**
      * 所属服务名。
      *

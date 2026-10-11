@@ -47,12 +47,84 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # HTTP 接口：开放已注册实体并排除订单明细；实体 httpExposed=false 优先拒绝通用路由。
+      # 业务策略：身份核验仍由 Java 完成，声明在启动时编译并冻结。
+      access:
+        # 全局候选：只匹配实体已有字段，统一保护归属写入；授权范围由策略分支决定。
+        defaults:
+          scope-fields: [merchantId, customerId]
+        # 策略名下的 customer / merchant 是可信访问身份，不是实体资源码。
+        policies:
+          customer-address:
+            customer:
+              actions: [view]
+              fields: customer-address
+          merchant-poster:
+            merchant:
+              actions: [view]
+              fields: merchant-poster
+          merchant-pricing:
+            merchant:
+              actions: [view, update]
+              fields: pricing
+          order-entries:
+            customer:
+              actions: [view]
+              fields: customer-orders
+            merchant:
+              actions: [view]
+              fields: merchant-orders
+        # customerAddress / merchantPoster 才是被访问的实体；身份关系决定“谁的数据”。
+        entities:
+          # 原下单仍走开发演示链，仅排除归属保护，不生成策略绑定。
+          order:
+            exclude-scope-fields: [customerId]
+          customerAddress:
+            policy: customer-address
+            operations:
+              view: [LIST, PAGE]
+          merchantPoster:
+            policy: merchant-poster
+            operations:
+              view: [LIST, PAGE]
+          merchantProduct:
+            policy: merchant-pricing
+            operations:
+              view: [LIST]
+              update: [UPDATE]
+          merchantOrder:
+            policy: order-entries
+            operations:
+              view: [PAGE]
+        # scope 缺省取身份名称；identity-field 缺省取“关系名称 + Id”。
+        # customer / merchant 在这里是归属关系角色，field 指向被访问实体的归属字段。
+        relations:
+          merchant:
+            field: merchantId
+          customer:
+            field: customerId
+        # fields 引用命名方案；未列出的字段用途不可使用，且与实体静态上限取交集。
+        field-plans:
+          customer-address:
+            RETURN: [id, customerId, recipient, phone, address]
+            SORT: [id]
+          merchant-poster:
+            RETURN: [id, merchantId, title, content]
+            SORT: [id]
+          pricing:
+            RETURN: [id, productId, merchantId, price, version]
+            WRITE: [price]
+          customer-orders:
+            RETURN: [id, orderId, customerId, merchantId, totalAmount]
+            FILTER: [merchantId]
+            SORT: [id]
+          merchant-orders:
+            RETURN: [id, orderId, customerId, merchantId, totalAmount]
+            FILTER: [customerId]
+            SORT: [id]
+      # 通用 HTTP 只开放白名单；新增实体默认不暴露，内部授权查询与 DAO 不受影响。
       controller:
         enabled: true
-        exposure-mode: ALL_REGISTERED
-        exclude-entities:
-          - orderItem
+        include-entities: [product, customer, order]
       # 写入契约：创建请求必须显式提供的字段。
       contracts:
         create:
@@ -90,7 +162,7 @@ ent:
         # 读取可见性按入口限制商品状态：消费者只看启用商品，管理入口可看全部。
         # 可见性不会授予权限；请求仍须先通过 grants 和动作准入。
         # all 仅表示不追加商品状态限制，不会绕过数据归属范围；此处也不控制商品写入。
-        # 此处针对商品主数据；商家报价与双端子订单的归属限制由 DemoAccessConfiguration 的动态授权落实。
+        # 此处针对商品主数据；商家报价与双端子订单的归属限制由 access 的身份关系范围落实。
         read-visibility:
           product:
             consumer:

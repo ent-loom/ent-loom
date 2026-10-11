@@ -1,7 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
 import com.entloom.base.common.OptionalBoolean;
-import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
@@ -11,7 +10,6 @@ import lombok.Setter;
 
 /** 商家对商品的独立报价，仅通过商家受治理接口维护。 */
 @EntEntity("商家商品报价")
-@EntCrudEntity(httpExposed = false, scopeFields = "merchantId")
 @Getter
 @Setter
 @NoArgsConstructor

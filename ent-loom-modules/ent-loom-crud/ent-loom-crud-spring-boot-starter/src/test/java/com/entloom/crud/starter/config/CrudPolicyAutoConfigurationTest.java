@@ -261,7 +261,7 @@ class CrudPolicyAutoConfigurationTest {
                 Collections.singleton("owner"))));
     }
 
-    private static EntityMetaRegistry metas(Class<?>... types) {
+    static EntityMetaRegistry metas(Class<?>... types) {
         java.util.List<EntityMeta> metas = new java.util.ArrayList<EntityMeta>();
         for (Class<?> type : types) {
             String resource = type == JavaOrder.class ? "invoice"

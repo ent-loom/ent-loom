@@ -17,6 +17,7 @@ import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaR
 import com.entloom.crud.core.runtime.model.CrudRuntimeEntityModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeRelationModel;
+import com.entloom.crud.core.runtime.model.CrudScopeFieldRules;
 import com.entloom.crud.core.governance.audit.CompositeCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
@@ -43,8 +44,10 @@ import com.entloom.crud.engine.jdbc.dialect.StandardJdbcDialect;
 import com.entloom.crud.engine.jdbc.governance.JdbcCrudGovernanceAuditRecorder;
 import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.log.SqlLogLevel;
+import com.entloom.crud.starter.config.CrudAccessProperties;
 import com.entloom.crud.starter.config.CrudProperties;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +56,7 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -63,6 +67,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @Configuration
 @org.springframework.context.annotation.Import(ReadVisibilityConfiguration.class)
+@EnableConfigurationProperties(CrudAccessProperties.class)
 public class CrudCommonConfiguration {
     /**
      * 构建命令幂等校验策略，支持业务覆盖。
@@ -307,13 +312,23 @@ public class CrudCommonConfiguration {
         return new CompositeCrudGovernanceAuditRecorder(delegates);
     }
 
-    /**
-     * 实体元数据注册器。
-     */
+    /** 各声明来源共用的归属字段规则。 */
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudScopeFieldRules crudScopeFieldRules(CrudAccessProperties properties) {
+        Map<String, List<String>> exclusions = new LinkedHashMap<>();
+        properties.getEntities().forEach((resource, entity) -> {
+            if (!entity.getExcludeScopeFields().isEmpty()) exclusions.put(resource, entity.getExcludeScopeFields());
+        });
+        return new CrudScopeFieldRules(properties.getDefaults().getScopeFields(), exclusions);
+    }
+
+    /** 汇总元数据并冻结全局归属约定，供所有标准执行器复用。 */
     @Bean
     @ConditionalOnMissingBean
     public EntityMetaRegistry metaRegistry(
-        ObjectProvider<ResourceCatalogAdapter[]> resourceCatalogAdapters
+        ObjectProvider<ResourceCatalogAdapter[]> resourceCatalogAdapters,
+        CrudScopeFieldRules scopeFields
     ) {
         ResourceCatalogAdapter[] adapters = resourceCatalogAdapters.getIfAvailable();
         if (adapters != null && adapters.length > 0) {
@@ -325,7 +340,7 @@ public class CrudCommonConfiguration {
             }
             AnnotationAwareOrderComparator.sort(orderedAdapters);
             if (!orderedAdapters.isEmpty()) {
-                return new CrudRuntimeModelBackedEntityMetaRegistry(mergeRuntimeModels(orderedAdapters));
+                return new CrudRuntimeModelBackedEntityMetaRegistry(scopeFields.apply(mergeRuntimeModels(orderedAdapters)));
             }
         }
         throw new ValidationException("未找到 ResourceCatalogAdapter，CRUD 运行期必须由 CrudRuntimeModel 构建 EntityMetaRegistry");

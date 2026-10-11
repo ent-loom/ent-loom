@@ -4,22 +4,15 @@ import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.governance.admission.CredentialAuthentication;
-import com.entloom.crud.core.governance.authorization.AuthorizationFields;
-import com.entloom.crud.core.governance.authorization.AuthorizationScope;
-import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
-import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.starter.web.access.CrudHttpAuthenticationSource;
 import com.entloom.crud.starter.web.access.HttpAccessAuthentication;
 import com.example.minicommerce.customer.access.CustomerDemoProperties;
 import com.example.minicommerce.customer.access.CustomerIdentity;
 import com.example.minicommerce.merchant.access.MerchantDemoProperties;
-import com.example.minicommerce.merchant.access.MerchantAccessConfiguration;
 import com.example.minicommerce.merchant.access.MerchantIdentity;
-import com.example.minicommerce.order.access.OrderAccessConfiguration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
 
 /** 两端共用可信凭证来源，当前身份由令牌绑定，业务入口由服务端路由确定。 */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CustomerDemoProperties.class)
+@EnableConfigurationProperties({CustomerDemoProperties.class, MerchantDemoProperties.class})
 public class DemoAccessConfiguration {
     @Bean
     CrudHttpAuthenticationSource demoAuthentication(MerchantDemoProperties merchants, CustomerDemoProperties customers) {
@@ -68,39 +61,13 @@ public class DemoAccessConfiguration {
     }
 
     @Bean
-    BusinessPermissionEvaluator commercePermissions() {
-        return (visitor, operation, rule, targetId) -> {
-            var merchant = visitor.findIdentity(MerchantIdentity.class);
-            var customer = visitor.findIdentity(CustomerIdentity.class);
-            if (OrderAccessConfiguration.VIEW.equals(operation)) {
-                var returned = List.of("id", "orderId", "customerId", "merchantId", "totalAmount");
-                if (merchant.isPresent() && "merchant".equals(visitor.getAccessEntry())) {
-                    return BusinessPermissionDecision.allow(
-                        AuthorizationScope.equal("merchantId", merchant.get().merchantId()),
-                        AuthorizationFields.of(Map.of(
-                            AuthorizationFields.Use.RETURN, returned,
-                            AuthorizationFields.Use.FILTER, List.of("customerId"),
-                            AuthorizationFields.Use.SORT, List.of("id"))));
-                }
-                if (customer.isPresent() && "consumer".equals(visitor.getAccessEntry())) {
-                    return BusinessPermissionDecision.allow(
-                        AuthorizationScope.equal("customerId", customer.get().customerId()),
-                        AuthorizationFields.of(Map.of(
-                            AuthorizationFields.Use.RETURN, returned,
-                            AuthorizationFields.Use.FILTER, List.of("merchantId"),
-                            AuthorizationFields.Use.SORT, List.of("id"))));
-                }
-            }
-            if (merchant.isPresent() && "merchant".equals(visitor.getAccessEntry())
-                && (MerchantAccessConfiguration.VIEW.equals(operation) || MerchantAccessConfiguration.UPDATE.equals(operation))) {
-                return BusinessPermissionDecision.allow(
-                    AuthorizationScope.equal("merchantId", merchant.get().merchantId()),
-                    AuthorizationFields.of(Map.of(
-                        AuthorizationFields.Use.RETURN, List.of("id", "productId", "merchantId", "price", "version"),
-                        AuthorizationFields.Use.WRITE, List.of("price"))));
-            }
-            return BusinessPermissionDecision.deny();
-        };
+    BusinessIdentityRegistration<MerchantIdentity> merchantIdentity(MerchantDemoProperties properties) {
+        return new BusinessIdentityRegistration<>(MerchantIdentity.CODE, MerchantIdentity.class, (subject, id) ->
+            properties.accounts().stream()
+                .filter(account -> subject.getType() == AccessSubjectType.HUMAN
+                    && account.subjectId().equals(subject.getSubjectId()) && account.merchantId().toString().equals(id))
+                .findFirst().map(account -> new MerchantIdentity(account.merchantId()))
+                .orElseThrow(() -> new PermissionDeniedException("账号不属于当前商家")));
     }
 
     private static void register(Map<String, CredentialAuthentication> credentials, String token, String subjectId,
