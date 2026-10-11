@@ -6,7 +6,6 @@ import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.starter.config.CrudProperties;
-import com.example.minicommerce.product.entity.Product;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.customer.entity.CustomerAddress;
 import com.example.minicommerce.order.entity.Order;
@@ -68,14 +67,13 @@ class OrderAccessTest {
 
     @Test
     void 实体只从业务包注册且Http遵循排除和实体禁用配置() {
-        assertEquals(Set.of(Product.class, Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
+        assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
                 MerchantProduct.class, MerchantPoster.class, MerchantOrder.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(EntityExposureMode.EXPLICIT, crudProperties.getController().getExposureMode());
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantProduct"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("customerAddress"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantPoster"));
-        assertEquals(Product.class, exposedEntities.resolveOrThrow("product"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
         assertThrows(
@@ -134,7 +132,7 @@ class OrderAccessTest {
     void invalidCommandIsRejectedByHandlerAfterPermission() throws Exception {
         rules(List.of(rule("COMMAND:ACTION", "place", AccessDecision.ALLOW)));
         mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"payload\":{\"customerId\":2001,\"items\":[{\"productId\":1001,\"quantity\":0}]}}"))
+            .content("{\"payload\":{\"customerId\":2001,\"items\":[{\"merchantProductId\":1001,\"quantity\":0}]}}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("QUANTITY_INVALID"));
         verify(permissionService).decide(any(), any(), any());
     }
@@ -163,7 +161,7 @@ class OrderAccessTest {
     }
 
     private String command() {
-        return "{\"payload\":{\"customerId\":2001,\"items\":[{\"productId\":1001,\"quantity\":1}]}}";
+        return "{\"payload\":{\"customerId\":2001,\"items\":[{\"merchantProductId\":1001,\"quantity\":1}]}}";
     }
 
     private String detail() {

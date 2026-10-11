@@ -75,7 +75,7 @@ ent:
               fields: merchant-orders
         # customerAddress / merchantPoster 才是被访问的实体；身份关系决定“谁的数据”。
         entities:
-          # 原下单仍走开发演示链，仅排除归属保护，不生成策略绑定。
+          # 客户结算单由下单场景创建，普通 CRUD 不绑定商家或客户范围。
           order:
             exclude-scope-fields: [customerId]
           customerAddress:
@@ -111,8 +111,8 @@ ent:
             RETURN: [id, merchantId, title, content]
             SORT: [id]
           pricing:
-            RETURN: [id, productId, merchantId, price, version]
-            WRITE: [price]
+            RETURN: [id, merchantId, name, price, active, version]
+            WRITE: [name, price, active]
           customer-orders:
             RETURN: [id, orderId, customerId, merchantId, totalAmount]
             FILTER: [merchantId]
@@ -124,12 +124,11 @@ ent:
       # 通用 HTTP 只开放白名单；新增实体默认不暴露，内部授权查询与 DAO 不受影响。
       controller:
         enabled: true
-        include-entities: [product, customer, order]
+        include-entities: [customer, order]
       # 写入契约：创建请求必须显式提供的字段。
       contracts:
         create:
           input-required-fields:
-            product: [name, price, active]
             customer: [displayName, email]
 
       # 仅为本示例提供一个固定请求主体和全量数据范围，便于直接运行。
@@ -144,30 +143,20 @@ ent:
         # 原通用 CRUD 固定使用的业务入口；双端自定义接口由 DemoAccessConfiguration 按服务端路由确定。
         # 入口不是登录身份或角色；切换入口不会切换主体及其权限。
         # consumer=消费者，merchant=商家，management=平台管理；名称由业务应用约定。
-        # 当前仅配置 consumer / management；merchant 读取商品会因缺少可见性绑定而拒绝。
+        # 当前仅配置 consumer / management；商家商品由商家专用接口维护。
         # 多端同时访问时，应由服务端根据已认证身份与受保护路由解析入口，详见 README。
         access-entry: consumer
         # 示例主体的业务权限清单：subject -> resource:action。
         # * 通配该资源的操作与场景，仍受动作准入等约束；place 是显式下单动作。
-        # grants 按主体匹配，不会按 access-entry 自动分组；消费者入口也保留演示商品写权限。
+        # grants 按主体匹配，不会按 access-entry 自动分组。
         # 正式接入应按登录主体解析角色权限，避免把这里的演示权限当作消费者角色。
         grants:
           local-developer:
-            - product:*
             - customer:read
             - customer:create
             - customer:update
             - order:read
             - order:place
-        # 读取可见性按入口限制商品状态：消费者只看启用商品，管理入口可看全部。
-        # 可见性不会授予权限；请求仍须先通过 grants 和动作准入。
-        # all 仅表示不追加商品状态限制，不会绕过数据归属范围；此处也不控制商品写入。
-        # 此处针对商品主数据；商家报价与双端子订单的归属限制由 access 的身份关系范围落实。
-        read-visibility:
-          product:
-            consumer:
-              active: true
-            management: all
         # 示例无需额外审计表。
         audit:
           persist-to-jdbc: false

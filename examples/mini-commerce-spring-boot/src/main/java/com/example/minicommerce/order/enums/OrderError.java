@@ -12,20 +12,20 @@ public enum OrderError {
     ITEMS_REQUIRED("ITEMS_REQUIRED", "订单至少需要一件商品"),
     /** 商品行对象为空。 */
     ITEM_REQUIRED("ITEM_REQUIRED", "商品行不能为空"),
-    /** 商品主键为空。 */
-    PRODUCT_REQUIRED("PRODUCT_REQUIRED", "商品不能为空"),
+    /** 商家商品主键为空。 */
+    MERCHANT_PRODUCT_REQUIRED("MERCHANT_PRODUCT_REQUIRED", "商家商品不能为空"),
     /** 购买数量为空。 */
     QUANTITY_REQUIRED("QUANTITY_REQUIRED", "购买数量不能为空"),
     /** 购买数量必须为正数。 */
     QUANTITY_INVALID("QUANTITY_INVALID", "购买数量必须大于零"),
-    /** 同一订单重复提交商品。 */
-    DUPLICATE_PRODUCT("DUPLICATE_PRODUCT", "同一订单不能重复提交商品"),
-    /** 商品不存在。 */
-    PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "商品不存在"),
-    /** 商品当前未启用。 */
-    PRODUCT_INACTIVE("PRODUCT_INACTIVE", "商品当前不可下单"),
-    /** 商品价格不符合下单要求。 */
-    PRODUCT_PRICE_INVALID("PRODUCT_PRICE_INVALID", "商品价格必须大于零");
+    /** 同一订单重复提交商家商品。 */
+    DUPLICATE_MERCHANT_PRODUCT("DUPLICATE_MERCHANT_PRODUCT", "同一订单不能重复提交商家商品"),
+    /** 商家商品不存在。 */
+    MERCHANT_PRODUCT_NOT_FOUND("MERCHANT_PRODUCT_NOT_FOUND", "商家商品不存在"),
+    /** 商家商品当前未启用。 */
+    MERCHANT_PRODUCT_INACTIVE("MERCHANT_PRODUCT_INACTIVE", "商家商品当前不可下单"),
+    /** 商家商品价格不符合下单要求。 */
+    MERCHANT_PRODUCT_PRICE_INVALID("MERCHANT_PRODUCT_PRICE_INVALID", "商家商品价格必须大于零");
 
     private final String code;
     private final String message;

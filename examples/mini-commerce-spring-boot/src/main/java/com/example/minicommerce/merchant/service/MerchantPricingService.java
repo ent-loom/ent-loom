@@ -19,7 +19,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** 业务层只组装显式改价 Patch，逐目标范围、字段、版本和事务由框架执行。 */
+/** 商品价格业务层只组装显式改价 Patch，归属、字段、版本和事务由框架执行。 */
 @Service
 @RequiredArgsConstructor
 public class MerchantPricingService {

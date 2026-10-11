@@ -4,8 +4,8 @@
 @merchantA = demo-merchant-a
 @merchantB = demo-merchant-b
 
-### 准备：应用建表后执行 scripts/order-entry-demo.sql，两个端访问同一批子订单。
-### 用户甲：本人子订单 501、502、504，total=3
+### 准备：应用建表后执行 scripts/order-entry-demo.sql，两个端访问同一批销售订单。
+### 用户甲：本人销售订单 501、502、504，total=3
 POST {{baseUrl}}/api/consumer/orders/page
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
@@ -26,7 +26,7 @@ Content-Type: application/json
 
 {"merchantId":2001}
 
-### 商家甲：本商家子订单 501、503、504，total=3
+### 商家甲：本商家销售订单 501、503、504，total=3
 POST {{baseUrl}}/api/merchant/orders/page
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
@@ -54,7 +54,7 @@ Content-Type: application/json
 
 {}
 
-### 用户甲第二页：502，total仍为3；固定按子订单ID升序
+### 用户甲第二页：502，total仍为3；固定按销售订单 ID 升序
 POST {{baseUrl}}/api/consumer/orders/page
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
@@ -93,7 +93,7 @@ Content-Type: application/json
 
 {}
 
-### 通用子订单分页禁用：404 ENTITY_NOT_EXPOSED
+### 通用销售订单分页禁用：404 ENTITY_NOT_EXPOSED
 POST {{baseUrl}}/api/ent-crud/merchantOrder/page
 Content-Type: application/json
 

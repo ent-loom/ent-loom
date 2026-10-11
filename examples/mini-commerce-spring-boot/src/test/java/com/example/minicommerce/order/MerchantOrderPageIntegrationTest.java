@@ -41,12 +41,12 @@ class MerchantOrderPageIntegrationTest {
     void 准备交叉客户和商家归属数据() {
         jdbc.update("delete from merchant_order");
         jdbc.update("""
-            insert into merchant_order(id, order_id, customer_id, merchant_id, total_amount) values
-            (501, 9001, 301, 1001, 10),
-            (502, 9001, 301, 2001, 20),
-            (503, 9002, 302, 1001, 30),
-            (504, 9003, 301, 1001, 40),
-            (505, 9004, 302, 2001, 50)
+            insert into merchant_order(id, order_id, customer_id, merchant_id, status, total_amount, created_at) values
+            (501, 9001, 301, 1001, 'CREATED', 10, '2026-10-07 10:00:00'),
+            (502, 9001, 301, 2001, 'CREATED', 20, '2026-10-07 10:00:00'),
+            (503, 9002, 302, 1001, 'CREATED', 30, '2026-10-07 10:01:00'),
+            (504, 9003, 301, 1001, 'CREATED', 40, '2026-10-07 10:02:00'),
+            (505, 9004, 302, 2001, 'CREATED', 50, '2026-10-07 10:03:00')
             """);
     }
 
@@ -175,7 +175,7 @@ class MerchantOrderPageIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "demo-customer-a", "demo-customer-b", "demo-merchant-a", "demo-merchant-b"})
-    void 通用分页路由始终拒绝未暴露的商家子订单实体(String token) throws Exception {
+    void 通用分页路由始终拒绝未暴露的商家销售订单实体(String token) throws Exception {
         ResponseEntity<String> response = post("/api/ent-crud/merchantOrder/page", token.isEmpty() ? null : token, "{}");
         assertStatus(response, 404);
         assertEquals("ENTITY_NOT_EXPOSED", json.readTree(response.getBody()).get("code").asText());

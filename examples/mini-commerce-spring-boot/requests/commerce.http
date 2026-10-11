@@ -1,21 +1,9 @@
 @baseUrl = http://localhost:8082
-@productId = 1
+@merchantProductId = 101
 @customerId = 1
 @orderId = 1
-# 按响应 data.id、data.orderId 更新上方变量；默认 consumer 入口可完成整个流程。
 
-### 创建商品：通用 CRUD
-POST {{baseUrl}}/api/ent-crud/product/create
-Content-Type: application/json
-
-{
-  "options": {"requestId": "commerce-product-create-1"},
-  "payload": {
-    "name": "实体编程入门书",
-    "price": 19.90,
-    "active": true
-  }
-}
+### 准备商家商品：应用启动后执行 scripts/merchant-demo.sql
 
 ### 创建客户：通用 CRUD
 POST {{baseUrl}}/api/ent-crud/customer/create
@@ -29,7 +17,7 @@ Content-Type: application/json
   }
 }
 
-### 下单：内置 Command Controller 路由到业务 Handler
+### 下单：提交商家商品 ID，服务端从商品记录确定 merchantId
 POST {{baseUrl}}/api/ent-crud/order/action/place
 Content-Type: application/json
 
@@ -37,32 +25,19 @@ Content-Type: application/json
   "payload": {
     "customerId": {{customerId}},
     "items": [
-      {"productId": {{productId}}, "quantity": 2}
+      {"merchantProductId": {{merchantProductId}}, "quantity": 2}
     ]
   }
 }
 
-### 查询订单及明细：默认查询展开客户与订单明细
+### 查询结算单及商家销售订单、明细
 POST {{baseUrl}}/api/ent-crud/order/detail
 Content-Type: application/json
 
-{"options": {"resultMode": "ENTITY", "filter": {"id": {{orderId}}}, "expandRelations": ["customer", "orderItemList"]}}
+{"options": {"resultMode": "ENTITY", "filter": {"id": {{orderId}}}, "expandRelations": ["customer", "orderItemList", "merchantOrderList"]}}
 
-### 默认订单创建未授权，预期 403
+### 默认订单创建未授权
 POST {{baseUrl}}/api/ent-crud/order/create
 Content-Type: application/json
 
 {"payload": {"customerId": {{customerId}}}}
-
-### 可售商品分页：服务端强制启用状态，并支持排序和分页
-POST {{baseUrl}}/api/ent-crud/product/page
-Content-Type: application/json
-
-{
-  "options": {
-    "filter": {"active": true},
-    "page": 1,
-    "limit": 10,
-    "sorts": [{"field": "price", "direction": "ASC"}]
-  }
-}

@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 商家报价接口：当前身份来自框架准入，载荷仅接受报价 ID、价格和预期版本。 */
+/** 商家商品价格接口：当前身份来自框架准入，载荷仅接受商品 ID、价格和预期版本。 */
 @RestController
 @RequestMapping("/api/merchant/products")
 @EntAccess(identity = MerchantIdentity.class, accessEntries = "merchant", subjectTypes = AccessSubjectType.HUMAN)
@@ -49,7 +49,7 @@ public class MerchantPricingController {
     ResponseEntity<CrudResponse<Void>> writeMiss(EntityDaoWriteMissException error) {
         // 不区分记录不存在、跨商家或版本过期，避免泄露其他商家的数据存在性。
         return ResponseEntity.status(409).body(responses.failure("PRICE_UPDATE_REJECTED",
-            "报价不可更新或版本已变化，整批未生效；请重新读取本人报价"));
+            "商品不可更新或版本已变化，整批未生效；请重新读取本人商品"));
     }
 
     @ExceptionHandler(CrudException.class)
@@ -60,6 +60,6 @@ public class MerchantPricingController {
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
     ResponseEntity<CrudResponse<Void>> invalidRequest(Exception error) {
-        return ResponseEntity.badRequest().body(responses.failure("VALIDATION_ERROR", "请提供 1～100 条合法报价、价格和版本"));
+        return ResponseEntity.badRequest().body(responses.failure("VALIDATION_ERROR", "请提供 1～100 条合法商品、价格和版本"));
     }
 }

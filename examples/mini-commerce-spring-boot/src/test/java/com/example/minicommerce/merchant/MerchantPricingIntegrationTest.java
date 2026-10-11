@@ -29,12 +29,13 @@ class MerchantPricingIntegrationTest {
     @BeforeEach
     void prepare() {
         jdbc.update("delete from merchant_product");
-        jdbc.update("insert into merchant_product(id, product_id, merchant_id, price, version) values "
-            + "(101, 10, 1001, 10, 0), (102, 20, 1001, 20, 0), (201, 10, 2001, 30, 0)");
+        jdbc.update("insert into merchant_product(id, merchant_id, name, price, active, version) values "
+            + "(101, 1001, '商家商品一', 10, true, 0), (102, 1001, '商家商品二', 20, true, 0), "
+            + "(201, 2001, '商家商品一', 30, true, 0)");
     }
 
     @Test
-    void 两个商家只读取自己的报价且请求不能切换身份() throws Exception {
+    void 两个商家只读取自己的商品且请求不能切换身份() throws Exception {
         mvc.perform(get("/api/merchant/products").header("Authorization", "Bearer demo-merchant-a")
                 .header("X-Merchant-Id", "2001"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(2))
@@ -52,7 +53,7 @@ class MerchantPricingIntegrationTest {
     }
 
     @Test
-    void 两条报价提交后分别递增版本且归属不变() throws Exception {
+    void 两条商品改价后分别递增版本且归属不变() throws Exception {
         update("""
             {"items":[{"id":101,"price":11.5,"version":0},{"id":102,"price":22,"version":0}]}
             """).andExpect(status().isOk()).andExpect(jsonPath("$.data[0]").value(101))
@@ -63,7 +64,7 @@ class MerchantPricingIntegrationTest {
     }
 
     @Test
-    void 第二项跨商家则第一项价格和版本回滚() throws Exception {
+    void 第二项跨商家则第一项商品价格和版本回滚() throws Exception {
         update("""
             {"items":[{"id":101,"price":11,"version":0},{"id":201,"price":33,"version":0}]}
             """).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PRICE_UPDATE_REJECTED"));
@@ -95,7 +96,7 @@ class MerchantPricingIntegrationTest {
     }
 
     @Test
-    void 通用接口不能绕过商家入口修改报价() throws Exception {
+    void 通用接口不能绕过商家入口修改商品() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"id\":101,\"merchantId\":2001,\"price\":1}}"))
             .andExpect(status().isNotFound());

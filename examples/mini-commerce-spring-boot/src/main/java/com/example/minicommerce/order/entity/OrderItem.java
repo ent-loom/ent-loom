@@ -23,10 +23,16 @@ public class OrderItem {
     @EntField("订单 ID")
     private Long orderId;
 
-    @EntField("商品 ID")
-    private Long productId;
+    @EntField("商家订单 ID")
+    private Long merchantOrderId;
 
-    /** 下单时的商品名称快照，不随商品主数据变化。 */
+    @EntField("商家商品 ID")
+    private Long merchantProductId;
+
+    @EntField("商家 ID")
+    private Long merchantId;
+
+    /** 下单时的商品名称快照，不随商家商品变化。 */
     @EntField("商品名称")
     private String productName;
 

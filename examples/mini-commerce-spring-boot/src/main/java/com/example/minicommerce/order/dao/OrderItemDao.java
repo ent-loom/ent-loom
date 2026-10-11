@@ -10,7 +10,7 @@ import java.util.List;
 @EntDao
 public interface OrderItemDao extends EntityDao<OrderItem, Long> {
     /** 按订单读取明细，并保持数据库中的明细顺序。 */
-    @EntQuery("select id, order_id, product_id, product_name, unit_price, quantity, line_amount "
+    @EntQuery("select id, order_id, merchant_order_id, merchant_product_id, merchant_id, product_name, unit_price, quantity, line_amount "
         + "from order_item where order_id = :orderId order by id")
     List<OrderItem> findByOrderId(Long orderId);
 }

@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 用户端分页：仅查询本人子订单，允许进一步按商家筛选。 */
+/** 用户端分页：仅查询本人销售订单，允许进一步按商家筛选。 */
 @RestController
 @RequestMapping("/api/consumer/orders")
 @EntAccess(identity = CustomerIdentity.class, accessEntries = "consumer", subjectTypes = AccessSubjectType.HUMAN)

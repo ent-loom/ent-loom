@@ -1,7 +1,8 @@
 package com.example.minicommerce.order.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
-/** 下单成功后的最小返回值。 */
-public record PlaceOrderResult(Long orderId, BigDecimal totalAmount) {
+/** 客户结算成功后的结果；每个商家都有独立销售订单。 */
+public record PlaceOrderResult(Long orderId, List<Long> merchantOrderIds, BigDecimal totalAmount) {
 }

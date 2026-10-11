@@ -59,4 +59,9 @@ public class Order {
     @EntCrudField(targetClass = OrderItem.class, targetField = "orderId", cardinality = RelationCardinality.ONE_TO_MANY)
     private List<OrderItem> orderItemList;
 
+    @EntField("商家销售订单")
+    @EntCrudField(targetClass = MerchantOrder.class, targetField = "orderId",
+        cardinality = RelationCardinality.ONE_TO_MANY)
+    private List<MerchantOrder> merchantOrderList;
+
 }
