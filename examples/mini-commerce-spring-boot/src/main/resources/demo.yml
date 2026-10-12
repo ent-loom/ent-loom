@@ -1,0 +1,38 @@
+# 演示接入：由 application.yml 显式导入，无需额外启用 Profile。
+# 正式应用应替换可信认证、身份归属与主体权限来源。
+ent:
+  loom:
+    crud:
+      example:
+        enabled: true
+        # 账号归属由服务端核验；ID 字段复用 access.identities 的约定。
+        accounts:
+          - token: demo-customer-a
+            subject-id: customer-user-a
+            customerId: 301
+          - token: demo-customer-b
+            subject-id: customer-user-b
+            customerId: 302
+          - token: demo-merchant-a
+            subject-id: merchant-user-a
+            merchantId: 1001
+          - token: demo-merchant-b
+            subject-id: merchant-user-b
+            merchantId: 2001
+        # 入口由服务端路由确定，不能由客户端切换。
+        default-access-entry: consumer
+        routes:
+          "[/api/merchant/**]": merchant
+      governance:
+        # 通用 CRUD 使用默认演示主体 local-developer。
+        access-entry: consumer
+        grants:
+          local-developer:
+            - customer:read
+            - customer:create
+            - customer:update
+            - order:read
+            - order:place
+        # 演示无需额外审计表。
+        audit:
+          persist-to-jdbc: false

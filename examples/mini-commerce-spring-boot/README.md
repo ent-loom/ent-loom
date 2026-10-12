@@ -86,7 +86,12 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 
 ## 配置要点
 
-`application.yml` 使用以下全局归属约定：
+配置分为两个文件，启动时自动加载，无需切换 Profile：
+
+- [application.yml](src/main/resources/application.yml)：运行基础、实体元数据、业务策略、操作与字段授权。
+- [demo.yml](src/main/resources/demo.yml)：静态账号、服务端入口路由、通用 CRUD 演示权限和审计设置。
+
+主配置使用以下全局归属约定（位于 `ent.loom.crud` 下）：
 
 ```yaml
 access:
@@ -103,16 +108,18 @@ controller:
 ```yaml
 identities:
   customer:
-    id-field: customerId
     id-type: LONG
   merchant:
-    id-field: merchantId
     id-type: LONG
 ```
 
+身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。策略以实体资源码命名，`entities` 只登记操作即可绑定同名策略；范围默认使用身份同名关系。字段方案仍显式选择，客户与商家的订单筛选能力分别声明，未登记的操作和字段用途不开放。
+
 Controller 使用 `@EntAccess(identity = "customer")` 或 `"merchant"`，方法接收统一 `AccessContext`。框架按身份码检查准入并构造不可变身份快照，数据范围从已声明 ID 属性读取；启动时检查未知引用及身份/实体字段类型不匹配。
 
-演示账号集中配置在 `ent.loom.crud.example.accounts`，每项只声明 `token`、`subject-id` 和已定义的 `customerId` 或 `merchantId`，归属由服务端账号绑定；入口独立由 `example.routes` 和 `default-access-entry` 确定。正式接入使用可信认证来源与身份解析器，YAML 定义不代替归属核验。
+演示账号集中配置在 `demo.yml` 的 `ent.loom.crud.example.accounts`，每项只声明 `token`、`subject-id` 和已定义的 `customerId` 或 `merchantId`，归属由服务端账号绑定；入口独立由 `example.routes` 和 `default-access-entry` 确定。正式接入使用可信认证来源与身份解析器，YAML 定义不代替归属核验。
+
+通用 CRUD 复用演示模式的默认主体 `local-developer` 和默认不限制数据归属的基础范围解析器；声明式策略仍约束双端接口的身份范围与字段。`governance.grants` 按主体匹配，入口名称本身不授予权限；创建必填字段和通用 HTTP 白名单保留在主配置中。
 
 当前账号：
 

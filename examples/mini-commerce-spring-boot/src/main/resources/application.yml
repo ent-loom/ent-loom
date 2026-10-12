@@ -1,7 +1,9 @@
 # 运行基础：本地与 Compose 使用同一组环境变量。
 spring:
   config:
-    import: optional:file:./.env[.properties]
+    import:
+      - classpath:demo.yml
+      - optional:file:./.env[.properties]
   application:
     name: mini-commerce-spring-boot
   datasource:
@@ -14,12 +16,11 @@ server:
 
 ent:
   loom:
-    # 默认复用 Meta 扫描的实体创建缺失的表；不修改已有表结构或清空数据。
+    # 按实体元数据创建缺失表。
     ddl:
       mode: CREATE_TABLE
-    # 实体元数据：只扫描业务实体包，为 CRUD、DDL 与文档提供统一定义。
+    # CRUD、DDL 与文档共用实体元数据。
     meta:
-      # CRUD 与 DDL 共用主键语义，MySQL 整数主键映射为自增。
       defaults:
         id-policy: DATABASE
         service: mini-commerce
@@ -27,78 +28,71 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # 业务策略：身份归属由可信解析器核验，声明在启动时编译并冻结。
+      # 业务访问：谁能执行什么操作、访问哪些数据与字段。
       access:
-        # 身份码、ID 字段及值类型由框架统一注册，无需业务身份类。
+        # ID 字段默认采用“身份码 + Id”。
         identities:
           customer:
-            id-field: customerId
             id-type: LONG
           merchant:
-            id-field: merchantId
             id-type: LONG
-        # 全局候选：只匹配实体已有字段，统一保护归属写入；授权范围由策略分支决定。
+        # 保护实体已有的归属字段，禁止普通写入。
         defaults:
           scope-fields: [merchantId, customerId]
-        # 策略名下的 customer / merchant 是可信访问身份，不是实体资源码。
+        # 按实体资源码命名策略，分支声明客户 / 商家的能力。
         policies:
-          customer-address:
+          customerAddress:
             customer:
               actions: [view]
-              fields: customer-address
-          merchant-poster:
+              fields: customerAddress
+          merchantPoster:
             merchant:
               actions: [view]
-              fields: merchant-poster
-          merchant-pricing:
+              fields: merchantPoster
+          merchantProduct:
             merchant:
               actions: [view, update]
-              fields: pricing
-          order-entries:
+              fields: merchantProduct
+          merchantOrder:
             customer:
               actions: [view]
               fields: customer-orders
             merchant:
               actions: [view]
               fields: merchant-orders
-        # customerAddress / merchantPoster 才是被访问的实体；身份关系决定“谁的数据”。
+        # 显式登记操作，默认绑定同名策略。
         entities:
-          # 客户结算单由下单场景创建，普通 CRUD 不绑定商家或客户范围。
+          # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
             exclude-scope-fields: [customerId]
           customerAddress:
-            policy: customer-address
             operations:
               view: [LIST, PAGE]
           merchantPoster:
-            policy: merchant-poster
             operations:
               view: [LIST, PAGE]
           merchantProduct:
-            policy: merchant-pricing
             operations:
               view: [LIST]
               update: [UPDATE]
           merchantOrder:
-            policy: order-entries
             operations:
               view: [PAGE]
-        # scope 缺省取身份码；identity-field 缺省复用该身份定义的 id-field。
-        # customer / merchant 在这里是归属关系角色，field 指向被访问实体的归属字段。
+        # 策略范围默认采用同名身份关系。
         relations:
           merchant:
             field: merchantId
           customer:
             field: customerId
-        # fields 引用命名方案；未列出的字段用途不可使用，且与实体静态上限取交集。
+        # 按用途授权字段；未声明的用途不开放。
         field-plans:
-          customer-address:
+          customerAddress:
             RETURN: [id, customerId, recipient, phone, address]
             SORT: [id]
-          merchant-poster:
+          merchantPoster:
             RETURN: [id, merchantId, title, content]
             SORT: [id]
-          pricing:
+          merchantProduct:
             RETURN: [id, merchantId, name, price, active, version]
             WRITE: [name, price, active]
           customer-orders:
@@ -109,7 +103,7 @@ ent:
             RETURN: [id, orderId, customerId, merchantId, totalAmount]
             FILTER: [customerId]
             SORT: [id]
-      # 通用 HTTP 只开放白名单；新增实体默认不暴露，内部授权查询与 DAO 不受影响。
+      # 通用 HTTP 仅开放客户与结算单。
       controller:
         enabled: true
         include-entities: [customer, order]
@@ -119,55 +113,7 @@ ent:
           input-required-fields:
             customer: [displayName, email]
 
-      # 显式演示模式：通用 CRUD 的固定主体与双端静态令牌账号。
-      # 正式接入替换认证来源、身份归属解析器和数据范围实现。
-      example:
-        enabled: true
-        # 原通用 CRUD 请求共用此主体；双端自定义接口另行要求令牌及 customer / merchant 身份。
-        subject-id: local-developer
-        # 显式展示演示默认值：Gateway 与 DAO 不限制数据归属，读取可见性仍单独生效。
-        allow-all-data-scope: true
-        # ID 字段复用 access.identities 的定义；账号只声明可信主体与身份归属。
-        accounts:
-          - token: demo-customer-a
-            subject-id: customer-user-a
-            customerId: 301
-          - token: demo-customer-b
-            subject-id: customer-user-b
-            customerId: 302
-          - token: demo-merchant-a
-            subject-id: merchant-user-a
-            merchantId: 1001
-          - token: demo-merchant-b
-            subject-id: merchant-user-b
-            merchantId: 2001
-        # 入口来自服务端路由，与身份码分别声明；客户端不能切换。
-        default-access-entry: consumer
-        routes:
-          "[/api/merchant/**]": merchant
-      governance:
-        # 原通用 CRUD 固定使用的业务入口；双端自定义接口由 example.routes 按服务端路由确定。
-        # 入口不是登录身份或角色；切换入口不会切换主体及其权限。
-        # consumer=消费者，merchant=商家，management=平台管理；名称由业务应用约定。
-        # 当前仅配置 consumer / management；商家商品由商家专用接口维护。
-        # 多端同时访问时，应由服务端根据已认证身份与受保护路由解析入口，详见 README。
-        access-entry: consumer
-        # 示例主体的业务权限清单：subject -> resource:action。
-        # * 通配该资源的操作与场景，仍受动作准入等约束；place 是显式下单动作。
-        # grants 按主体匹配，不会按 access-entry 自动分组。
-        # 正式接入应按登录主体解析角色权限，避免把这里的演示权限当作消费者角色。
-        grants:
-          local-developer:
-            - customer:read
-            - customer:create
-            - customer:update
-            - order:read
-            - order:place
-        # 示例无需额外审计表。
-        audit:
-          persist-to-jdbc: false
-
-    # 实体文档：限定访问主体，默认展示 Meta 注册的全部实体与非隐藏字段。
+    # 实体文档仅向演示主体开放。
     doc:
       contract:
         enabled: true
