@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 字段使用能力按用途分离；未列出的用途和字段默认不可用。 */
+/** 字段使用能力按用途分离；FILTER 缺省复用 RETURN，再与实体可筛选字段取交集，其他用途须显式授权。 */
 public final class AuthorizationFields {
     public enum Use {
         /** 返回字段。 */
@@ -49,6 +49,10 @@ public final class AuthorizationFields {
             }
             copy.put(use, Collections.unmodifiableSet(names));
         }
+        // 仅在声明阶段展开缺省；显式空集合表示关闭筛选。
+        if (!copy.containsKey(Use.FILTER) && copy.containsKey(Use.RETURN)) {
+            copy.put(Use.FILTER, copy.get(Use.RETURN));
+        }
         return new AuthorizationFields(Collections.unmodifiableMap(copy));
     }
 
@@ -62,10 +66,10 @@ public final class AuthorizationFields {
         Map<Use, Collection<String>> narrowed = new EnumMap<Use, Collection<String>>(Use.class);
         for (Map.Entry<Use, Set<String>> entry : allowed.entrySet()) {
             Set<String> ceiling = limit.allowed.get(entry.getKey());
-            if (ceiling == null) continue;
             Set<String> fields = new LinkedHashSet<String>(entry.getValue());
-            fields.retainAll(ceiling);
-            if (!fields.isEmpty()) narrowed.put(entry.getKey(), fields);
+            fields.retainAll(ceiling == null ? Collections.<String>emptySet() : ceiling);
+            // 保留空用途，避免再次构建时将已收窄的 FILTER 从 RETURN 重新开放。
+            narrowed.put(entry.getKey(), fields);
         }
         return narrowed.isEmpty() ? NONE : of(narrowed);
     }

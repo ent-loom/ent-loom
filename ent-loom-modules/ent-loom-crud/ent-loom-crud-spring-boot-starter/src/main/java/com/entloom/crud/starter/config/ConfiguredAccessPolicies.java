@@ -61,7 +61,12 @@ public final class ConfiguredAccessPolicies {
                 String plan = defaultName(declaration.getFields(), identity);
                 var fieldPlan = config.getFieldPlans().get(plan);
                 require(fieldPlan != null && !fieldPlan.isEmpty(), "缺少字段方案: " + plan);
-                for (var use : fieldPlan.entrySet()) unique(use.getValue(), "字段方案 " + plan + "/" + use.getKey());
+                for (var use : fieldPlan.entrySet()) {
+                    // FILTER: [] 明确关闭筛选，其他用途仍要求非空声明。
+                    if (use.getKey() == AuthorizationFields.Use.FILTER
+                        && use.getValue() != null && use.getValue().isEmpty()) continue;
+                    unique(use.getValue(), "字段方案 " + plan + "/" + use.getKey());
+                }
                 for (String action : unique(declaration.getActions(), "动作 " + policy.getKey() + "/" + identity)) {
                     rules.add(new EntityPolicyTemplate.Rule(action, PolicyIdentityBranch.identity(identity), List.of(scope)));
                 }
@@ -143,7 +148,7 @@ public final class ConfiguredAccessPolicies {
     public List<BusinessOperationDeclaration> operations() { return List.copyOf(operations); }
     public List<CrudOperationMapping> mappings() { return List.copyOf(mappings); }
 
-    /** YAML 只授权显式动作和字段；项目动态判断只能进一步收窄或拒绝。 */
+    /** YAML 授权显式动作与字段方案（含 FILTER 缺省）；项目动态判断只能进一步收窄或拒绝。 */
     public BusinessPermissionEvaluator evaluator(BusinessPermissionEvaluator dynamic) {
         return (visitor, operation, rule, target) -> {
             AuthorizationFields allowed = fields.get(key(rule));

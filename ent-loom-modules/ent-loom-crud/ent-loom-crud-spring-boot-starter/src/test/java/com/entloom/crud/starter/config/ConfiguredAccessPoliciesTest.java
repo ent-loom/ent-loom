@@ -128,6 +128,23 @@ class ConfiguredAccessPoliciesTest {
     }
 
     @Test
+    void Yaml筛选省略显式列表和空列表均保留约定() {
+        for (String declaration : List.of("", "FILTER: [ownerId]", "FILTER: []")) {
+            String yaml = YAML.replace("FILTER: [ownerId]", declaration);
+            runner(yaml).run(context -> {
+                assertThat(context).hasNotFailed();
+                var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+                assertThat(result.getFields().allows(AuthorizationFields.Use.FILTER, "id"))
+                    .isEqualTo(declaration.isEmpty());
+                assertThat(result.getFields().allows(AuthorizationFields.Use.FILTER, "ownerId"))
+                    .isEqualTo(declaration.equals("FILTER: [ownerId]"));
+                assertThat(result.getScope().getField()).isEqualTo("ownerId");
+                assertThat(result.getScope().getValues()).containsExactly("42");
+            });
+        }
+    }
+
+    @Test
     void 主Yaml按缺省编译动作实体字段和可信身份关系() {
         runner(YAML).run(context -> {
             assertThat(context).hasNotFailed();

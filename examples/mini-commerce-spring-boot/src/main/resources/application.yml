@@ -84,25 +84,19 @@ ent:
             field: merchantId
           customer:
             field: customerId
-        # 按用途授权字段；未声明的用途不开放。
+        # FILTER 缺省复用可返回且可筛选字段；显式列表覆盖缺省，[] 关闭筛选。
         field-plans:
           customerAddress:
             RETURN: [id, customerId, recipient, phone, address]
-            SORT: [id]
           merchantPoster:
             RETURN: [id, merchantId, title, content]
-            SORT: [id]
           merchantProduct:
             RETURN: [id, merchantId, name, price, active, version]
             WRITE: [name, price, active]
           customer-orders:
             RETURN: [id, orderId, customerId, merchantId, totalAmount]
-            FILTER: [merchantId]
-            SORT: [id]
           merchant-orders:
             RETURN: [id, orderId, customerId, merchantId, totalAmount]
-            FILTER: [customerId]
-            SORT: [id]
       # 通用 HTTP 仅开放客户与结算单。
       controller:
         enabled: true

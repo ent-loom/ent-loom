@@ -4,12 +4,10 @@ import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.enums.CountMode;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.enums.QueryOperation;
-import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.PageQuery;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.api.model.QueryFilter;
-import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.example.minicommerce.order.dto.OrderPageQueries;
@@ -33,7 +31,7 @@ public class OrderPageService {
     }
 
     private PageResult<CrudRecord> page(VisitorContext visitor, int number, int size, String field, Long value) {
-        var page = new PageQuery(number, size, List.of(new QuerySort("id", SortDirection.ASC)), CountMode.ALWAYS);
+        var page = new PageQuery(number, size, List.of(), CountMode.ALWAYS);
         var filters = value == null ? List.<QueryFilter>of() : List.of(new QueryFilter(field, FilterOperator.EQ, value));
         return queries.page(visitor, QuerySpec.<CrudRecord>builder().rootType(MerchantOrder.class)
             .resultType(CrudRecord.class).op(QueryOperation.PAGE).pageQuery(page).filters(filters).build());

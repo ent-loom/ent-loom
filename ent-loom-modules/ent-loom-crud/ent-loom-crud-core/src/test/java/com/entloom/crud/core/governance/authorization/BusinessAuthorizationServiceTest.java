@@ -172,6 +172,43 @@ class BusinessAuthorizationServiceTest {
     }
 
     @Test
+    void 缺省筛选复用返回字段并受实体元数据约束() {
+        AuthorizationFields declared = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Arrays.asList("status", "readonly", "relation", "unknown")));
+        AuthorizationFields fields = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), declared))
+            .authorize(request(teacher(), VIEW, null)).getFields();
+        assertEquals(Collections.singleton("status"), fields.snapshot().get(AuthorizationFields.Use.FILTER));
+        assertFalse(fields.allows(AuthorizationFields.Use.WRITE, "status"));
+        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "status"));
+    }
+
+    @Test
+    void 显式筛选覆盖缺省且交集不会重新开放空筛选() {
+        Map<AuthorizationFields.Use, java.util.Collection<String>> declared =
+            new EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);
+        declared.put(AuthorizationFields.Use.RETURN, Arrays.asList("status", "readonly"));
+        declared.put(AuthorizationFields.Use.FILTER, Collections.singletonList("readonly"));
+        AuthorizationFields explicit = AuthorizationFields.of(declared);
+        assertFalse(explicit.allows(AuthorizationFields.Use.FILTER, "status"));
+        AuthorizationFields effective = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), explicit))
+            .authorize(request(teacher(), VIEW, null)).getFields();
+        assertFalse(effective.allows(AuthorizationFields.Use.FILTER, "status"));
+        assertFalse(effective.allows(AuthorizationFields.Use.FILTER, "readonly"));
+        assertFalse(effective.intersect(explicit).allows(AuthorizationFields.Use.FILTER, "status"));
+
+        declared.put(AuthorizationFields.Use.FILTER, Collections.emptyList());
+        AuthorizationFields disabled = AuthorizationFields.of(declared);
+        AuthorizationFields defaults = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.singletonList("status")));
+        assertFalse(defaults.intersect(disabled).allows(AuthorizationFields.Use.FILTER, "status"));
+        assertFalse(disabled.intersect(defaults).allows(AuthorizationFields.Use.FILTER, "status"));
+        assertTrue(defaults.intersect(disabled).allows(AuthorizationFields.Use.RETURN, "status"));
+        assertTrue(AuthorizationFields.none().intersect(defaults).snapshot().isEmpty());
+    }
+
+    @Test
     void narrows_each_dynamic_field_use_to_the_frozen_entity_limit() {
         Map<AuthorizationFields.Use, java.util.Collection<String>> requested =
             new EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);

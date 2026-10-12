@@ -203,6 +203,51 @@ class JdbcAuthorizedQueryExecutorTest {
     }
 
     @Test
+    void stable_page_sort_should_not_grant_caller_sort_permissions() {
+        // 仅授权返回字段，默认分页仍稳定；主键不会出现在投影中。
+        fields = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo")));
+        QuerySpec<CrudRecord> firstPage = query().toBuilder().page(new PageRequest(1, 1)).build();
+        QuerySpec<CrudRecord> secondPage = query().toBuilder().page(new PageRequest(2, 1)).build();
+        assertEquals("one", executor.page(visitor, firstPage).getItems().get(0).string("orderNo"));
+        assertEquals("four", executor.page(visitor, secondPage).getItems().get(0).string("orderNo"));
+        assertEquals(Collections.singleton("orderNo"), executor.page(visitor, firstPage).getItems().get(0).keys());
+        int executions = executedSql.size();
+        assertThrows(PermissionDeniedException.class, () -> executor.page(visitor, firstPage.toBuilder()
+            .sorts(Collections.singletonList(new QuerySort("id", SortDirection.ASC))).build()));
+        assertEquals(executions, executedSql.size());
+
+        // 授权业务字段排序后，相同值由框架追加主键排序，跨页顺序确定。
+        fields = fields("id", "orderNo");
+        jdbc.update("update t_order set order_no = 'same' where id in (1, 4)");
+        List<QuerySort> sorts = Collections.singletonList(new QuerySort("orderNo", SortDirection.DESC));
+        assertEquals(Collections.singletonList(1L), ids(executor.page(visitor,
+            firstPage.toBuilder().sorts(sorts).build()).getItems()));
+        assertEquals(Collections.singletonList(4L), ids(executor.page(visitor,
+            secondPage.toBuilder().sorts(sorts).build()).getItems()));
+    }
+
+    @Test
+    void 缺省筛选始终与身份范围取交集且显式空列表关闭筛选() {
+        fields = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo")));
+        QuerySpec<CrudRecord> request = query().toBuilder().filters(Collections.singletonList(
+            new QueryFilter("orderNo", FilterOperator.EQ, "four"))).build();
+        assertEquals("four", executor.list(visitor, request).get(0).string("orderNo"));
+        assertTrue(executor.list(visitor, request.toBuilder().filters(Collections.singletonList(
+            new QueryFilter("orderNo", FilterOperator.EQ, "two"))).build()).isEmpty());
+        int executions = executedSql.size();
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor, request.toBuilder()
+            .filters(Collections.singletonList(new QueryFilter("tenantId", FilterOperator.EQ, "B"))).build()));
+        Map<AuthorizationFields.Use, List<String>> disabled = new EnumMap<>(AuthorizationFields.Use.class);
+        disabled.put(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"));
+        disabled.put(AuthorizationFields.Use.FILTER, Collections.emptyList());
+        fields = AuthorizationFields.of(disabled);
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor, request));
+        assertEquals(executions, executedSql.size());
+    }
+
+    @Test
     void every_execution_should_reauthorize_and_ignore_forged_legacy_subject() {
         QuerySpec<CrudRecord> request = query();
         assertEquals(Arrays.asList(1L, 4L), ids(executor.list(visitor, request)));
