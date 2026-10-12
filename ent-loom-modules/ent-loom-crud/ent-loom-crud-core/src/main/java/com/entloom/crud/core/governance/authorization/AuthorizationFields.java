@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 字段使用能力按用途分离；FILTER 缺省复用 RETURN，再与实体可筛选字段取交集，其他用途须显式授权。 */
+/** RETURN 缺省为实体普通字段，FILTER 缺省复用 RETURN；其他用途须显式授权，最终受实体元数据约束。 */
 public final class AuthorizationFields {
     public enum Use {
         /** 返回字段。 */
@@ -27,9 +27,15 @@ public final class AuthorizationFields {
 
     private static final AuthorizationFields NONE = new AuthorizationFields(Collections.emptyMap());
     private final Map<Use, Set<String>> allowed;
+    private final boolean defaultReturn;
 
     private AuthorizationFields(Map<Use, Set<String>> allowed) {
+        this(allowed, false);
+    }
+
+    private AuthorizationFields(Map<Use, Set<String>> allowed, boolean defaultReturn) {
         this.allowed = allowed;
+        this.defaultReturn = defaultReturn;
     }
 
     public static AuthorizationFields none() { return NONE; }
@@ -53,7 +59,20 @@ public final class AuthorizationFields {
         if (!copy.containsKey(Use.FILTER) && copy.containsKey(Use.RETURN)) {
             copy.put(Use.FILTER, copy.get(Use.RETURN));
         }
-        return new AuthorizationFields(Collections.unmodifiableMap(copy));
+        return new AuthorizationFields(Collections.unmodifiableMap(copy), !source.containsKey(Use.RETURN));
+    }
+
+    /** 在实体静态上限已知后展开缺省；none 与显式空 RETURN 均不会开放字段。 */
+    public AuthorizationFields resolveDefaults(AuthorizationFields entityLimit) {
+        Objects.requireNonNull(entityLimit, "实体字段上限不能为空");
+        if (!defaultReturn) return this;
+        Set<String> returned = new LinkedHashSet<String>(entityLimit.allowed.getOrDefault(Use.RETURN,
+            Collections.<String>emptySet()));
+        returned.removeAll(entityLimit.allowed.getOrDefault(Use.EXPAND, Collections.<String>emptySet()));
+        Map<Use, Collection<String>> resolved = new EnumMap<Use, Collection<String>>(Use.class);
+        resolved.putAll(allowed);
+        resolved.put(Use.RETURN, returned);
+        return of(resolved);
     }
 
     public boolean allows(Use use, String field) {
@@ -63,15 +82,15 @@ public final class AuthorizationFields {
 
     public AuthorizationFields intersect(AuthorizationFields limit) {
         Objects.requireNonNull(limit, "字段静态上限不能为空");
-        Map<Use, Collection<String>> narrowed = new EnumMap<Use, Collection<String>>(Use.class);
-        for (Map.Entry<Use, Set<String>> entry : allowed.entrySet()) {
+        Map<Use, Set<String>> narrowed = new EnumMap<Use, Set<String>>(Use.class);
+        for (Map.Entry<Use, Set<String>> entry : resolveDefaults(limit).allowed.entrySet()) {
             Set<String> ceiling = limit.allowed.get(entry.getKey());
             Set<String> fields = new LinkedHashSet<String>(entry.getValue());
             fields.retainAll(ceiling == null ? Collections.<String>emptySet() : ceiling);
             // 保留空用途，避免再次构建时将已收窄的 FILTER 从 RETURN 重新开放。
-            narrowed.put(entry.getKey(), fields);
+            narrowed.put(entry.getKey(), Collections.unmodifiableSet(fields));
         }
-        return narrowed.isEmpty() ? NONE : of(narrowed);
+        return narrowed.isEmpty() ? NONE : new AuthorizationFields(Collections.unmodifiableMap(narrowed));
     }
 
     public Map<Use, Set<String>> snapshot() { return allowed; }

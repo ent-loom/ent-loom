@@ -11,6 +11,7 @@ import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CrudOperationKey;
+import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
@@ -24,6 +25,9 @@ import com.entloom.crud.core.governance.policy.EntityPolicyBinding;
 import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,8 @@ import org.springframework.core.io.ByteArrayResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ConfiguredAccessPoliciesTest {
     private static final String YAML = """
@@ -48,6 +54,8 @@ class ConfiguredAccessPoliciesTest {
                       actions: [view]
                 entities:
                   order:
+                    fields:
+                      owner: owner
                     operations:
                       view: [PAGE]
                 relations:
@@ -111,9 +119,13 @@ class ConfiguredAccessPoliciesTest {
     }
 
     private ApplicationContextRunner runner(String yaml) {
+        return runner(yaml, CrudPolicyAutoConfigurationTest.metas(Order.class));
+    }
+
+    private ApplicationContextRunner runner(String yaml, EntityMetaRegistry metas) {
         return new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(CrudPolicyAutoConfiguration.class))
-            .withBean(EntityMetaRegistry.class, () -> CrudPolicyAutoConfigurationTest.metas(Order.class))
+            .withBean(EntityMetaRegistry.class, () -> metas)
             .withBean(BusinessIdentityRegistration.class, () -> new BusinessIdentityRegistration<>(
                 "owner", OwnerIdentity.class, (subject, id) -> new OwnerIdentity(id)))
             .withInitializer(context -> {
@@ -125,6 +137,170 @@ class ConfiguredAccessPoliciesTest {
                     throw new IllegalStateException(ex);
                 }
             });
+    }
+
+    @Test
+    void 省略操作目录仅按策略标准动作推导Crud映射() {
+        String yaml = YAML.replace("actions: [view]", "actions: [view, create, update, delete]")
+            .replace("            operations:\n              view: [PAGE]\n", "");
+        runner(yaml).run(context -> {
+            assertThat(context).hasNotFailed();
+            var mappings = context.getBean(CrudOperationMappingRegistry.class);
+            for (QueryOperation operation : QueryOperation.values()) {
+                assertThat(mappings.require("order", CrudOperationKey.of(operation), null)).isEqualTo(view);
+            }
+            for (CommandOperation operation : List.of(CommandOperation.CREATE, CommandOperation.UPDATE, CommandOperation.DELETE)) {
+                assertThat(mappings.require("order", CrudOperationKey.of(operation), null))
+                    .isEqualTo(new BusinessOperation("order", operation.name().toLowerCase(java.util.Locale.ROOT)));
+            }
+            assertThat(mappings.snapshot()).hasSize(7);
+            assertThatThrownBy(() -> mappings.require("order", CrudOperationKey.of(CommandOperation.UPDATE_BATCH), null))
+                .hasMessageContaining("未映射");
+            assertThatThrownBy(() -> mappings.require("order", CrudOperationKey.of(CommandOperation.SAVE_OR_UPDATE), null))
+                .hasMessageContaining("未映射");
+        });
+    }
+
+    @Test
+    void 显式操作目录整体覆盖缺省且业务动作不猜测映射() {
+        runner(YAML).run(context -> {
+            assertThat(context).hasNotFailed();
+            var mappings = context.getBean(CrudOperationMappingRegistry.class);
+            assertThat(mappings.snapshot()).hasSize(1);
+            assertThatThrownBy(() -> mappings.require("order", CrudOperationKey.of(QueryOperation.LIST), null))
+                .hasMessageContaining("未映射");
+        });
+        runner(YAML.replace("actions: [view]", "actions: [ship]")
+            .replace("            operations:\n              view: [PAGE]\n", "")).run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("业务动作须显式声明 operations");
+            });
+        runner(YAML.replace("actions: [view]", "actions: [ship]").replace("view: [PAGE]", "ship: []"))
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).isEmpty();
+                assertThat(context.getBean(BusinessAuthorizationService.class).authorize(new AuthorizationRequest(
+                    request().getVisitor(), new BusinessOperation("order", "ship"), null)).getDecision())
+                    .isEqualTo(AccessDecision.ALLOW);
+            });
+        runner(YAML.replace("operations:\n              view: [PAGE]", "operations: {}"))
+            .run(context -> {
+                // Spring 不保留空对象，关闭 CRUD 映射须使用 view: []。
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).hasSize(4);
+            });
+    }
+
+    @Test
+    void 同一策略模板复用时各实体字段方案独立且优先显式选择() {
+        String yaml = """
+            ent.loom.crud.access:
+              policies:
+                owned-data:
+                  owner:
+                    actions: [view, update]
+              entities:
+                order:
+                  policy: owned-data
+                  fields:
+                    owner: order-edit
+                  operations:
+                    view: [LIST]
+                    update: [UPDATE]
+                note:
+                  policy: owned-data
+                  operations:
+                    view: [LIST]
+                    update: [UPDATE]
+              relations:
+                owner:
+                  field: ownerId
+              field-plans:
+                order:
+                  WRITE: [ownerId]
+                order-edit:
+                  WRITE: [amount]
+                note:
+                  WRITE: [title]
+            """;
+        EntityMeta order = editableMeta(Order.class, "order", "amount");
+        EntityMeta note = editableMeta(Note.class, "note", "title");
+        EntityMetaRegistry metas = mock(EntityMetaRegistry.class);
+        when(metas.getEntityMetas()).thenReturn(List.of(order, note));
+        runner(yaml, metas).run(context -> {
+            assertThat(context).hasNotFailed();
+            var service = context.getBean(BusinessAuthorizationService.class);
+            for (String resource : List.of("order", "note")) {
+                var result = service.authorize(new AuthorizationRequest(request().getVisitor(),
+                    new BusinessOperation(resource, "update"), null));
+                assertThat(result.getFields().snapshot().get(AuthorizationFields.Use.WRITE))
+                    .containsExactly(resource.equals("order") ? "amount" : "title");
+                assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN,
+                    resource.equals("order") ? "amount" : "title")).isTrue();
+                assertThat(result.getScope().getField()).isEqualTo("ownerId");
+                assertThat(result.getScope().getValues()).containsExactly("42");
+            }
+        });
+    }
+
+    @Test
+    void 同一实体的身份分支可选择不同字段方案且不会互相扩大() {
+        String yaml = YAML.replace("actions: [view]", "actions: [view]\n            reviewer:\n              actions: [view]\n              scope: owner")
+            .replace("            operations:\n              view: [PAGE]\n", "")
+            .replace("owner: owner", "owner: owner\n              reviewer: review")
+            + "          review:\n            RETURN: [ownerId]\n";
+        runner(yaml).withBean("reviewerRegistration", BusinessIdentityRegistration.class,
+            () -> new BusinessIdentityRegistration<>("reviewer", ReviewerIdentity.class,
+                (subject, id) -> new ReviewerIdentity(id))).run(context -> {
+                assertThat(context).hasNotFailed();
+                var service = context.getBean(BusinessAuthorizationService.class);
+                var ownerFields = service.authorize(request()).getFields();
+                var reviewer = VisitorContext.authenticated(new AccessSubject("reviewer", AccessSubjectType.HUMAN),
+                    new ReviewerIdentity("42"), "merchant", null, null);
+                var reviewerFields = service.authorize(new AuthorizationRequest(reviewer, view, null)).getFields();
+                assertThat(ownerFields.snapshot().get(AuthorizationFields.Use.RETURN)).containsExactly("id");
+                assertThat(reviewerFields.snapshot().get(AuthorizationFields.Use.RETURN)).containsExactly("ownerId");
+                assertThat(reviewerFields.allows(AuthorizationFields.Use.WRITE, "ownerId")).isFalse();
+            });
+    }
+
+    @Test
+    void 实体字段方案未知引用和未使用身份均拒绝() {
+        for (String invalid : List.of(
+            YAML.replace("owner: owner", "owner: missing"),
+            YAML.replace("owner: owner", "unused: owner"),
+            YAML.replace("owner: owner", "owner:"))) {
+            runner(invalid).run(context -> assertThat(context).hasFailed());
+        }
+    }
+
+    @Test
+    void 未声明字段方案缺省返回普通字段且动态约束继续生效() {
+        String yaml = YAML.substring(0, YAML.indexOf("        field-plans:"))
+            .replace("            fields:\n              owner: owner\n", "");
+        runner(yaml).run(context -> {
+            assertThat(context).hasNotFailed();
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+            assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN, "id")).isTrue();
+            assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN, "ownerId")).isTrue();
+            assertThat(result.getFields().allows(AuthorizationFields.Use.FILTER, "ownerId")).isTrue();
+            assertThat(result.getFields().allows(AuthorizationFields.Use.WRITE, "ownerId")).isFalse();
+            assertThat(result.getScope().getField()).isEqualTo("ownerId");
+        });
+        runner(yaml).withBean(BusinessPermissionEvaluator.class, () -> (visitor, op, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(),
+                AuthorizationFields.of(Map.of(AuthorizationFields.Use.RETURN, List.of("id")))))
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+                assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN, "ownerId")).isFalse();
+                assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN, "id")).isTrue();
+            });
+        runner(YAML.replace("RETURN: [id]", "RETURN: []")).run(context -> {
+            assertThat(context).hasNotFailed();
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+            assertThat(result.getFields().allows(AuthorizationFields.Use.RETURN, "id")).isFalse();
+        });
     }
 
     @Test
@@ -219,7 +395,7 @@ class ConfiguredAccessPoliciesTest {
     void 未知键身份动作字段关系和缺省方案均启动失败() {
         for (String invalid : List.of(
             YAML.replace("actions:", "actons:"),
-            YAML.replace("order:\n            operations", "unknown:\n            operations"),
+            YAML.replace("order:\n            fields", "unknown:\n            fields"),
             YAML.replace("operations:\n", "policy: unknown\n            operations:\n"),
             YAML.replace("actions: [view]", "actions: [view, view]"),
             YAML.replace("actions: [view]", "actions: [ship]"),
@@ -261,5 +437,18 @@ class ConfiguredAccessPoliciesTest {
         public String getIdentityId() { return ownerId; }
         public List<String> memberships() { return List.of(ownerId); }
     }
+    public record ReviewerIdentity(String ownerId) implements BusinessIdentity {
+        public String getIdentityCode() { return "reviewer"; }
+        public String getIdentityId() { return ownerId; }
+    }
     private static final class Order { }
+    private static final class Note { }
+
+    private static EntityMeta editableMeta(Class<?> type, String resource, String writable) {
+        Map<String, EntityFieldMeta> fields = Map.of(
+            "id", new EntityFieldMeta("id", String.class, "id", false, false, true, true),
+            "ownerId", new EntityFieldMeta("ownerId", String.class, "owner_id", false, false, true, true),
+            writable, new EntityFieldMeta(writable, String.class, writable, false, false, true, true));
+        return new EntityMeta(type, new ResourceDescriptor(type, resource, null, List.of()), resource, "id", null, fields);
+    }
 }

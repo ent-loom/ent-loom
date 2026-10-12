@@ -39,64 +39,49 @@ ent:
         # 保护实体已有的归属字段，禁止普通写入。
         defaults:
           scope-fields: [merchantId, customerId]
-        # 按实体资源码命名策略，分支声明客户 / 商家的能力。
+        # 项目按业务规则定义模板，实体显式选择；同类实体可复用。
         policies:
-          customerAddress:
+          # 客户只读本人记录。
+          customer-record:
             customer:
               actions: [view]
-              fields: customerAddress
-          merchantPoster:
+          # 商家只读本人记录。
+          merchant-record:
             merchant:
               actions: [view]
-              fields: merchantPoster
-          merchantProduct:
+          # 商家读取、维护本人数据；字段差异由实体约束。
+          merchant-data:
             merchant:
               actions: [view, update]
-              fields: merchantProduct
-          merchantOrder:
+          # 订单由客户与商家分别按自己的归属读取。
+          order-entries:
             customer:
               actions: [view]
-              fields: customer-orders
             merchant:
               actions: [view]
-              fields: merchant-orders
-        # 显式登记操作，默认绑定同名策略。
+        # 实体选择模板；标准 CRUD 映射复用策略动作缺省，特殊映射再显式声明。
         entities:
           # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
             exclude-scope-fields: [customerId]
           customerAddress:
-            operations:
-              view: [LIST, PAGE]
+            policy: customer-record
           merchantPoster:
-            operations:
-              view: [LIST, PAGE]
+            policy: merchant-record
           merchantProduct:
-            operations:
-              view: [LIST]
-              update: [UPDATE]
+            policy: merchant-data
           merchantOrder:
-            operations:
-              view: [PAGE]
+            policy: order-entries
         # 策略范围默认采用同名身份关系。
         relations:
           merchant:
             field: merchantId
           customer:
             field: customerId
-        # FILTER 缺省复用可返回且可筛选字段；显式列表覆盖缺省，[] 关闭筛选。
+        # RETURN 缺省为普通字段，FILTER 缺省复用可筛选返回字段；写入仍显式授权。
         field-plans:
-          customerAddress:
-            RETURN: [id, customerId, recipient, phone, address]
-          merchantPoster:
-            RETURN: [id, merchantId, title, content]
           merchantProduct:
-            RETURN: [id, merchantId, name, price, active, version]
             WRITE: [name, price, active]
-          customer-orders:
-            RETURN: [id, orderId, customerId, merchantId, totalAmount]
-          merchant-orders:
-            RETURN: [id, orderId, customerId, merchantId, totalAmount]
       # 通用 HTTP 仅开放客户与结算单。
       controller:
         enabled: true

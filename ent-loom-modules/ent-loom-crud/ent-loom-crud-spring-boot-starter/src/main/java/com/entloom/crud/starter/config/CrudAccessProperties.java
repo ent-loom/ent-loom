@@ -38,17 +38,17 @@ public class CrudAccessProperties {
         private List<String> actions = List.of();
         /** 缺省采用身份同名的已注册简单关系。 */
         private String scope;
-        /** 缺省采用身份同名的已注册字段方案；没有方案则失败。 */
-        private String fields;
     }
 
     @Data
     public static class Entity {
         private String policy;
+        /** 按策略身份分支选择字段方案；未声明时复用实体同名方案，否则采用字段缺省。 */
+        private Map<String, String> fields = new LinkedHashMap<>();
         /** 普通关联字段的例外；未选策略且仅配置此项时，不建立策略绑定。 */
         private List<String> excludeScopeFields = List.of();
-        /** 动作目录及其显式 CRUD 映射；空映射可用于仅由授权 DAO 执行的业务操作。 */
-        private Map<String, List<String>> operations = new LinkedHashMap<>();
+        /** 省略时从策略标准动作推导；显式配置整体覆盖，动作的空映射仅登记业务能力。 */
+        private Map<String, List<String>> operations;
         /** 实体关系字段例外，未声明时复用全局关系约定。 */
         private Map<String, String> relations = new LinkedHashMap<>();
     }

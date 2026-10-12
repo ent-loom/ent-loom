@@ -56,6 +56,10 @@ class MerchantOrderPageIntegrationTest {
         assertEquals(9001, data.get("items").get(0).get("orderId").asLong());
         assertEquals(301, data.get("items").get(0).get("customerId").asLong());
         assertEquals(1001, data.get("items").get(0).get("merchantId").asLong());
+        assertEquals("CREATED", data.get("items").get(0).get("status").asText());
+        assertTrue(data.get("items").get(0).hasNonNull("createdAt"));
+        assertTrue(!data.get("items").get(0).has("customer"));
+        assertTrue(!data.get("items").get(0).has("itemList"));
         assertEquals(0, BigDecimal.TEN.compareTo(data.get("items").get(0).get("totalAmount").decimalValue()));
         assertPage(post(CONSUMER_PAGE, "demo-customer-b", "{}"), 2, 1, 20, 503, 505);
     }

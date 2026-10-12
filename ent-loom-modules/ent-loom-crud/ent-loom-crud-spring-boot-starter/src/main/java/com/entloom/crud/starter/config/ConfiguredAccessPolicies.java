@@ -35,6 +35,12 @@ import java.util.function.Function;
 /** 将配置冻结为现有 Core 声明；与 Java、注解来源统一校验，不建立第二条执行链。 */
 public final class ConfiguredAccessPolicies {
     private static final String SOURCE = "ent.loom.crud.access";
+    /** 仅标准动作具有缺省映射，批量、保存及业务动作须显式登记。 */
+    private static final Map<String, List<String>> DEFAULT_OPERATIONS = Map.of(
+        "view", List.of("LIST", "PAGE", "FIND_ONE", "DETAIL"),
+        "create", List.of("CREATE"),
+        "update", List.of("UPDATE"),
+        "delete", List.of("DELETE"));
     private final List<EntityPolicyTemplate> templates = new ArrayList<>();
     private final List<EntityPolicyBinding> bindings = new ArrayList<>();
     private final List<BusinessOperationDeclaration> operations = new ArrayList<>();
@@ -58,15 +64,6 @@ public final class ConfiguredAccessPolicies {
                 var declaration = branch.getValue();
                 String scope = defaultName(declaration.getScope(), identity);
                 require(config.getRelations().containsKey(scope), "缺少安全默认关系范围: " + scope);
-                String plan = defaultName(declaration.getFields(), identity);
-                var fieldPlan = config.getFieldPlans().get(plan);
-                require(fieldPlan != null && !fieldPlan.isEmpty(), "缺少字段方案: " + plan);
-                for (var use : fieldPlan.entrySet()) {
-                    // FILTER: [] 明确关闭筛选，其他用途仍要求非空声明。
-                    if (use.getKey() == AuthorizationFields.Use.FILTER
-                        && use.getValue() != null && use.getValue().isEmpty()) continue;
-                    unique(use.getValue(), "字段方案 " + plan + "/" + use.getKey());
-                }
                 for (String action : unique(declaration.getActions(), "动作 " + policy.getKey() + "/" + identity)) {
                     rules.add(new EntityPolicyTemplate.Rule(action, PolicyIdentityBranch.identity(identity), List.of(scope)));
                 }
@@ -80,14 +77,21 @@ public final class ConfiguredAccessPolicies {
             require(meta != null, "策略绑定未知实体: " + resource);
             var declaration = entity.getValue();
             // 仅声明归属字段例外的存量实体，不由配置暗中变为策略治理资源。
-            if (declaration.getPolicy() == null && declaration.getOperations().isEmpty()
+            if (declaration.getPolicy() == null && declaration.getOperations() == null
                 && !config.getPolicies().containsKey(resource) && !declaration.getExcludeScopeFields().isEmpty()) {
                 require(declaration.getRelations().isEmpty(), "仅归属字段例外的实体不能声明策略关系: " + resource);
+                require(declaration.getFields().isEmpty(), "仅归属字段例外的实体不能声明字段方案: " + resource);
                 continue;
             }
             String policy = defaultName(declaration.getPolicy(), resource);
             var branches = config.getPolicies().get(policy);
             require(branches != null, "实体绑定未知策略: " + resource + " -> " + policy);
+            Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, resource);
+            String operationSource = SOURCE + (declaration.getOperations() == null
+                ? ".policies." + policy : ".entities." + resource + ".operations");
+            for (String identity : declaration.getFields().keySet()) {
+                require(branches.containsKey(identity), "实体字段方案引用未使用的身份: " + resource + "/" + identity);
+            }
             Map<String, String> relations = new LinkedHashMap<>();
             for (var branch : branches.entrySet()) {
                 String identity = branch.getKey();
@@ -113,16 +117,11 @@ public final class ConfiguredAccessPolicies {
                 } else {
                     reader = reader(identities.snapshot().get(identity).getIdentityType(), identityField);
                 }
-                var plan = config.getFieldPlans().get(defaultName(branch.getValue().getFields(), identity));
-                for (var use : plan.entrySet()) {
-                    for (String selected : use.getValue()) {
-                        require(meta.getAllowedFields().contains(selected), "字段方案引用未知字段: " + resource + "/" + selected);
-                    }
-                }
+                AuthorizationFields fieldPlan = compileFields(config, declaration, meta, resource, identity);
                 for (String action : branch.getValue().getActions()) {
-                    require(declaration.getOperations().containsKey(action), "策略动作未在实体操作目录注册: " + resource + "/" + action);
+                    require(operationCatalog.containsKey(action), "策略动作未在实体操作目录注册: " + resource + "/" + action);
                     Key key = new Key(new BusinessOperation(resource, action), identity);
-                    fields.put(key, AuthorizationFields.of(plan));
+                    fields.put(key, fieldPlan);
                     identityReaders.put(key, reader);
                 }
             }
@@ -130,13 +129,13 @@ public final class ConfiguredAccessPolicies {
                 require(relations.containsKey(role), "实体绑定未使用的关系: " + resource + "/" + role);
             }
             bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, SOURCE + ".entities." + resource, relations));
-            for (var action : declaration.getOperations().entrySet()) {
+            for (var action : operationCatalog.entrySet()) {
                 BusinessOperation operation = new BusinessOperation(resource, name(action.getKey(), "动作"));
-                operations.add(new BusinessOperationDeclaration(operation, SOURCE + ".entities." + resource + ".operations"));
+                operations.add(new BusinessOperationDeclaration(operation, operationSource));
                 Set<String> seen = new LinkedHashSet<>();
                 for (String shape : action.getValue()) {
                     require(seen.add(shape), "重复 CRUD 映射: " + operation + "/" + shape);
-                    mappings.add(new CrudOperationMapping(operationKey(shape), null, operation, SOURCE));
+                    mappings.add(new CrudOperationMapping(operationKey(shape), null, operation, operationSource));
                 }
             }
         }
@@ -148,18 +147,55 @@ public final class ConfiguredAccessPolicies {
     public List<BusinessOperationDeclaration> operations() { return List.copyOf(operations); }
     public List<CrudOperationMapping> mappings() { return List.copyOf(mappings); }
 
-    /** YAML 授权显式动作与字段方案（含 FILTER 缺省）；项目动态判断只能进一步收窄或拒绝。 */
+    /** 显式目录整体覆盖；缺省只展开策略已声明的标准动作，不增加授权动作。 */
+    private static Map<String, List<String>> resolveOperations(CrudAccessProperties.Entity entity,
+        Map<String, CrudAccessProperties.Branch> branches, String resource) {
+        if (entity.getOperations() != null) return entity.getOperations();
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (CrudAccessProperties.Branch branch : branches.values()) {
+            for (String action : branch.getActions()) {
+                List<String> shapes = DEFAULT_OPERATIONS.get(action);
+                require(shapes != null, "业务动作须显式声明 operations: " + resource + "/" + action);
+                result.putIfAbsent(action, shapes);
+            }
+        }
+        return result;
+    }
+
+    /** 字段差异归实体；同一模板可绑定不同结构的实体。 */
+    private static AuthorizationFields compileFields(CrudAccessProperties config, CrudAccessProperties.Entity entity,
+        EntityMeta meta, String resource, String identity) {
+        String planName = entity.getFields().containsKey(identity)
+            ? name(entity.getFields().get(identity), "字段方案") : resource;
+        var plan = config.getFieldPlans().get(planName);
+        require(plan != null || !entity.getFields().containsKey(identity), "缺少字段方案: " + resource + "/" + identity + " -> " + planName);
+        if (plan == null) return AuthorizationFields.of(Map.of());
+        for (var use : plan.entrySet()) {
+            List<String> names = use.getValue();
+            // 空 RETURN/FILTER 明确关闭能力，其他用途仍要求非空声明。
+            if ((use.getKey() == AuthorizationFields.Use.RETURN || use.getKey() == AuthorizationFields.Use.FILTER)
+                && names != null && names.isEmpty()) continue;
+            for (String field : unique(names, "字段方案 " + planName + "/" + use.getKey())) {
+                require(meta.getAllowedFields().contains(field), "字段方案引用未知字段: " + resource + "/" + field);
+            }
+        }
+        return AuthorizationFields.of(plan);
+    }
+
+    /** YAML 授权显式动作与实体字段方案（含 RETURN/FILTER 缺省）；项目动态判断只能进一步收窄或拒绝。 */
     public BusinessPermissionEvaluator evaluator(BusinessPermissionEvaluator dynamic) {
         return (visitor, operation, rule, target) -> {
             AuthorizationFields allowed = fields.get(key(rule));
             if (allowed == null) {
                 return dynamic == null ? BusinessPermissionDecision.deny() : dynamic.evaluate(visitor, operation, rule, target);
             }
+            allowed = allowed.resolveDefaults(rule.getFieldLimit());
             if (dynamic == null) return BusinessPermissionDecision.allow(AuthorizationScope.all(), allowed);
             var decision = dynamic.evaluate(visitor, operation, rule, target);
             return decision == null || decision.getKind() != BusinessPermissionDecision.Kind.ALLOW
                 ? BusinessPermissionDecision.deny()
-                : BusinessPermissionDecision.allow(decision.getScope(), allowed.intersect(decision.getFields()));
+                : BusinessPermissionDecision.allow(decision.getScope(),
+                    allowed.intersect(decision.getFields().resolveDefaults(rule.getFieldLimit())));
         };
     }
 

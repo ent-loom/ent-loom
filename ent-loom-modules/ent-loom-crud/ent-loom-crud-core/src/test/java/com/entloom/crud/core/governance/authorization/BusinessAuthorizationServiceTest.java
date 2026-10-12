@@ -172,6 +172,25 @@ class BusinessAuthorizationServiceTest {
     }
 
     @Test
+    void 返回缺省开放普通字段但不开放关系和其他用途() {
+        AuthorizationFields defaults = AuthorizationFields.of(Collections.emptyMap());
+        AuthorizationFields fields = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), defaults))
+            .authorize(request(teacher(), VIEW, null)).getFields();
+        assertTrue(fields.allows(AuthorizationFields.Use.RETURN, "readonly"));
+        assertTrue(fields.allows(AuthorizationFields.Use.RETURN, "status"));
+        assertTrue(fields.allows(AuthorizationFields.Use.FILTER, "status"));
+        assertFalse(fields.allows(AuthorizationFields.Use.FILTER, "readonly"));
+        assertFalse(fields.allows(AuthorizationFields.Use.RETURN, "relation"));
+        assertFalse(fields.allows(AuthorizationFields.Use.WRITE, "status"));
+        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "status"));
+        AuthorizationFields disabled = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.emptyList()));
+        assertFalse(disabled.intersect(fields).allows(AuthorizationFields.Use.RETURN, "status"));
+        assertFalse(AuthorizationFields.none().intersect(fields).allows(AuthorizationFields.Use.RETURN, "status"));
+    }
+
+    @Test
     void 缺省筛选复用返回字段并受实体元数据约束() {
         AuthorizationFields declared = AuthorizationFields.of(Collections.singletonMap(
             AuthorizationFields.Use.RETURN, Arrays.asList("status", "readonly", "relation", "unknown")));
