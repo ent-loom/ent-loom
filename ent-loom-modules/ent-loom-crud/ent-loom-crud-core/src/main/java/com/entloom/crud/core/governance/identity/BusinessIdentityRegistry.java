@@ -23,7 +23,6 @@ public final class BusinessIdentityRegistry {
             throw new ValidationException("身份注册声明集合不能为空");
         }
         Map<String, BusinessIdentityRegistration<?>> byCode = new LinkedHashMap<String, BusinessIdentityRegistration<?>>();
-        Map<Class<?>, String> byType = new LinkedHashMap<Class<?>, String>();
         for (BusinessIdentityRegistration<?> registration : source) {
             if (registration == null) {
                 throw new ValidationException("身份注册声明不能为空");
@@ -32,11 +31,6 @@ public final class BusinessIdentityRegistry {
             if (previous != null) {
                 throw new ValidationException("身份 code 重复注册: " + registration.getIdentityCode()
                     + "，类型: " + previous.getIdentityType().getName() + " / " + registration.getIdentityType().getName());
-            }
-            String previousCode = byType.put(registration.getIdentityType(), registration.getIdentityCode());
-            if (previousCode != null) {
-                throw new ValidationException("身份类型重复注册: " + registration.getIdentityType().getName()
-                    + "，code: " + previousCode + " / " + registration.getIdentityCode());
             }
         }
         this.registrations = Collections.unmodifiableMap(byCode);

@@ -70,14 +70,17 @@ public final class VisitorContext {
     }
 
     /** 仅检查当前身份，不搜索账号的其他身份，也不触发身份切换。 */
-    public <I extends BusinessIdentity> Optional<I> findIdentity(Class<I> identityType) {
-        Objects.requireNonNull(identityType, "身份类型不能为空");
-        return identityType.isInstance(identity) ? Optional.of(identityType.cast(identity)) : Optional.empty();
+    public Optional<BusinessIdentity> findIdentity(String identityCode) {
+        Objects.requireNonNull(identityCode, "身份码不能为空");
+        if (identityCode.trim().isEmpty() || !identityCode.equals(identityCode.trim())) {
+            throw new IllegalArgumentException("身份码不能为空或包含首尾空格");
+        }
+        return identity != null && identityCode.equals(identity.getIdentityCode()) ? Optional.of(identity) : Optional.empty();
     }
 
-    public <I extends BusinessIdentity> I requireIdentity(Class<I> identityType) {
-        return findIdentity(identityType).orElseThrow(() ->
-            new IllegalStateException("当前身份不匹配: " + identityType.getName()));
+    public BusinessIdentity requireIdentity(String identityCode) {
+        return findIdentity(identityCode).orElseThrow(() ->
+            new IllegalStateException("当前身份不匹配: " + identityCode));
     }
 
     public String getAccessEntry() {

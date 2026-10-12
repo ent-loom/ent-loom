@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.api.access.BusinessIdentity;
+import com.entloom.crud.api.access.ConfiguredBusinessIdentity;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
@@ -29,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /** 将配置冻结为现有 Core 声明；与 Java、注解来源统一校验，不建立第二条执行链。 */
 public final class ConfiguredAccessPolicies {
@@ -38,10 +40,10 @@ public final class ConfiguredAccessPolicies {
     private final List<BusinessOperationDeclaration> operations = new ArrayList<>();
     private final List<CrudOperationMapping> mappings = new ArrayList<>();
     private final Map<Key, AuthorizationFields> fields = new LinkedHashMap<>();
-    private final Map<Key, Method> identityReaders = new LinkedHashMap<>();
+    private final Map<Key, Function<BusinessIdentity, Object>> identityReaders = new LinkedHashMap<>();
 
     public ConfiguredAccessPolicies(CrudAccessProperties config, EntityMetaRegistry entities,
-        BusinessIdentityRegistry identities) {
+        BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions) {
         Map<String, EntityMeta> metas = new LinkedHashMap<>();
         for (EntityMeta meta : entities.getEntityMetas()) {
             metas.put(meta.getResourceDescriptor().getResourceCode(), meta);
@@ -88,8 +90,24 @@ public final class ConfiguredAccessPolicies {
                 var relation = config.getRelations().get(role);
                 String field = declaration.getRelations().getOrDefault(role, defaultName(relation.getField(), role + "Id"));
                 relations.put(role, field);
-                String identityField = defaultName(relation.getIdentityField(), role + "Id");
-                Method reader = reader(identities.snapshot().get(identity).getIdentityType(), identityField);
+                var definition = definitions.definitions().get(identity);
+                String identityField = defaultName(relation.getIdentityField(),
+                    definition == null ? role + "Id" : definition.getIdField());
+                Function<BusinessIdentity, Object> reader;
+                if (definition != null) {
+                    require(definition.getIdField().equals(identityField), "关系引用未知身份属性: " + identity + "/" + identityField);
+                    var entityField = meta.resolveFieldMeta(field);
+                    require(entityField != null && definition.getIdType().getJavaType()
+                        == org.springframework.util.ClassUtils.resolvePrimitiveIfNecessary(entityField.getJavaType()),
+                        "身份 ID 类型与实体关系字段不匹配: " + identity + " -> " + resource + "/" + field);
+                    reader = snapshot -> {
+                        require(snapshot instanceof ConfiguredBusinessIdentity
+                            && definition.equals(((ConfiguredBusinessIdentity) snapshot).getDefinition()), "当前身份结构与定义不匹配: " + identity);
+                        return ((ConfiguredBusinessIdentity) snapshot).read(identityField);
+                    };
+                } else {
+                    reader = reader(identities.snapshot().get(identity).getIdentityType(), identityField);
+                }
                 var plan = config.getFieldPlans().get(defaultName(branch.getValue().getFields(), identity));
                 for (var use : plan.entrySet()) {
                     for (String selected : use.getValue()) {
@@ -143,19 +161,19 @@ public final class ConfiguredAccessPolicies {
     /** 简单关系只读取当前可信身份；复杂 Java 关系仍交给项目解析器。 */
     public RelationFactResolver relations(RelationFactResolver custom) {
         return (visitor, rule, target, limit) -> {
-            Method reader = identityReaders.get(key(rule));
+            Function<BusinessIdentity, Object> reader = identityReaders.get(key(rule));
             if (reader == null) {
                 if (custom == null) throw new PermissionDeniedException("关系事实解析器未配置: " + rule.getOperation());
                 return custom.resolve(visitor, rule, target, limit);
             }
             BusinessIdentity identity = visitor.getIdentity().orElseThrow(() -> new PermissionDeniedException("缺少当前身份"));
             try {
-                Object value = reader.invoke(identity);
-                if (value == null) throw new PermissionDeniedException("当前身份缺少关系属性: " + reader.getName());
+                Object value = reader.apply(identity);
+                if (value == null) throw new PermissionDeniedException("当前身份缺少关系属性: " + identity.getIdentityCode());
                 String role = rule.getRelationFields().keySet().iterator().next();
                 return new RelationFactSet(List.of(Map.of(role, value.toString())));
-            } catch (ReflectiveOperationException ex) {
-                throw new PermissionDeniedException("无法读取可信身份关系属性: " + reader.getName());
+            } catch (RuntimeException ex) {
+                throw new PermissionDeniedException("无法读取可信身份关系属性: " + identity.getIdentityCode());
             }
         };
     }
@@ -164,7 +182,7 @@ public final class ConfiguredAccessPolicies {
         return new Key(rule.getOperation(), rule.getBranch().getIdentityCode());
     }
 
-    private static Method reader(Class<?> type, String field) {
+    private static Function<BusinessIdentity, Object> reader(Class<?> type, String field) {
         for (String method : List.of(field, "get" + Character.toUpperCase(field.charAt(0)) + field.substring(1))) {
             try {
                 Method reader = type.getMethod(method);
@@ -175,7 +193,13 @@ public final class ConfiguredAccessPolicies {
                     || valueType == java.util.UUID.class || valueType == byte.class || valueType == short.class
                     || valueType == int.class || valueType == long.class || valueType == float.class
                     || valueType == double.class, "简单关系身份属性必须为标量: " + field);
-                return reader;
+                return identity -> {
+                    try {
+                        return reader.invoke(identity);
+                    } catch (ReflectiveOperationException exception) {
+                        throw new PermissionDeniedException("无法读取可信身份关系属性: " + field);
+                    }
+                };
             } catch (NoSuchMethodException ignored) {
                 // 同时支持 record 属性访问器与 JavaBean getter。
             }

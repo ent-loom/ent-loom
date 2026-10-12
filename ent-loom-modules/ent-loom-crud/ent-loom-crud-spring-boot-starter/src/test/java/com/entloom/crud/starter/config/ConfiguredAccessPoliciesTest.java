@@ -4,6 +4,9 @@ import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.AuthorizationRequest;
 import com.entloom.crud.api.access.BusinessIdentity;
+import com.entloom.crud.api.access.BusinessIdentityDefinition;
+import com.entloom.crud.api.access.BusinessIdentityIdType;
+import com.entloom.crud.api.access.ConfiguredBusinessIdentity;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.enums.AccessDecision;
@@ -15,6 +18,7 @@ import com.entloom.crud.core.governance.authorization.BusinessAuthorizationServi
 import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
+import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.core.governance.policy.CrudOperationMappingRegistry;
 import com.entloom.crud.core.governance.policy.EntityPolicyBinding;
 import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
@@ -55,6 +59,56 @@ class ConfiguredAccessPoliciesTest {
                     FILTER: [ownerId]
         """;
     private final BusinessOperation view = new BusinessOperation("order", "view");
+
+    private static final BusinessIdentityDefinition OWNER = new BusinessIdentityDefinition("owner", "memberId", BusinessIdentityIdType.STRING);
+    private static final String CONFIGURED_YAML = YAML.replace("access:\n", "access:\n        identities:\n          owner:\n            id-field: memberId\n            id-type: STRING\n");
+
+    private ApplicationContextRunner configuredRunner(String yaml) {
+        return new ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(CrudPolicyAutoConfiguration.class))
+            .withBean(EntityMetaRegistry.class, () -> CrudPolicyAutoConfigurationTest.metas(Order.class))
+            .withBean(BusinessIdentityRegistration.class, () -> new BusinessIdentityRegistration<>(
+                "owner", ConfiguredBusinessIdentity.class, (subject, id) -> OWNER.snapshot(id)))
+            .withInitializer(context -> {
+                try {
+                    new YamlPropertySourceLoader().load("配置身份策略", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
+                        .forEach(source -> context.getEnvironment().getPropertySources().addFirst(source));
+                } catch (java.io.IOException exception) {
+                    throw new IllegalStateException(exception);
+                }
+            });
+    }
+
+    @Test
+    void 配置身份读取声明的Id字段并进入统一关系授权链() {
+        configuredRunner(CONFIGURED_YAML).run(context -> {
+            assertThat(context).hasNotFailed();
+            AccessSubject subject = new AccessSubject("actor", AccessSubjectType.HUMAN);
+            var identity = context.getBean(BusinessIdentityRegistry.class).resolve(subject, "owner", "42");
+            VisitorContext visitor = VisitorContext.authenticated(subject, identity, "merchant", null, null);
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(new AuthorizationRequest(visitor, view, null));
+            assertThat(result.getDecision()).isEqualTo(AccessDecision.ALLOW);
+            assertThat(result.getScope().getField()).isEqualTo("ownerId");
+            assertThat(result.getScope().getValues()).containsExactly("42");
+            context.getBean(CrudAccessProperties.class).getIdentities().clear();
+            assertThat(context.getBean(ConfiguredBusinessIdentities.class).definitions()).containsOnlyKeys("owner");
+            assertThat(context.getBean(BusinessAuthorizationService.class).authorize(new AuthorizationRequest(visitor, view, null))
+                .getDecision()).isEqualTo(AccessDecision.ALLOW);
+        });
+    }
+
+    @Test
+    void 配置身份的未知属性及实体Id类型不一致启动失败() {
+        configuredRunner(CONFIGURED_YAML.replace("field: ownerId", "field: ownerId\n            identity-field: missingId"))
+            .run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("未知身份属性");
+            });
+        configuredRunner(CONFIGURED_YAML.replace("id-type: STRING", "id-type: LONG")).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("身份 ID 类型与实体关系字段不匹配");
+        });
+    }
 
     private ApplicationContextRunner runner(String yaml) {
         return new ApplicationContextRunner()

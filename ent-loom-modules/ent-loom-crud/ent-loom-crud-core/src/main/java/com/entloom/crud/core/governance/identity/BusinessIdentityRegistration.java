@@ -4,7 +4,7 @@ import com.entloom.crud.api.access.BusinessIdentity;
 import com.entloom.crud.core.exception.ValidationException;
 import java.lang.reflect.Modifier;
 
-/** 项目身份 code、具体快照类型与可信解析器的不可变注册声明。 */
+/** 按业务 code 注册可信解析器；具体快照类型只用于校验结果，可供多个身份码复用。 */
 public final class BusinessIdentityRegistration<I extends BusinessIdentity> {
     private final String identityCode;
     private final Class<I> identityType;

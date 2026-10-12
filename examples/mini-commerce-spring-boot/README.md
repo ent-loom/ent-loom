@@ -98,7 +98,23 @@ controller:
 
 `merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入通用 HTTP 白名单。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。
 
-当前演示账号只用于本地运行：
+身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
+
+```yaml
+identities:
+  customer:
+    id-field: customerId
+    id-type: LONG
+  merchant:
+    id-field: merchantId
+    id-type: LONG
+```
+
+Controller 使用 `@EntAccess(identity = "customer")` 或 `"merchant"`，方法接收统一 `AccessContext`。框架按身份码检查准入并构造不可变身份快照，数据范围从已声明 ID 属性读取；启动时检查未知引用及身份/实体字段类型不匹配。
+
+演示账号集中配置在 `ent.loom.crud.example.accounts`，每项只声明 `token`、`subject-id` 和已定义的 `customerId` 或 `merchantId`，归属由服务端账号绑定；入口独立由 `example.routes` 和 `default-access-entry` 确定。正式接入使用可信认证来源与身份解析器，YAML 定义不代替归属核验。
+
+当前账号：
 
 - 客户：`demo-customer-a` → 客户 `301`，`demo-customer-b` → 客户 `302`
 - 商家：`demo-merchant-a` → 商家 `1001`，`demo-merchant-b` → 商家 `2001`

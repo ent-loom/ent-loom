@@ -2,22 +2,22 @@ package com.entloom.crud.api.access;
 
 import java.util.Objects;
 
-/** 固定当前身份的只读上下文视图；类型匹配不代表业务操作已获授权。 */
-public final class AccessContext<I extends BusinessIdentity> {
+/** 按业务身份码固定当前身份的只读视图；身份匹配不代表业务操作已获授权。 */
+public final class AccessContext {
     private final VisitorContext visitorContext;
-    private final I identity;
+    private final BusinessIdentity identity;
 
-    private AccessContext(VisitorContext visitorContext, I identity) {
+    private AccessContext(VisitorContext visitorContext, BusinessIdentity identity) {
         this.visitorContext = visitorContext;
         this.identity = identity;
     }
 
-    public static <I extends BusinessIdentity> AccessContext<I> from(
+    public static AccessContext from(
         VisitorContext visitorContext,
-        Class<I> identityType
+        String identityCode
     ) {
         Objects.requireNonNull(visitorContext, "访问者上下文不能为空");
-        return new AccessContext<I>(visitorContext, visitorContext.requireIdentity(identityType));
+        return new AccessContext(visitorContext, visitorContext.requireIdentity(identityCode));
     }
 
     public VisitorContext getVisitorContext() {
@@ -28,7 +28,7 @@ public final class AccessContext<I extends BusinessIdentity> {
         return visitorContext.getSubject().orElseThrow(() -> new IllegalStateException("固定身份上下文不能匿名"));
     }
 
-    public I getIdentity() {
+    public BusinessIdentity getIdentity() {
         return identity;
     }
 }

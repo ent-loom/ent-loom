@@ -12,26 +12,6 @@ spring:
 server:
   port: ${APP_PORT:8082}
 
-# 双端治理演示：令牌仅供本地运行，客户/商家归属由服务端账号配置确定。
-# 正式接入替换 CrudHttpAuthenticationSource 与 BusinessIdentityRegistration 的解析器。
-demo:
-  customer:
-    accounts:
-      - token: demo-customer-a
-        subject-id: customer-user-a
-        customer-id: 301
-      - token: demo-customer-b
-        subject-id: customer-user-b
-        customer-id: 302
-  merchant:
-    accounts:
-      - token: demo-merchant-a
-        subject-id: merchant-user-a
-        merchant-id: 1001
-      - token: demo-merchant-b
-        subject-id: merchant-user-b
-        merchant-id: 2001
-
 ent:
   loom:
     # 默认复用 Meta 扫描的实体创建缺失的表；不修改已有表结构或清空数据。
@@ -47,8 +27,16 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # 业务策略：身份核验仍由 Java 完成，声明在启动时编译并冻结。
+      # 业务策略：身份归属由可信解析器核验，声明在启动时编译并冻结。
       access:
+        # 身份码、ID 字段及值类型由框架统一注册，无需业务身份类。
+        identities:
+          customer:
+            id-field: customerId
+            id-type: LONG
+          merchant:
+            id-field: merchantId
+            id-type: LONG
         # 全局候选：只匹配实体已有字段，统一保护归属写入；授权范围由策略分支决定。
         defaults:
           scope-fields: [merchantId, customerId]
@@ -95,7 +83,7 @@ ent:
             policy: order-entries
             operations:
               view: [PAGE]
-        # scope 缺省取身份名称；identity-field 缺省取“关系名称 + Id”。
+        # scope 缺省取身份码；identity-field 缺省复用该身份定义的 id-field。
         # customer / merchant 在这里是归属关系角色，field 指向被访问实体的归属字段。
         relations:
           merchant:
@@ -131,16 +119,34 @@ ent:
           input-required-fields:
             customer: [displayName, email]
 
-      # 仅为本示例提供一个固定请求主体和全量数据范围，便于直接运行。
-      # 这不是登录、角色或生产授权配置；生产接入应替换主体解析和数据范围实现。
+      # 显式演示模式：通用 CRUD 的固定主体与双端静态令牌账号。
+      # 正式接入替换认证来源、身份归属解析器和数据范围实现。
       example:
         enabled: true
-        # 原通用 CRUD 请求共用此主体；双端自定义接口另外要求有效令牌和 CustomerIdentity / MerchantIdentity。
+        # 原通用 CRUD 请求共用此主体；双端自定义接口另行要求令牌及 customer / merchant 身份。
         subject-id: local-developer
         # 显式展示演示默认值：Gateway 与 DAO 不限制数据归属，读取可见性仍单独生效。
         allow-all-data-scope: true
+        # ID 字段复用 access.identities 的定义；账号只声明可信主体与身份归属。
+        accounts:
+          - token: demo-customer-a
+            subject-id: customer-user-a
+            customerId: 301
+          - token: demo-customer-b
+            subject-id: customer-user-b
+            customerId: 302
+          - token: demo-merchant-a
+            subject-id: merchant-user-a
+            merchantId: 1001
+          - token: demo-merchant-b
+            subject-id: merchant-user-b
+            merchantId: 2001
+        # 入口来自服务端路由，与身份码分别声明；客户端不能切换。
+        default-access-entry: consumer
+        routes:
+          "[/api/merchant/**]": merchant
       governance:
-        # 原通用 CRUD 固定使用的业务入口；双端自定义接口由 DemoAccessConfiguration 按服务端路由确定。
+        # 原通用 CRUD 固定使用的业务入口；双端自定义接口由 example.routes 按服务端路由确定。
         # 入口不是登录身份或角色；切换入口不会切换主体及其权限。
         # consumer=消费者，merchant=商家，management=平台管理；名称由业务应用约定。
         # 当前仅配置 consumer / management；商家商品由商家专用接口维护。

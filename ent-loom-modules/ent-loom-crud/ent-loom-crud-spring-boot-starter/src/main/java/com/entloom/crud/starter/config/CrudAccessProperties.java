@@ -1,21 +1,31 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
+import com.entloom.crud.api.access.BusinessIdentityIdType;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** 声明式业务访问；未知键拒绝，身份仍由项目 Java 注册并核验。 */
+/** 声明式业务访问与简单身份定义；配置不替代可信认证和归属事实。 */
 @Data
 @ConfigurationProperties(prefix = "ent.loom.crud.access", ignoreUnknownFields = false)
 public class CrudAccessProperties {
     private Defaults defaults = new Defaults();
+    private Map<String, Identity> identities = new LinkedHashMap<>();
     private Map<String, Map<String, Branch>> policies = new LinkedHashMap<>();
     private Map<String, Entity> entities = new LinkedHashMap<>();
     private Map<String, Relation> relations = new LinkedHashMap<>();
     private Map<String, Map<AuthorizationFields.Use, List<String>>> fieldPlans = new LinkedHashMap<>();
+
+    @Data
+    public static class Identity {
+        /** 缺省为身份码 + Id。 */
+        private String idField;
+        /** 显式声明 ID 类型，避免把数字业务标识隐式转换为文本。 */
+        private BusinessIdentityIdType idType;
+    }
 
     @Data
     public static class Defaults {

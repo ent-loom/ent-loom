@@ -39,9 +39,9 @@ class AccessContextTest {
         assertEquals("common", context.getAccessEntry());
         assertEquals("request-1", context.getRequestId());
         assertEquals("trace-1", context.getTraceId());
-        assertFalse(context.findIdentity(MerchantIdentity.class).isPresent());
-        assertThrows(IllegalStateException.class, () -> context.requireIdentity(MerchantIdentity.class));
-        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, MerchantIdentity.class));
+        assertFalse(context.findIdentity("merchant").isPresent());
+        assertThrows(IllegalStateException.class, () -> context.requireIdentity("merchant"));
+        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, "merchant"));
     }
 
     @Test
@@ -52,7 +52,7 @@ class AccessContextTest {
         assertFalse(context.getIdentity().isPresent());
         assertEquals(null, context.getRequestId());
         assertEquals(null, context.getTraceId());
-        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, MerchantIdentity.class));
+        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, "merchant"));
         assertThrows(NullPointerException.class, () ->
             VisitorContext.authenticated(null, new MerchantIdentity("merchant-1"), "common", null, null));
     }
@@ -61,9 +61,9 @@ class AccessContextTest {
     void fixed_context_should_retain_actual_subject_and_project_identity() {
         MerchantIdentity identity = new MerchantIdentity("merchant-1");
         VisitorContext visitor = VisitorContext.authenticated(subject(), identity, "merchant", "request-1", "trace-1");
-        AccessContext<MerchantIdentity> context = AccessContext.from(visitor, MerchantIdentity.class);
+        AccessContext context = AccessContext.from(visitor, "merchant");
         assertSame(visitor, context.getVisitorContext());
-        assertSame(identity, visitor.requireIdentity(MerchantIdentity.class));
+        assertSame(identity, visitor.requireIdentity("merchant"));
         assertSame(identity, context.getIdentity());
         assertEquals("actor-1", context.getSubject().getSubjectId());
         assertEquals("merchant-1", context.getIdentity().getIdentityId());
@@ -74,10 +74,10 @@ class AccessContextTest {
     void identity_lookup_should_never_switch_or_merge_current_identity() {
         VisitorContext context = VisitorContext.authenticated(subject(), new MerchantIdentity("merchant-1"),
             "common", null, null);
-        assertFalse(context.findIdentity(TeacherIdentity.class).isPresent());
-        assertThrows(IllegalStateException.class, () -> context.requireIdentity(TeacherIdentity.class));
-        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, TeacherIdentity.class));
-        assertEquals("merchant-1", context.requireIdentity(MerchantIdentity.class).getIdentityId());
+        assertFalse(context.findIdentity("teacher").isPresent());
+        assertThrows(IllegalStateException.class, () -> context.requireIdentity("teacher"));
+        assertThrows(IllegalStateException.class, () -> AccessContext.from(context, "teacher"));
+        assertEquals("merchant-1", context.requireIdentity("merchant").getIdentityId());
     }
 
     @Test
@@ -109,8 +109,8 @@ class AccessContextTest {
             "common", null, null);
         VisitorContext second = VisitorContext.authenticated(new AccessSubject("actor-2", AccessSubjectType.HUMAN),
             new TeacherIdentity(), "common", null, null);
-        assertFalse(first.findIdentity(TeacherIdentity.class).isPresent());
-        assertFalse(second.findIdentity(MerchantIdentity.class).isPresent());
+        assertFalse(first.findIdentity("teacher").isPresent());
+        assertFalse(second.findIdentity("merchant").isPresent());
         assertEquals("actor-1", first.getSubject().get().getSubjectId());
         assertEquals("actor-2", second.getSubject().get().getSubjectId());
     }
@@ -121,7 +121,7 @@ class AccessContextTest {
         assertThrows(NullPointerException.class, () -> context.findIdentity(null));
         assertThrows(NullPointerException.class, () -> context.requireIdentity(null));
         assertThrows(NullPointerException.class, () -> AccessContext.from(context, null));
-        assertThrows(NullPointerException.class, () -> AccessContext.from(null, MerchantIdentity.class));
+        assertThrows(NullPointerException.class, () -> AccessContext.from(null, "merchant"));
     }
 
     private static AccessSubject subject() {

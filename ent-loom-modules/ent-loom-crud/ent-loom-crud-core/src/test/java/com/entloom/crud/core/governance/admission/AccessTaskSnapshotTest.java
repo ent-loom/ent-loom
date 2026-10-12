@@ -32,7 +32,7 @@ class AccessTaskSnapshotTest {
         assertEquals("merchant", snapshot.getIdentityCode());
         assertEquals("merchant-1", snapshot.getIdentityId());
         AccessAdmission restored = snapshot.restore(service, () -> selected(actor));
-        assertEquals("merchant-1", restored.getVisitorContext().requireIdentity(MerchantIdentity.class).getIdentityId());
+        assertEquals("merchant-1", restored.getVisitorContext().requireIdentity("merchant").getIdentityId());
         assertEquals("request-1", restored.getVisitorContext().getRequestId());
         assertThrows(PermissionDeniedException.class, () -> snapshot.restore(service, CredentialAuthentication::absent));
         assertThrows(PermissionDeniedException.class, () -> snapshot.restore(service, CredentialAuthentication::invalid));

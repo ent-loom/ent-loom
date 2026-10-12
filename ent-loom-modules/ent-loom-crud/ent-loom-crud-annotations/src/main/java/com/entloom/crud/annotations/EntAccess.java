@@ -2,7 +2,6 @@ package com.entloom.crud.annotations;
 
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.AuthenticationMode;
-import com.entloom.crud.api.access.BusinessIdentity;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -18,7 +17,8 @@ import java.lang.annotation.Target;
 public @interface EntAccess {
     AuthenticationMode value() default AuthenticationMode.REQUIRED;
 
-    Class<? extends BusinessIdentity> identity() default BusinessIdentity.class;
+    /** 当前身份码；空字符串表示不要求特定业务身份。 */
+    String identity() default "";
 
     /** 允许的可信入口；空数组表示不增加入口限制。 */
     String[] accessEntries() default {};

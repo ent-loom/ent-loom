@@ -73,7 +73,7 @@ class AccessAdmissionServiceTest {
                 assertSame(AccessBranch.AUTHENTICATED, admission.getBranch());
                 assertFalse(admission.getVisitorContext().isAnonymous());
                 assertEquals(subject(), admission.getVisitorContext().getSubject().get());
-                assertEquals("merchant-1", AccessContext.from(admission.getVisitorContext(), MerchantIdentity.class)
+                assertEquals("merchant-1", AccessContext.from(admission.getVisitorContext(), "merchant")
                     .getIdentity().getIdentityId());
             }
         }
@@ -141,7 +141,7 @@ class AccessAdmissionServiceTest {
             AccessAdmission admission = admit(service(), mode, CredentialAuthentication.authenticated(subject()));
             assertSame(AccessBranch.AUTHENTICATED, admission.getBranch());
             assertFalse(admission.getVisitorContext().getIdentity().isPresent());
-            assertThrows(IllegalStateException.class, () -> admission.getVisitorContext().requireIdentity(MerchantIdentity.class));
+            assertThrows(IllegalStateException.class, () -> admission.getVisitorContext().requireIdentity("merchant"));
         }
     }
 
@@ -183,7 +183,7 @@ class AccessAdmissionServiceTest {
         AccessAdmission first = service.admit(AuthenticationMode.OPTIONAL, source, "common", null, null);
         AccessAdmission second = service.admit(AuthenticationMode.OPTIONAL, source, "common", null, null);
         assertSame(AccessBranch.AUTHENTICATED, first.getBranch());
-        assertEquals("merchant-1", first.getVisitorContext().requireIdentity(MerchantIdentity.class).getIdentityId());
+        assertEquals("merchant-1", first.getVisitorContext().requireIdentity("merchant").getIdentityId());
         assertPublic(second);
         assertFalse(second.getAuthenticatedSubject().isPresent());
         assertEquals(2, calls.get());
@@ -227,7 +227,7 @@ class AccessAdmissionServiceTest {
         assertTrue(admission.getVisitorContext().isAnonymous());
         assertFalse(admission.getVisitorContext().getSubject().isPresent());
         assertFalse(admission.getVisitorContext().getIdentity().isPresent());
-        assertThrows(IllegalStateException.class, () -> AccessContext.from(admission.getVisitorContext(), MerchantIdentity.class));
+        assertThrows(IllegalStateException.class, () -> AccessContext.from(admission.getVisitorContext(), "merchant"));
     }
 
     private static AccessSubject subject() {

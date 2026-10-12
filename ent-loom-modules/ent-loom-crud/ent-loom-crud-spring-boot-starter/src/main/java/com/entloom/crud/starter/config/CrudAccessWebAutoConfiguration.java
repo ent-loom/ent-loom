@@ -1,9 +1,9 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.governance.admission.AccessAdmissionService;
-import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.starter.web.access.AccessAdmissionInterceptor;
+import com.entloom.crud.starter.web.access.AccessIdentityDeclarationValidator;
 import com.entloom.crud.starter.web.access.AccessAuthenticationFilter;
 import com.entloom.crud.starter.web.access.AccessContextArgumentResolver;
 import com.entloom.crud.starter.web.access.AccessHttpErrorWriter;
@@ -14,7 +14,6 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -24,20 +23,24 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /** 独立 MVC 接入，不要求开启内置 CRUD Controller；未提供可信来源时声明接口拒绝。 */
 @AutoConfiguration(after = {CrudAutoConfiguration.class, CrudPolicyAutoConfiguration.class})
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass({DispatcherServlet.class, HttpServletRequest.class})
+@Import(CrudIdentityConfiguration.class)
 public class CrudAccessWebAutoConfiguration {
+
     @Bean
-    @ConditionalOnMissingBean
-    public BusinessIdentityRegistry businessIdentityRegistry(ObjectProvider<BusinessIdentityRegistration<?>> registrations) {
-        return new BusinessIdentityRegistry(registrations.orderedStream().collect(Collectors.toList()));
+    public AccessIdentityDeclarationValidator accessIdentityDeclarationValidator(BusinessIdentityRegistry identities,
+        ObjectProvider<RequestMappingHandlerMapping> mappings) {
+        return new AccessIdentityDeclarationValidator(identities, mappings);
     }
 
     @Bean

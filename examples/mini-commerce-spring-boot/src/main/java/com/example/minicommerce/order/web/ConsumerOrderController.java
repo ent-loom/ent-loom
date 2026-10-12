@@ -7,7 +7,6 @@ import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
-import com.example.minicommerce.customer.access.CustomerIdentity;
 import com.example.minicommerce.order.dto.OrderPageQueries;
 import com.example.minicommerce.order.service.OrderPageService;
 import jakarta.validation.Valid;
@@ -20,14 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 /** 用户端分页：仅查询本人销售订单，允许进一步按商家筛选。 */
 @RestController
 @RequestMapping("/api/consumer/orders")
-@EntAccess(identity = CustomerIdentity.class, accessEntries = "consumer", subjectTypes = AccessSubjectType.HUMAN)
+@EntAccess(identity = "customer", accessEntries = "consumer", subjectTypes = AccessSubjectType.HUMAN)
 @RequiredArgsConstructor
 public class ConsumerOrderController {
     private final OrderPageService orders;
     private final CrudResponseBuilder responses;
 
     @PostMapping("/page")
-    public CrudResponse<PageResult<CrudRecord>> page(AccessContext<CustomerIdentity> access,
+    public CrudResponse<PageResult<CrudRecord>> page(AccessContext access,
         @Valid @RequestBody OrderPageQueries.Consumer query) {
         return responses.success(orders.consumerPage(access.getVisitorContext(), query));
     }

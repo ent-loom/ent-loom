@@ -3,7 +3,6 @@ package com.entloom.crud.starter.web.access;
 import com.entloom.crud.annotations.EntAccess;
 import com.entloom.crud.api.access.AccessContext;
 import com.entloom.crud.api.access.AccessSubjectType;
-import com.entloom.crud.api.access.BusinessIdentity;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
@@ -67,10 +66,7 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
                     throw new ValidationException("可信上下文参数不能声明请求绑定注解: " + method.getMethod());
                 }
                 if (parameter.getParameterType() == AccessContext.class) {
-                    Class<? extends BusinessIdentity> identityType = AccessContextArgumentResolver.identityType(parameter);
-                    if (identityType != access.identity()) {
-                        throw new ValidationException("固定身份参数必须与 @EntAccess.identity 声明一致: " + method.getMethod());
-                    }
+                    AccessContextArgumentResolver.identityCode(parameter);
                 }
             }
             state.beginDispatch(method.getMethod(), admission);
@@ -101,9 +97,9 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
         }
     }
 
-    private static void requireIdentity(AccessAdmission admission, Class<? extends BusinessIdentity> identityType) {
-        if (identityType != BusinessIdentity.class && !admission.getVisitorContext().findIdentity(identityType).isPresent()) {
-            throw new PermissionDeniedException("当前身份不满足接口要求: " + identityType.getName());
+    private static void requireIdentity(AccessAdmission admission, String identityCode) {
+        if (!identityCode.isEmpty() && !admission.getVisitorContext().findIdentity(identityCode).isPresent()) {
+            throw new PermissionDeniedException("当前身份不满足接口要求: " + identityCode);
         }
     }
 

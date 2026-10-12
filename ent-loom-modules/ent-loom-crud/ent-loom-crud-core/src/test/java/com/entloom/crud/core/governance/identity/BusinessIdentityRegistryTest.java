@@ -57,13 +57,13 @@ class BusinessIdentityRegistryTest {
     }
 
     @Test
-    void registry_should_reject_duplicate_type_with_both_codes_in_diagnostic() {
+    void 不同身份码可以复用同一快照类型且仍核验结果身份码() {
         BusinessIdentityRegistration<MerchantIdentity> other = new BusinessIdentityRegistration<MerchantIdentity>(
-            "another", MerchantIdentity.class, (subject, identityId) -> null);
-        ValidationException failure = assertThrows(ValidationException.class, () -> registry(merchant(), other));
-        assertTrue(failure.getMessage().contains(MerchantIdentity.class.getName()));
-        assertTrue(failure.getMessage().contains("merchant"));
-        assertTrue(failure.getMessage().contains("another"));
+            "another", MerchantIdentity.class, (subject, identityId) -> new MerchantIdentity("another", identityId));
+        BusinessIdentityRegistry registry = registry(merchant(), other);
+        assertEquals(2, registry.snapshot().size());
+        assertEquals("another", registry.resolve(subject("actor-1"), "another", "id-1").getIdentityCode());
+        assertEquals("merchant", registry.resolve(subject("actor-1"), "merchant", "merchant-1").getIdentityCode());
     }
 
     @Test
@@ -114,12 +114,12 @@ class BusinessIdentityRegistryTest {
             }));
         VisitorContext visitor = VisitorContext.authenticated(actualSubject,
             registry.resolve(actualSubject, "merchant", "merchant-1"), "common", "request-1", "trace-1");
-        AccessContext<MerchantIdentity> context = AccessContext.from(visitor, MerchantIdentity.class);
+        AccessContext context = AccessContext.from(visitor, "merchant");
         assertSame(actualSubject, seenSubject.get());
         assertSame(actualSubject, context.getSubject());
         assertSame(identity, context.getIdentity());
-        assertEquals("项目商家", context.getIdentity().getDisplayName());
-        assertFalse(visitor.findIdentity(TeacherIdentity.class).isPresent());
+        assertEquals("项目商家", ((MerchantIdentity) context.getIdentity()).getDisplayName());
+        assertFalse(visitor.findIdentity("teacher").isPresent());
     }
 
     @Test

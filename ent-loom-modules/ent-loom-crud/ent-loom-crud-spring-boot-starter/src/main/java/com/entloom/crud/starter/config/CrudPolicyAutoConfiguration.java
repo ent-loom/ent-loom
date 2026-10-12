@@ -12,7 +12,6 @@ import com.entloom.crud.core.governance.authorization.BusinessAuthorizationServi
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.fact.RelationFactResolver;
 import com.entloom.crud.core.governance.fact.RelationFactService;
-import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.core.governance.policy.BusinessOperationCatalog;
 import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
@@ -45,24 +44,21 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 /** 汇总 YAML、Java 声明与实体注解，在启动期交由同一 Core 编译器校验。 */
 @AutoConfiguration(after = CrudAutoConfiguration.class, before = CrudAccessWebAutoConfiguration.class)
 @EnableConfigurationProperties(CrudAccessProperties.class)
+@Import(CrudIdentityConfiguration.class)
 public class CrudPolicyAutoConfiguration {
     @Bean
     @ConditionalOnBean(EntityMetaRegistry.class)
     public ConfiguredAccessPolicies configuredAccessPolicies(CrudAccessProperties properties,
-        EntityMetaRegistry entities, BusinessIdentityRegistry identities) {
-        return new ConfiguredAccessPolicies(properties, entities, identities);
+        EntityMetaRegistry entities, BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions) {
+        return new ConfiguredAccessPolicies(properties, entities, identities, definitions);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public BusinessIdentityRegistry businessIdentityRegistry(ObjectProvider<BusinessIdentityRegistration<?>> registrations) {
-        return new BusinessIdentityRegistry(registrations.orderedStream().collect(Collectors.toList()));
-    }
 
     @Bean
     @ConditionalOnBean(EntityMetaRegistry.class)

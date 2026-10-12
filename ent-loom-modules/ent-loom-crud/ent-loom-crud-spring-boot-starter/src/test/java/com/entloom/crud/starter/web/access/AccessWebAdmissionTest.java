@@ -137,7 +137,7 @@ class AccessWebAdmissionTest {
     }
 
     @Test
-    void wrong_typed_identity_and_unknown_identity_should_deny_before_controller() {
+    void wrong_identity_code_and_unknown_identity_should_deny_before_controller() {
         runner.run(context -> {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
             for (String token : new String[]{"teacher", "unknown", "unassigned"}) {
@@ -227,10 +227,10 @@ class AccessWebAdmissionTest {
     }
 
     @Test
-    void context_parameters_should_reject_raw_wildcard_and_body_binding() {
+    void context_parameters_should_require_identity_code_and_reject_body_binding() {
         runner.run(context -> {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
-            for (String path : new String[]{"/access/raw", "/access/wildcard", "/access/implicit-identity"}) {
+            for (String path : new String[]{"/access/implicit-identity"}) {
                 mvc.perform(get(path).header("Authorization", "Bearer merchant")).andExpect(status().isBadRequest());
             }
             mvc.perform(post("/access/body-context").header("Authorization", "Bearer merchant")
@@ -265,6 +265,10 @@ class AccessWebAdmissionTest {
         new WebApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(CrudAccessWebAutoConfiguration.class))
             .withUserConfiguration(MvcConfiguration.class)
+            .withBean("merchantIdentity", BusinessIdentityRegistration.class, () -> new BusinessIdentityRegistration<>(
+                "merchant", MerchantIdentity.class, (subject, id) -> null))
+            .withBean("teacherIdentity", BusinessIdentityRegistration.class, () -> new BusinessIdentityRegistration<>(
+                "teacher", TeacherIdentity.class, (subject, id) -> null))
             .run(context -> {
                 assertThat(context).doesNotHaveBean("crudAccessAuthenticationFilter");
                 MockMvc mvc = mvc(context.getSourceApplicationContext());
@@ -539,23 +543,23 @@ class AccessWebAdmissionTest {
             return visitor.isAnonymous() && !visitor.getIdentity().isPresent() ? "public" : "incorrect";
         }
 
-        @EntAccess(identity = MerchantIdentity.class)
+        @EntAccess(identity = "merchant")
         @PostMapping("/access/typed")
-        String typed(AccessContext<MerchantIdentity> access, @RequestBody Map<String, Object> payload) {
+        String typed(AccessContext access, @RequestBody Map<String, Object> payload) {
             calls.controllerCalls.incrementAndGet();
             VisitorContext visitor = access.getVisitorContext();
             return access.getSubject().getSubjectId() + "|" + access.getIdentity().getIdentityId() + "|"
                 + access.getIdentity().getIdentityCode() + "|" + visitor.getAccessEntry() + "|" + visitor.getRequestId() + "|" + visitor.getTraceId();
         }
 
-        @EntAccess(identity = MerchantIdentity.class)
+        @EntAccess(identity = "merchant")
         @GetMapping("/access/merchant-only")
         String merchantOnly() {
             calls.controllerCalls.incrementAndGet();
             return "merchant";
         }
 
-        @EntAccess(identity = MerchantIdentity.class, accessEntries = "trusted-entry", subjectTypes = AccessSubjectType.HUMAN)
+        @EntAccess(identity = "merchant", accessEntries = "trusted-entry", subjectTypes = AccessSubjectType.HUMAN)
         @GetMapping("/access/merchant-entry")
         String merchantEntry() {
             calls.controllerCalls.incrementAndGet();
@@ -576,30 +580,15 @@ class AccessWebAdmissionTest {
             return "incorrect";
         }
 
-        @EntAccess(value = AuthenticationMode.ANONYMOUS, identity = MerchantIdentity.class)
+        @EntAccess(value = AuthenticationMode.ANONYMOUS, identity = "merchant")
         @GetMapping("/access/anonymous-typed")
-        String anonymousTyped(AccessContext<MerchantIdentity> access) {
-            return "incorrect";
-        }
-
-        @EntAccess
-        @GetMapping("/access/raw")
-        @SuppressWarnings("rawtypes")
-        String raw(AccessContext access) {
-            calls.controllerCalls.incrementAndGet();
-            return "incorrect";
-        }
-
-        @EntAccess
-        @GetMapping("/access/wildcard")
-        String wildcard(AccessContext<? extends BusinessIdentity> access) {
-            calls.controllerCalls.incrementAndGet();
+        String anonymousTyped(AccessContext access) {
             return "incorrect";
         }
 
         @EntAccess
         @GetMapping("/access/implicit-identity")
-        String implicitIdentity(AccessContext<MerchantIdentity> access) {
+        String implicitIdentity(AccessContext access) {
             calls.controllerCalls.incrementAndGet();
             return "incorrect";
         }
@@ -649,7 +638,7 @@ class AccessWebAdmissionTest {
     }
 
     @RestController
-    @EntAccess(identity = MerchantIdentity.class, accessEntries = "trusted-entry")
+    @EntAccess(identity = "merchant", accessEntries = "trusted-entry")
     static class ClassAccessController {
         @GetMapping("/access/class-default")
         String classDefault() {

@@ -1,14 +1,13 @@
 package com.entloom.crud.starter.web.access;
 
 import com.entloom.crud.api.access.AccessContext;
-import com.entloom.crud.api.access.BusinessIdentity;
+import com.entloom.crud.annotations.EntAccess;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.admission.AccessAdmission;
 import jakarta.servlet.http.HttpServletRequest;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -32,18 +31,15 @@ public final class AccessContextArgumentResolver implements HandlerMethodArgumen
             throw new PermissionDeniedException("当前接口尚未完成可信准入");
         }
         VisitorContext visitor = admission.getVisitorContext();
-        return parameter.getParameterType() == VisitorContext.class ? visitor : AccessContext.from(visitor, identityType(parameter));
+        return parameter.getParameterType() == VisitorContext.class ? visitor : AccessContext.from(visitor, identityCode(parameter));
     }
 
-    static Class<? extends BusinessIdentity> identityType(MethodParameter parameter) {
-        Type type = parameter.getGenericParameterType();
-        if (type instanceof ParameterizedType) {
-            Type identityType = ((ParameterizedType) type).getActualTypeArguments()[0];
-            if (identityType instanceof Class<?> && identityType != BusinessIdentity.class
-                && BusinessIdentity.class.isAssignableFrom((Class<?>) identityType)) {
-                return ((Class<?>) identityType).asSubclass(BusinessIdentity.class);
-            }
+    static String identityCode(MethodParameter parameter) {
+        EntAccess access = AnnotatedElementUtils.findMergedAnnotation(parameter.getMethod(), EntAccess.class);
+        if (access == null) access = AnnotatedElementUtils.findMergedAnnotation(parameter.getContainingClass(), EntAccess.class);
+        if (access == null || access.identity().isEmpty() || !access.identity().equals(access.identity().trim())) {
+            throw new ValidationException("AccessContext 参数必须由 @EntAccess.identity 声明身份码: " + parameter.getMethod());
         }
-        throw new ValidationException("AccessContext 参数必须指定确定的项目身份类型: " + parameter.getMethod());
+        return access.identity();
     }
 }
