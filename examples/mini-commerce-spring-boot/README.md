@@ -113,7 +113,7 @@ identities:
     id-type: LONG
 ```
 
-身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过 `policy` 选择；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
+身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，通过 `policy-bindings` 集中绑定实体，`entities` 仅补充实体差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
 
 | 策略模板 | 业务规则 | 当前实体 |
 | --- | --- | --- |
@@ -122,7 +122,7 @@ identities:
 | `merchant-data` | 商家读取、维护本人数据 | 商家商品 |
 | `order-entries` | 客户、商家分别读取自己的订单 | 商家销售订单 |
 
-字段差异归实体：`field-plans.merchantProduct` 自动绑定同名资源，显式约束 `[name, price, active]` 的写入；按身份区分字段时使用 `entities.<resource>.fields.<identity>`。同类新实体复用模板，标准动作自动推导操作目录，只补必要字段约束或特殊 CRUD 映射；`view` 缺省映射 LIST/PAGE/FIND_ONE/DETAIL，`update` 映射 UPDATE，批量与业务动作仍显式声明。特殊业务另选策略。模板由项目声明，框架不内置业务身份或自动合并分类权限。
+字段差异归实体：`field-plans.merchantProduct` 自动绑定同名资源，显式约束 `[name, price, active]` 的写入；按身份区分字段时使用 `entities.<resource>.fields.<identity>`。同类新实体追加到对应策略的绑定列表，标准动作自动推导操作目录，只补必要字段约束或特殊 CRUD 映射；`view` 缺省映射 LIST/PAGE/FIND_ONE/DETAIL，`update` 映射 UPDATE，批量与业务动作仍显式声明。特殊业务另选策略。模板由项目声明，框架不内置业务身份或自动合并分类权限。
 
 Controller 使用 `@EntAccess(identity = "customer")` 或 `"merchant"`，方法接收统一 `AccessContext`。框架按身份码检查准入并构造不可变身份快照，数据范围从已声明 ID 属性读取；启动时检查未知引用及身份/实体字段类型不匹配。
 

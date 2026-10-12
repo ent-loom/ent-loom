@@ -39,7 +39,7 @@ ent:
         # 保护实体已有的归属字段，禁止普通写入。
         defaults:
           scope-fields: [merchantId, customerId]
-        # 项目按业务规则定义模板，实体显式选择；同类实体可复用。
+        # 项目按业务规则定义模板，同类实体复用。
         policies:
           # 客户只读本人记录。
           customer-record:
@@ -59,19 +59,17 @@ ent:
               actions: [view]
             merchant:
               actions: [view]
-        # 实体选择模板；标准 CRUD 映射复用策略动作缺省，特殊映射再显式声明。
+        # 按策略集中绑定实体；标准 CRUD 映射复用策略动作缺省。
+        policy-bindings:
+          customer-record: [customerAddress]
+          merchant-record: [merchantPoster]
+          merchant-data: [merchantProduct]
+          order-entries: [merchantOrder]
+        # 实体差异独立声明，字段方案、关系和特殊操作映射也放在这里。
         entities:
           # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
             exclude-scope-fields: [customerId]
-          customerAddress:
-            policy: customer-record
-          merchantPoster:
-            policy: merchant-record
-          merchantProduct:
-            policy: merchant-data
-          merchantOrder:
-            policy: order-entries
         # 策略范围默认采用同名身份关系。
         relations:
           merchant:

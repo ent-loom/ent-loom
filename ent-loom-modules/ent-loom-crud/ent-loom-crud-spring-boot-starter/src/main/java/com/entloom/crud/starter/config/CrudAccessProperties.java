@@ -15,6 +15,8 @@ public class CrudAccessProperties {
     private Defaults defaults = new Defaults();
     private Map<String, Identity> identities = new LinkedHashMap<>();
     private Map<String, Map<String, Branch>> policies = new LinkedHashMap<>();
+    /** 策略名到实体资源码列表；每个实体只能出现在一个绑定列表中。 */
+    private Map<String, List<String>> policyBindings = new LinkedHashMap<>();
     private Map<String, Entity> entities = new LinkedHashMap<>();
     private Map<String, Relation> relations = new LinkedHashMap<>();
     private Map<String, Map<AuthorizationFields.Use, List<String>>> fieldPlans = new LinkedHashMap<>();
@@ -42,6 +44,7 @@ public class CrudAccessProperties {
 
     @Data
     public static class Entity {
+        /** 未显式声明时优先使用批量绑定，否则采用资源同名策略；显式声明不得与批量绑定冲突。 */
         private String policy;
         /** 按策略身份分支选择字段方案；未声明时复用实体同名方案，否则采用字段缺省。 */
         private Map<String, String> fields = new LinkedHashMap<>();

@@ -70,20 +70,25 @@ public final class ConfiguredAccessPolicies {
             }
             templates.add(new EntityPolicyTemplate(policy.getKey(), SOURCE + ".policies." + policy.getKey(), rules));
         }
-        // 仅对明确配置的实体开放；同名推导也要求资源已由 Meta 登记。
-        for (var entity : config.getEntities().entrySet()) {
-            String resource = entity.getKey();
+        Map<String, String> policyBindings = resolvePolicyBindings(config);
+        Set<String> resources = new LinkedHashSet<>(config.getEntities().keySet());
+        resources.addAll(policyBindings.keySet());
+        // 仅对实体声明或批量绑定明确选择的资源开放，不扫描其他同名实体。
+        for (String resource : resources) {
             EntityMeta meta = metas.get(resource);
             require(meta != null, "策略绑定未知实体: " + resource);
-            var declaration = entity.getValue();
+            var declaration = config.getEntities().getOrDefault(resource, new CrudAccessProperties.Entity());
+            String batchPolicy = policyBindings.get(resource);
             // 仅声明归属字段例外的存量实体，不由配置暗中变为策略治理资源。
-            if (declaration.getPolicy() == null && declaration.getOperations() == null
+            if (batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
                 && !config.getPolicies().containsKey(resource) && !declaration.getExcludeScopeFields().isEmpty()) {
                 require(declaration.getRelations().isEmpty(), "仅归属字段例外的实体不能声明策略关系: " + resource);
                 require(declaration.getFields().isEmpty(), "仅归属字段例外的实体不能声明字段方案: " + resource);
                 continue;
             }
-            String policy = defaultName(declaration.getPolicy(), resource);
+            String policy = defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
+            require(batchPolicy == null || batchPolicy.equals(policy), "实体策略与批量绑定冲突: " + resource
+                + " -> " + policy + " / " + batchPolicy);
             var branches = config.getPolicies().get(policy);
             require(branches != null, "实体绑定未知策略: " + resource + " -> " + policy);
             Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, resource);
@@ -128,7 +133,9 @@ public final class ConfiguredAccessPolicies {
             for (String role : declaration.getRelations().keySet()) {
                 require(relations.containsKey(role), "实体绑定未使用的关系: " + resource + "/" + role);
             }
-            bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, SOURCE + ".entities." + resource, relations));
+            String bindingSource = batchPolicy == null ? SOURCE + ".entities." + resource
+                : SOURCE + ".policy-bindings." + batchPolicy;
+            bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, bindingSource, relations));
             for (var action : operationCatalog.entrySet()) {
                 BusinessOperation operation = new BusinessOperation(resource, name(action.getKey(), "动作"));
                 operations.add(new BusinessOperationDeclaration(operation, operationSource));
@@ -146,6 +153,20 @@ public final class ConfiguredAccessPolicies {
     public List<EntityPolicyBinding> bindings() { return List.copyOf(bindings); }
     public List<BusinessOperationDeclaration> operations() { return List.copyOf(operations); }
     public List<CrudOperationMapping> mappings() { return List.copyOf(mappings); }
+
+    /** 批量声明只展开绑定，不修改属性对象，也不合并或覆盖策略权限。 */
+    private static Map<String, String> resolvePolicyBindings(CrudAccessProperties config) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (var binding : config.getPolicyBindings().entrySet()) {
+            String policy = name(binding.getKey(), "策略");
+            require(config.getPolicies().containsKey(policy), "批量绑定未知策略: " + policy);
+            for (String resource : unique(binding.getValue(), "策略绑定 " + policy)) {
+                String previous = result.putIfAbsent(resource, policy);
+                require(previous == null, "实体重复批量绑定: " + resource + " -> " + previous + " / " + policy);
+            }
+        }
+        return result;
+    }
 
     /** 显式目录整体覆盖；缺省只展开策略已声明的标准动作，不增加授权动作。 */
     private static Map<String, List<String>> resolveOperations(CrudAccessProperties.Entity entity,

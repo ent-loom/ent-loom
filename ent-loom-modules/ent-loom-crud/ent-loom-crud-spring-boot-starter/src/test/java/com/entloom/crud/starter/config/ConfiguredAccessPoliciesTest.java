@@ -199,16 +199,16 @@ class ConfiguredAccessPoliciesTest {
                 owned-data:
                   owner:
                     actions: [view, update]
+              policy-bindings:
+                owned-data: [order, note]
               entities:
                 order:
-                  policy: owned-data
                   fields:
                     owner: order-edit
                   operations:
                     view: [LIST]
                     update: [UPDATE]
                 note:
-                  policy: owned-data
                   operations:
                     view: [LIST]
                     update: [UPDATE]
@@ -241,6 +241,96 @@ class ConfiguredAccessPoliciesTest {
                 assertThat(result.getScope().getValues()).containsExactly("42");
             }
         });
+    }
+
+    @Test
+    void 批量绑定无需实体声明且复用默认操作与可信关系() {
+        String yaml = YAML.replace("        entities:\n          order:\n            fields:\n              owner: owner\n            operations:\n              view: [PAGE]\n", "")
+            + "        policy-bindings:\n          order: [order]\n";
+        EntityMetaRegistry metas = mock(EntityMetaRegistry.class);
+        when(metas.getEntityMetas()).thenReturn(List.of(
+            editableMeta(Order.class, "order", "amount"), editableMeta(Note.class, "note", "title")));
+        runner(yaml, metas).run(context -> {
+            assertThat(context).hasNotFailed();
+            var service = context.getBean(BusinessAuthorizationService.class);
+            var result = service.authorize(request());
+            assertThat(result.getDecision()).isEqualTo(AccessDecision.ALLOW);
+            assertThat(result.getScope().getField()).isEqualTo("ownerId");
+            assertThat(result.getScope().getValues()).containsExactly("42");
+            var mapping = context.getBean(CrudOperationMappingRegistry.class);
+            assertThat(mapping.snapshot()).hasSize(4);
+            assertThat(mapping.require("order", CrudOperationKey.of(QueryOperation.PAGE), null)).isEqualTo(view);
+            var rule = context.getBean(EntityPolicyRegistry.class)
+                .requireDeclaration(view, PolicyIdentityBranch.identity("owner"));
+            assertThat(rule.getBindingSource()).isEqualTo("ent.loom.crud.access.policy-bindings.order");
+            assertThatThrownBy(() -> service.authorize(new AuthorizationRequest(request().getVisitor(),
+                new BusinessOperation("note", "view"), null))).hasMessageContaining("未注册");
+            var properties = context.getBean(CrudAccessProperties.class);
+            assertThat(properties.getEntities()).isEmpty();
+            properties.getPolicyBindings().clear();
+            assertThat(service.authorize(request()).getDecision()).isEqualTo(AccessDecision.ALLOW);
+        });
+    }
+
+    @Test
+    void 批量绑定可叠加实体差异并接受一致的显式策略() {
+        for (String declaration : List.of("", "            policy: order\n",
+            "            exclude-scope-fields: [amount]\n")) {
+            String yaml = YAML.replace("            fields:\n", declaration + "            fields:\n")
+                + "        policy-bindings:\n          order: [order]\n";
+            runner(yaml).run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).hasSize(1);
+                var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+                assertThat(result.getFields().snapshot().get(AuthorizationFields.Use.RETURN)).containsExactly("id");
+                assertThat(result.getScope().getValues()).containsExactly("42");
+            });
+        }
+    }
+
+    @Test
+    void 仅归属字段例外的实体有批量绑定时仍生成策略能力() {
+        String yaml = YAML.replace("            fields:\n              owner: owner\n            operations:\n              view: [PAGE]\n",
+            "            exclude-scope-fields: [amount]\n")
+            .replace("          order:\n            owner:", "          owned-data:\n            owner:")
+            + "        policy-bindings:\n          owned-data: [order]\n";
+        runner(yaml).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).hasSize(4);
+            assertThat(context.getBean(BusinessAuthorizationService.class).authorize(request()).getDecision())
+                .isEqualTo(AccessDecision.ALLOW);
+        });
+    }
+
+    @Test
+    void 批量绑定的未知引用空列表重复实体及策略冲突均启动失败() {
+        Map<String, String> invalid = Map.of(
+            "          unknown: [order]\n", "批量绑定未知策略",
+            "          order: [unknown]\n", "策略绑定未知实体",
+            "          order: []\n", "不能为空",
+            "          order: [order, order]\n", "重复",
+            "          order: [order]\n          other: [order]\n", "实体重复批量绑定",
+            "          other: [order]\n", "实体策略与批量绑定冲突",
+            "          order: [' ']\n", "名称不能为空");
+        String yaml = YAML.replace("        entities:\n",
+            "          other:\n            owner:\n              actions: [view]\n        entities:\n")
+            .replace("            fields:\n", "            policy: order\n            fields:\n");
+        invalid.forEach((binding, message) -> runner(yaml + "        policy-bindings:\n" + binding)
+            .run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining(message);
+            }));
+    }
+
+    @Test
+    void 批量绑定与Java绑定冲突仍由统一注册链拒绝() {
+        runner(YAML + "        policy-bindings:\n          order: [order]\n")
+            .withBean(EntityPolicyBinding.class, () -> new EntityPolicyBinding(
+                Order.class, "order", "项目Java", Map.of("owner", "ownerId"))).run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("项目Java")
+                    .hasStackTraceContaining("ent.loom.crud.access.policy-bindings.order");
+            });
     }
 
     @Test
