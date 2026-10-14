@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.Objects;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 
 /**
@@ -18,28 +17,19 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
  * 对外正式 entity code 统一来自 ResourceDescriptor.resourceCode。
  */
 public class ExposedEntityRegistry {
-    /** HTTP 暴露策略，见 {@link EntityExposureMode}。 */
-    private final EntityExposureMode exposureMode;
     /** 元数据注册表。 */
     private final EntityMetaRegistry entityMetaRegistry;
     /** 实体编码映射。 */
     private final Map<String, Class<?>> entityMapping = new HashMap<>();
     /** 允许暴露的实体集合。 */
     private final Set<String> includeEntities = new HashSet<>();
-    /** 禁止暴露的实体集合。 */
-    private final Set<String> excludeEntities = new HashSet<>();
 
     public ExposedEntityRegistry() {
         this(null);
     }
 
     public ExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
-        this(entityMetaRegistry, EntityExposureMode.EXPLICIT);
-    }
-
-    public ExposedEntityRegistry(EntityMetaRegistry entityMetaRegistry, EntityExposureMode exposureMode) {
         this.entityMetaRegistry = entityMetaRegistry;
-        this.exposureMode = Objects.requireNonNull(exposureMode, "实体暴露模式不能为空");
     }
 
     /**
@@ -89,26 +79,9 @@ public class ExposedEntityRegistry {
      * @param includes 允许暴露实体列表
      */
     public void setIncludeEntities(Set<String> includes) {
-        if (exposureMode == EntityExposureMode.ALL_REGISTERED && includes != null && !includes.isEmpty()) {
-            throw new IllegalArgumentException("ALL_REGISTERED 模式不能同时配置 controller.include-entities");
-        }
         includeEntities.clear();
         if (includes != null) {
             includes.forEach(code -> includeEntities.add(normalize(code)));
-        }
-    }
-
-    /**
-     * 设置黑名单。
-     *
-     * <p>黑名单适用于所有暴露模式，并且优先于实体注解和白名单。</p>
-     *
-     * @param excludes 禁止暴露实体列表
-     */
-    public void setExcludeEntities(Set<String> excludes) {
-        excludeEntities.clear();
-        if (excludes != null) {
-            excludes.forEach(code -> excludeEntities.add(normalize(code)));
         }
     }
 
@@ -124,18 +97,11 @@ public class ExposedEntityRegistry {
         if (type == null) {
             throw new CrudException(CrudErrorCode.TYPE_RESOLUTION_FAILED, "未找到实体类型: " + code);
         }
-        if (excludeEntities.contains(normalized)
-            || excludeEntities.contains(normalize(entityCode(type)))
-            || excludeEntities.contains(normalize(type.getSimpleName()))
-            || excludeEntities.contains(normalize(type.getName()))) {
-            throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体未暴露: " + code);
-        }
         EntCrudEntity annotation = AnnotatedElementUtils.findMergedAnnotation(type, EntCrudEntity.class);
         if (annotation != null && !annotation.httpExposed()) {
             throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体禁止 HTTP 暴露: " + code);
         }
-        if (exposureMode == EntityExposureMode.EXPLICIT
-            && !includeEntities.contains(normalized)
+        if (!includeEntities.contains(normalized)
             && !includeEntities.contains(normalize(entityCode(type)))) {
             throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体未暴露: " + code);
         }

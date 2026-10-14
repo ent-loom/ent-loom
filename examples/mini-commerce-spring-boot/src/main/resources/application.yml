@@ -36,6 +36,12 @@ ent:
             id-type: LONG
           merchant:
             id-type: LONG
+        # 策略范围默认采用同名身份关系。
+        relations:
+          merchant:
+            field: merchantId
+          customer:
+            field: customerId
         # 保护实体已有的归属字段，禁止普通写入。
         defaults:
           scope-fields: [merchantId, customerId]
@@ -65,17 +71,12 @@ ent:
           merchant-record: [merchantPoster]
           merchant-data: [merchantProduct]
           order-entries: [merchantOrder]
-        # 实体差异独立声明，字段方案、关系和特殊操作映射也放在这里。
+        # 通用 CRUD HTTP 实体清单；列出的实体默认开放接口，差异配置就近声明。
         entities:
+          customer:
           # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
             exclude-scope-fields: [customerId]
-        # 策略范围默认采用同名身份关系。
-        relations:
-          merchant:
-            field: merchantId
-          customer:
-            field: customerId
         # RETURN 缺省为普通字段，FILTER 缺省复用可筛选返回字段；写入仍显式授权。
         field-plans:
           merchantProduct:
@@ -83,7 +84,6 @@ ent:
       # 通用 HTTP 仅开放客户与结算单。
       controller:
         enabled: true
-        include-entities: [customer, order]
       # 写入契约：创建请求必须显式提供的字段。
       contracts:
         create:

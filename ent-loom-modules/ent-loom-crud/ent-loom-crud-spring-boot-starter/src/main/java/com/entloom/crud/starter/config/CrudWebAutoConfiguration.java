@@ -8,6 +8,7 @@ import com.entloom.crud.core.foundation.taskfile.FileService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.runtime.router.CommandActionSceneResolver;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.capability.stats.StatsPayloadCustomizerRegistry;
@@ -52,6 +53,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -60,6 +62,8 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Collections;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.TimeZone;
 
 /**
@@ -67,6 +71,7 @@ import java.util.TimeZone;
  */
 @Configuration
 @ConditionalOnClass(EntCrudQueryController.class)
+@EnableConfigurationProperties(CrudAccessProperties.class)
 public class CrudWebAutoConfiguration {
     private static final String CONTROLLER_ENABLED_PROPERTY = "ent.loom.crud.controller.enabled";
     private static final String QUERY_ENABLED_PROPERTY = "ent.loom.crud.query.enabled";
@@ -78,12 +83,20 @@ public class CrudWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ExposedEntityRegistry exposedEntityRegistry(CrudProperties properties, EntityMetaRegistry entityMetaRegistry) {
-        ExposedEntityRegistry registry = new ExposedEntityRegistry(
-            entityMetaRegistry, properties.getController().getExposureMode());
-        registry.setIncludeEntities(properties.getController().getIncludeEntities());
-        registry.setExcludeEntities(properties.getController().getExcludeEntities());
+    public ExposedEntityRegistry exposedEntityRegistry(CrudAccessProperties access, EntityMetaRegistry entityMetaRegistry) {
+        ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
+        access.entityDeclarations();
         entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
+        Map<String, Class<?>> resources = new LinkedHashMap<>();
+        entityMetaRegistry.getEntityMetas().forEach(meta ->
+            resources.put(meta.getResourceDescriptor().getResourceCode(), meta.getEntityType()));
+        access.getEntities().forEach((resource, declaration) -> {
+            Class<?> entityType = resources.get(resource);
+            if (entityType == null) {
+                throw new ValidationException("接口清单引用未知实体: " + resource);
+            }
+            if (declaration.isHttpExposed()) registry.expose(entityType);
+        });
         return registry;
     }
 

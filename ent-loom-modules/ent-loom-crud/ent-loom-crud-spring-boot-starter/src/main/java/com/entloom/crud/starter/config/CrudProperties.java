@@ -8,7 +8,6 @@ import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
-import com.entloom.crud.starter.web.registry.EntityExposureMode;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import java.util.ArrayList;
@@ -318,12 +317,6 @@ public class CrudProperties {
         private CrudNullFieldMode defaultNullFieldMode = DEFAULT_NULL_FIELD_MODE;
         /** 字符串简写过滤默认策略。 */
         private StringFilter stringFilter = new StringFilter();
-        /** HTTP 实体暴露模式，见 {@link EntityExposureMode}。 */
-        private EntityExposureMode exposureMode = EntityExposureMode.EXPLICIT;
-        /** EXPLICIT 模式下允许暴露的实体集合。 */
-        private Set<String> includeEntities = new HashSet<>();
-        /** ALL_REGISTERED 模式下禁止暴露的实体集合。 */
-        private Set<String> excludeEntities = new HashSet<>();
 
         public void setDefaultTimeField(String defaultTimeField) {
             this.defaultTimeField = trimToNull(defaultTimeField);
@@ -357,14 +350,6 @@ public class CrudProperties {
                 );
             }
             this.defaultNullFieldMode = resolved;
-        }
-
-        public void setIncludeEntities(Set<String> includeEntities) {
-            this.includeEntities = copySet(includeEntities);
-        }
-
-        public void setExcludeEntities(Set<String> excludeEntities) {
-            this.excludeEntities = copySet(excludeEntities);
         }
 
         public void setStringFilter(StringFilter stringFilter) {

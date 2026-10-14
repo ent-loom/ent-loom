@@ -1,11 +1,10 @@
 package com.example.minicommerce.order;
 
 import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
-import com.entloom.crud.starter.web.registry.EntityExposureMode;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.crud.starter.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudAccessProperties;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.customer.entity.CustomerAddress;
 import com.example.minicommerce.order.entity.Order;
@@ -50,7 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderAccessTest {
     @Autowired ExposedEntityRegistry exposedEntities;
     @Autowired EntityMetaRegistry entityMetaRegistry;
-    @Autowired CrudProperties crudProperties;
+    @Autowired CrudAccessProperties accessProperties;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean CrudSubjectResolver subjectResolver;
@@ -66,11 +65,11 @@ class OrderAccessTest {
     }
 
     @Test
-    void 实体只从业务包注册且Http遵循排除和实体禁用配置() {
+    void 实体只从业务包注册且Http遵循接口清单和实体禁用配置() {
         assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
                 MerchantProduct.class, MerchantPoster.class, MerchantOrder.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
-        assertEquals(EntityExposureMode.EXPLICIT, crudProperties.getController().getExposureMode());
+        assertEquals(Set.of("customer", "order"), accessProperties.getEntities().keySet());
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantProduct"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("customerAddress"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantPoster"));

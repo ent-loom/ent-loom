@@ -317,7 +317,7 @@ public class CrudCommonConfiguration {
     @ConditionalOnMissingBean
     public CrudScopeFieldRules crudScopeFieldRules(CrudAccessProperties properties) {
         Map<String, List<String>> exclusions = new LinkedHashMap<>();
-        properties.getEntities().forEach((resource, entity) -> {
+        properties.entityDeclarations().forEach((resource, entity) -> {
             if (!entity.getExcludeScopeFields().isEmpty()) exclusions.put(resource, entity.getExcludeScopeFields());
         });
         return new CrudScopeFieldRules(properties.getDefaults().getScopeFields(), exclusions);

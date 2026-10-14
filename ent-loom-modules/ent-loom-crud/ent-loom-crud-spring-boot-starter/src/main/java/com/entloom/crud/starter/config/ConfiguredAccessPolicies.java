@@ -71,19 +71,22 @@ public final class ConfiguredAccessPolicies {
             templates.add(new EntityPolicyTemplate(policy.getKey(), SOURCE + ".policies." + policy.getKey(), rules));
         }
         Map<String, String> policyBindings = resolvePolicyBindings(config);
-        Set<String> resources = new LinkedHashSet<>(config.getEntities().keySet());
+        Map<String, CrudAccessProperties.EntityOptions> declarations = config.entityDeclarations();
+        Set<String> resources = new LinkedHashSet<>(declarations.keySet());
         resources.addAll(policyBindings.keySet());
         // 仅对实体声明或批量绑定明确选择的资源开放，不扫描其他同名实体。
         for (String resource : resources) {
             EntityMeta meta = metas.get(resource);
             require(meta != null, "策略绑定未知实体: " + resource);
-            var declaration = config.getEntities().getOrDefault(resource, new CrudAccessProperties.Entity());
+            var declaration = declarations.getOrDefault(resource, new CrudAccessProperties.EntityOptions());
             String batchPolicy = policyBindings.get(resource);
-            // 仅声明归属字段例外的存量实体，不由配置暗中变为策略治理资源。
+            String declarationSource = SOURCE + (config.getEntityOptions().containsKey(resource)
+                ? ".entity-options." : ".entities.") + resource;
+            // 登记接口或实体差异不授予权限；未选择策略时仍由既有治理规则授权。
             if (batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
-                && !config.getPolicies().containsKey(resource) && !declaration.getExcludeScopeFields().isEmpty()) {
-                require(declaration.getRelations().isEmpty(), "仅归属字段例外的实体不能声明策略关系: " + resource);
-                require(declaration.getFields().isEmpty(), "仅归属字段例外的实体不能声明字段方案: " + resource);
+                && !config.getPolicies().containsKey(resource)) {
+                require(declaration.getRelations().isEmpty(), "未选策略的实体不能声明策略关系: " + resource);
+                require(declaration.getFields().isEmpty(), "未选策略的实体不能声明字段方案: " + resource);
                 continue;
             }
             String policy = defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
@@ -92,8 +95,8 @@ public final class ConfiguredAccessPolicies {
             var branches = config.getPolicies().get(policy);
             require(branches != null, "实体绑定未知策略: " + resource + " -> " + policy);
             Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, resource);
-            String operationSource = SOURCE + (declaration.getOperations() == null
-                ? ".policies." + policy : ".entities." + resource + ".operations");
+            String operationSource = declaration.getOperations() == null
+                ? SOURCE + ".policies." + policy : declarationSource + ".operations";
             for (String identity : declaration.getFields().keySet()) {
                 require(branches.containsKey(identity), "实体字段方案引用未使用的身份: " + resource + "/" + identity);
             }
@@ -133,7 +136,7 @@ public final class ConfiguredAccessPolicies {
             for (String role : declaration.getRelations().keySet()) {
                 require(relations.containsKey(role), "实体绑定未使用的关系: " + resource + "/" + role);
             }
-            String bindingSource = batchPolicy == null ? SOURCE + ".entities." + resource
+            String bindingSource = batchPolicy == null ? declarationSource
                 : SOURCE + ".policy-bindings." + batchPolicy;
             bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, bindingSource, relations));
             for (var action : operationCatalog.entrySet()) {
@@ -169,7 +172,7 @@ public final class ConfiguredAccessPolicies {
     }
 
     /** 显式目录整体覆盖；缺省只展开策略已声明的标准动作，不增加授权动作。 */
-    private static Map<String, List<String>> resolveOperations(CrudAccessProperties.Entity entity,
+    private static Map<String, List<String>> resolveOperations(CrudAccessProperties.EntityOptions entity,
         Map<String, CrudAccessProperties.Branch> branches, String resource) {
         if (entity.getOperations() != null) return entity.getOperations();
         Map<String, List<String>> result = new LinkedHashMap<>();
@@ -184,7 +187,7 @@ public final class ConfiguredAccessPolicies {
     }
 
     /** 字段差异归实体；同一模板可绑定不同结构的实体。 */
-    private static AuthorizationFields compileFields(CrudAccessProperties config, CrudAccessProperties.Entity entity,
+    private static AuthorizationFields compileFields(CrudAccessProperties config, CrudAccessProperties.EntityOptions entity,
         EntityMeta meta, String resource, String identity) {
         String planName = entity.getFields().containsKey(identity)
             ? name(entity.getFields().get(identity), "字段方案") : resource;

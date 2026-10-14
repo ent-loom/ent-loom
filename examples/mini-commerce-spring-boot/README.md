@@ -97,11 +97,15 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 access:
   defaults:
     scope-fields: [merchantId, customerId]
+  entities:
+    customer:
+    order:
+      exclude-scope-fields: [customerId]
 controller:
-  include-entities: [customer, order]
+  enabled: true
 ```
 
-`merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入通用 HTTP 白名单。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。
+`access.entities` 是通用 CRUD HTTP 实体清单，列出的实体缺省开放，无需填写 `http-exposed: true`；仅登记接口不授予权限。没有差异时使用 `customer:` 空值简写，不使用会被 Spring 忽略的空对象 `{}`。`merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入接口清单。内部实体差异放在 `access.entity-options`，不开放接口。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。
 
 身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
 
@@ -113,7 +117,7 @@ identities:
     id-type: LONG
 ```
 
-身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，通过 `policy-bindings` 集中绑定实体，`entities` 仅补充实体差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
+身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，通过 `policy-bindings` 集中绑定实体；`entities` 登记通用接口和就近差异，`entity-options` 登记内部实体差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
 
 | 策略模板 | 业务规则 | 当前实体 |
 | --- | --- | --- |

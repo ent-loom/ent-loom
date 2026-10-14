@@ -19,6 +19,9 @@ ent:
         http:
           enabled: true
     crud:
+      access:
+        entities:
+          customer_profile:
       contracts:
         create:
           input-required-fields:
@@ -31,8 +34,6 @@ ent:
       controller:
         enabled: true
         base-path: /api/ent-crud
-        include-entities:
-          - customer_profile
       query:
         enabled: true
       command:

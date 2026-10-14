@@ -518,6 +518,31 @@ class ConfiguredAccessPoliciesTest {
             .hasMessageContaining("duplicate");
     }
 
+    @Test
+    void 内部差异配置沿用策略编译链并保留来源且不进入接口清单() {
+        runner(YAML.replace("        entities:\n", "        entity-options:\n")).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(CrudAccessProperties.class).getEntities()).isEmpty();
+            var rule = context.getBean(EntityPolicyRegistry.class)
+                .requireDeclaration(view, PolicyIdentityBranch.identity("owner"));
+            assertThat(rule.getBindingSource()).isEqualTo("ent.loom.crud.access.entity-options.order");
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+            assertThat(result.getDecision()).isEqualTo(AccessDecision.ALLOW);
+            assertThat(result.getScope().getValues()).containsExactly("42");
+            assertThat(result.getFields().snapshot().get(AuthorizationFields.Use.RETURN)).containsExactly("id");
+        });
+    }
+
+    @Test
+    void 仅登记接口不自动授予策略权限() {
+        runner("ent.loom.crud.access.entities.order:\n").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(CrudAccessProperties.class).getEntities()).containsOnlyKeys("order");
+            assertThat(context.getBean(BusinessAuthorizationService.class).governs("order")).isFalse();
+            assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).isEmpty();
+        });
+    }
+
     private AuthorizationRequest request() {
         return new AuthorizationRequest(VisitorContext.authenticated(new AccessSubject("user", AccessSubjectType.HUMAN),
             new OwnerIdentity("42"), "merchant", null, null), view, null);
