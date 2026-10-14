@@ -73,10 +73,15 @@ public final class ConfiguredAccessPolicies {
         }
         Map<String, String> policyBindings = resolvePolicyBindings(config);
         Map<String, CrudAccessProperties.EntityOptions> declarations = config.entityDeclarations();
+        Map<String, EntityPolicyBinding> annotatedBindings = AnnotatedEntityPolicyBindings.resolve(entities.getEntityMetas());
         Set<String> resources = new LinkedHashSet<>(declarations.keySet());
         resources.addAll(policyBindings.keySet());
+        annotatedBindings.forEach((resource, binding) -> {
+            if (config.getPolicies().containsKey(binding.getTemplateCode())) resources.add(resource);
+            else bindings.add(binding); // Java 模板仍由项目提供操作、字段授权及关系事实。
+        });
         Set<String> configuredResources = new LinkedHashSet<>();
-        // 仅对实体声明或批量绑定明确选择的资源开放，不扫描其他同名实体。
+        // 仅编译实体声明、批量绑定或注解明确选择的策略，不自动开放 HTTP。
         for (String resource : resources) {
             EntityMeta meta = metas.get(resource);
             require(meta != null, "策略绑定未知实体: " + resource);
@@ -89,14 +94,22 @@ public final class ConfiguredAccessPolicies {
                     "实体关系字段必须是已有标量属性: " + resource + "/" + relation.getValue());
             }
             String batchPolicy = policyBindings.get(resource);
+            EntityPolicyBinding annotated = annotatedBindings.get(resource);
+            boolean configuredAnnotation = annotated != null && config.getPolicies().containsKey(annotated.getTemplateCode());
             String declarationSource = SOURCE + (config.getEntityOptions().containsKey(resource)
                 ? ".entity-options." : ".entities.") + resource;
+            if (annotated != null) {
+                require(batchPolicy == null && declaration.getPolicy() == null,
+                    "实体策略重复绑定: " + resource + "，来源: " + annotated.getSource()
+                        + " / " + (batchPolicy == null ? declarationSource : SOURCE + ".policy-bindings." + batchPolicy));
+            }
             // 登记接口或实体差异不授予权限；未选择策略时仍由既有治理规则授权。
-            if (batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
+            if (!configuredAnnotation && batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
                 && !config.getPolicies().containsKey(resource)) {
                 continue;
             }
-            String policy = defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
+            String policy = configuredAnnotation ? annotated.getTemplateCode()
+                : defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
             require(batchPolicy == null || batchPolicy.equals(policy), "实体策略与批量绑定冲突: " + resource
                 + " -> " + policy + " / " + batchPolicy);
             var branches = config.getPolicies().get(policy);
@@ -112,11 +125,19 @@ public final class ConfiguredAccessPolicies {
                 require(branches.containsKey(identity), "实体字段方案引用未使用的身份: " + resource + "/" + identity);
             }
             Map<String, String> relations = new LinkedHashMap<>();
+            Map<String, String> relationDeclarations = new LinkedHashMap<>(declaration.getRelations());
+            if (configuredAnnotation) {
+                annotated.getRelationFields().forEach((role, field) -> {
+                    String previous = relationDeclarations.putIfAbsent(role, field);
+                    require(previous == null || previous.equals(field),
+                        "策略注解与配置关系字段冲突: " + resource + "/" + role);
+                });
+            }
             for (var branch : branches.entrySet()) {
                 String identity = branch.getKey();
                 String role = defaultName(branch.getValue().getScope(), identity);
                 var relation = config.getRelations().get(role);
-                String field = declaration.getRelations().getOrDefault(role, defaultName(relation.getField(), role + "Id"));
+                String field = relationDeclarations.getOrDefault(role, defaultName(relation.getField(), role + "Id"));
                 relations.put(role, field);
                 var definition = definitions.definitions().get(identity);
                 String identityField = defaultName(relation.getIdentityField(),
@@ -144,8 +165,13 @@ public final class ConfiguredAccessPolicies {
                     identityReaders.put(key, reader);
                 }
             }
-            String bindingSource = batchPolicy == null ? declarationSource
-                : SOURCE + ".policy-bindings." + batchPolicy;
+            if (configuredAnnotation) {
+                for (String role : annotated.getRelationFields().keySet()) {
+                    require(relations.containsKey(role), "策略注解绑定未使用的关系: " + resource + "/" + role);
+                }
+            }
+            String bindingSource = configuredAnnotation ? annotated.getSource()
+                : batchPolicy == null ? declarationSource : SOURCE + ".policy-bindings." + batchPolicy;
             bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, bindingSource, relations));
             for (var action : operationCatalog.entrySet()) {
                 BusinessOperation operation = new BusinessOperation(resource, name(action.getKey(), "动作"));
@@ -162,7 +188,7 @@ public final class ConfiguredAccessPolicies {
             require(metas.containsKey(resource), "字段配置引用未知实体: " + resource);
             require(configuredResources.contains(resource), "字段配置实体未选择声明式策略: " + resource);
         }
-        require(config.getPolicies().isEmpty() || !bindings.isEmpty(), "策略配置没有实体消费者");
+        require(config.getPolicies().isEmpty() || !configuredResources.isEmpty(), "策略配置没有实体消费者");
     }
 
     public List<EntityPolicyTemplate> templates() { return List.copyOf(templates); }

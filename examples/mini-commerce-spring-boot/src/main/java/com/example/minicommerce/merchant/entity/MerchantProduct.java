@@ -1,5 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
+import com.example.minicommerce.merchant.model.MerchantData;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
@@ -12,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class MerchantProduct {
+public class MerchantProduct implements MerchantData {
     @EntField("商品 ID")
     private Long id;
 

@@ -1,5 +1,7 @@
 package com.entloom.crud.starter.config;
 
+import com.entloom.crud.annotations.EntCrudPolicy;
+import com.entloom.crud.annotations.EntPolicyRelation;
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.AuthorizationRequest;
@@ -246,6 +248,147 @@ class ConfiguredAccessPoliciesTest {
                 assertThat(result.getScope().getValues()).containsExactly("42");
             }
         });
+    }
+
+    @Test
+    void 分类接口无需Yaml绑定即可编译动作范围及字段授权() {
+        runner(classifiedYaml(), classifiedMetas(ClassifiedOrder.class)).run(context -> {
+            assertThat(context).hasNotFailed();
+            var properties = context.getBean(CrudAccessProperties.class);
+            assertThat(properties.getPolicyBindings()).isEmpty();
+            assertThat(properties.getEntities()).isEmpty();
+            var mappings = context.getBean(CrudOperationMappingRegistry.class);
+            assertThat(mappings.snapshot()).hasSize(5);
+            assertThat(mappings.require("order", CrudOperationKey.of(QueryOperation.PAGE), null)).isEqualTo(view);
+            var update = new BusinessOperation("order", "update");
+            assertThat(mappings.require("order", CrudOperationKey.of(CommandOperation.UPDATE), null)).isEqualTo(update);
+            var rule = context.getBean(EntityPolicyRegistry.class).requireDeclaration(view, PolicyIdentityBranch.identity("owner"));
+            assertThat(rule.getBindingSource()).isEqualTo("@EntCrudPolicy:" + OwnedData.class.getName());
+            var service = context.getBean(BusinessAuthorizationService.class);
+            var result = service.authorize(new AuthorizationRequest(request().getVisitor(), update, null));
+            assertThat(result.getDecision()).isEqualTo(AccessDecision.ALLOW);
+            assertThat(result.getScope().getField()).isEqualTo("ownerId");
+            assertThat(result.getScope().getValues()).containsExactly("42");
+            assertThat(result.getFields().snapshot().get(AuthorizationFields.Use.WRITE)).containsExactly("amount");
+            assertThatThrownBy(() -> service.authorize(new AuthorizationRequest(request().getVisitor(),
+                new BusinessOperation("order", "delete"), null))).hasMessageContaining("未注册");
+            properties.getFieldPlans().clear();
+            assertThat(service.authorize(new AuthorizationRequest(request().getVisitor(), update, null))
+                .getFields().snapshot().get(AuthorizationFields.Use.WRITE)).containsExactly("amount");
+        });
+    }
+
+    @Test
+    void 分类接口可复用父接口及实体操作差异但不缺省授予写入字段() {
+        String yaml = classifiedYaml().substring(0, classifiedYaml().indexOf("  field-plans:"))
+            + "  entity-options:\n    order:\n      operations:\n        view: [PAGE]\n        update: []\n";
+        runner(yaml, classifiedMetas(InheritedOrder.class)).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(CrudOperationMappingRegistry.class).snapshot()).hasSize(1);
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+            assertThat(result.getScope().getValues()).containsExactly("42");
+            assertThat(result.getFields().allows(AuthorizationFields.Use.WRITE, "amount")).isFalse();
+        });
+    }
+
+    @Test
+    void 实体直接注解与分类接口共用配置策略编译并接受显式关系() {
+        runner(classifiedYaml().replace("field: ownerId", "field: missingId"), classifiedMetas(AnnotatedOrder.class))
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                var result = context.getBean(BusinessAuthorizationService.class).authorize(request());
+                assertThat(result.getScope().getField()).isEqualTo("ownerId");
+                assertThat(result.getScope().getValues()).containsExactly("42");
+            });
+    }
+
+    @Test
+    void 分类接口与显式Yaml或Java重复绑定均启动失败() {
+        for (String declaration : List.of(
+            "  policy-bindings:\n    owned-data: [order]\n",
+            "  entity-options:\n    order:\n      policy: owned-data\n")) {
+            runner(classifiedYaml() + declaration, classifiedMetas(ClassifiedOrder.class)).run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("实体策略重复绑定")
+                    .hasStackTraceContaining(OwnedData.class.getName()).hasStackTraceContaining("ent.loom.crud.access");
+            });
+        }
+        runner(classifiedYaml(), classifiedMetas(ClassifiedOrder.class))
+            .withBean(EntityPolicyBinding.class, () -> new EntityPolicyBinding(
+                ClassifiedOrder.class, "owned-data", "项目Java", Map.of("owner", "ownerId")))
+            .run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("实体策略重复绑定")
+                    .hasStackTraceContaining("项目Java").hasStackTraceContaining(OwnedData.class.getName());
+            });
+    }
+
+    @Test
+    void 未知分类策略和多个分类及关系冲突均启动失败() {
+        runner("", classifiedMetas(UnknownPolicyOrder.class)).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("绑定模板未注册: unknown");
+        });
+        runner(classifiedYaml(), classifiedMetas(ConflictingOrder.class)).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("实体策略选择重复");
+        });
+        runner(classifiedYaml() + "  entity-options:\n    order:\n      relations:\n        owner: title\n",
+            classifiedMetas(AnnotatedOrder.class)).run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("策略注解与配置关系字段冲突");
+            });
+    }
+
+    private static String classifiedYaml() {
+        return """
+            ent.loom.crud.access:
+              policies:
+                owned-data:
+                  owner:
+                    actions: [view, update]
+              relations:
+                owner:
+                  field: ownerId
+              field-plans:
+                order:
+                  owner:
+                    WRITE:
+                      mode: INCLUDE
+                      fields: [amount]
+            """;
+    }
+
+    private static EntityMetaRegistry classifiedMetas(Class<?> type) {
+        EntityMetaRegistry metas = mock(EntityMetaRegistry.class);
+        when(metas.getEntityMetas()).thenReturn(List.of(protectedMeta(type)));
+        return metas;
+    }
+
+    @EntCrudPolicy(template = "owned-data")
+    private interface OwnedData {
+        String getOwnerId();
+    }
+
+    private interface SpecializedData extends OwnedData { }
+
+    private static class ClassifiedOrder implements OwnedData {
+        public String getOwnerId() { return null; }
+    }
+
+    private static final class InheritedOrder extends ClassifiedOrder implements SpecializedData { }
+
+    @EntCrudPolicy(template = "owned-data", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
+    private static final class AnnotatedOrder { }
+
+    @EntCrudPolicy(template = "unknown")
+    private static final class UnknownPolicyOrder { }
+
+    @EntCrudPolicy(template = "owned-data")
+    private interface OtherData { }
+
+    private static final class ConflictingOrder implements OwnedData, OtherData {
+        public String getOwnerId() { return null; }
     }
 
     @Test
@@ -651,12 +794,16 @@ class ConfiguredAccessPoliciesTest {
     }
 
     private static EntityMeta protectedMeta() {
+        return protectedMeta(Order.class);
+    }
+
+    private static EntityMeta protectedMeta(Class<?> type) {
         Map<String, EntityFieldMeta> fields = new java.util.LinkedHashMap<>();
         for (String name : List.of("id", "ownerId", "version", "deleted", "readonly", "immutable", "items", "amount", "title")) {
             fields.put(name, new EntityFieldMeta(name, String.class, name, false, name.equals("items"),
                 true, true, !name.equals("readonly"), name.equals("ownerId"), name.equals("immutable")));
         }
-        return new EntityMeta(Order.class, new ResourceDescriptor(Order.class, "order", null, List.of()),
+        return new EntityMeta(type, new ResourceDescriptor(type, "order", null, List.of()),
             "order", "id", "deleted", fields);
     }
 

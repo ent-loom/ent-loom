@@ -39,7 +39,7 @@ ent:
             field: merchantId
           customer:
             field: customerId
-        # 项目按业务规则定义模板，同类实体复用。
+        # 项目按业务规则定义模板，实体通过对应业务分类接口选择。
         policies:
           # 客户只读本人记录。
           customer-record:
@@ -59,12 +59,6 @@ ent:
               actions: [view]
             merchant:
               actions: [view]
-        # 按策略集中绑定实体；标准 CRUD 映射复用策略动作缺省。
-        policy-bindings:
-          customer-record: [customerAddress]
-          merchant-record: [merchantPoster]
-          merchant-data: [merchantProduct]
-          order-entries: [merchantOrder]
         # 通用 CRUD HTTP 实体清单；列出的实体默认开放接口，差异配置就近声明。
         entities:
           customer:

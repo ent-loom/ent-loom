@@ -1,5 +1,6 @@
 package com.example.minicommerce.customer.entity;
 
+import com.example.minicommerce.customer.model.CustomerRecord;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;
@@ -10,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class CustomerAddress {
+public class CustomerAddress implements CustomerRecord {
     @EntField("地址 ID")
     private Long id;
 

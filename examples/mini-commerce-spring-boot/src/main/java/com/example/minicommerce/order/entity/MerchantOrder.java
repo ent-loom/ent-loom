@@ -7,6 +7,7 @@ import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.RelationCardinality;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.enums.OrderStatus;
+import com.example.minicommerce.order.model.OrderEntries;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,7 +22,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class MerchantOrder {
+public class MerchantOrder implements OrderEntries {
     @EntField("销售订单 ID")
     private Long id;
 

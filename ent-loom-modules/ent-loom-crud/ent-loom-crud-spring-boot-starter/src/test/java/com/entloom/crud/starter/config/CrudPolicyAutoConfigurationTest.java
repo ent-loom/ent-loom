@@ -1,6 +1,6 @@
 package com.entloom.crud.starter.config;
 
-import com.entloom.crud.annotations.EntPolicy;
+import com.entloom.crud.annotations.EntCrudPolicy;
 import com.entloom.crud.annotations.EntPolicyRelation;
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
@@ -164,13 +164,13 @@ class CrudPolicyAutoConfigurationTest {
                 assertEquals("ownerId", registry.requireDeclaration(AnnotatedOrder.class,
                     new BusinessOperation("order", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getRelationFields().get("owner"));
-                assertEquals("@EntPolicy:" + AnnotatedOrder.class.getName(), registry.requireDeclaration(
+                assertEquals("@EntCrudPolicy:" + AnnotatedOrder.class.getName(), registry.requireDeclaration(
                     AnnotatedOrder.class, new BusinessOperation("order", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
                 assertEquals("Project#invoiceBinding", registry.requireDeclaration(JavaOrder.class,
                     new BusinessOperation("invoice", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getBindingSource());
-                assertEquals("@EntPolicy:" + OrderPolicyGroup.class.getName(), registry.requireDeclaration(
+                assertEquals("@EntCrudPolicy:" + OrderPolicyGroup.class.getName(), registry.requireDeclaration(
                     ClassifiedOrder.class, new BusinessOperation("classified", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
             });
@@ -192,7 +192,7 @@ class CrudPolicyAutoConfigurationTest {
                     cause = cause.getCause();
                     message += " " + cause.getMessage();
                 }
-                assertTrue(message.contains("@EntPolicy:" + AnnotatedOrder.class.getName()), message);
+                assertTrue(message.contains("@EntCrudPolicy:" + AnnotatedOrder.class.getName()), message);
                 assertTrue(message.contains("Project#override"), message);
             });
     }
@@ -301,25 +301,25 @@ class CrudPolicyAutoConfigurationTest {
         };
     }
 
-    @EntPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
+    @EntCrudPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
     private static final class AnnotatedOrder {
     }
 
     private static final class JavaOrder {
     }
 
-    @EntPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
+    @EntCrudPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
     private interface OrderPolicyGroup {
     }
 
     private static final class ClassifiedOrder implements OrderPolicyGroup {
     }
 
-    @EntPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
+    @EntCrudPolicy(template = "record", relations = @EntPolicyRelation(role = "owner", field = "ownerId"))
     private static final class ConflictingOrder implements OrderPolicyGroup {
     }
 
-    @EntPolicy(template = "record", relations = {
+    @EntCrudPolicy(template = "record", relations = {
         @EntPolicyRelation(role = "owner", field = "ownerId"),
         @EntPolicyRelation(role = "owner", field = "id")
     })

@@ -1,8 +1,5 @@
 package com.entloom.crud.starter.config;
 
-import com.entloom.crud.annotations.EntPolicy;
-import com.entloom.crud.annotations.EntPolicyRelation;
-import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.adapter.CrudBusinessAuthorizationAdapter;
 import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
 import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationProvider;
@@ -32,11 +29,7 @@ import com.entloom.crud.engine.jdbc.query.JdbcAuthorizedQueryExecutor;
 import com.entloom.crud.engine.jdbc.command.JdbcAuthorizedCommandExecutor;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -177,26 +170,6 @@ public class CrudPolicyAutoConfiguration {
     ) {
         Collection<EntityMeta> metas = entities.getEntityMetas();
         List<EntityPolicyBinding> bindings = new ArrayList<EntityPolicyBinding>();
-        for (EntityMeta meta : metas) {
-            Class<?> entityType = meta.getEntityType();
-            if (entityType == null) {
-                throw new ValidationException("策略实体元数据缺少类型: " + meta.getResourceDescriptor().getResourceCode());
-            }
-            PolicySelection selection = selectPolicy(entityType);
-            if (selection == null) {
-                continue;
-            }
-            Map<String, String> relations = new LinkedHashMap<String, String>();
-            for (EntPolicyRelation relation : selection.policy.relations()) {
-                String previous = relations.put(relation.role(), relation.field());
-                if (previous != null) {
-                    throw new ValidationException("策略注解关系角色重复: " + relation.role()
-                        + "，实体: " + entityType.getName());
-                }
-            }
-            bindings.add(new EntityPolicyBinding(entityType, selection.policy.template(),
-                "@EntPolicy:" + selection.declaringType.getName(), relations));
-        }
         bindings.addAll(javaBindings.orderedStream().collect(Collectors.toList()));
         bindings.addAll(configured.bindings());
         List<EntityPolicyTemplate> all = new ArrayList<>(templates.orderedStream().collect(Collectors.toList()));
@@ -204,50 +177,4 @@ public class CrudPolicyAutoConfiguration {
         return new EntityPolicyRegistry(metas, all, bindings, operations, identities);
     }
 
-    private static PolicySelection selectPolicy(Class<?> entityType) {
-        Map<Class<?>, EntPolicy> declarations = new LinkedHashMap<Class<?>, EntPolicy>();
-        EntPolicy direct = entityType.getDeclaredAnnotation(EntPolicy.class);
-        if (direct != null) {
-            declarations.put(entityType, direct);
-        }
-        Set<Class<?>> visited = new LinkedHashSet<Class<?>>();
-        for (Class<?> type = entityType; type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Class<?> marker : type.getInterfaces()) {
-                collectInterfacePolicies(marker, declarations, visited);
-            }
-        }
-        if (declarations.size() > 1) {
-            throw new ValidationException("实体策略选择重复: " + entityType.getName() + "，来源: "
-                + declarations.keySet().stream().map(Class::getName).collect(Collectors.joining(" / ")));
-        }
-        if (declarations.isEmpty()) {
-            return null;
-        }
-        Map.Entry<Class<?>, EntPolicy> entry = declarations.entrySet().iterator().next();
-        return new PolicySelection(entry.getKey(), entry.getValue());
-    }
-
-    private static void collectInterfacePolicies(Class<?> marker, Map<Class<?>, EntPolicy> declarations,
-                                                 Set<Class<?>> visited) {
-        if (!visited.add(marker)) {
-            return;
-        }
-        EntPolicy policy = marker.getDeclaredAnnotation(EntPolicy.class);
-        if (policy != null) {
-            declarations.put(marker, policy);
-        }
-        for (Class<?> parent : marker.getInterfaces()) {
-            collectInterfacePolicies(parent, declarations, visited);
-        }
-    }
-
-    private static final class PolicySelection {
-        private final Class<?> declaringType;
-        private final EntPolicy policy;
-
-        private PolicySelection(Class<?> declaringType, EntPolicy policy) {
-            this.declaringType = declaringType;
-            this.policy = policy;
-        }
-    }
 }
