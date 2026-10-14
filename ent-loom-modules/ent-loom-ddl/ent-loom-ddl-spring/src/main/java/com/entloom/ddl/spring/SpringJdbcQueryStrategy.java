@@ -71,7 +71,9 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
             return DdlTableSnapshot.missing(schema, tableName);
         }
 
-        List<DdlColumnMetadata> columns = readColumns(metaData, table);
+        // MySQL JDBC 会将 tinyint(1) 映射为 BIT；结构比较必须读取真实 SQL 类型。
+        List<DdlColumnMetadata> columns = isMysql(connection)
+                ? readMysqlColumns(connection, table) : readColumns(metaData, table);
         List<String> primaryKeys = readPrimaryKeys(metaData, table);
         List<DdlIndexMetadata> indexes = readIndexes(metaData, table, columns, primaryKeys);
         if (isMysql(connection)) {
@@ -104,6 +106,29 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
             }
         }
         return null;
+    }
+
+    private static List<DdlColumnMetadata> readMysqlColumns(Connection connection,
+                                                           TableInfo table) throws SQLException {
+        String sql = "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_COMMENT, EXTRA"
+                + " FROM information_schema.columns WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
+                + " ORDER BY ORDINAL_POSITION";
+        List<DdlColumnMetadata> columns = new ArrayList<DdlColumnMetadata>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, !trim(table.catalog).isEmpty() ? table.catalog : table.schema);
+            statement.setString(2, table.tableName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    columns.add(new DdlColumnMetadata(resultSet.getString("COLUMN_NAME"),
+                            resultSet.getString("COLUMN_TYPE"),
+                            isYes(resultSet.getString("IS_NULLABLE")),
+                            resultSet.getString("COLUMN_DEFAULT"),
+                            resultSet.getString("COLUMN_COMMENT"),
+                            trim(resultSet.getString("EXTRA")).contains("auto_increment")));
+                }
+            }
+        }
+        return columns;
     }
 
     private static List<DdlColumnMetadata> readColumns(DatabaseMetaData metaData,

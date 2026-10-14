@@ -16,9 +16,6 @@ server:
 
 ent:
   loom:
-    # 按实体元数据创建缺失表。
-    ddl:
-      mode: CREATE_TABLE
     # CRUD、DDL 与文档共用实体元数据。
     meta:
       defaults:
@@ -89,7 +86,9 @@ ent:
         create:
           input-required-fields:
             customer: [displayName, email]
-
+    # 按实体元数据创建缺失表。
+    ddl:
+      mode: CREATE_MODIFY_TABLE_AND_METAS
     # 实体文档仅向演示主体开放。
     doc:
       contract:

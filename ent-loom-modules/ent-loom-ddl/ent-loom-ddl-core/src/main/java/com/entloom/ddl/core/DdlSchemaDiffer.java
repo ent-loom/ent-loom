@@ -122,7 +122,10 @@ public final class DdlSchemaDiffer {
         if (!currentType.equals(normalizedDesiredType)
                 && !isCompatibleWidening(currentType, normalizedDesiredType)) {
             errors.add("字段类型变化不兼容，拒绝修改字段 " + existingName
-                    + ": 当前=" + existing.sqlType() + ", 目标=" + desiredType);
+                    + "\n    数据库实际类型: " + existing.sqlType()
+                    + "\n    实体声明类型:   " + desiredType
+                    + "\n    拒绝原因: 此类型转换不在自动迁移支持范围内"
+                    + "\n    处理建议: 核对实体声明与数据库结构；确认需要转换时，使用版本化迁移");
         }
         if (existing.nullable() && !desired.nullable()) {
             errors.add("字段由可空改为非空可能造成数据丢失，拒绝修改字段: " + desired.columnName());
@@ -251,17 +254,21 @@ public final class DdlSchemaDiffer {
                 int desiredIntegerDigits = desiredSize - desiredScale;
                 return desiredScale >= currentScale && desiredIntegerDigits >= currentIntegerDigits;
             }
-            return desiredSize >= currentSize;
+            // 只有明确验证过的长度类型进入白名单，不能对任意带括号类型推断安全扩容。
+            return ("varchar".equals(currentBase) || "varbinary".equals(currentBase))
+                    && desiredSize >= currentSize;
         }
         return SAFE_WIDENING.contains(current + ":" + desired);
     }
 
     private static String normalizeType(String value) {
-        return normalizeText(value)
+        return normalizeText(value).toLowerCase(Locale.ROOT)
                 .replace("character varying", "varchar")
                 .replace("integer", "int")
                 .replace("numeric", "decimal")
-                .replaceAll("\\s+", "");
+                .replaceAll("\\s+", "")
+                // 整数括号是显示宽度，不改变取值范围；unsigned 属性仍参与比较。
+                .replaceAll("\\b(tinyint|smallint|mediumint|int|bigint)\\(\\d+\\)", "$1");
     }
 
     private static String normalizeDefault(String value) {

@@ -4,6 +4,12 @@ import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.api.DdlTableSnapshot;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.DdlExecutionMode;
+import com.entloom.ddl.api.DdlEngine;
+import com.entloom.ddl.api.DdlExecutionRequest;
+import com.entloom.ddl.api.DdlExecutionResult;
+import com.entloom.ddl.api.MetadataLoader;
+import com.entloom.ddl.api.MetadataLoadRequest;
+import com.entloom.ddl.api.SqlExecutor;
 import com.entloom.ddl.mysql.fixture.MysqlAccount;
 import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
@@ -74,9 +80,24 @@ class DdlMysqlIntegrationTest {
                     schema, table, "idx_mysql_account_display_name"));
 
             DdlTableSnapshot snapshot = context.getBean(QueryStrategy.class).readTable(schema, table);
+            assertEquals("tinyint(1)", snapshot.columns().stream()
+                    .filter(column -> "active".equals(column.columnName()))
+                    .findFirst().orElseThrow().sqlType());
             assertTrue(snapshot.indexes().stream()
                     .anyMatch(index -> "idx_mysql_account_lower_name".equals(index.name())
                             && index.expression().contains("display_name")));
+
+            // 已建表后连续执行修改模式，布尔字段不能被 JDBC 的 BIT 映射误判。
+            DdlExecutionRequest modifyRequest = new DdlExecutionRequest(schema, false,
+                    DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS,
+                    context.getBean(MetadataLoader.class).load(new MetadataLoadRequest(
+                            Collections.emptyList(), Collections.singletonList(MysqlAccount.class))));
+            for (int attempt = 0; attempt < 2; attempt++) {
+                DdlExecutionResult result = context.getBean(DdlEngine.class).execute(modifyRequest,
+                        context.getBean(QueryStrategy.class), context.getBean(SqlExecutor.class));
+                assertTrue(result.success(), result.errors().toString());
+                assertTrue(result.generatedSql().isEmpty(), result.generatedSql().toString());
+            }
         } catch (RuntimeException | Error exception) {
             primaryFailure = exception;
             throw exception;

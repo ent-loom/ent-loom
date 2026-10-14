@@ -11,6 +11,7 @@ DDL 负责把实体结构转化为可控的 MySQL 8 数据库结构，是 ent-lo
 2. 再看 [DDL 路线图](../../evolution/roadmap/ddl/index.md)，了解阶段依赖和文档分层。
 3. 需要执行简单实体的完整验收时，查看 [实体全链路验收](../../guides/ddl/实体全链路验收.md)。
 4. 需要查看模块边界时，查看模块文件 `ent-loom-modules/ent-loom-ddl/README.md`。
+5. 自动修改结构前，查看 [自动迁移安全边界](../../guides/ddl/自动迁移安全边界.md)。
 
 ## 能力主链
 

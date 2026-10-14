@@ -27,6 +27,68 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DdlSchemaDiffContractTest {
 
     @Test
+    @DisplayName("不对白名单之外的带长度类型自动扩容")
+    void shouldRejectUnlistedSizedTypeWidening() {
+        DdlEntityMetadata desired = entity(
+                field("id", "id", Long.class, false, false, true, -1, "", ""),
+                new DdlFieldMetadata("flags", "flags", byte[].class, "bit(8)",
+                        true, false, true, false, -1, -1, -1, "", "", ""));
+        DdlSchemaDiff diff = new DdlSchemaDiffer().diff(desired,
+                snapshot("account", "账户表", column("id", "bigint", false),
+                        column("flags", "bit(1)", true)));
+        assertFalse(diff.errors().isEmpty());
+        assertTrue(diff.changedFields().isEmpty());
+    }
+
+    @Test
+    @DisplayName("整数显示宽度与大小写差异不产生 ALTER")
+    void shouldIgnoreIntegerDisplayWidth() {
+        DdlEntityMetadata desired = entity(
+                field("id", "id", Long.class, false, false, true, -1, "", ""),
+                field("active", "active", Boolean.class, true, false, false, -1, "", ""));
+        DdlSchemaDiff diff = new DdlSchemaDiffer().diff(desired,
+                snapshot("account", "账户表", column("id", "BIGINT(20)", false),
+                        column("active", "TINYINT(1)", true)));
+        assertTrue(diff.errors().isEmpty());
+        assertTrue(diff.changedFields().isEmpty());
+    }
+
+    @Test
+    @DisplayName("真实 BIT 转布尔 TINYINT 拒绝执行，并保留类型对比与迁移建议")
+    void shouldRejectRealBitConversion() {
+        DdlEntityMetadata desired = entity(
+                field("id", "id", Long.class, false, false, true, -1, "", ""),
+                field("active", "active", Boolean.class, true, false, false, -1, "", ""));
+        DdlTableSnapshot current = snapshot("account", "账户表",
+                column("id", "bigint", false), column("active", "bit(1)", true));
+        RecordingExecutor executor = new RecordingExecutor();
+        DdlExecutionResult result = new DefaultDdlEngine().execute(
+                request(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS, desired, current),
+                new SnapshotQueryStrategy(current), executor);
+        assertFalse(result.success());
+        assertTrue(executor.statements.isEmpty());
+        String error = result.errors().get(0);
+        assertTrue(error.contains("数据库实际类型: bit(1)"));
+        assertTrue(error.contains("实体声明类型:   tinyint(1)"));
+        assertTrue(error.contains("版本化迁移"));
+    }
+
+    @Test
+    @DisplayName("整数扩容忽略显示宽度，但不能丢失 unsigned 属性")
+    void shouldWidenIntegerWithoutDroppingUnsigned() {
+        DdlEntityMetadata desired = entity(field("id", "id", Long.class,
+                false, false, true, -1, "", ""));
+        DdlSchemaDiff allowed = new DdlSchemaDiffer().diff(desired,
+                snapshot("account", "账户表", column("id", "int(11)", false)));
+        assertTrue(allowed.errors().isEmpty());
+        assertEquals(1, allowed.changedFields().size());
+        DdlSchemaDiff rejected = new DdlSchemaDiffer().diff(desired,
+                snapshot("account", "账户表", column("id", "bigint(20) unsigned", false)));
+        assertFalse(rejected.errors().isEmpty());
+        assertTrue(rejected.changedFields().isEmpty());
+    }
+
+    @Test
     @DisplayName("修改模式按表注释、字段、索引顺序生成确定的 ALTER SQL")
     void shouldGenerateStableAlterSqlForAllowedChanges() {
         DdlEntityMetadata desired = entity(

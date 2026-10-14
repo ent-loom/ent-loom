@@ -53,7 +53,15 @@ public final class EntDdlSpringExecutor implements ApplicationListener<ContextRe
                 metadataLoader.load(new MetadataLoadRequest(options.getBasePackages(), options.getEntityClasses())));
         DdlExecutionResult result = ddlEngine.execute(request, queryStrategy, sqlExecutor);
         if (!result.success()) {
-            throw new IllegalStateException("DDL 执行失败: " + result.errors());
+            StringBuilder message = new StringBuilder("\n========== DDL 执行失败 ==========\n")
+                    .append("执行模式: ").append(options.getMode())
+                    .append("\n已执行 SQL: ").append(result.executedSql().size()).append(" 条")
+                    .append("\n错误数量: ").append(result.errors().size());
+            for (int i = 0; i < result.errors().size(); i++) {
+                message.append("\n\n[").append(i + 1).append("] ").append(result.errors().get(i));
+            }
+            message.append("\n================================");
+            throw new IllegalStateException(message.toString());
         }
     }
 }

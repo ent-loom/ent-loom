@@ -18,4 +18,7 @@ public final class MysqlAccount {
     /** 展示名称。 */
     @EntDdlField(column = "display_name", length = 80, comment = "展示名称")
     private String displayName;
+
+    @EntDdlField(comment = "启用状态")
+    private Boolean active;
 }

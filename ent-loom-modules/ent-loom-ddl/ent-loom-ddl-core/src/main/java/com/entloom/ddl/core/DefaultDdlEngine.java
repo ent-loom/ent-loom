@@ -117,7 +117,9 @@ public final class DefaultDdlEngine implements DdlEngine {
                                  List<String> errors) {
         DdlSchemaDiff diff = schemaDiffer.diff(entity, current);
         if (!diff.errors().isEmpty()) {
-            errors.add("表 " + entity.tableName() + " 差异校验失败: " + diff.errors());
+            for (String error : diff.errors()) {
+                errors.add("表 " + entity.tableName() + " 差异校验失败: " + error);
+            }
             return;
         }
         if (diff.tableCommentChanged()) {
