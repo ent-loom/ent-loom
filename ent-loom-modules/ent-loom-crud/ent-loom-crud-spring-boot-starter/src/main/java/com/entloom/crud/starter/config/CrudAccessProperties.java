@@ -24,7 +24,33 @@ public class CrudAccessProperties {
     /** 非通用 HTTP 实体的配置差异，不开放接口；不得与接口清单重复。 */
     private Map<String, EntityOptions> entityOptions = new LinkedHashMap<>();
     private Map<String, Relation> relations = new LinkedHashMap<>();
-    private Map<String, Map<AuthorizationFields.Use, List<String>>> fieldPlans = new LinkedHashMap<>();
+    /** 实体资源码 → 策略身份 → 字段用途；不通过命名方案间接引用。 */
+    private Map<String, Map<String, Map<AuthorizationFields.Use, FieldPlan>>> fieldPlans = new LinkedHashMap<>();
+
+    public enum FieldMode {
+        /** 仅允许列出的字段。 */
+        INCLUDE,
+        /** 从元数据允许的字段中排除指定字段。 */
+        EXCLUDE,
+        /** 允许该用途下元数据允许的全部字段。 */
+        ALL,
+        /** 不授予该用途的字段权限。 */
+        NONE
+    }
+
+    @Data
+    public static class FieldPlan {
+        /** 显式声明时必须选择模式，不根据字段列表推导。 */
+        private FieldMode mode;
+        /** INCLUDE/EXCLUDE 必须非空；ALL/NONE 不得声明。 */
+        private List<String> fields;
+
+        /** 保留 YAML 空标量，由编译阶段报告缺少模式，避免退化成用途缺省。 */
+        public static FieldPlan valueOf(String value) {
+            if (value != null && value.isEmpty()) return new FieldPlan();
+            throw new IllegalArgumentException("字段用途必须配置 mode，不能使用标量或列表简写");
+        }
+    }
 
     @Data
     public static class Identity {
@@ -75,8 +101,6 @@ public class CrudAccessProperties {
     public static class EntityOptions {
         /** 未显式声明时优先使用批量绑定，否则采用资源同名策略；显式声明不得与批量绑定冲突。 */
         private String policy;
-        /** 按策略身份分支选择字段方案；未声明时复用实体同名方案，否则采用字段缺省。 */
-        private Map<String, String> fields = new LinkedHashMap<>();
         /** 普通关联字段的例外；不授予访问权限。 */
         private List<String> excludeScopeFields = List.of();
         /** 省略时从策略标准动作推导；显式配置整体覆盖，动作的空映射仅登记业务能力。 */

@@ -74,10 +74,13 @@ ent:
           # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
             exclude-scope-fields: [customerId]
-        # RETURN 缺省为普通字段，FILTER 缺省复用可筛选返回字段；写入仍显式授权。
+        # 实体 → 身份 → 用途；RETURN/FILTER 沿用缺省，WRITE 必须显式授权。
         field-plans:
           merchantProduct:
-            WRITE: [name, price, active]
+            merchant:
+              WRITE:
+                mode: INCLUDE
+                fields: [name, price, active]
       # 通用 HTTP 仅开放客户与结算单。
       controller:
         enabled: true

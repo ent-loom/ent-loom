@@ -160,7 +160,8 @@ public final class EntityPolicyRegistry {
         return new EffectiveEntityPolicy(resourceCode, rules);
     }
 
-    private static AuthorizationFields compileFieldLimit(EntityMeta meta) {
+    /** 统一计算用途静态上限，供策略及声明式字段模式编译复用。 */
+    public static AuthorizationFields compileFieldLimit(EntityMeta meta) {
         Map<AuthorizationFields.Use, Collection<String>> fields =
             new EnumMap<AuthorizationFields.Use, Collection<String>>(AuthorizationFields.Use.class);
         for (AuthorizationFields.Use use : AuthorizationFields.Use.values()) {
@@ -175,7 +176,9 @@ public final class EntityPolicyRegistry {
             } else {
                 fields.get(AuthorizationFields.Use.STATS).add(name);
             }
-            if (field.isWritable() && !field.isRelation() && !field.isScopeField() && !field.isImmutable()) {
+            if (field.isWritable() && !field.isRelation() && !field.isScopeField() && !field.isImmutable()
+                && !name.equals(meta.getIdField()) && !name.equals(meta.getLogicDeleteField())
+                && !"version".equals(name)) {
                 fields.get(AuthorizationFields.Use.WRITE).add(name);
             }
             if (field.isFilterable() && !field.isRelation()) {

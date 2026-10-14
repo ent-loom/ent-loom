@@ -25,6 +25,7 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,6 +75,7 @@ public final class ConfiguredAccessPolicies {
         Map<String, CrudAccessProperties.EntityOptions> declarations = config.entityDeclarations();
         Set<String> resources = new LinkedHashSet<>(declarations.keySet());
         resources.addAll(policyBindings.keySet());
+        Set<String> configuredResources = new LinkedHashSet<>();
         // 仅对实体声明或批量绑定明确选择的资源开放，不扫描其他同名实体。
         for (String resource : resources) {
             EntityMeta meta = metas.get(resource);
@@ -86,7 +88,6 @@ public final class ConfiguredAccessPolicies {
             if (batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
                 && !config.getPolicies().containsKey(resource)) {
                 require(declaration.getRelations().isEmpty(), "未选策略的实体不能声明策略关系: " + resource);
-                require(declaration.getFields().isEmpty(), "未选策略的实体不能声明字段方案: " + resource);
                 continue;
             }
             String policy = defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
@@ -97,7 +98,11 @@ public final class ConfiguredAccessPolicies {
             Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, resource);
             String operationSource = declaration.getOperations() == null
                 ? SOURCE + ".policies." + policy : declarationSource + ".operations";
-            for (String identity : declaration.getFields().keySet()) {
+            configuredResources.add(resource);
+            var resourceFields = config.getFieldPlans().get(resource);
+            require(!config.getFieldPlans().containsKey(resource) || resourceFields != null && !resourceFields.isEmpty(),
+                "实体字段配置不能为空: " + resource);
+            for (String identity : resourceFields == null ? Set.<String>of() : resourceFields.keySet()) {
                 require(branches.containsKey(identity), "实体字段方案引用未使用的身份: " + resource + "/" + identity);
             }
             Map<String, String> relations = new LinkedHashMap<>();
@@ -125,7 +130,7 @@ public final class ConfiguredAccessPolicies {
                 } else {
                     reader = reader(identities.snapshot().get(identity).getIdentityType(), identityField);
                 }
-                AuthorizationFields fieldPlan = compileFields(config, declaration, meta, resource, identity);
+                AuthorizationFields fieldPlan = compileFields(config, meta, resource, identity);
                 for (String action : branch.getValue().getActions()) {
                     require(operationCatalog.containsKey(action), "策略动作未在实体操作目录注册: " + resource + "/" + action);
                     Key key = new Key(new BusinessOperation(resource, action), identity);
@@ -148,6 +153,11 @@ public final class ConfiguredAccessPolicies {
                     mappings.add(new CrudOperationMapping(operationKey(shape), null, operation, operationSource));
                 }
             }
+        }
+        for (String resource : config.getFieldPlans().keySet()) {
+            name(resource, "字段配置实体");
+            require(metas.containsKey(resource), "字段配置引用未知实体: " + resource);
+            require(configuredResources.contains(resource), "字段配置实体未选择声明式策略: " + resource);
         }
         require(config.getPolicies().isEmpty() || !bindings.isEmpty(), "策略配置没有实体消费者");
     }
@@ -187,23 +197,40 @@ public final class ConfiguredAccessPolicies {
     }
 
     /** 字段差异归实体；同一模板可绑定不同结构的实体。 */
-    private static AuthorizationFields compileFields(CrudAccessProperties config, CrudAccessProperties.EntityOptions entity,
+    private static AuthorizationFields compileFields(CrudAccessProperties config,
         EntityMeta meta, String resource, String identity) {
-        String planName = entity.getFields().containsKey(identity)
-            ? name(entity.getFields().get(identity), "字段方案") : resource;
-        var plan = config.getFieldPlans().get(planName);
-        require(plan != null || !entity.getFields().containsKey(identity), "缺少字段方案: " + resource + "/" + identity + " -> " + planName);
-        if (plan == null) return AuthorizationFields.of(Map.of());
+        var resourceFields = config.getFieldPlans().get(resource);
+        if (resourceFields == null || !resourceFields.containsKey(identity)) return AuthorizationFields.of(Map.of());
+        var plan = resourceFields.get(identity);
+        String path = SOURCE + ".field-plans." + resource + "." + identity;
+        require(plan != null && !plan.isEmpty(), "身份字段配置不能为空: " + path);
+        var limit = EntityPolicyRegistry.compileFieldLimit(meta);
+        Map<AuthorizationFields.Use, Set<String>> compiled = new EnumMap<>(AuthorizationFields.Use.class);
         for (var use : plan.entrySet()) {
-            List<String> names = use.getValue();
-            // 空 RETURN/FILTER 明确关闭能力，其他用途仍要求非空声明。
-            if ((use.getKey() == AuthorizationFields.Use.RETURN || use.getKey() == AuthorizationFields.Use.FILTER)
-                && names != null && names.isEmpty()) continue;
-            for (String field : unique(names, "字段方案 " + planName + "/" + use.getKey())) {
-                require(meta.getAllowedFields().contains(field), "字段方案引用未知字段: " + resource + "/" + field);
+            String usePath = path + "." + use.getKey();
+            var declaration = use.getValue();
+            require(declaration != null && declaration.getMode() != null, "字段用途必须声明 mode: " + usePath);
+            Set<String> candidates = new LinkedHashSet<>(limit.snapshot().get(use.getKey()));
+            if (use.getKey() == AuthorizationFields.Use.RETURN) {
+                candidates.removeAll(limit.snapshot().get(AuthorizationFields.Use.EXPAND));
             }
+            switch (declaration.getMode()) {
+                case INCLUDE, EXCLUDE -> {
+                    List<String> names = unique(declaration.getFields(), "字段用途 " + usePath);
+                    for (String field : names) {
+                        require(meta.getAllowedFields().contains(field), "字段用途引用未知字段: " + usePath + "/" + field);
+                    }
+                    if (declaration.getMode() == CrudAccessProperties.FieldMode.INCLUDE) candidates.retainAll(names);
+                    else candidates.removeAll(names);
+                }
+                case ALL, NONE -> {
+                    require(declaration.getFields() == null, "ALL/NONE 不得声明 fields: " + usePath);
+                    if (declaration.getMode() == CrudAccessProperties.FieldMode.NONE) candidates.clear();
+                }
+            }
+            compiled.put(use.getKey(), candidates);
         }
-        return AuthorizationFields.of(plan);
+        return AuthorizationFields.of(compiled);
     }
 
     /** YAML 授权显式动作与实体字段方案（含 RETURN/FILTER 缺省）；项目动态判断只能进一步收窄或拒绝。 */
