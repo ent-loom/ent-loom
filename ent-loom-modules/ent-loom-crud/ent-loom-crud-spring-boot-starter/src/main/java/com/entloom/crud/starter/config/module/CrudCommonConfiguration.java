@@ -17,7 +17,7 @@ import com.entloom.crud.core.runtime.meta.impl.CrudRuntimeModelBackedEntityMetaR
 import com.entloom.crud.core.runtime.model.CrudRuntimeEntityModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeModel;
 import com.entloom.crud.core.runtime.model.CrudRuntimeRelationModel;
-import com.entloom.crud.core.runtime.model.CrudScopeFieldRules;
+import com.entloom.crud.core.runtime.model.CrudOwnershipRules;
 import com.entloom.crud.core.governance.audit.CompositeCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
@@ -315,12 +315,21 @@ public class CrudCommonConfiguration {
     /** 各声明来源共用的归属字段规则。 */
     @Bean
     @ConditionalOnMissingBean
-    public CrudScopeFieldRules crudScopeFieldRules(CrudAccessProperties properties) {
-        Map<String, List<String>> exclusions = new LinkedHashMap<>();
-        properties.entityDeclarations().forEach((resource, entity) -> {
-            if (!entity.getExcludeScopeFields().isEmpty()) exclusions.put(resource, entity.getExcludeScopeFields());
+    public CrudOwnershipRules crudOwnershipRules(CrudAccessProperties properties) {
+        Map<String, CrudOwnershipRules.Relation> relations = new LinkedHashMap<>();
+        properties.getRelations().forEach((name, relation) -> {
+            CrudAccessProperties.Identity identity = properties.getIdentities().get(name);
+            relations.put(name, new CrudOwnershipRules.Relation(
+                relation.getField() == null ? name + "Id" : relation.getField(),
+                identity == null || identity.getIdType() == null ? null : identity.getIdType().getJavaType()));
         });
-        return new CrudScopeFieldRules(properties.getDefaults().getScopeFields(), exclusions);
+        Map<String, CrudOwnershipRules.Ownership> declarations = new LinkedHashMap<>();
+        properties.entityDeclarations().forEach((resource, entity) -> {
+            if (entity.getOwnership() != null || !entity.getRelations().isEmpty()) {
+                declarations.put(resource, new CrudOwnershipRules.Ownership(entity.getOwnership(), entity.getRelations()));
+            }
+        });
+        return new CrudOwnershipRules(relations, declarations);
     }
 
     /** 汇总元数据并冻结全局归属约定，供所有标准执行器复用。 */
@@ -328,7 +337,7 @@ public class CrudCommonConfiguration {
     @ConditionalOnMissingBean
     public EntityMetaRegistry metaRegistry(
         ObjectProvider<ResourceCatalogAdapter[]> resourceCatalogAdapters,
-        CrudScopeFieldRules scopeFields
+        CrudOwnershipRules ownership
     ) {
         ResourceCatalogAdapter[] adapters = resourceCatalogAdapters.getIfAvailable();
         if (adapters != null && adapters.length > 0) {
@@ -340,7 +349,7 @@ public class CrudCommonConfiguration {
             }
             AnnotationAwareOrderComparator.sort(orderedAdapters);
             if (!orderedAdapters.isEmpty()) {
-                return new CrudRuntimeModelBackedEntityMetaRegistry(scopeFields.apply(mergeRuntimeModels(orderedAdapters)));
+                return new CrudRuntimeModelBackedEntityMetaRegistry(ownership.apply(mergeRuntimeModels(orderedAdapters)));
             }
         }
         throw new ValidationException("未找到 ResourceCatalogAdapter，CRUD 运行期必须由 CrudRuntimeModel 构建 EntityMetaRegistry");

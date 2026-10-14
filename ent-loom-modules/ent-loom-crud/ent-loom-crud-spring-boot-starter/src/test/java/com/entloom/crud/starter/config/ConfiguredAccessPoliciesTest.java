@@ -280,7 +280,7 @@ class ConfiguredAccessPoliciesTest {
     @Test
     void 批量绑定可叠加实体差异并接受一致的显式策略() {
         for (String declaration : List.of("", "            policy: order\n",
-            "            exclude-scope-fields: [amount]\n")) {
+            "            ownership: []\n")) {
             String yaml = YAML.replace("            operations:\n", declaration + "            operations:\n")
                 + "        policy-bindings:\n          order: [order]\n";
             runner(yaml).run(context -> {
@@ -294,9 +294,9 @@ class ConfiguredAccessPoliciesTest {
     }
 
     @Test
-    void 仅归属字段例外的实体有批量绑定时仍生成策略能力() {
+    void 仅归属覆盖的实体有批量绑定时仍生成策略能力() {
         String yaml = YAML.replace("            operations:\n              view: [PAGE]\n",
-            "            exclude-scope-fields: [amount]\n")
+            "            ownership: []\n")
             .replace("        policies:\n          order:", "        policies:\n          owned-data:")
             + "        policy-bindings:\n          owned-data: [order]\n";
         runner(yaml).run(context -> {

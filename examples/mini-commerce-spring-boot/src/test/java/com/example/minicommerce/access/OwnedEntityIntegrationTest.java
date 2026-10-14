@@ -61,7 +61,7 @@ class OwnedEntityIntegrationTest {
     }
 
     @Test
-    void 全局归属字段保护与存量例外均进入实际元数据和Patch() {
+    void 关系字段缺省推导保护结算单与多重归属并进入实际Patch() {
         var address = entities.getEntityMeta(CustomerAddress.class);
         assertTrue(address.resolveFieldMeta("customerId").isScopeField());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
@@ -69,11 +69,17 @@ class OwnedEntityIntegrationTest {
         assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("customerId").isScopeField());
         assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("merchantId").isScopeField());
         assertFalse(entities.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
-        assertFalse(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
-        assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
-        var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L),
-            CustomerAddress.class, address);
-        assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, address));
+        assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
+        assertFalse(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
+        for (Class<?> type : List.of(CustomerAddress.class, Order.class, MerchantOrder.class)) {
+            var meta = entities.getEntityMeta(type);
+            var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L), type, meta);
+            assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, meta));
+        }
+        var merchantOrder = entities.getEntityMeta(MerchantOrder.class);
+        var merchantPatch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "merchantId", 2001L),
+            MerchantOrder.class, merchantOrder);
+        assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(merchantPatch, merchantOrder));
     }
 
     @Test

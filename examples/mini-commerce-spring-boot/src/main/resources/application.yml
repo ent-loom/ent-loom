@@ -33,15 +33,12 @@ ent:
             id-type: LONG
           merchant:
             id-type: LONG
-        # 策略范围默认采用同名身份关系。
+        # 已有关系字段默认推导为归属字段并保护写入；策略范围采用同名身份关系。
         relations:
           merchant:
             field: merchantId
           customer:
             field: customerId
-        # 保护实体已有的归属字段，禁止普通写入。
-        defaults:
-          scope-fields: [merchantId, customerId]
         # 项目按业务规则定义模板，同类实体复用。
         policies:
           # 客户只读本人记录。
@@ -71,9 +68,7 @@ ent:
         # 通用 CRUD HTTP 实体清单；列出的实体默认开放接口，差异配置就近声明。
         entities:
           customer:
-          # 结算单由下单场景写入，customerId 是业务关联字段。
           order:
-            exclude-scope-fields: [customerId]
         # 实体 → 身份 → 用途；RETURN/FILTER 沿用缺省，WRITE 必须显式授权。
         field-plans:
           merchantProduct:

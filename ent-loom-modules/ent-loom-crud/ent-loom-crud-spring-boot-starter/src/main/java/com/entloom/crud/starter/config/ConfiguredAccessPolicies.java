@@ -81,13 +81,19 @@ public final class ConfiguredAccessPolicies {
             EntityMeta meta = metas.get(resource);
             require(meta != null, "策略绑定未知实体: " + resource);
             var declaration = declarations.getOrDefault(resource, new CrudAccessProperties.EntityOptions());
+            for (var relation : declaration.getRelations().entrySet()) {
+                require(config.getRelations().containsKey(relation.getKey()),
+                    "实体引用未知关系: " + resource + "/" + relation.getKey());
+                var field = meta.resolveFieldMeta(relation.getValue());
+                require(field != null && !field.isRelation(),
+                    "实体关系字段必须是已有标量属性: " + resource + "/" + relation.getValue());
+            }
             String batchPolicy = policyBindings.get(resource);
             String declarationSource = SOURCE + (config.getEntityOptions().containsKey(resource)
                 ? ".entity-options." : ".entities.") + resource;
             // 登记接口或实体差异不授予权限；未选择策略时仍由既有治理规则授权。
             if (batchPolicy == null && declaration.getPolicy() == null && declaration.getOperations() == null
                 && !config.getPolicies().containsKey(resource)) {
-                require(declaration.getRelations().isEmpty(), "未选策略的实体不能声明策略关系: " + resource);
                 continue;
             }
             String policy = defaultName(declaration.getPolicy(), batchPolicy == null ? resource : batchPolicy);
@@ -137,9 +143,6 @@ public final class ConfiguredAccessPolicies {
                     fields.put(key, fieldPlan);
                     identityReaders.put(key, reader);
                 }
-            }
-            for (String role : declaration.getRelations().keySet()) {
-                require(relations.containsKey(role), "实体绑定未使用的关系: " + resource + "/" + role);
             }
             String bindingSource = batchPolicy == null ? declarationSource
                 : SOURCE + ".policy-bindings." + batchPolicy;

@@ -87,7 +87,7 @@ class ConfiguredExposedEntityRegistryTest {
                   http-exposed: false
               entity-options:
                 note:
-                  exclude-scope-fields: [customerId]
+                  ownership: []
             """;
         new ApplicationContextRunner().withUserConfiguration(BindingConfiguration.class)
             .withInitializer(context -> {
@@ -103,7 +103,7 @@ class ConfiguredExposedEntityRegistryTest {
                 assertThat(access.getEntities()).containsOnlyKeys("customer", "internal");
                 assertThat(access.getEntities().get("customer").isHttpExposed()).isTrue();
                 assertThat(access.getEntities().get("internal").isHttpExposed()).isFalse();
-                assertThat(access.getEntityOptions().get("note").getExcludeScopeFields()).containsExactly("customerId");
+                assertThat(access.getEntityOptions().get("note").getOwnership()).isEmpty();
                 assertThat(registry(access).resolveOrThrow("customer")).isSameAs(Customer.class);
             });
     }

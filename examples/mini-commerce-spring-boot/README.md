@@ -91,21 +91,23 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 - [application.yml](src/main/resources/application.yml)：运行基础、实体元数据、业务策略、操作与字段授权。
 - [demo.yml](src/main/resources/demo.yml)：静态账号、服务端入口路由、通用 CRUD 演示权限和审计设置。
 
-主配置使用以下全局归属约定（位于 `ent.loom.crud` 下）：
+主配置使用以下关系约定，按实体已有字段缺省推导归属保护（位于 `ent.loom.crud` 下）：
 
 ```yaml
 access:
-  defaults:
-    scope-fields: [merchantId, customerId]
+  relations:
+    merchant:
+      field: merchantId
+    customer:
+      field: customerId
   entities:
     customer:
     order:
-      exclude-scope-fields: [customerId]
 controller:
   enabled: true
 ```
 
-`access.entities` 是通用 CRUD HTTP 实体清单，列出的实体缺省开放，无需填写 `http-exposed: true`；仅登记接口不授予权限。没有差异时使用 `customer:` 空值简写，不使用会被 Spring 忽略的空对象 `{}`。`merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入接口清单。内部实体差异放在 `access.entity-options`，不开放接口。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。
+`access.entities` 是通用 CRUD HTTP 实体清单，列出的实体缺省开放，无需填写 `http-exposed: true`；仅登记接口不授予权限。没有差异时使用 `customer:` 空值简写，不使用会被 Spring 忽略的空对象 `{}`。`merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入接口清单。内部实体差异放在 `access.entity-options`，不开放接口。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。`Order.customerId` 及 `MerchantOrder` 的 customerId/merchantId 默认获得归属保护；下单 Handler 使用 EntityDao 在创建时赋值，普通更新不能改归属。实体省略 `ownership` 时按实际存在的关系字段推导；显式列表整体替换推导结果，`ownership: []` 关闭推导。归属声明不授予权限，也不自动添加查询范围。
 
 身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
 

@@ -1,5 +1,8 @@
 package com.example.minicommerce.order;
 
+import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
+import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.example.minicommerce.order.dao.MerchantOrderDao;
 import com.example.minicommerce.order.dao.OrderDao;
 import com.example.minicommerce.order.dao.OrderItemDao;
@@ -21,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,6 +44,7 @@ class OrderDaoIntegrationTest {
     @Autowired MerchantOrderDao merchantOrders;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
+    @Autowired EntityMetaRegistry metas;
 
     @BeforeEach
     void seed() {
@@ -123,6 +128,27 @@ class OrderDaoIntegrationTest {
             .andExpect(jsonPath("$.data.item.orderItemList[?(@.merchantProductId == 10)].unitPrice",
                 org.hamcrest.Matchers.contains(10.0)))
             .andExpect(jsonPath("$.data.item.merchantOrderList[0].id").value(merchantOrderId));
+    }
+
+    @Test
+    void 业务下单可赋予默认归属但普通DAO局部更新不能转移归属() throws Exception {
+        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON)
+                .content(command("[{\"merchantProductId\":10,\"quantity\":1}]")))
+            .andExpect(status().isOk());
+        Long orderId = jdbc.queryForObject("select max(id) from `order`", Long.class);
+        Long merchantOrderId = jdbc.queryForObject("select max(id) from merchant_order", Long.class);
+        var binder = new DefaultCommandPayloadBinder();
+        var patch = binder.bindUpdatePatch(java.util.Map.of("id", orderId, "customerId", 2L),
+            Order.class, metas.getEntityMeta(Order.class));
+        assertThrows(ValidationException.class, () -> orders.updateById(orderId, patch));
+        for (String field : java.util.List.of("customerId", "merchantId")) {
+            var merchantPatch = binder.bindUpdatePatch(java.util.Map.of("id", merchantOrderId, field, 999L),
+                MerchantOrder.class, metas.getEntityMeta(MerchantOrder.class));
+            assertThrows(ValidationException.class, () -> merchantOrders.updateById(merchantOrderId, merchantPatch));
+        }
+        assertEquals(1L, orders.findById(orderId).orElseThrow().getCustomerId());
+        assertEquals(1L, merchantOrders.findById(merchantOrderId).orElseThrow().getCustomerId());
+        assertEquals(1001L, merchantOrders.findById(merchantOrderId).orElseThrow().getMerchantId());
     }
 
     @Test

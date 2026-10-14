@@ -14,7 +14,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "ent.loom.crud.access", ignoreUnknownFields = false)
 public class CrudAccessProperties {
-    private Defaults defaults = new Defaults();
     private Map<String, Identity> identities = new LinkedHashMap<>();
     private Map<String, Map<String, Branch>> policies = new LinkedHashMap<>();
     /** 策略名到实体资源码列表；每个实体只能出现在一个绑定列表中。 */
@@ -61,12 +60,6 @@ public class CrudAccessProperties {
     }
 
     @Data
-    public static class Defaults {
-        /** 仅匹配实体中实际存在的持久化字段；不授予权限或自动补充查询范围。 */
-        private List<String> scopeFields = List.of();
-    }
-
-    @Data
     public static class Branch {
         private List<String> actions = List.of();
         /** 缺省采用身份同名的已注册简单关系。 */
@@ -101,11 +94,11 @@ public class CrudAccessProperties {
     public static class EntityOptions {
         /** 未显式声明时优先使用批量绑定，否则采用资源同名策略；显式声明不得与批量绑定冲突。 */
         private String policy;
-        /** 普通关联字段的例外；不授予访问权限。 */
-        private List<String> excludeScopeFields = List.of();
+        /** 省略按已有关系字段推导；显式列表整体替换推导，空列表关闭推导；不授予权限。 */
+        private List<String> ownership;
         /** 省略时从策略标准动作推导；显式配置整体覆盖，动作的空映射仅登记业务能力。 */
         private Map<String, List<String>> operations;
-        /** 实体关系字段例外，未声明时复用全局关系约定。 */
+        /** 实体关系字段映射；归属推导和策略范围共用，未声明时复用全局约定。 */
         private Map<String, String> relations = new LinkedHashMap<>();
     }
 
