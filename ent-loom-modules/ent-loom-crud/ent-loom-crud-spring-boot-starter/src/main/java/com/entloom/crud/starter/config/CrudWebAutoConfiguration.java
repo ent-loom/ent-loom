@@ -93,9 +93,12 @@ public class CrudWebAutoConfiguration {
         access.getEntities().forEach((resource, declaration) -> {
             Class<?> entityType = resources.get(resource);
             if (entityType == null) {
-                throw new ValidationException("接口清单引用未知实体: " + resource);
+                throw new ValidationException("HTTP 实体差异配置引用未知实体: " + resource);
             }
-            if (declaration.isHttpExposed()) registry.expose(entityType);
+        });
+        resources.forEach((resource, entityType) -> {
+            CrudAccessProperties.Entity declaration = access.getEntities().get(resource);
+            if (declaration == null || declaration.isHttpExposed()) registry.expose(entityType);
         });
         return registry;
     }

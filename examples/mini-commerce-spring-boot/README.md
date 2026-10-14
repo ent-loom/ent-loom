@@ -100,14 +100,11 @@ access:
       field: merchantId
     customer:
       field: customerId
-  entities:
-    customer:
-    order:
 controller:
   enabled: true
 ```
 
-`access.entities` 是通用 CRUD HTTP 实体清单，列出的实体缺省开放，无需填写 `http-exposed: true`；仅登记接口不授予权限。没有差异时使用 `customer:` 空值简写，不使用会被 Spring 忽略的空对象 `{}`。`merchantProduct` 只登记商家策略和专用接口，`merchantOrder` 只登记双端分页策略；两者都不进入接口清单。内部实体差异放在 `access.entity-options`，不开放接口。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。`Order.customerId` 及 `MerchantOrder` 的 customerId/merchantId 默认获得归属保护；下单 Handler 使用 EntityDao 在创建时赋值，普通更新不能改归属。实体省略 `ownership` 时按实际存在的关系字段推导；显式列表整体替换推导结果，`ownership: []` 关闭推导。归属声明不授予权限，也不自动添加查询范围。
+开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，无需声明 `@EntCrudEntity` 或登记 YAML 清单；开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略，专用接口仍可使用；`merchantOrder` 仅供双端定制分页、`orderItem` 仅供内部持久化，两者通过 `@EntCrudEntity(httpExposed = false)` 关闭通用 HTTP。`access.entities` 仅用于差异配置，支持 `http-exposed: false`；`access.entity-options` 只声明业务访问差异，不改变 HTTP 暴露。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。`Order.customerId` 及 `MerchantOrder` 的 customerId/merchantId 默认获得归属保护；下单 Handler 使用 EntityDao 在创建时赋值，普通更新不能改归属。实体省略 `ownership` 时按实际存在的关系字段推导；显式列表整体替换推导结果，`ownership: []` 关闭推导。归属声明不授予权限，也不自动添加查询范围。
 
 身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
 
@@ -136,7 +133,7 @@ Controller 使用 `@EntAccess(identity = "customer")` 或 `"merchant"`，方法�
 
 演示账号集中配置在 `demo.yml` 的 `ent.loom.crud.example.accounts`，每项只声明 `token`、`subject-id` 和已定义的 `customerId` 或 `merchantId`，归属由服务端账号绑定；入口独立由 `example.routes` 和 `default-access-entry` 确定。正式接入使用可信认证来源与身份解析器，YAML 定义不代替归属核验。
 
-通用 CRUD 复用演示模式的默认主体 `local-developer` 和默认不限制数据归属的基础范围解析器；声明式策略仍约束双端接口的身份范围与字段。`governance.grants` 按主体匹配，入口名称本身不授予权限；创建必填字段和通用 HTTP 白名单保留在主配置中。
+通用 CRUD 复用演示模式的默认主体 `local-developer` 和默认不限制数据归属的基础范围解析器；声明式策略仍约束双端接口的身份范围与字段。`governance.grants` 按主体匹配，入口名称本身不授予权限；创建必填字段保留在主配置中，通用 HTTP 特殊关闭声明放在实体注解上。
 
 当前账号：
 

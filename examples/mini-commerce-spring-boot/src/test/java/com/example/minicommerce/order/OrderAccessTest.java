@@ -65,16 +65,17 @@ class OrderAccessTest {
     }
 
     @Test
-    void 实体只从业务包注册且Http遵循接口清单和实体禁用配置() {
+    void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
         assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
                 MerchantProduct.class, MerchantPoster.class, MerchantOrder.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
-        assertEquals(Set.of("customer", "order"), accessProperties.getEntities().keySet());
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantProduct"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("customerAddress"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantPoster"));
+        assertEquals(Set.of(), accessProperties.getEntities().keySet());
+        assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
+        assertEquals(CustomerAddress.class, exposedEntities.resolveOrThrow("customerAddress"));
+        assertEquals(MerchantPoster.class, exposedEntities.resolveOrThrow("merchantPoster"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
+        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantOrder"));
         assertThrows(
             CrudException.class,
             () -> exposedEntities.resolveOrThrow("orderItem"));

@@ -18,9 +18,9 @@ public class CrudAccessProperties {
     private Map<String, Map<String, Branch>> policies = new LinkedHashMap<>();
     /** 策略名到实体资源码列表；每个实体只能出现在一个绑定列表中。 */
     private Map<String, List<String>> policyBindings = new LinkedHashMap<>();
-    /** 通用 CRUD HTTP 实体清单；列出的实体默认开放接口。 */
+    /** 实体差异配置；通用 HTTP 默认开放全部已注册实体，无差异时无需登记。 */
     private Map<String, Entity> entities = new LinkedHashMap<>();
-    /** 非通用 HTTP 实体的配置差异，不开放接口；不得与接口清单重复。 */
+    /** 仅声明业务访问差异，不改变 HTTP 暴露；不得与 entities 重复。 */
     private Map<String, EntityOptions> entityOptions = new LinkedHashMap<>();
     private Map<String, Relation> relations = new LinkedHashMap<>();
     /** 实体资源码 → 策略身份 → 字段用途；不通过命名方案间接引用。 */
@@ -66,12 +66,12 @@ public class CrudAccessProperties {
         private String scope;
     }
 
-    /** 汇总配置差异供策略编译和归属字段冻结使用，不改变接口清单。 */
+    /** 汇总配置差异供策略编译和归属字段冻结使用，不改变 HTTP 暴露。 */
     public Map<String, EntityOptions> entityDeclarations() {
         Map<String, EntityOptions> declarations = new LinkedHashMap<>(entityOptions);
         entities.forEach((resource, entity) -> {
             if (declarations.putIfAbsent(resource, entity) != null) {
-                throw new ValidationException("实体同时出现在接口清单与内部配置: " + resource);
+                throw new ValidationException("实体同时出现在 entities 与 entity-options 配置: " + resource);
             }
         });
         return declarations;
@@ -80,13 +80,13 @@ public class CrudAccessProperties {
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class Entity extends EntityOptions {
-        /** 清单内缺省开放；false 可显式关闭，但不能覆盖实体注解的禁止声明。 */
+        /** 缺省开放；false 可显式关闭，但不能覆盖实体注解的禁止声明。 */
         private boolean httpExposed = true;
 
-        /** YAML 空标量表示仅登记接口，避免空对象被 Spring 属性绑定忽略。 */
+        /** YAML 空标量沿用实体缺省配置；无差异时推荐省略整项。 */
         public static Entity valueOf(String value) {
             if (value != null && value.isEmpty()) return new Entity();
-            throw new IllegalArgumentException("接口实体简写应为空值；差异配置请使用对象结构");
+            throw new IllegalArgumentException("实体简写应为空值；差异配置请使用对象结构");
         }
     }
 

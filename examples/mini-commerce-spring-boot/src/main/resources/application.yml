@@ -59,10 +59,6 @@ ent:
               actions: [view]
             merchant:
               actions: [view]
-        # 通用 CRUD HTTP 实体清单；列出的实体默认开放接口，差异配置就近声明。
-        entities:
-          customer:
-          order:
         # 实体 → 身份 → 用途；RETURN/FILTER 沿用缺省，WRITE 必须显式授权。
         field-plans:
           merchantProduct:
@@ -70,7 +66,7 @@ ent:
               WRITE:
                 mode: INCLUDE
                 fields: [name, price, active]
-      # 通用 HTTP 仅开放客户与结算单。
+      # 通用 HTTP 默认开放已注册实体；特殊实体通过注解关闭，访问仍须授权。
       controller:
         enabled: true
       # 写入契约：创建请求必须显式提供的字段。

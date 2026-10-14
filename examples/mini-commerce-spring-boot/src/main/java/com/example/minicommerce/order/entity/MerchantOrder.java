@@ -1,5 +1,6 @@
 package com.example.minicommerce.order.entity;
 
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.meta.annotations.EntEntity;
@@ -17,6 +18,7 @@ import lombok.Setter;
 
 /** 商家的独立销售订单；客户一次结算可按商家拆成多个销售订单。 */
 @EntEntity("商家销售订单")
+@EntCrudEntity(httpExposed = false)
 @EntDdlIndex(name = "idx_merchant_order_merchant", fields = "merchantId")
 @EntDdlIndex(name = "idx_merchant_order_customer", fields = "customerId")
 @Getter

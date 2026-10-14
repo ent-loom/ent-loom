@@ -22,27 +22,27 @@ import static org.assertj.core.api.Assertions.*;
 
 class ConfiguredExposedEntityRegistryTest {
     private final EntityMetaRegistry metadata = new CrudRuntimeModelBackedEntityMetaRegistry(
-        new CrudNativeRuntimeModelParser().parse(Arrays.<Class<?>>asList(Customer.class, Internal.class)));
+        new CrudNativeRuntimeModelParser().parse(Arrays.<Class<?>>asList(Customer.class, Product.class, Internal.class)));
 
     @Test
-    void 接口清单缺省开放正式编码及别名且不放行清单外实体() {
+    void 配置实体不限制未配置实体且默认开放正式编码和别名() {
         CrudAccessProperties access = new CrudAccessProperties();
         access.getEntities().put("customer", new CrudAccessProperties.Entity());
         ExposedEntityRegistry registry = registry(access);
         assertThat(registry.resolveOrThrow("customer")).isSameAs(Customer.class);
         assertThat(registry.resolveOrThrow(Customer.class.getName())).isSameAs(Customer.class);
+        assertThat(registry.resolveOrThrow("product")).isSameAs(Product.class);
         assertThatThrownBy(() -> registry.resolveOrThrow("internal")).isInstanceOf(CrudException.class);
         assertThatThrownBy(() -> registry.resolveOrThrow(Internal.class.getName())).isInstanceOf(CrudException.class);
     }
 
     @Test
-    void 空清单和仅策略绑定或内部配置均不自动开放接口() {
+    void 空差异配置和仅策略绑定或业务差异均沿用默认开放() {
         CrudAccessProperties access = new CrudAccessProperties();
         access.getPolicyBindings().put("customer-record", List.of("customer"));
         access.getEntityOptions().put("customer", new CrudAccessProperties.EntityOptions());
-        assertThatThrownBy(() -> registry(access).resolveOrThrow("customer")).isInstanceOf(CrudException.class);
-        assertThatThrownBy(() -> registry(new CrudAccessProperties()).resolveOrThrow("customer"))
-            .isInstanceOf(CrudException.class);
+        assertThat(registry(access).resolveOrThrow("customer")).isSameAs(Customer.class);
+        assertThat(registry(new CrudAccessProperties()).resolveOrThrow("customer")).isSameAs(Customer.class);
         assertThat(metadata.getEntityMeta(Customer.class)).isNotNull();
     }
 
@@ -58,7 +58,7 @@ class ConfiguredExposedEntityRegistryTest {
     }
 
     @Test
-    void 清单不能覆盖实体注解的禁止声明() {
+    void 显式开启不能覆盖实体注解的禁止声明() {
         CrudAccessProperties access = new CrudAccessProperties();
         access.getEntities().put("internal", new CrudAccessProperties.Entity());
         ExposedEntityRegistry registry = registry(access);
@@ -67,7 +67,7 @@ class ConfiguredExposedEntityRegistryTest {
     }
 
     @Test
-    void 未知资源与接口内部重复配置在启动时拒绝() {
+    void 未知资源与两处重复差异配置在启动时拒绝() {
         CrudAccessProperties access = new CrudAccessProperties();
         access.getEntities().put("missing", new CrudAccessProperties.Entity());
         assertThatThrownBy(() -> registry(access)).isInstanceOf(ValidationException.class).hasMessageContaining("未知实体");
@@ -78,12 +78,12 @@ class ConfiguredExposedEntityRegistryTest {
     }
 
     @Test
-    void 真实Yaml空值可登记接口并默认开放且支持显式关闭() {
+    void 真实Yaml支持空值缺省和显式关闭且不影响未配置实体() {
         String yaml = """
             ent.loom.crud.access:
               entities:
+                product:
                 customer:
-                internal:
                   http-exposed: false
               entity-options:
                 note:
@@ -92,7 +92,7 @@ class ConfiguredExposedEntityRegistryTest {
         new ApplicationContextRunner().withUserConfiguration(BindingConfiguration.class)
             .withInitializer(context -> {
                 try {
-                    new YamlPropertySourceLoader().load("接口清单", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
+                    new YamlPropertySourceLoader().load("实体差异", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
                         .forEach(source -> context.getEnvironment().getPropertySources().addFirst(source));
                 } catch (java.io.IOException exception) {
                     throw new IllegalStateException(exception);
@@ -100,11 +100,12 @@ class ConfiguredExposedEntityRegistryTest {
             }).run(context -> {
                 assertThat(context).hasNotFailed();
                 CrudAccessProperties access = context.getBean(CrudAccessProperties.class);
-                assertThat(access.getEntities()).containsOnlyKeys("customer", "internal");
-                assertThat(access.getEntities().get("customer").isHttpExposed()).isTrue();
-                assertThat(access.getEntities().get("internal").isHttpExposed()).isFalse();
+                assertThat(access.getEntities()).containsOnlyKeys("product", "customer");
+                assertThat(access.getEntities().get("product").isHttpExposed()).isTrue();
+                assertThat(access.getEntities().get("customer").isHttpExposed()).isFalse();
                 assertThat(access.getEntityOptions().get("note").getOwnership()).isEmpty();
-                assertThat(registry(access).resolveOrThrow("customer")).isSameAs(Customer.class);
+                assertThat(registry(access).resolveOrThrow("product")).isSameAs(Product.class);
+                assertThatThrownBy(() -> registry(access).resolveOrThrow("customer")).isInstanceOf(CrudException.class);
             });
     }
 
@@ -118,6 +119,8 @@ class ConfiguredExposedEntityRegistryTest {
 
     @EntCrudEntity(name = "customer", table = "customer")
     static class Customer { Long id; }
+    @EntCrudEntity(name = "product", table = "product")
+    static class Product { Long id; }
     @EntCrudEntity(name = "internal", table = "internal", httpExposed = false)
     static class Internal { Long id; }
 }

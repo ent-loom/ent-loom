@@ -174,10 +174,10 @@ class OrderDaoIntegrationTest {
     }
 
     @Test
-    void 商家商品通用写入路由关闭() throws Exception {
+    void 商家商品默认开放但无商家身份时拒绝通用写入() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"id\":10,\"name\":\"越权\"}}"))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isForbidden());
     }
 
     private String command(String items) {

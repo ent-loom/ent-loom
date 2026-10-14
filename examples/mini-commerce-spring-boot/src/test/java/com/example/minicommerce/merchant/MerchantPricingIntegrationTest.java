@@ -99,7 +99,7 @@ class MerchantPricingIntegrationTest {
     void 通用接口不能绕过商家入口修改商品() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"payload\":{\"id\":101,\"merchantId\":2001,\"price\":1}}"))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isForbidden());
         assertRow(101, "10.000000", 0L, 1001L);
     }
 

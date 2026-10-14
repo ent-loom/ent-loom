@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
 /**
  * CRUD 专属实体覆盖配置。
  *
- * <p>实体已经声明 {@code @EntEntity} 时，该注解可以省略；只有需要覆盖 CRUD 默认行为时才需要声明。</p>
+ * <p>实体已经声明 {@code @EntEntity} 时，该注解可以省略；只有需要覆盖 CRUD 默认行为时才需要声明；开启通用 HTTP 总开关后，已注册实体默认开放。</p>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
