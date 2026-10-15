@@ -94,7 +94,7 @@ Content-Type: application/json
 {}
 
 ### 通用销售订单分页禁用：404 ENTITY_NOT_EXPOSED
-POST {{baseUrl}}/api/ent-crud/order/page
+POST {{baseUrl}}/api/ent-crud/merchantOrder/page
 Content-Type: application/json
 
 {}

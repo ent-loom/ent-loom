@@ -1,22 +1,23 @@
-package com.example.minicommerce.order.service;
+package com.example.minicommerce.order.handler;
 
-import com.entloom.crud.api.access.AuthorizationRequest;
-import com.entloom.crud.api.access.BusinessOperation;
-import com.entloom.crud.api.access.VisitorContext;
-import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationProvider;
-import com.entloom.crud.core.capability.dao.EntityType;
-import com.entloom.crud.core.exception.PermissionDeniedException;
-import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
+import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
+import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.common.exception.BusinessException;
+import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
+import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderItem;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
+import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderError;
 import com.example.minicommerce.order.enums.OrderStatus;
-import com.example.minicommerce.order.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,30 +27,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 客户下单：使用可信客户归属，在同一事务内按商家创建订单和成交快照。 */
-@Service
+/** 客户结算场景：校验商家商品，并在同一事务内按商家创建销售订单。 */
+@Component
 @RequiredArgsConstructor
-public class PlaceOrderService {
-    private final BusinessAuthorizationService authorization;
-    private final EntityDaoAuthorizationProvider authorizedDaos;
-    private final OrderRepository repository;
+@EntCrudCommandAction(
+    entityClass = Order.class,
+    scene = Order.PLACE
+)
+public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
+    private final EntityDao<Customer, Long> customerDao;
+    private final EntityDao<MerchantProduct, Long> merchantProductDao;
+    private final EntityDao<Order, Long> orderDao;
+    private final EntityDao<MerchantOrder, Long> merchantOrderDao;
+    private final OrderItemDao orderItemDao;
 
+    @Override
     @Transactional
-    public PlaceOrderResult place(VisitorContext visitor, PlaceOrderCommand command) {
-        Long customerId = Long.valueOf(visitor.requireIdentity("customer").getIdentityId());
-        BusinessOperation operation = new BusinessOperation("order", "place");
-        AuthorizationRequest request = new AuthorizationRequest(visitor, operation, null);
-        authorization.authorize(request).requireApplicable(request);
+    public CommandResult<PlaceOrderResult> handle(CommandSpec<PlaceOrderCommand> spec,
+        SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
+        PlaceOrderCommand command = spec.getPayload();
         validateCommand(command);
-        if (!repository.customerExists(customerId)) {
-            throw new BusinessException(OrderError.CUSTOMER_NOT_FOUND);
-        }
+        Customer customer = customerDao.findById(command.customerId())
+            .orElseThrow(() -> new BusinessException(OrderError.CUSTOMER_NOT_FOUND));
         Set<Long> merchantProductIds = collectMerchantProductIds(command.items());
-        Map<Long, MerchantProduct> merchantProductMap = repository.findProducts(merchantProductIds).stream()
-            .collect(java.util.stream.Collectors.toMap(MerchantProduct::getId, product -> product));
+        Map<Long, MerchantProduct> merchantProductMap = merchantProductDao.findAllByIdAsMap(merchantProductIds);
         Map<Long, List<OrderItem>> itemsByMerchant = new LinkedHashMap<>();
         for (PlaceOrderItem requestItem : command.items()) {
             MerchantProduct product = merchantProductMap.get(requestItem.merchantProductId());
@@ -57,34 +61,42 @@ public class PlaceOrderService {
             itemsByMerchant.computeIfAbsent(product.getMerchantId(), ignored -> new ArrayList<>()).add(item);
         }
 
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        LocalDateTime createdAt = LocalDateTime.now();
-        List<Long> orderIds = new ArrayList<>();
+        BigDecimal totalAmount = itemsByMerchant.values().stream().flatMap(List::stream)
+            .map(OrderItem::getLineAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        Order checkout = new Order();
+        checkout.setCustomerId(customer.getId());
+        checkout.setStatus(OrderStatus.CREATED);
+        checkout.setTotalAmount(totalAmount);
+        checkout.setCreatedAt(LocalDateTime.now());
+        Long checkoutId = orderDao.insert(checkout);
+
+        List<Long> merchantOrderIds = new ArrayList<>();
         for (Map.Entry<Long, List<OrderItem>> entry : itemsByMerchant.entrySet()) {
-            Order order = new Order();
-            order.setCustomerId(customerId);
-            order.setMerchantId(entry.getKey());
-            order.setStatus(OrderStatus.CREATED);
-            order.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
+            MerchantOrder merchantOrder = new MerchantOrder();
+            merchantOrder.setOrderId(checkoutId);
+            merchantOrder.setCustomerId(customer.getId());
+            merchantOrder.setMerchantId(entry.getKey());
+            merchantOrder.setStatus(OrderStatus.CREATED);
+            merchantOrder.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
-            order.setCreatedAt(createdAt);
-            Long orderId = repository.insert(order);
-            // 新订单须落入本次下单授权范围；任一订单被拒绝时整体回滚。
-            authorizedDaos.open(EntityType.of(Order.class, Long.class), visitor, operation, orderId.toString())
-                .findById(orderId).orElseThrow(() -> new PermissionDeniedException("订单不在下单授权范围内"));
-            orderIds.add(orderId);
-            totalAmount = totalAmount.add(order.getTotalAmount());
+            merchantOrder.setCreatedAt(checkout.getCreatedAt());
+            Long merchantOrderId = merchantOrderDao.insert(merchantOrder);
+            merchantOrderIds.add(merchantOrderId);
             for (OrderItem item : entry.getValue()) {
-                item.setOrderId(orderId);
+                item.setOrderId(checkoutId);
+                item.setMerchantOrderId(merchantOrderId);
             }
-            repository.insertItems(entry.getValue());
+            orderItemDao.insertAll(entry.getValue());
         }
-        return new PlaceOrderResult(orderIds, totalAmount);
+        return CommandResult.success(new PlaceOrderResult(checkoutId, merchantOrderIds, totalAmount));
     }
 
     private void validateCommand(PlaceOrderCommand command) {
         if (command == null) {
             throw new BusinessException(OrderError.REQUEST_REQUIRED);
+        }
+        if (command.customerId() == null) {
+            throw new BusinessException(OrderError.CUSTOMER_REQUIRED);
         }
         if (command.items() == null || command.items().isEmpty()) {
             throw new BusinessException(OrderError.ITEMS_REQUIRED);

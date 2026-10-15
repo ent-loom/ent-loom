@@ -22,13 +22,7 @@ controller:
   enabled: true
 ```
 
-开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略；`order`、`orderItem` 通过 `@EntCrudEntity(httpExposed = false)` 关闭通用接口，只经订单业务入口访问。`access.entity-options` 仅声明操作、关系与归属差异；HTTP 暴露统一由实体元数据控制。
-
-订单只有 `Order` 与 `OrderItem` 两层；客户与商家共同读取一张订单，分别按 `customerId`、`merchantId` 限定范围。两个字段默认获得归属保护，普通更新不能改归属。省略 `ownership` 时按已有关系字段推导；显式列表整体替换，`ownership: []` 关闭推导。归属声明不授予权限。
-
-客户调用 `POST /api/consumer/orders/place`，请求仅含商品行，客户归属来自可信身份，商家归属来自商品记录。`OrderAccessPolicy` 选择 `order-access`：客户声明 `view/place`，商家只声明 `view`。`entity-options.order.operations` 将 `view` 映射为普通查询、`place: []` 登记为独立业务操作，避免使用尚不支持的通用 ACTION。`PlaceOrderService` 先调用业务授权服务，再由 `OrderRepository` 在同一事务内按商家创建订单与明细；每张新订单通过按次授权 DAO 校验下单范围，任一拒绝或持久化失败均整体回滚。当前受授权 DAO 尚不支持创建，因此保留必要的专用事务持久化。
-
-双端 `POST /api/{consumer|merchant}/orders/detail` 先经授权执行器查询根订单，再读取其成交明细；不存在与越权订单均返回 `404 ORDER_NOT_FOUND`，避免泄露其他归属的订单。
+开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，无需声明 `@EntCrudEntity` 或登记 YAML 清单；开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略，专用接口仍可使用；`merchantOrder` 仅供双端定制分页、`orderItem` 仅供内部持久化，两者通过 `@EntCrudEntity(httpExposed = false)` 关闭通用 HTTP。`access.entity-options` 仅声明操作、关系与归属差异；HTTP 暴露统一由实体元数据控制。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。`Order.customerId` 及 `MerchantOrder` 的 customerId/merchantId 默认获得归属保护；下单 Handler 使用 EntityDao 在创建时赋值，普通更新不能改归属。实体省略 `ownership` 时按实际存在的关系字段推导；显式列表整体替换推导结果，`ownership: []` 关闭推导。归属声明不授予权限，也不自动添加查询范围。
 
 身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
 
@@ -42,14 +36,14 @@ identities:
 
 身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过访问策略接口选择；`entity-options` 仅声明操作、关系与归属差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
 
-跨业务复用的访问策略接口放在 `common/access`；订单专属的访问策略放在 `order/access`，与订单业务一起维护。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，策略绑定统一以注解为入口。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个策略接口或接口与 Java Bean 重复选择策略。
+跨业务复用的访问策略接口放在 `common/access`；订单专属的双端读取策略放在 `order/access`，与订单业务一起维护。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，策略绑定统一以注解为入口。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个策略接口或接口与 Java Bean 重复选择策略。
 
 | 策略模板 | 策略接口 | 业务规则 | 当前实体 |
 | --- | --- | --- | --- |
 | `customer-read` | [CustomerReadPolicy](../src/main/java/com/example/minicommerce/common/access/CustomerReadPolicy.java) | 客户只读本人记录 | 客户地址 |
 | `merchant-read` | [MerchantReadPolicy](../src/main/java/com/example/minicommerce/common/access/MerchantReadPolicy.java) | 商家只读本人记录 | 商家文章 |
 | `merchant-manage` | [MerchantManagePolicy](../src/main/java/com/example/minicommerce/common/access/MerchantManagePolicy.java) | 商家读取、维护本人数据 | 商家商品 |
-| `order-access` | [OrderAccessPolicy](../src/main/java/com/example/minicommerce/order/access/OrderAccessPolicy.java) | 客户下单，客户与商家分别读取自己的订单 | 订单 |
+| `order-read` | [OrderReadPolicy](../src/main/java/com/example/minicommerce/order/access/OrderReadPolicy.java) | 客户、商家分别读取自己的订单 | 商家销售订单 |
 
 字段权限按“实体 → 身份 → 用途”集中声明：`field-plans.merchantProduct.merchant.WRITE` 使用 `mode: INCLUDE` 和 `fields: [name, price, active]`，只授予商家这些字段的写入权限，不表示必填或必须全部修改。`EXCLUDE` 从元数据允许的字段中排除指定字段，`ALL/NONE` 明确表达全部允许或全部关闭；省略 WRITE 不授权，主键、版本、归属、只读及不可变字段始终受保护。同类新实体实现对应策略接口，标准动作自动推导操作目录，只补必要字段约束或特殊 CRUD 映射；`view` 缺省映射 LIST/PAGE/FIND_ONE/DETAIL，`update` 映射 UPDATE，批量与业务动作仍显式声明。特殊业务另选策略。模板由项目声明，框架不内置业务身份或自动合并分类权限。
 

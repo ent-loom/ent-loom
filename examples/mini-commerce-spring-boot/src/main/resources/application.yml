@@ -53,18 +53,12 @@ ent:
           merchant-manage:
             merchant:
               actions: [view, update]
-          # 客户可下单，客户与商家分别按自己的归属读取订单。
-          order-access:
+          # 订单由客户与商家分别按自己的归属读取。
+          order-read:
             customer:
-              actions: [view, place]
+              actions: [view]
             merchant:
               actions: [view]
-        entity-options:
-          order:
-            operations:
-              view: [LIST, PAGE, FIND_ONE, DETAIL]
-              # 下单是业务服务操作，不映射为通用 CRUD 写入。
-              place: []
         # 实体 → 身份 → 用途；RETURN/FILTER 沿用缺省，WRITE 必须显式授权。
         field-plans:
           merchantProduct:
