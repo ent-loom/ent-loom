@@ -7,8 +7,8 @@ import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
-import com.example.minicommerce.order.dto.OrderPageQueries;
-import com.example.minicommerce.order.service.OrderPageService;
+import com.example.minicommerce.order.dto.MerchantOrderPageQuery;
+import com.example.minicommerce.order.service.MerchantOrderQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,12 +22,12 @@ import org.springframework.web.bind.annotation.RestController;
 @EntAccess(identity = "merchant", accessEntries = "merchant", subjectTypes = AccessSubjectType.HUMAN)
 @RequiredArgsConstructor
 public class MerchantOrderController {
-    private final OrderPageService orders;
+    private final MerchantOrderQueryService orders;
     private final CrudResponseBuilder responses;
 
     @PostMapping("/page")
     public CrudResponse<PageResult<CrudRecord>> page(AccessContext access,
-        @Valid @RequestBody OrderPageQueries.Merchant query) {
+        @Valid @RequestBody MerchantOrderPageQuery query) {
         return responses.success(orders.merchantPage(access.getVisitorContext(), query));
     }
 }

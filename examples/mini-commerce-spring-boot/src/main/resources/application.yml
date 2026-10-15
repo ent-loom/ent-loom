@@ -39,22 +39,22 @@ ent:
             field: merchantId
           customer:
             field: customerId
-        # 项目按业务规则定义模板，实体通过对应业务分类接口选择。
+        # 项目按业务规则定义模板，实体通过对应访问策略接口选择。
         policies:
           # 客户只读本人记录。
-          customer-record:
+          customer-read:
             customer:
               actions: [view]
           # 商家只读本人记录。
-          merchant-record:
+          merchant-read:
             merchant:
               actions: [view]
           # 商家读取、维护本人数据；字段差异由实体约束。
-          merchant-data:
+          merchant-manage:
             merchant:
               actions: [view, update]
           # 订单由客户与商家分别按自己的归属读取。
-          order-entries:
+          order-read:
             customer:
               actions: [view]
             merchant:

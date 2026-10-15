@@ -1,4 +1,4 @@
-package com.example.minicommerce.web;
+package com.example.minicommerce.common.web;
 
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.starter.web.error.EntBusinessExceptionHandler;
@@ -6,7 +6,7 @@ import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.merchant.dto.ChangePricesCommand;
 import com.example.minicommerce.merchant.enums.MerchantError;
-import com.example.minicommerce.order.dto.OrderPageQueries;
+import com.example.minicommerce.order.dto.CustomerOrderPageQuery;
 import com.example.minicommerce.order.enums.OrderError;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.BeforeEach;
@@ -130,7 +130,7 @@ class ApiExceptionHandlerTest {
         void prices(@Valid @RequestBody ChangePricesCommand command) {}
 
         @PostMapping("/test/page")
-        void page(@Valid @RequestBody OrderPageQueries.Consumer query) {}
+        void page(@Valid @RequestBody CustomerOrderPageQuery query) {}
 
         @GetMapping("/test/errors/{kind}")
         void error(@PathVariable String kind) {

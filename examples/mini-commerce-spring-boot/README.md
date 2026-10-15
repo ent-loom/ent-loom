@@ -22,7 +22,7 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 ## 业务模型
 
-示例不再维护平台全局 `Product`。`MerchantProduct` 是真正可售的商品，名称、销售价、启用状态和版本都属于商家：
+`MerchantProduct` 是商家独立维护的可售商品，名称、销售价、启用状态和版本都属于商家：
 
 | 实体 | 职责 |
 | --- | --- |
@@ -42,16 +42,47 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 | 商城业务闭环 | [commerce.http](requests/commerce.http) | 客户、商家商品、跨商家结算、销售订单和成交快照 |
 | 通用 CRUD | [crud.http](requests/crud.http) | 客户创建、更新、分页、详情和删除拒绝 |
 | 商家商品治理 | [merchant.http](requests/merchant.http) | 商家商品读取隔离、批量改价、乐观锁和整批回滚 |
-| 双端销售订单分页 | [order-entries.http](requests/order-entries.http) | 客户按客户范围读取，商家按店铺范围读取 |
+| 双端销售订单分页 | [order-query.http](requests/order-query.http) | 客户按客户范围读取，商家按店铺范围读取 |
 | 实体文档 | [documentation.http](requests/documentation.http) | Meta 实体契约和主体授权 |
 
-代码按 `customer`、`merchant`、`order` 业务分包。下单入口仍是 `POST /api/ent-crud/order/action/place`，订单详情是 `POST /api/ent-crud/order/detail`；详情可展开 `customer`、`orderItemList` 和 `merchantOrderList`。
+## 代码导航
 
-自定义接口的通用异常集中由 [ApiExceptionHandler](src/main/java/com/example/minicommerce/web/ApiExceptionHandler.java) 处理：框架异常复用 `CrudHttpErrorMapper`，参数校验返回 DTO 声明的中文提示，请求体解析失败返回统一的 400 提示；Spring HTTP 异常保留原状态和响应头，未知异常记录日志并返回通用 500 提示。
+代码按 `customer`、`merchant`、`order` 业务分包；跨业务复用的能力放在 `common`。
 
-应用业务失败统一抛出 [BusinessException](src/main/java/com/example/minicommerce/common/exception/BusinessException.java)，继承 `EntBusinessException` 并复用框架全局处理器。各模块错误枚举实现 `BusinessError`，声明错误码、中文提示和 HTTP 状态，默认 400；例如 `new BusinessException(OrderError.ITEMS_REQUIRED)`。改价 Service 将写入未命中转换为 `new BusinessException(MerchantError.PRICE_UPDATE_REJECTED, cause)`，保留原始异常，统一返回 409；Controller 无需声明异常处理方法。
+```text
+src/main/java/com/example/minicommerce/
+├── MiniCommerceApplication.java
+├── common/
+│   ├── access/       # 客户只读、商家只读、商家维护策略
+│   ├── exception/    # 公共业务异常契约
+│   └── web/          # 全局 HTTP 异常处理
+├── customer/
+│   ├── entity/
+│   └── dao/
+├── merchant/
+│   ├── entity/       # MerchantProduct、MerchantArticle
+│   ├── dao/
+│   ├── dto/
+│   ├── enums/
+│   ├── service/
+│   └── web/
+└── order/
+    ├── access/       # OrderReadPolicy：客户、商家分别读取本人订单
+    ├── entity/       # Order、MerchantOrder、OrderItem
+    ├── dao/
+    ├── dto/          # 下单命令与双端独立分页查询
+    ├── enums/
+    ├── handler/      # PlaceOrderHandler：下单与按商家拆单
+    ├── service/      # MerchantOrderQueryService：销售订单查询
+    └── web/          # CustomerOrderController、MerchantOrderController
+```
 
-该 Advice 限定应用包；尚未匹配到 Controller 的路由错误由 Spring 默认处理，例如方法不支持时保留 405 和 `Allow` 响应头。
+- 下单：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口为 `POST /api/ent-crud/order/action/place`。
+- 销售订单查询：[MerchantOrderQueryService](src/main/java/com/example/minicommerce/order/service/MerchantOrderQueryService.java)，客户与商家共用授权查询执行器。
+- 订单详情：`POST /api/ent-crud/order/detail`，可展开 `customer`、`orderItemList` 和 `merchantOrderList`。
+- 访问控制与错误响应：[详细说明](docs/access-control.md)。
+
+测试按 `common`、`merchant`、`order` 分包，分别覆盖公共契约、商家治理和订单业务；订单 DAO 与下单流程独立验证。
 
 ## 商家商品治理
 
@@ -71,7 +102,7 @@ curl -X POST http://localhost:8082/api/merchant/products/prices \
   -d '{"items":[{"id":101,"price":11.50,"version":0}]}'
 ```
 
-商家只能读取和修改自己的商品价格。`merchantId` 由认证身份确定，不能通过 Patch 或请求头切换；通用 `merchantProduct` CRUD 不开放。
+商家只能读取和修改自己的商品价格。`merchantId` 由认证身份确定，不能通过 Patch 或请求头切换；通用 `merchantProduct` HTTP 默认开放，并复用商家策略；没有商家身份的通用写入请求返回 403。
 
 ## 订单范围
 
@@ -85,7 +116,7 @@ curl -X POST http://localhost:8082/api/merchant/products/prices \
 执行演示销售订单脚本：
 
 ```bash
-docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"' < scripts/order-entry-demo.sql
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"' < scripts/order-query-demo.sql
 ```
 
 `MerchantOrder.customerId` 和 `MerchantOrder.merchantId` 都是归属字段。框架把身份范围合并到查询和 count SQL，客户不能读取其他客户的订单，商家不能读取其他商家的订单。
@@ -97,51 +128,9 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 - [application.yml](src/main/resources/application.yml)：运行基础、实体元数据、业务策略、操作与字段授权。
 - [demo.yml](src/main/resources/demo.yml)：静态账号、服务端入口路由、通用 CRUD 演示权限和审计设置。
 
-主配置使用以下关系约定，按实体已有字段缺省推导归属保护（位于 `ent.loom.crud` 下）：
+身份归属、策略接口与 YAML 模板、字段权限及统一错误处理见 [访问控制说明](docs/access-control.md)。
 
-```yaml
-access:
-  relations:
-    merchant:
-      field: merchantId
-    customer:
-      field: customerId
-controller:
-  enabled: true
-```
-
-开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，无需声明 `@EntCrudEntity` 或登记 YAML 清单；开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略，专用接口仍可使用；`merchantOrder` 仅供双端定制分页、`orderItem` 仅供内部持久化，两者通过 `@EntCrudEntity(httpExposed = false)` 关闭通用 HTTP。`access.entities` 仅用于差异配置，支持 `http-exposed: false`；`access.entity-options` 只声明业务访问差异，不改变 HTTP 暴露。`Order` 仅允许 `place` 场景，普通创建、修改和删除默认拒绝。`Order.customerId` 及 `MerchantOrder` 的 customerId/merchantId 默认获得归属保护；下单 Handler 使用 EntityDao 在创建时赋值，普通更新不能改归属。实体省略 `ownership` 时按实际存在的关系字段推导；显式列表整体替换推导结果，`ownership: []` 关闭推导。归属声明不授予权限，也不自动添加查询范围。
-
-身份统一定义在 `ent.loom.crud.access.identities`，示例无需客户/商家身份类：
-
-```yaml
-identities:
-  customer:
-    id-type: LONG
-  merchant:
-    id-type: LONG
-```
-
-身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过业务分类接口选择；`entities` 声明 HTTP 与业务访问差异，`entity-options` 仅声明业务访问差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
-
-业务分类接口统一放在项目级 `com.example.minicommerce.access` 包，供各业务模块复用。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，无需在 YAML 的 `policy-bindings` 再次登记。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个分类接口或接口与 YAML 重复选择策略。
-
-| 策略模板 | 分类接口 | 业务规则 | 当前实体 |
-| --- | --- | --- | --- |
-| `customer-record` | [CustomerRecord](src/main/java/com/example/minicommerce/access/CustomerRecord.java) | 客户只读本人记录 | 客户地址 |
-| `merchant-record` | [MerchantRecord](src/main/java/com/example/minicommerce/access/MerchantRecord.java) | 商家只读本人记录 | 商家文章 |
-| `merchant-data` | [MerchantData](src/main/java/com/example/minicommerce/access/MerchantData.java) | 商家读取、维护本人数据 | 商家商品 |
-| `order-entries` | [OrderEntries](src/main/java/com/example/minicommerce/access/OrderEntries.java) | 客户、商家分别读取自己的订单 | 商家销售订单 |
-
-字段权限按“实体 → 身份 → 用途”集中声明：`field-plans.merchantProduct.merchant.WRITE` 使用 `mode: INCLUDE` 和 `fields: [name, price, active]`，只授予商家这些字段的写入权限，不表示必填或必须全部修改。`EXCLUDE` 从元数据允许的字段中排除指定字段，`ALL/NONE` 明确表达全部允许或全部关闭；省略 WRITE 不授权，主键、版本、归属、只读及不可变字段始终受保护。同类新实体实现对应分类接口，标准动作自动推导操作目录，只补必要字段约束或特殊 CRUD 映射；`view` 缺省映射 LIST/PAGE/FIND_ONE/DETAIL，`update` 映射 UPDATE，批量与业务动作仍显式声明。特殊业务另选策略。模板由项目声明，框架不内置业务身份或自动合并分类权限。
-
-Controller 使用 `@EntAccess(identity = "customer")` 或 `"merchant"`，方法接收统一 `AccessContext`。框架按身份码检查准入并构造不可变身份快照，数据范围从已声明 ID 属性读取；启动时检查未知引用及身份/实体字段类型不匹配。
-
-演示账号集中配置在 `demo.yml` 的 `ent.loom.crud.example.accounts`，每项只声明 `token`、`subject-id` 和已定义的 `customerId` 或 `merchantId`，归属由服务端账号绑定；入口独立由 `example.routes` 和 `default-access-entry` 确定。正式接入使用可信认证来源与身份解析器，YAML 定义不代替归属核验。
-
-通用 CRUD 复用演示模式的默认主体 `local-developer` 和默认不限制数据归属的基础范围解析器；声明式策略仍约束双端接口的身份范围与字段。`governance.grants` 按主体匹配，入口名称本身不授予权限；创建必填字段保留在主配置中，通用 HTTP 特殊关闭声明放在实体注解上。
-
-当前账号：
+## 演示账号
 
 - 客户：`demo-customer-a` → 客户 `301`，`demo-customer-b` → 客户 `302`
 - 商家：`demo-merchant-a` → 商家 `1001`，`demo-merchant-b` → 商家 `2001`

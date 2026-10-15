@@ -1,17 +1,5 @@
 package com.example.minicommerce.order;
 
-import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
-import com.entloom.crud.core.exception.CrudException;
-import com.entloom.crud.core.runtime.meta.EntityMeta;
-import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.crud.starter.config.CrudAccessProperties;
-import com.example.minicommerce.customer.entity.Customer;
-import com.example.minicommerce.customer.entity.CustomerAddress;
-import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.order.entity.OrderItem;
-import com.example.minicommerce.order.entity.MerchantOrder;
-import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.merchant.entity.MerchantPoster;
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
@@ -21,7 +9,6 @@ import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.governance.subject.FailClosedCrudSubjectResolver;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +19,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -47,9 +33,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class OrderAccessTest {
-    @Autowired ExposedEntityRegistry exposedEntities;
-    @Autowired EntityMetaRegistry entityMetaRegistry;
-    @Autowired CrudAccessProperties accessProperties;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean CrudSubjectResolver subjectResolver;
@@ -62,26 +45,6 @@ class OrderAccessTest {
         when(subjectResolver.resolveOrThrow()).thenReturn(subject);
         jdbc.update("delete from order_item");
         jdbc.update("delete from `order`");
-    }
-
-    @Test
-    void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
-        assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
-                MerchantProduct.class, MerchantPoster.class, MerchantOrder.class),
-            entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
-        assertEquals(Set.of(), accessProperties.getEntities().keySet());
-        assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
-        assertEquals(CustomerAddress.class, exposedEntities.resolveOrThrow("customerAddress"));
-        assertEquals(MerchantPoster.class, exposedEntities.resolveOrThrow("merchantPoster"));
-        assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
-        assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantOrder"));
-        assertThrows(
-            CrudException.class,
-            () -> exposedEntities.resolveOrThrow("orderItem"));
-        assertThrows(
-            CrudException.class,
-            () -> exposedEntities.resolveOrThrow(OrderItem.class.getName()));
     }
 
     @Test

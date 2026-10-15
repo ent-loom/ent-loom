@@ -4,7 +4,7 @@
 @merchantA = demo-merchant-a
 @merchantB = demo-merchant-b
 
-### 准备：应用建表后执行 scripts/order-entry-demo.sql，两个端访问同一批销售订单。
+### 准备：应用建表后执行 scripts/order-query-demo.sql，两个端访问同一批销售订单。
 ### 用户甲：本人销售订单 501、502、504，total=3
 POST {{baseUrl}}/api/consumer/orders/page
 Authorization: Bearer {{customerA}}

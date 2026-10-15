@@ -10,7 +10,8 @@ import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
-import com.example.minicommerce.order.dto.OrderPageQueries;
+import com.example.minicommerce.order.dto.CustomerOrderPageQuery;
+import com.example.minicommerce.order.dto.MerchantOrderPageQuery;
 import com.example.minicommerce.order.entity.MerchantOrder;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +20,14 @@ import org.springframework.stereotype.Service;
 /** 业务侧只构建分页与额外筛选；身份归属范围由框架合并到数据 SQL 和 count SQL。 */
 @Service
 @RequiredArgsConstructor
-public class OrderPageService {
+public class MerchantOrderQueryService {
     private final AuthorizedQueryExecutor queries;
 
-    public PageResult<CrudRecord> consumerPage(VisitorContext visitor, OrderPageQueries.Consumer query) {
+    public PageResult<CrudRecord> customerPage(VisitorContext visitor, CustomerOrderPageQuery query) {
         return page(visitor, query.pageNumber(), query.pageSize(), "merchantId", query.merchantId());
     }
 
-    public PageResult<CrudRecord> merchantPage(VisitorContext visitor, OrderPageQueries.Merchant query) {
+    public PageResult<CrudRecord> merchantPage(VisitorContext visitor, MerchantOrderPageQuery query) {
         return page(visitor, query.pageNumber(), query.pageSize(), "customerId", query.customerId());
     }
 

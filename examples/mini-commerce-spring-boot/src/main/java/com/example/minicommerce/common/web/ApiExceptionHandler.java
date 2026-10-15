@@ -1,4 +1,4 @@
-package com.example.minicommerce.web;
+package com.example.minicommerce.common.web;
 
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.core.exception.CrudException;

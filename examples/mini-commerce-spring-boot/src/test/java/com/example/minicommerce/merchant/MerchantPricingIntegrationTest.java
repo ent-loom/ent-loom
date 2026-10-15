@@ -103,6 +103,13 @@ class MerchantPricingIntegrationTest {
         assertRow(101, "10.000000", 0L, 1001L);
     }
 
+    @Test
+    void 商家商品默认开放但无商家身份时拒绝通用写入() throws Exception {
+        mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":101,\"name\":\"越权\"}}"))
+            .andExpect(status().isForbidden());
+    }
+
     private org.springframework.test.web.servlet.ResultActions update(String body) throws Exception {
         return mvc.perform(post("/api/merchant/products/prices").header("Authorization", "Bearer demo-merchant-a")
             .contentType(MediaType.APPLICATION_JSON).content(body));

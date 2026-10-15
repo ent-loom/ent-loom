@@ -1,4 +1,4 @@
-package com.example.minicommerce.access;
+package com.example.minicommerce.common.access;
 
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
@@ -17,7 +17,7 @@ import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.customer.entity.CustomerAddress;
-import com.example.minicommerce.merchant.entity.MerchantPoster;
+import com.example.minicommerce.merchant.entity.MerchantArticle;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,14 +47,14 @@ class OwnedEntityIntegrationTest {
     @BeforeEach
     void seed() {
         jdbc.update("delete from customer_address");
-        jdbc.update("delete from merchant_poster");
+        jdbc.update("delete from merchant_article");
         jdbc.update("""
             insert into customer_address(id, customer_id, recipient, phone, address) values
             (1, 301, '顾客甲', '13800000001', '甲的地址'),
             (2, 302, '顾客乙', '13800000002', '乙的地址')
             """);
         jdbc.update("""
-            insert into merchant_poster(id, merchant_id, title, content) values
+            insert into merchant_article(id, merchant_id, title, content) values
             (1, 1001, '商户甲的文章', '甲的正文'),
             (2, 2001, '商户乙的文章', '乙的正文')
             """);
@@ -65,7 +65,7 @@ class OwnedEntityIntegrationTest {
         var address = entities.getEntityMeta(CustomerAddress.class);
         assertTrue(address.resolveFieldMeta("customerId").isScopeField());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
-        assertTrue(entities.getEntityMeta(MerchantPoster.class).resolveFieldMeta("merchantId").isScopeField());
+        assertTrue(entities.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
         assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("customerId").isScopeField());
         assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("merchantId").isScopeField());
         assertFalse(entities.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
@@ -96,9 +96,9 @@ class OwnedEntityIntegrationTest {
     void 文章是实体而商户是访问身份和归属者() {
         var merchantA = visitor("merchant", "merchant-user-a", "1001", "merchant");
         var merchantB = visitor("merchant", "merchant-user-b", "2001", "merchant");
-        assertEquals(List.of(1001L), list(MerchantPoster.class, merchantA).stream().map(row -> row.longValue("merchantId")).toList());
-        assertEquals(List.of(2001L), list(MerchantPoster.class, merchantB).stream().map(row -> row.longValue("merchantId")).toList());
-        assertThrows(PermissionDeniedException.class, () -> list(MerchantPoster.class,
+        assertEquals(List.of(1001L), list(MerchantArticle.class, merchantA).stream().map(row -> row.longValue("merchantId")).toList());
+        assertEquals(List.of(2001L), list(MerchantArticle.class, merchantB).stream().map(row -> row.longValue("merchantId")).toList());
+        assertThrows(PermissionDeniedException.class, () -> list(MerchantArticle.class,
             visitor("customer", "customer-user-a", "301", "consumer")));
     }
 

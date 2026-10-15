@@ -1,6 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
-import com.example.minicommerce.access.MerchantRecord;
+import com.example.minicommerce.common.access.MerchantReadPolicy;
 import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.enums.SqlType;
 import com.entloom.meta.annotations.EntEntity;
@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class MerchantPoster implements MerchantRecord {
+public class MerchantArticle implements MerchantReadPolicy {
     @EntField("文章 ID")
     private Long id;
 

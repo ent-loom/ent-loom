@@ -7,8 +7,8 @@ import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
-import com.example.minicommerce.order.dto.OrderPageQueries;
-import com.example.minicommerce.order.service.OrderPageService;
+import com.example.minicommerce.order.dto.CustomerOrderPageQuery;
+import com.example.minicommerce.order.service.MerchantOrderQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,18 +16,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 用户端分页：仅查询本人销售订单，允许进一步按商家筛选。 */
+/** 客户端分页：仅查询本人销售订单，允许进一步按商家筛选。 */
 @RestController
 @RequestMapping("/api/consumer/orders")
 @EntAccess(identity = "customer", accessEntries = "consumer", subjectTypes = AccessSubjectType.HUMAN)
 @RequiredArgsConstructor
-public class ConsumerOrderController {
-    private final OrderPageService orders;
+public class CustomerOrderController {
+    private final MerchantOrderQueryService orders;
     private final CrudResponseBuilder responses;
 
     @PostMapping("/page")
     public CrudResponse<PageResult<CrudRecord>> page(AccessContext access,
-        @Valid @RequestBody OrderPageQueries.Consumer query) {
-        return responses.success(orders.consumerPage(access.getVisitorContext(), query));
+        @Valid @RequestBody CustomerOrderPageQuery query) {
+        return responses.success(orders.customerPage(access.getVisitorContext(), query));
     }
 }
