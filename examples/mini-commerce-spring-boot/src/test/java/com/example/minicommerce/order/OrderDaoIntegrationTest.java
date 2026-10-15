@@ -1,7 +1,6 @@
 package com.example.minicommerce.order;
 
-import com.example.minicommerce.order.dao.MerchantOrderDao;
-import com.example.minicommerce.order.dao.OrderDao;
+import com.entloom.crud.core.capability.dao.EntityDao;
 import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.order.entity.Order;
@@ -27,9 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
     "spring.datasource.password="
 })
 class OrderDaoIntegrationTest {
-    @Autowired OrderItemDao orderItems;
-    @Autowired OrderDao orders;
-    @Autowired MerchantOrderDao merchantOrders;
+    @Autowired OrderItemDao orderItemDao;
+    @Autowired EntityDao<Order, Long> orderDao;
+    @Autowired EntityDao<MerchantOrder, Long> merchantOrderDao;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
@@ -47,10 +46,10 @@ class OrderDaoIntegrationTest {
         order.setTotalAmount(BigDecimal.TEN);
         order.setCreatedAt(LocalDateTime.now());
         order.setOrderItemList(java.util.List.of(new OrderItem()));
-        orders.insert(order);
+        orderDao.insert(order);
         assertNotNull(order.getId());
         assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
-        assertNull(orders.findById(order.getId()).orElseThrow().getOrderItemList());
+        assertNull(orderDao.findById(order.getId()).orElseThrow().getOrderItemList());
 
         MerchantOrder merchantOrder = new MerchantOrder();
         merchantOrder.setOrderId(order.getId());
@@ -59,7 +58,7 @@ class OrderDaoIntegrationTest {
         merchantOrder.setStatus(OrderStatus.CREATED);
         merchantOrder.setTotalAmount(BigDecimal.TEN);
         merchantOrder.setCreatedAt(LocalDateTime.now());
-        merchantOrders.insert(merchantOrder);
+        merchantOrderDao.insert(merchantOrder);
 
         OrderItem item = new OrderItem();
         item.setOrderId(order.getId());
@@ -70,8 +69,8 @@ class OrderDaoIntegrationTest {
         item.setUnitPrice(BigDecimal.TEN);
         item.setQuantity(1);
         item.setLineAmount(BigDecimal.TEN);
-        orderItems.insert(item);
+        orderItemDao.insert(item);
         assertNotNull(item.getId());
-        assertEquals(item.getId(), orderItems.findByOrderId(order.getId()).get(0).getId());
+        assertEquals(item.getId(), orderItemDao.findByOrderId(order.getId()).get(0).getId());
     }
 }

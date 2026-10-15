@@ -57,11 +57,9 @@ src/main/java/com/example/minicommerce/
 │   ├── exception/    # 公共业务异常契约
 │   └── web/          # 全局 HTTP 异常处理
 ├── customer/
-│   ├── entity/
-│   └── dao/
+│   └── entity/
 ├── merchant/
 │   ├── entity/       # MerchantProduct、MerchantArticle
-│   ├── dao/
 │   ├── dto/
 │   ├── enums/
 │   ├── service/
@@ -69,13 +67,15 @@ src/main/java/com/example/minicommerce/
 └── order/
     ├── access/       # OrderReadPolicy：客户、商家分别读取本人订单
     ├── entity/       # Order、MerchantOrder、OrderItem
-    ├── dao/
+    ├── dao/          # OrderItemDao：自定义明细查询
     ├── dto/          # 下单命令与双端独立分页查询
     ├── enums/
     ├── handler/      # PlaceOrderHandler：下单与按商家拆单
     ├── service/      # MerchantOrderQueryService：销售订单查询
     └── web/          # CustomerOrderController、MerchantOrderController
 ```
+
+基础 CRUD 直接构造器注入 `EntityDao<实体, 主键>`，无需空 DAO 接口；只有自定义查询的 `OrderItemDao` 声明 `@EntDao`。两种方式均按次解析可信访问范围。
 
 - 下单：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口为 `POST /api/ent-crud/order/action/place`。
 - 销售订单查询：[MerchantOrderQueryService](src/main/java/com/example/minicommerce/order/service/MerchantOrderQueryService.java)，客户与商家共用授权查询执行器。

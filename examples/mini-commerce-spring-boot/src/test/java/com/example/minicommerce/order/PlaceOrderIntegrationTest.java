@@ -1,10 +1,9 @@
 package com.example.minicommerce.order;
 
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
+import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.example.minicommerce.order.dao.MerchantOrderDao;
-import com.example.minicommerce.order.dao.OrderDao;
 import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.order.entity.Order;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,8 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class PlaceOrderIntegrationTest {
-    @Autowired OrderDao orders;
-    @Autowired MerchantOrderDao merchantOrders;
+    @Autowired EntityDao<Order, Long> orderDao;
+    @Autowired EntityDao<MerchantOrder, Long> merchantOrderDao;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired EntityMetaRegistry metas;
@@ -82,15 +81,15 @@ class PlaceOrderIntegrationTest {
         var binder = new DefaultCommandPayloadBinder();
         var patch = binder.bindUpdatePatch(java.util.Map.of("id", orderId, "customerId", 2L),
             Order.class, metas.getEntityMeta(Order.class));
-        assertThrows(ValidationException.class, () -> orders.updateById(orderId, patch));
+        assertThrows(ValidationException.class, () -> orderDao.updateById(orderId, patch));
         for (String field : java.util.List.of("customerId", "merchantId")) {
             var merchantPatch = binder.bindUpdatePatch(java.util.Map.of("id", merchantOrderId, field, 999L),
                 MerchantOrder.class, metas.getEntityMeta(MerchantOrder.class));
-            assertThrows(ValidationException.class, () -> merchantOrders.updateById(merchantOrderId, merchantPatch));
+            assertThrows(ValidationException.class, () -> merchantOrderDao.updateById(merchantOrderId, merchantPatch));
         }
-        assertEquals(1L, orders.findById(orderId).orElseThrow().getCustomerId());
-        assertEquals(1L, merchantOrders.findById(merchantOrderId).orElseThrow().getCustomerId());
-        assertEquals(1001L, merchantOrders.findById(merchantOrderId).orElseThrow().getMerchantId());
+        assertEquals(1L, orderDao.findById(orderId).orElseThrow().getCustomerId());
+        assertEquals(1L, merchantOrderDao.findById(merchantOrderId).orElseThrow().getCustomerId());
+        assertEquals(1001L, merchantOrderDao.findById(merchantOrderId).orElseThrow().getMerchantId());
     }
 
     @Test

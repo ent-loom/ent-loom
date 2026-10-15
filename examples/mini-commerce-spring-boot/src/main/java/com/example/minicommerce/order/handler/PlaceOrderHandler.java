@@ -4,14 +4,11 @@ import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.annotations.EntCrudCommandAction;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
+import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.common.exception.BusinessException;
-import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.customer.entity.Customer;
-import com.example.minicommerce.merchant.dao.MerchantProductDao;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.order.dao.MerchantOrderDao;
-import com.example.minicommerce.order.dao.OrderDao;
 import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderItem;
@@ -41,11 +38,11 @@ import org.springframework.transaction.annotation.Transactional;
     scene = Order.PLACE
 )
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    private final CustomerDao customerDao;
-    private final MerchantProductDao merchantProducts;
-    private final OrderDao orders;
-    private final MerchantOrderDao merchantOrders;
-    private final OrderItemDao orderItems;
+    private final EntityDao<Customer, Long> customerDao;
+    private final EntityDao<MerchantProduct, Long> merchantProductDao;
+    private final EntityDao<Order, Long> orderDao;
+    private final EntityDao<MerchantOrder, Long> merchantOrderDao;
+    private final OrderItemDao orderItemDao;
 
     @Override
     @Transactional
@@ -56,7 +53,7 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         Customer customer = customerDao.findById(command.customerId())
             .orElseThrow(() -> new BusinessException(OrderError.CUSTOMER_NOT_FOUND));
         Set<Long> merchantProductIds = collectMerchantProductIds(command.items());
-        Map<Long, MerchantProduct> merchantProductMap = merchantProducts.findAllByIdAsMap(merchantProductIds);
+        Map<Long, MerchantProduct> merchantProductMap = merchantProductDao.findAllByIdAsMap(merchantProductIds);
         Map<Long, List<OrderItem>> itemsByMerchant = new LinkedHashMap<>();
         for (PlaceOrderItem requestItem : command.items()) {
             MerchantProduct product = merchantProductMap.get(requestItem.merchantProductId());
@@ -71,7 +68,7 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         checkout.setStatus(OrderStatus.CREATED);
         checkout.setTotalAmount(totalAmount);
         checkout.setCreatedAt(LocalDateTime.now());
-        Long checkoutId = orders.insert(checkout);
+        Long checkoutId = orderDao.insert(checkout);
 
         List<Long> merchantOrderIds = new ArrayList<>();
         for (Map.Entry<Long, List<OrderItem>> entry : itemsByMerchant.entrySet()) {
@@ -83,13 +80,13 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
             merchantOrder.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
             merchantOrder.setCreatedAt(checkout.getCreatedAt());
-            Long merchantOrderId = merchantOrders.insert(merchantOrder);
+            Long merchantOrderId = merchantOrderDao.insert(merchantOrder);
             merchantOrderIds.add(merchantOrderId);
             for (OrderItem item : entry.getValue()) {
                 item.setOrderId(checkoutId);
                 item.setMerchantOrderId(merchantOrderId);
             }
-            orderItems.insertAll(entry.getValue());
+            orderItemDao.insertAll(entry.getValue());
         }
         return CommandResult.success(new PlaceOrderResult(checkoutId, merchantOrderIds, totalAmount));
     }
