@@ -16,7 +16,7 @@ import com.entloom.crud.api.access.BusinessOperation;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.merchant.enums.MerchantError;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.merchant.dto.ChangePricesCommand.PriceChange;
+import com.example.minicommerce.merchant.dto.ChangePriceItem;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +37,7 @@ public class MerchantPricingService {
     }
 
     // 此方法不加入外层事务；框架必须拥有最终提交边界，才能返回成功并记录成功审计。
-    public List<Long> changePrices(VisitorContext visitor, List<PriceChange> changes) {
+    public List<Long> changePrices(VisitorContext visitor, List<ChangePriceItem> changes) {
         var type = EntityType.of(MerchantProduct.class, Long.class);
         var writer = daos.openBatchWrite(type, visitor, new BusinessOperation("merchantProduct", "update"),
             changes.stream().map(change -> change.id().toString()).toList());
@@ -52,6 +52,6 @@ public class MerchantPricingService {
             // 不区分不存在、跨商家或版本过期，避免泄露其他商家的数据存在性。
             throw new BusinessException(MerchantError.PRICE_UPDATE_REJECTED, cause);
         }
-        return changes.stream().map(PriceChange::id).toList();
+        return changes.stream().map(ChangePriceItem::id).toList();
     }
 }
