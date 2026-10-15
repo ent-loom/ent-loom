@@ -47,6 +47,12 @@ Windows 使用 `Copy-Item .env.example .env` 和 `../../mvnw.cmd spring-boot:run
 
 代码按 `customer`、`merchant`、`order` 业务分包。下单入口仍是 `POST /api/ent-crud/order/action/place`，订单详情是 `POST /api/ent-crud/order/detail`；详情可展开 `customer`、`orderItemList` 和 `merchantOrderList`。
 
+自定义接口的通用异常集中由 [ApiExceptionHandler](src/main/java/com/example/minicommerce/web/ApiExceptionHandler.java) 处理：框架异常复用 `CrudHttpErrorMapper`，参数校验返回 DTO 声明的中文提示，请求体解析失败返回统一的 400 提示；Spring HTTP 异常保留原状态和响应头，未知异常记录日志并返回通用 500 提示。
+
+应用业务失败统一抛出 [BusinessException](src/main/java/com/example/minicommerce/common/exception/BusinessException.java)，继承 `EntBusinessException` 并复用框架全局处理器。各模块错误枚举实现 `BusinessError`，声明错误码、中文提示和 HTTP 状态，默认 400；例如 `new BusinessException(OrderError.ITEMS_REQUIRED)`。改价 Service 将写入未命中转换为 `new BusinessException(MerchantError.PRICE_UPDATE_REJECTED, cause)`，保留原始异常，统一返回 409；Controller 无需声明异常处理方法。
+
+该 Advice 限定应用包；尚未匹配到 Controller 的路由错误由 Spring 默认处理，例如方法不支持时保留 405 和 `Allow` 响应头。
+
 ## 商家商品治理
 
 启动应用后执行初始化数据：

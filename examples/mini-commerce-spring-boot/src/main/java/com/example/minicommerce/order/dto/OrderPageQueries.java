@@ -8,16 +8,20 @@ import jakarta.validation.constraints.Positive;
 public final class OrderPageQueries {
     private OrderPageQueries() {}
 
-    public record Consumer(@Min(1) Integer pageNumber, @Min(1) @Max(100) Integer pageSize,
-                           @Positive Long merchantId) {
+    public record Consumer(@Min(value = 1, message = "页码须从 1 开始") Integer pageNumber,
+                           @Min(value = 1, message = "单页至少 1 条")
+                           @Max(value = 100, message = "单页最多 100 条") Integer pageSize,
+                           @Positive(message = "商家 ID 须为正整数") Long merchantId) {
         public Consumer {
             pageNumber = pageNumber == null ? 1 : pageNumber;
             pageSize = pageSize == null ? 20 : pageSize;
         }
     }
 
-    public record Merchant(@Min(1) Integer pageNumber, @Min(1) @Max(100) Integer pageSize,
-                           @Positive Long customerId) {
+    public record Merchant(@Min(value = 1, message = "页码须从 1 开始") Integer pageNumber,
+                           @Min(value = 1, message = "单页至少 1 条")
+                           @Max(value = 100, message = "单页最多 100 条") Integer pageSize,
+                           @Positive(message = "客户 ID 须为正整数") Long customerId) {
         public Merchant {
             pageNumber = pageNumber == null ? 1 : pageNumber;
             pageSize = pageSize == null ? 20 : pageSize;

@@ -1,7 +1,9 @@
 package com.example.minicommerce.order.enums;
 
+import com.example.minicommerce.common.exception.BusinessError;
+
 /** 订单业务错误码及默认中文提示。 */
-public enum OrderError {
+public enum OrderError implements BusinessError {
     /** 请求对象为空。 */
     REQUEST_REQUIRED("REQUEST_REQUIRED", "下单请求不能为空"),
     /** 下单客户主键为空。 */
@@ -35,10 +37,12 @@ public enum OrderError {
         this.message = message;
     }
 
+    @Override
     public String code() {
         return code;
     }
 
+    @Override
     public String message() {
         return message;
     }

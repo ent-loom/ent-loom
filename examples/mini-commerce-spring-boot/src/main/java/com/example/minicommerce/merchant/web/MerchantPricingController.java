@@ -5,19 +5,12 @@ import com.entloom.crud.api.access.AccessContext;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.CrudResponse;
-import com.entloom.crud.core.exception.EntityDaoWriteMissException;
-import com.entloom.crud.core.exception.CrudException;
-import com.entloom.crud.starter.web.error.CrudHttpErrorMapper;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.example.minicommerce.merchant.dto.ChangePricesCommand;
 import com.example.minicommerce.merchant.service.MerchantPricingService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,23 +35,5 @@ public class MerchantPricingController {
     public CrudResponse<List<Long>> changePrices(AccessContext access,
         @Valid @RequestBody ChangePricesCommand request) {
         return responses.success(pricing.changePrices(access.getVisitorContext(), request.items()));
-    }
-
-    @ExceptionHandler(EntityDaoWriteMissException.class)
-    ResponseEntity<CrudResponse<Void>> writeMiss(EntityDaoWriteMissException error) {
-        // 不区分记录不存在、跨商家或版本过期，避免泄露其他商家的数据存在性。
-        return ResponseEntity.status(409).body(responses.failure("PRICE_UPDATE_REJECTED",
-            "商品不可更新或版本已变化，整批未生效；请重新读取本人商品"));
-    }
-
-    @ExceptionHandler(CrudException.class)
-    ResponseEntity<CrudResponse<Void>> frameworkError(CrudException error) {
-        var mapped = CrudHttpErrorMapper.map(error);
-        return ResponseEntity.status(mapped.getStatus()).body(responses.failure(mapped.getError()));
-    }
-
-    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
-    ResponseEntity<CrudResponse<Void>> invalidRequest(Exception error) {
-        return ResponseEntity.badRequest().body(responses.failure("VALIDATION_ERROR", "请提供 1～100 条合法商品、价格和版本"));
     }
 }

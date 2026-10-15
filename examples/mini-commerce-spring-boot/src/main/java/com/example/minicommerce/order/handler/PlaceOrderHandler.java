@@ -5,6 +5,7 @@ import com.entloom.crud.annotations.EntCrudCommandAction;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
+import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.customer.dao.CustomerDao;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.merchant.dao.MerchantProductDao;
@@ -20,7 +21,6 @@ import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderError;
 import com.example.minicommerce.order.enums.OrderStatus;
-import com.example.minicommerce.order.exception.OrderValidationException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         PlaceOrderCommand command = spec.getPayload();
         validateCommand(command);
         Customer customer = customerDao.findById(command.customerId())
-            .orElseThrow(() -> new OrderValidationException(OrderError.CUSTOMER_NOT_FOUND));
+            .orElseThrow(() -> new BusinessException(OrderError.CUSTOMER_NOT_FOUND));
         Set<Long> merchantProductIds = collectMerchantProductIds(command.items());
         Map<Long, MerchantProduct> merchantProductMap = merchantProducts.findAllByIdAsMap(merchantProductIds);
         Map<Long, List<OrderItem>> itemsByMerchant = new LinkedHashMap<>();
@@ -96,26 +96,26 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
 
     private void validateCommand(PlaceOrderCommand command) {
         if (command == null) {
-            throw new OrderValidationException(OrderError.REQUEST_REQUIRED);
+            throw new BusinessException(OrderError.REQUEST_REQUIRED);
         }
         if (command.customerId() == null) {
-            throw new OrderValidationException(OrderError.CUSTOMER_REQUIRED);
+            throw new BusinessException(OrderError.CUSTOMER_REQUIRED);
         }
         if (command.items() == null || command.items().isEmpty()) {
-            throw new OrderValidationException(OrderError.ITEMS_REQUIRED);
+            throw new BusinessException(OrderError.ITEMS_REQUIRED);
         }
         for (PlaceOrderItem item : command.items()) {
             if (item == null) {
-                throw new OrderValidationException(OrderError.ITEM_REQUIRED);
+                throw new BusinessException(OrderError.ITEM_REQUIRED);
             }
             if (item.merchantProductId() == null) {
-                throw new OrderValidationException(OrderError.MERCHANT_PRODUCT_REQUIRED);
+                throw new BusinessException(OrderError.MERCHANT_PRODUCT_REQUIRED);
             }
             if (item.quantity() == null) {
-                throw new OrderValidationException(OrderError.QUANTITY_REQUIRED);
+                throw new BusinessException(OrderError.QUANTITY_REQUIRED);
             }
             if (item.quantity() <= 0) {
-                throw new OrderValidationException(OrderError.QUANTITY_INVALID);
+                throw new BusinessException(OrderError.QUANTITY_INVALID);
             }
         }
     }
@@ -124,7 +124,7 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         Set<Long> merchantProductIds = new LinkedHashSet<>();
         for (PlaceOrderItem requestItem : requestItems) {
             if (!merchantProductIds.add(requestItem.merchantProductId())) {
-                throw new OrderValidationException(OrderError.DUPLICATE_MERCHANT_PRODUCT);
+                throw new BusinessException(OrderError.DUPLICATE_MERCHANT_PRODUCT);
             }
         }
         return merchantProductIds;
@@ -132,13 +132,13 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
 
     private OrderItem createOrderItem(PlaceOrderItem requestItem, MerchantProduct product) {
         if (product == null) {
-            throw new OrderValidationException(OrderError.MERCHANT_PRODUCT_NOT_FOUND);
+            throw new BusinessException(OrderError.MERCHANT_PRODUCT_NOT_FOUND);
         }
         if (!Boolean.TRUE.equals(product.getActive())) {
-            throw new OrderValidationException(OrderError.MERCHANT_PRODUCT_INACTIVE);
+            throw new BusinessException(OrderError.MERCHANT_PRODUCT_INACTIVE);
         }
         if (product.getPrice() == null || product.getPrice().signum() <= 0) {
-            throw new OrderValidationException(OrderError.MERCHANT_PRODUCT_PRICE_INVALID);
+            throw new BusinessException(OrderError.MERCHANT_PRODUCT_PRICE_INVALID);
         }
         BigDecimal lineAmount = product.getPrice().multiply(BigDecimal.valueOf(requestItem.quantity()));
         OrderItem item = new OrderItem();

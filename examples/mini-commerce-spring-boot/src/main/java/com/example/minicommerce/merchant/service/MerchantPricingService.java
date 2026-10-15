@@ -10,8 +10,11 @@ import com.entloom.crud.core.capability.dao.EntityDaoBatchWriteRequest;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.api.access.BusinessOperation;
+import com.example.minicommerce.common.exception.BusinessException;
+import com.example.minicommerce.merchant.enums.MerchantError;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.merchant.dto.ChangePricesCommand.PriceChange;
 import java.util.List;
@@ -43,7 +46,12 @@ public class MerchantPricingService {
             change.id().toString(), change.id(), patches.bindUpdatePatch(
                 Map.of("id", change.id(), "price", change.price(), "version", change.version()),
                 MerchantProduct.class, meta))).toList();
-        writer.execute(EntityDaoBatchWriteRequest.of(writer.getAuthorization(), items));
+        try {
+            writer.execute(EntityDaoBatchWriteRequest.of(writer.getAuthorization(), items));
+        } catch (EntityDaoWriteMissException cause) {
+            // 不区分不存在、跨商家或版本过期，避免泄露其他商家的数据存在性。
+            throw new BusinessException(MerchantError.PRICE_UPDATE_REJECTED, cause);
+        }
         return changes.stream().map(PriceChange::id).toList();
     }
 }
