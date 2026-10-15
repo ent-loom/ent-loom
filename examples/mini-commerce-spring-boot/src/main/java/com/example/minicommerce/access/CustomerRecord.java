@@ -1,4 +1,4 @@
-package com.example.minicommerce.customer.model;
+package com.example.minicommerce.access;
 
 import com.entloom.crud.annotations.EntCrudPolicy;
 

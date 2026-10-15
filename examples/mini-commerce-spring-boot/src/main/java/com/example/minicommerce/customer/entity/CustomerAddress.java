@@ -1,6 +1,6 @@
 package com.example.minicommerce.customer.entity;
 
-import com.example.minicommerce.customer.model.CustomerRecord;
+import com.example.minicommerce.access.CustomerRecord;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;

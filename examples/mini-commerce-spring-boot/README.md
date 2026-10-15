@@ -116,16 +116,16 @@ identities:
     id-type: LONG
 ```
 
-身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过业务分类接口选择；`entities` 登记通用接口和就近差异，`entity-options` 登记内部实体差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
+身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过业务分类接口选择；`entities` 声明 HTTP 与业务访问差异，`entity-options` 仅声明业务访问差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
 
-业务分类接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，无需在 YAML 的 `policy-bindings` 再次登记。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不会自动开放通用 HTTP 或授予全部字段写入权限。同一实体不能同时通过多个分类接口或接口与 YAML 重复选择策略。
+业务分类接口统一放在项目级 `com.example.minicommerce.access` 包，供各业务模块复用。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，无需在 YAML 的 `policy-bindings` 再次登记。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个分类接口或接口与 YAML 重复选择策略。
 
 | 策略模板 | 分类接口 | 业务规则 | 当前实体 |
 | --- | --- | --- | --- |
-| `customer-record` | [CustomerRecord](src/main/java/com/example/minicommerce/customer/model/CustomerRecord.java) | 客户只读本人记录 | 客户地址 |
-| `merchant-record` | [MerchantRecord](src/main/java/com/example/minicommerce/merchant/model/MerchantRecord.java) | 商家只读本人记录 | 商家文章 |
-| `merchant-data` | [MerchantData](src/main/java/com/example/minicommerce/merchant/model/MerchantData.java) | 商家读取、维护本人数据 | 商家商品 |
-| `order-entries` | [OrderEntries](src/main/java/com/example/minicommerce/order/model/OrderEntries.java) | 客户、商家分别读取自己的订单 | 商家销售订单 |
+| `customer-record` | [CustomerRecord](src/main/java/com/example/minicommerce/access/CustomerRecord.java) | 客户只读本人记录 | 客户地址 |
+| `merchant-record` | [MerchantRecord](src/main/java/com/example/minicommerce/access/MerchantRecord.java) | 商家只读本人记录 | 商家文章 |
+| `merchant-data` | [MerchantData](src/main/java/com/example/minicommerce/access/MerchantData.java) | 商家读取、维护本人数据 | 商家商品 |
+| `order-entries` | [OrderEntries](src/main/java/com/example/minicommerce/access/OrderEntries.java) | 客户、商家分别读取自己的订单 | 商家销售订单 |
 
 字段权限按“实体 → 身份 → 用途”集中声明：`field-plans.merchantProduct.merchant.WRITE` 使用 `mode: INCLUDE` 和 `fields: [name, price, active]`，只授予商家这些字段的写入权限，不表示必填或必须全部修改。`EXCLUDE` 从元数据允许的字段中排除指定字段，`ALL/NONE` 明确表达全部允许或全部关闭；省略 WRITE 不授权，主键、版本、归属、只读及不可变字段始终受保护。同类新实体实现对应分类接口，标准动作自动推导操作目录，只补必要字段约束或特殊 CRUD 映射；`view` 缺省映射 LIST/PAGE/FIND_ONE/DETAIL，`update` 映射 UPDATE，批量与业务动作仍显式声明。特殊业务另选策略。模板由项目声明，框架不内置业务身份或自动合并分类权限。
 

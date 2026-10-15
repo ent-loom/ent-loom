@@ -1,6 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
-import com.example.minicommerce.merchant.model.MerchantRecord;
+import com.example.minicommerce.access.MerchantRecord;
 import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.enums.SqlType;
 import com.entloom.meta.annotations.EntEntity;

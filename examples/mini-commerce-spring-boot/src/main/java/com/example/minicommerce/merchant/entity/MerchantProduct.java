@@ -1,6 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
-import com.example.minicommerce.merchant.model.MerchantData;
+import com.example.minicommerce.access.MerchantData;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;

@@ -8,7 +8,7 @@ import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.RelationCardinality;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.enums.OrderStatus;
-import com.example.minicommerce.order.model.OrderEntries;
+import com.example.minicommerce.access.OrderEntries;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
