@@ -1,13 +1,14 @@
 package com.example.minicommerce.order.enums;
 
 import com.example.minicommerce.common.exception.BusinessError;
+import org.springframework.http.HttpStatus;
 
 /** 订单业务错误码及默认中文提示。 */
 public enum OrderError implements BusinessError {
+    /** 订单不存在或不属于当前访问者。 */
+    ORDER_NOT_FOUND("ORDER_NOT_FOUND", "订单不存在", HttpStatus.NOT_FOUND),
     /** 请求对象为空。 */
     REQUEST_REQUIRED("REQUEST_REQUIRED", "下单请求不能为空"),
-    /** 下单客户主键为空。 */
-    CUSTOMER_REQUIRED("CUSTOMER_REQUIRED", "下单客户不能为空"),
     /** 下单客户不存在。 */
     CUSTOMER_NOT_FOUND("CUSTOMER_NOT_FOUND", "客户不存在"),
     /** 订单商品行为空。 */
@@ -31,10 +32,21 @@ public enum OrderError implements BusinessError {
 
     private final String code;
     private final String message;
+    private final HttpStatus httpStatus;
 
     OrderError(String code, String message) {
+        this(code, message, HttpStatus.BAD_REQUEST);
+    }
+
+    OrderError(String code, String message, HttpStatus httpStatus) {
+        this.httpStatus = httpStatus;
         this.code = code;
         this.message = message;
+    }
+
+    @Override
+    public HttpStatus httpStatus() {
+        return httpStatus;
     }
 
     @Override

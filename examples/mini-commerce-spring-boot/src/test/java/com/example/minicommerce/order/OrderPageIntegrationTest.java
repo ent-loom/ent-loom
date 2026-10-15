@@ -25,11 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** 随机端口真实 HTTP 与独立 H2，复用实际认证和治理配置，不加入外层事务。 */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "spring.config.import=",
-    "spring.datasource.url=jdbc:h2:mem:commerce-merchant-order-page;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+    "spring.datasource.url=jdbc:h2:mem:commerce-order-page;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password="
 })
-class MerchantOrderPageIntegrationTest {
+class OrderPageIntegrationTest {
     private static final String CONSUMER_PAGE = "/api/consumer/orders/page";
     private static final String MERCHANT_PAGE = "/api/merchant/orders/page";
 
@@ -39,27 +39,22 @@ class MerchantOrderPageIntegrationTest {
 
     @BeforeEach
     void 准备交叉客户和商家归属数据() {
-        jdbc.update("delete from merchant_order");
-        jdbc.update("""
-            insert into merchant_order(id, order_id, customer_id, merchant_id, status, total_amount, created_at) values
-            (501, 9001, 301, 1001, 'CREATED', 10, '2026-10-07 10:00:00'),
-            (502, 9001, 301, 2001, 'CREATED', 20, '2026-10-07 10:00:00'),
-            (503, 9002, 302, 1001, 'CREATED', 30, '2026-10-07 10:01:00'),
-            (504, 9003, 301, 1001, 'CREATED', 40, '2026-10-07 10:02:00'),
-            (505, 9004, 302, 2001, 'CREATED', 50, '2026-10-07 10:03:00')
-            """);
+        jdbc.update("delete from `order`");
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+            new org.springframework.core.io.FileSystemResource("scripts/order-query-demo.sql"))
+            .execute(java.util.Objects.requireNonNull(jdbc.getDataSource()));
     }
 
     @Test
     void 两个客户读取同一实体时各自限定客户范围且默认分页返回精确总数() throws Exception {
         JsonNode data = assertPage(post(CONSUMER_PAGE, "demo-customer-a", "{}"), 3, 1, 20, 501, 502, 504);
-        assertEquals(9001, data.get("items").get(0).get("orderId").asLong());
+        assertTrue(!data.get("items").get(0).has("orderId"));
         assertEquals(301, data.get("items").get(0).get("customerId").asLong());
         assertEquals(1001, data.get("items").get(0).get("merchantId").asLong());
         assertEquals("CREATED", data.get("items").get(0).get("status").asText());
         assertTrue(data.get("items").get(0).hasNonNull("createdAt"));
         assertTrue(!data.get("items").get(0).has("customer"));
-        assertTrue(!data.get("items").get(0).has("itemList"));
+        assertTrue(!data.get("items").get(0).has("orderItemList"));
         assertEquals(0, BigDecimal.TEN.compareTo(data.get("items").get(0).get("totalAmount").decimalValue()));
         assertPage(post(CONSUMER_PAGE, "demo-customer-b", "{}"), 2, 1, 20, 503, 505);
     }
@@ -179,8 +174,8 @@ class MerchantOrderPageIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "demo-customer-a", "demo-customer-b", "demo-merchant-a", "demo-merchant-b"})
-    void 通用分页路由始终拒绝未暴露的商家销售订单实体(String token) throws Exception {
-        ResponseEntity<String> response = post("/api/ent-crud/merchantOrder/page", token.isEmpty() ? null : token, "{}");
+    void 通用分页路由始终拒绝未暴露的订单实体(String token) throws Exception {
+        ResponseEntity<String> response = post("/api/ent-crud/order/page", token.isEmpty() ? null : token, "{}");
         assertStatus(response, 404);
         assertEquals("ENTITY_NOT_EXPOSED", json.readTree(response.getBody()).get("code").asText());
     }

@@ -1,8 +1,7 @@
 package com.example.minicommerce.order;
 
 import com.entloom.crud.core.capability.dao.EntityDao;
-import com.example.minicommerce.order.dao.OrderItemDao;
-import com.example.minicommerce.order.entity.MerchantOrder;
+import com.example.minicommerce.order.repository.OrderRepository;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderStatus;
@@ -26,22 +25,22 @@ import static org.junit.jupiter.api.Assertions.assertNull;
     "spring.datasource.password="
 })
 class OrderDaoIntegrationTest {
-    @Autowired OrderItemDao orderItemDao;
+    @Autowired EntityDao<OrderItem, Long> orderItemDao;
+    @Autowired OrderRepository repository;
     @Autowired EntityDao<Order, Long> orderDao;
-    @Autowired EntityDao<MerchantOrder, Long> merchantOrderDao;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
     void seed() {
         jdbc.update("delete from order_item");
-        jdbc.update("delete from merchant_order");
         jdbc.update("delete from `order`");
     }
 
     @Test
-    void DAO使用商家订单和明细约定表并保持关系字段() {
+    void DAO使用订单和明细约定表且不隐式级联保存() {
         Order order = new Order();
-        order.setCustomerId(1L);
+        order.setCustomerId(301L);
+        order.setMerchantId(1001L);
         order.setStatus(OrderStatus.CREATED);
         order.setTotalAmount(BigDecimal.TEN);
         order.setCreatedAt(LocalDateTime.now());
@@ -51,18 +50,8 @@ class OrderDaoIntegrationTest {
         assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
         assertNull(orderDao.findById(order.getId()).orElseThrow().getOrderItemList());
 
-        MerchantOrder merchantOrder = new MerchantOrder();
-        merchantOrder.setOrderId(order.getId());
-        merchantOrder.setCustomerId(1L);
-        merchantOrder.setMerchantId(1001L);
-        merchantOrder.setStatus(OrderStatus.CREATED);
-        merchantOrder.setTotalAmount(BigDecimal.TEN);
-        merchantOrder.setCreatedAt(LocalDateTime.now());
-        merchantOrderDao.insert(merchantOrder);
-
         OrderItem item = new OrderItem();
         item.setOrderId(order.getId());
-        item.setMerchantOrderId(merchantOrder.getId());
         item.setMerchantProductId(10L);
         item.setMerchantId(1001L);
         item.setProductName("商家一商品");
@@ -71,6 +60,6 @@ class OrderDaoIntegrationTest {
         item.setLineAmount(BigDecimal.TEN);
         orderItemDao.insert(item);
         assertNotNull(item.getId());
-        assertEquals(item.getId(), orderItemDao.findByOrderId(order.getId()).get(0).getId());
+        assertEquals(item.getId(), repository.findItems(order.getId()).get(0).getId());
     }
 }

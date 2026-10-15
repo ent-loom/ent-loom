@@ -1,30 +1,29 @@
 package com.example.minicommerce.order;
 
-import com.entloom.crud.api.enums.AccessDecision;
-import com.entloom.crud.api.model.SubjectContext;
-import com.entloom.crud.core.governance.permission.CrudPermissionRule;
-import com.entloom.crud.core.governance.permission.CrudPermissionService;
-import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
-import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
-import com.entloom.crud.core.governance.subject.FailClosedCrudSubjectResolver;
-import java.util.List;
-import java.util.Set;
+import com.entloom.crud.core.governance.authorization.AuthorizationFields;
+import com.entloom.crud.core.governance.authorization.AuthorizationScope;
+import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
+import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** 真实 Gateway 管线的授权回归，只替换主体与权限实现。 */
+/** 验证身份准入、业务授权和创建范围均生效，通用写入不能绕过下单流程。 */
 @SpringBootTest(properties = {
     "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-access;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -35,102 +34,74 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderAccessTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @MockitoBean CrudSubjectResolver subjectResolver;
-    @MockitoBean CrudPermissionService permissionService;
+    @MockitoBean BusinessPermissionEvaluator evaluator;
 
     @BeforeEach
     void prepare() {
-        SubjectContext subject = new SubjectContext();
-        subject.setSubjectId("local-developer");
-        when(subjectResolver.resolveOrThrow()).thenReturn(subject);
         jdbc.update("delete from order_item");
         jdbc.update("delete from `order`");
+        jdbc.update("delete from merchant_product");
+        jdbc.update("delete from customer");
+        jdbc.update("insert into customer values (301, '测试客户', 'test@example.com')");
+        jdbc.update("insert into merchant_product(id, merchant_id, name, price, active, version) values "
+            + "(10, 1001, '商家一商品', 10, true, 0), (20, 2001, '商家二商品', 20, true, 0)");
     }
 
-    @Test
-    void missingRulesRejectBothHttpEntrypoints() throws Exception {
-        rules(List.of());
-        assertDenied();
-    }
-
-    @Test
-    void explicitDenyRejectsBothHttpEntrypoints() throws Exception {
-        rules(List.of(rule("*", "*", AccessDecision.DENY)));
-        assertDenied();
-    }
-
-    @Test
-    void unknownSubjectCannotUseDeveloperRules() throws Exception {
-        SubjectContext subject = new SubjectContext();
-        subject.setSubjectId("other-user");
-        when(subjectResolver.resolveOrThrow()).thenReturn(subject);
-        rules(List.of(rule("*", "*", AccessDecision.ALLOW)));
-        assertDenied();
-    }
-
-    @Test
-    void missingSubjectFailsClosed() throws Exception {
-        when(subjectResolver.resolveOrThrow()).thenReturn(null);
-        assertRejected(status().isBadRequest(), "VALIDATION_ERROR");
-    }
-
-    @Test
-    void defaultSubjectResolverFailsClosed() throws Exception {
-        when(subjectResolver.resolveOrThrow()).thenAnswer(invocation -> new FailClosedCrudSubjectResolver().resolveOrThrow());
-        assertRejected(status().isBadRequest(), "VALIDATION_ERROR");
-    }
-
-    @Test
-    void permissionIsSpecificToOperationAndScene() throws Exception {
-        rules(List.of(rule("COMMAND:ACTION", "place", AccessDecision.ALLOW)));
-        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON).content(command()))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("CUSTOMER_NOT_FOUND"));
-        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
+    @ParameterizedTest
+    @ValueSource(strings = {"", "unknown", "demo-merchant-a"})
+    void 下单拒绝缺失无效及商家身份(String token) throws Exception {
+        mvc.perform(post("/api/consumer/orders/place").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(command()))
             .andExpect(status().isForbidden());
-        rules(List.of(rule("COMMAND:ACTION", "other-scene", AccessDecision.ALLOW)));
-        assertDenied();
+        verifyNoInteractions(evaluator);
+        assertEmpty();
     }
 
     @Test
-    void invalidCommandIsRejectedByHandlerAfterPermission() throws Exception {
-        rules(List.of(rule("COMMAND:ACTION", "place", AccessDecision.ALLOW)));
-        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"payload\":{\"customerId\":2001,\"items\":[{\"merchantProductId\":1001,\"quantity\":0}]}}"))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("QUANTITY_INVALID"));
-        verify(permissionService).decide(any(), any(), any());
+    void 通过客户准入仍须获得独立下单业务授权() throws Exception {
+        when(evaluator.evaluate(any(), any(), any(), any())).thenReturn(BusinessPermissionDecision.deny());
+        mvc.perform(post("/api/consumer/orders/place").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content(command()))
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
+        verify(evaluator).evaluate(any(), eq(new com.entloom.crud.api.access.BusinessOperation("order", "place")), any(), isNull());
+        assertEmpty();
     }
 
-    private void assertDenied() throws Exception {
-        assertRejected(status().isForbidden(), "PERMISSION_DENIED");
+    @Test
+    void 动态范围限制后一个商家时整次下单回滚() throws Exception {
+        when(evaluator.evaluate(any(), any(), any(), any())).thenReturn(BusinessPermissionDecision.allow(
+            AuthorizationScope.equal("merchantId", 1001L), AuthorizationFields.of(Map.of(AuthorizationFields.Use.RETURN, java.util.List.of("id")))));
+        mvc.perform(post("/api/consumer/orders/place").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content(command()))
+            .andExpect(status().isForbidden());
+        verify(evaluator, times(3)).evaluate(any(), any(), any(), any());
+        assertEmpty();
     }
 
-    private void assertRejected(org.springframework.test.web.servlet.ResultMatcher status, String code) throws Exception {
-        mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON).content(command()))
-            .andExpect(status).andExpect(jsonPath("$.code").value(code));
-        mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
-            .andExpect(status).andExpect(jsonPath("$.code").value(code));
+    @Test
+    void 客户不能通过请求体指定订单归属() throws Exception {
+        for (String field : new String[]{"customerId", "merchantId"}) {
+            mvc.perform(post("/api/consumer/orders/place").header("Authorization", "Bearer demo-customer-a")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"" + field + "\":302,\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+        assertEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"create", "update", "delete", "action/place", "detail", "page"})
+    void 通用订单接口关闭以避免绕过业务入口(String operation) throws Exception {
+        mvc.perform(post("/api/ent-crud/order/" + operation).contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ENTITY_NOT_EXPOSED"));
+        assertEmpty();
+    }
+
+    private void assertEmpty() {
         assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
         assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
     }
 
-    private void rules(List<CrudPermissionRule> rules) {
-        var service = new RuleBasedCrudPermissionService(rules);
-        doAnswer(invocation -> service.decide(invocation.getArgument(0), invocation.getArgument(1),
-            invocation.getArgument(2))).when(permissionService).decide(any(), any(), any());
-    }
-
-    private CrudPermissionRule rule(String action, String scene, AccessDecision decision) {
-        return new CrudPermissionRule("order", action, scene, decision, Set.of("local-developer"), Set.of(), Set.of());
-    }
-
     private String command() {
-        return "{\"payload\":{\"customerId\":2001,\"items\":[{\"merchantProductId\":1001,\"quantity\":1}]}}";
+        return "{\"items\":[{\"merchantProductId\":10,\"quantity\":1},{\"merchantProductId\":20,\"quantity\":1}]}";
     }
-
-    private String detail() {
-        return """
-            {"options":{"resultMode":"ENTITY","filter":{"id":1},"expandRelations":["customer","orderItemList"]}}
-            """;
-    }
-
 }

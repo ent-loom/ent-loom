@@ -9,7 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 订单明细持久化实体，由订单业务服务经 OrderItemDao 保存。 */
+/** 订单明细持久化实体，由下单服务在订单事务中保存。 */
 @EntEntity("订单明细")
 @EntCrudEntity(httpExposed = false)
 @EntDdlIndex(name = "idx_order_item_order", fields = "orderId")
@@ -21,12 +21,9 @@ public class OrderItem {
     @EntField("明细 ID")
     private Long id;
 
-    /** 所属订单主键，由订单聚合保存时填充。 */
+    /** 所属订单主键，由下单服务保存时填充。 */
     @EntField("订单 ID")
     private Long orderId;
-
-    @EntField("商家订单 ID")
-    private Long merchantOrderId;
 
     @EntField("商家商品 ID")
     private Long merchantProductId;

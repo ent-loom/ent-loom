@@ -15,7 +15,6 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.customer.entity.CustomerAddress;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
 import java.util.List;
@@ -61,25 +60,24 @@ class OwnedEntityIntegrationTest {
     }
 
     @Test
-    void 关系字段缺省推导保护结算单与多重归属并进入实际Patch() {
+    void 关系字段缺省推导保护订单双重归属并进入实际Patch() {
         var address = entities.getEntityMeta(CustomerAddress.class);
         assertTrue(address.resolveFieldMeta("customerId").isScopeField());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
         assertTrue(entities.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
-        assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("customerId").isScopeField());
-        assertTrue(entities.getEntityMeta(MerchantOrder.class).resolveFieldMeta("merchantId").isScopeField());
+        assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("merchantId").isScopeField());
         assertFalse(entities.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
         assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
         assertFalse(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
-        for (Class<?> type : List.of(CustomerAddress.class, Order.class, MerchantOrder.class)) {
+        for (Class<?> type : List.of(CustomerAddress.class, Order.class)) {
             var meta = entities.getEntityMeta(type);
             var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L), type, meta);
             assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, meta));
         }
-        var merchantOrder = entities.getEntityMeta(MerchantOrder.class);
+        var order = entities.getEntityMeta(Order.class);
         var merchantPatch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "merchantId", 2001L),
-            MerchantOrder.class, merchantOrder);
-        assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(merchantPatch, merchantOrder));
+            Order.class, order);
+        assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(merchantPatch, order));
     }
 
     @Test

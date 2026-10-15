@@ -1,43 +1,46 @@
 @baseUrl = http://localhost:8082
-@merchantProductId = 101
-@customerId = 1
+@customerToken = demo-customer-a
+@merchantToken = demo-merchant-a
 @orderId = 1
 
-### 准备商家商品：应用启动后执行 scripts/merchant-demo.sql
+### 准备：应用建表后执行 scripts/merchant-demo.sql 和 scripts/order-query-demo.sql
+### 客户甲归属 301；下单后将返回的 data.orderIds[0] 填入上方 orderId
 
-### 创建客户：通用 CRUD
-POST {{baseUrl}}/api/ent-crud/customer/create
+### 客户下单：服务端从可信身份和商品记录确定 customerId、merchantId
+POST {{baseUrl}}/api/consumer/orders/place
+Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
 {
-  "options": {"requestId": "commerce-customer-create-1"},
-  "payload": {
-    "displayName": "Ada Lovelace",
-    "email": "ada@example.com"
-  }
+  "items": [
+    {"merchantProductId": 101, "quantity": 2},
+    {"merchantProductId": 201, "quantity": 1}
+  ]
 }
 
-### 下单：提交商家商品 ID，服务端从商品记录确定 merchantId
-POST {{baseUrl}}/api/ent-crud/order/action/place
+### 查询本人订单及成交明细：data.order 和 data.items
+POST {{baseUrl}}/api/consumer/orders/detail
+Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
-{
-  "payload": {
-    "customerId": {{customerId}},
-    "items": [
-      {"merchantProductId": {{merchantProductId}}, "quantity": 2}
-    ]
-  }
-}
+{"orderId": {{orderId}}}
 
-### 查询结算单及商家销售订单、明细
-POST {{baseUrl}}/api/ent-crud/order/detail
+### 对应商家查询同一张订单及成交明细
+POST {{baseUrl}}/api/merchant/orders/detail
+Authorization: Bearer {{merchantToken}}
 Content-Type: application/json
 
-{"options": {"resultMode": "ENTITY", "filter": {"id": {{orderId}}}, "expandRelations": ["customer", "orderItemList", "merchantOrderList"]}}
+{"orderId": {{orderId}}}
 
-### 默认订单创建未授权
+### 请求体不能指定客户归属：400 VALIDATION_ERROR
+POST {{baseUrl}}/api/consumer/orders/place
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"customerId": 302, "items": [{"merchantProductId": 101, "quantity": 1}]}
+
+### 通用订单创建关闭：404 ENTITY_NOT_EXPOSED
 POST {{baseUrl}}/api/ent-crud/order/create
 Content-Type: application/json
 
-{"payload": {"customerId": {{customerId}}}}
+{}

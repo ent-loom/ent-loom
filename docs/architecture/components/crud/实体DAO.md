@@ -57,7 +57,6 @@ flowchart TB
 @RequiredArgsConstructor
 public class OrderService {
     private final EntityDao<Order, Long> orderDao;
-    private final EntityDao<MerchantOrder, Long> merchantOrderDao;
 }
 ```
 

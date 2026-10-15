@@ -31,8 +31,6 @@ ent:
             - customer:read
             - customer:create
             - customer:update
-            - order:read
-            - order:place
         # 演示无需额外审计表。
         audit:
           persist-to-jdbc: false

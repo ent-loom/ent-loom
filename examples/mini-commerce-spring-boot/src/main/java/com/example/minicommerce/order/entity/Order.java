@@ -1,43 +1,39 @@
 package com.example.minicommerce.order.entity;
 
 import com.entloom.ddl.annotations.EntDdlIndex;
-import com.entloom.crud.annotations.EntCrudActions;
-import com.entloom.crud.annotations.EntCrudAction;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.enums.RelationCardinality;
 import com.example.minicommerce.customer.entity.Customer;
+import com.example.minicommerce.order.access.OrderAccessPolicy;
 import com.example.minicommerce.order.enums.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * 订单持久化实体，由下单 Handler 经 EntityDao 保存。
- *
- * <p>订单是流程实体：标准 CRUD 沿用项目全局权限，本实体仅将业务动作限制为下单，
- * 避免其他动作绕过订单流程。</p>
- */
+/** 一个客户与一个商家的订单；一次跨商家下单创建多张订单。 */
 @EntEntity("订单")
-@EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
+@EntCrudEntity(httpExposed = false)
+@EntDdlIndex(name = "idx_order_merchant", fields = "merchantId")
 @EntDdlIndex(name = "idx_order_customer", fields = "customerId")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Order {
-    public static final String PLACE = "place";
-
+public class Order implements OrderAccessPolicy {
     /** 订单主键，由数据库自增生成。 */
     @EntField("订单 ID")
     private Long id;
 
     @EntField("客户 ID")
     private Long customerId;
+
+    @EntField("商家 ID")
+    private Long merchantId;
 
     @EntField("客户")
     @EntCrudField(targetClass = Customer.class, sourceField = "customerId")
@@ -58,10 +54,4 @@ public class Order {
     @EntField("订单明细")
     @EntCrudField(targetClass = OrderItem.class, targetField = "orderId", cardinality = RelationCardinality.ONE_TO_MANY)
     private List<OrderItem> orderItemList;
-
-    @EntField("商家销售订单")
-    @EntCrudField(targetClass = MerchantOrder.class, targetField = "orderId",
-        cardinality = RelationCardinality.ONE_TO_MANY)
-    private List<MerchantOrder> merchantOrderList;
-
 }
