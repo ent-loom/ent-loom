@@ -22,7 +22,7 @@ controller:
   enabled: true
 ```
 
-开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略；`order`、`orderItem` 通过 `@EntCrudEntity(httpExposed = false)` 关闭通用接口，只经订单业务入口访问。`access.entities` 支持 HTTP 差异配置，`access.entity-options` 仅声明业务访问差异。
+开启 `controller.enabled` 后，已注册实体默认开放通用 CRUD HTTP，开放不授予操作权限。`merchantProduct` 默认开放并复用商家策略；`order`、`orderItem` 通过 `@EntCrudEntity(httpExposed = false)` 关闭通用接口，只经订单业务入口访问。`access.entity-options` 仅声明操作、关系与归属差异；HTTP 暴露统一由实体元数据控制。
 
 订单只有 `Order` 与 `OrderItem` 两层；客户与商家共同读取一张订单，分别按 `customerId`、`merchantId` 限定范围。两个字段默认获得归属保护，普通更新不能改归属。省略 `ownership` 时按已有关系字段推导；显式列表整体替换，`ownership: []` 关闭推导。归属声明不授予权限。
 
@@ -40,9 +40,9 @@ identities:
     id-type: LONG
 ```
 
-身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过访问策略接口选择；`entities` 声明 HTTP 与业务访问差异，`entity-options` 仅声明业务访问差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
+身份 ID 字段默认采用“身份码 + Id”，因此无需重复声明 `customerId` / `merchantId`。项目按业务规则定义策略模板，实体通过访问策略接口选择；`entity-options` 仅声明操作、关系与归属差异；范围默认使用身份同名关系。`RETURN` 缺省为全部普通字段，`FILTER` 缺省复用其中可筛选的字段，写入继续显式约束。
 
-跨业务复用的访问策略接口放在 `common/access`；订单专属的访问策略放在 `order/access`，与订单业务一起维护。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，无需在 YAML 的 `policy-bindings` 再次登记。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个策略接口或接口与 YAML 重复选择策略。
+跨业务复用的访问策略接口放在 `common/access`；订单专属的访问策略放在 `order/access`，与订单业务一起维护。接口通过 `@EntCrudPolicy` 集中选择策略，并声明必要的归属 getter；实体只增加 `implements`，方法由 Lombok 生成，策略绑定统一以注解为入口。框架从接口读取策略，复用同一编译链推导标准操作、归属范围及字段授权；实现接口不改变通用 HTTP 暴露，也不授予全部字段写入权限。同一实体不能同时通过多个策略接口或接口与 Java Bean 重复选择策略。
 
 | 策略模板 | 策略接口 | 业务规则 | 当前实体 |
 | --- | --- | --- | --- |

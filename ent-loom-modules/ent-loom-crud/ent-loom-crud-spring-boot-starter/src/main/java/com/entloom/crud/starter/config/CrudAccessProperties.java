@@ -2,12 +2,10 @@ package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.api.access.BusinessIdentityIdType;
-import com.entloom.crud.core.exception.ValidationException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** 声明式业务访问与简单身份定义；配置不替代可信认证和归属事实。 */
@@ -16,11 +14,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CrudAccessProperties {
     private Map<String, Identity> identities = new LinkedHashMap<>();
     private Map<String, Map<String, Branch>> policies = new LinkedHashMap<>();
-    /** 策略名到实体资源码列表；每个实体只能出现在一个绑定列表中。 */
-    private Map<String, List<String>> policyBindings = new LinkedHashMap<>();
-    /** 实体差异配置；通用 HTTP 默认开放全部已注册实体，无差异时无需登记。 */
-    private Map<String, Entity> entities = new LinkedHashMap<>();
-    /** 仅声明业务访问差异，不改变 HTTP 暴露；不得与 entities 重复。 */
+    /** 实体业务差异；策略只通过实体或业务接口上的 @EntCrudPolicy 选择。 */
     private Map<String, EntityOptions> entityOptions = new LinkedHashMap<>();
     private Map<String, Relation> relations = new LinkedHashMap<>();
     /** 实体资源码 → 策略身份 → 字段用途；不通过命名方案间接引用。 */
@@ -66,34 +60,8 @@ public class CrudAccessProperties {
         private String scope;
     }
 
-    /** 汇总配置差异供策略编译和归属字段冻结使用，不改变 HTTP 暴露。 */
-    public Map<String, EntityOptions> entityDeclarations() {
-        Map<String, EntityOptions> declarations = new LinkedHashMap<>(entityOptions);
-        entities.forEach((resource, entity) -> {
-            if (declarations.putIfAbsent(resource, entity) != null) {
-                throw new ValidationException("实体同时出现在 entities 与 entity-options 配置: " + resource);
-            }
-        });
-        return declarations;
-    }
-
-    @Data
-    @EqualsAndHashCode(callSuper = true)
-    public static class Entity extends EntityOptions {
-        /** 缺省开放；false 可显式关闭，但不能覆盖实体注解的禁止声明。 */
-        private boolean httpExposed = true;
-
-        /** YAML 空标量沿用实体缺省配置；无差异时推荐省略整项。 */
-        public static Entity valueOf(String value) {
-            if (value != null && value.isEmpty()) return new Entity();
-            throw new IllegalArgumentException("实体简写应为空值；差异配置请使用对象结构");
-        }
-    }
-
     @Data
     public static class EntityOptions {
-        /** 未显式声明时优先使用批量绑定，否则采用资源同名策略；显式声明不得与批量绑定冲突。 */
-        private String policy;
         /** 省略按已有关系字段推导；显式列表整体替换推导，空列表关闭推导；不授予权限。 */
         private List<String> ownership;
         /** 省略时从策略标准动作推导；显式配置整体覆盖，动作的空映射仅登记业务能力。 */

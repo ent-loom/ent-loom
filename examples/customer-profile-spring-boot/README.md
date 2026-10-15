@@ -190,4 +190,4 @@ docker compose down -v
 
 ## 治理默认装配与定制
 
-`application-example.yml` 显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。实体路由由 `access.entities` 接口清单声明，列出的实体默认开放；文档通过 `doc.contract.exposure` 独立声明主体、实体与字段白名单，无需额外配置类。未限定展示范围时，文档默认复用 Meta 全量实体与非隐藏字段。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。
+`application-example.yml` 显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。开启通用 Controller 后，已注册实体默认开放；特殊实体用 `@EntCrudEntity(httpExposed = false)` 关闭；文档通过 `doc.contract.exposure` 独立声明主体、实体与字段白名单，无需额外配置类。未限定展示范围时，文档默认复用 Meta 全量实体与非隐藏字段。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。

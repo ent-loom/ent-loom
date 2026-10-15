@@ -324,7 +324,7 @@ public class CrudCommonConfiguration {
                 identity == null || identity.getIdType() == null ? null : identity.getIdType().getJavaType()));
         });
         Map<String, CrudOwnershipRules.Ownership> declarations = new LinkedHashMap<>();
-        properties.entityDeclarations().forEach((resource, entity) -> {
+        properties.getEntityOptions().forEach((resource, entity) -> {
             if (entity.getOwnership() != null || !entity.getRelations().isEmpty()) {
                 declarations.put(resource, new CrudOwnershipRules.Ownership(entity.getOwnership(), entity.getRelations()));
             }

@@ -19,9 +19,6 @@ ent:
         http:
           enabled: true
     crud:
-      access:
-        entities:
-          customer_profile:
       contracts:
         create:
           input-required-fields:

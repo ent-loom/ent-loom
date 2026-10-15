@@ -38,8 +38,6 @@ class ConfiguredOwnershipTest {
               field: customerId
             merchant:
               field: merchantId
-          entities:
-            order:
           entity-options:
             reference:
               ownership: []
@@ -52,7 +50,7 @@ class ConfiguredOwnershipTest {
         runner(YAML).run(context -> {
             assertThat(context).hasNotFailed();
             var config = context.getBean(CrudAccessProperties.class);
-            assertThat(config.getEntities().get("order").getOwnership()).isNull();
+            assertThat(config.getEntityOptions()).doesNotContainKey("order");
             assertThat(config.getEntityOptions().get("reference").getOwnership()).isEmpty();
             var metas = context.getBean(EntityMetaRegistry.class);
             var order = metas.getEntityMeta(Order.class);

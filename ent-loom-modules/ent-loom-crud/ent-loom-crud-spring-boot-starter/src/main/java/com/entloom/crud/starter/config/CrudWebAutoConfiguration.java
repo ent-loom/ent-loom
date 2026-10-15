@@ -8,7 +8,6 @@ import com.entloom.crud.core.foundation.taskfile.FileService;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.runtime.router.CommandActionSceneResolver;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.starter.config.CrudProperties;
 import com.entloom.crud.core.capability.stats.StatsGateway;
 import com.entloom.crud.core.capability.stats.StatsPayloadCustomizerRegistry;
@@ -62,8 +61,6 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Collections;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
-import java.util.LinkedHashMap;
 import java.util.TimeZone;
 
 /**
@@ -83,23 +80,9 @@ public class CrudWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ExposedEntityRegistry exposedEntityRegistry(CrudAccessProperties access, EntityMetaRegistry entityMetaRegistry) {
+    public ExposedEntityRegistry exposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
         ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
-        access.entityDeclarations();
-        entityMetaRegistry.getEntityMetas().forEach(meta -> registry.register(meta.getEntityType()));
-        Map<String, Class<?>> resources = new LinkedHashMap<>();
-        entityMetaRegistry.getEntityMetas().forEach(meta ->
-            resources.put(meta.getResourceDescriptor().getResourceCode(), meta.getEntityType()));
-        access.getEntities().forEach((resource, declaration) -> {
-            Class<?> entityType = resources.get(resource);
-            if (entityType == null) {
-                throw new ValidationException("HTTP 实体差异配置引用未知实体: " + resource);
-            }
-        });
-        resources.forEach((resource, entityType) -> {
-            CrudAccessProperties.Entity declaration = access.getEntities().get(resource);
-            if (declaration == null || declaration.isHttpExposed()) registry.expose(entityType);
-        });
+        entityMetaRegistry.getEntityMetas().forEach(meta -> registry.expose(meta.getEntityType()));
         return registry;
     }
 

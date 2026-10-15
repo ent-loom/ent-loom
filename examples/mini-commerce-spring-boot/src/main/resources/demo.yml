@@ -25,7 +25,6 @@ ent:
           "[/api/merchant/**]": merchant
       governance:
         # 通用 CRUD 使用默认演示主体 local-developer。
-        access-entry: consumer
         grants:
           local-developer:
             - customer:read
