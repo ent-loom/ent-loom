@@ -1,11 +1,13 @@
 package com.entloom.crud.starter.web.assembler;
 
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -23,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 
 /**
  * 命令 HTTP DTO 到 CommandSpec 的组装器。
@@ -237,6 +240,10 @@ public class CrudCommandSpecAssembler {
             spec.getEntityClasses(),
             spec.getScene()
         );
+        EntCrudEntity declaration = AnnotatedElementUtils.findMergedAnnotation(spec.getRootType(), EntCrudEntity.class);
+        if (declaration != null && java.util.Arrays.asList(declaration.httpExcludedActions()).contains(canonicalScene)) {
+            throw new PermissionDeniedException("业务动作未开放通用 HTTP: " + canonicalScene);
+        }
         CommandActionContract contract = actionSceneResolver.resolveActionContract(
             spec.getRootType(),
             spec.getEntityClasses(),

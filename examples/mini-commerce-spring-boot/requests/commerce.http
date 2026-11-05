@@ -19,16 +19,14 @@ Content-Type: application/json
 }
 
 ### 下单：可信客户身份确定 customerId，数据库商品确定 merchantId
-POST {{baseUrl}}/api/ent-crud/commerceOrder/action/create
+POST {{baseUrl}}/api/orders
 Authorization: Bearer demo-customer-a
 Content-Type: application/json
 
 {
-  "payload": {
-    "items": [
-      {"merchantProductId": {{merchantProductId}}, "quantity": 2}
-    ]
-  }
+  "items": [
+    {"merchantProductId": {{merchantProductId}}, "quantity": 2}
+  ]
 }
 
 ### 查询订单值字段：orderId 取下单响应 data.orderIds 中的一项；默认不加载结构属性

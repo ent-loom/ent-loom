@@ -24,6 +24,15 @@ public class CrudResponse<T> {
     private T data;
     private Map<String, Object> meta = new LinkedHashMap<String, Object>();
 
+    /** HTTP 适配保留命令结果语义，不将业务失败重新包装为成功。 */
+    public static <T> CrudResponse<T> from(CommandResult<T> result) {
+        java.util.Objects.requireNonNull(result, "命令结果不能为空");
+        Map<String, Object> meta = new LinkedHashMap<String, Object>();
+        if (result.isIdempotentReplay()) meta.put("idempotentReplay", Boolean.TRUE);
+        return of(result.isSuccess(), result.getCode() == null ? "OK" : result.getCode(),
+            result.getMessage() == null ? "OK" : result.getMessage(), result.getData(), meta);
+    }
+
     public static <T> CrudResponse<T> success(T data) {
         return success("OK", "OK", data, null);
     }

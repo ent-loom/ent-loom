@@ -29,7 +29,7 @@ import lombok.Setter;
 @EntCrudGrant(identities = "customer", actions = {"view", "create", "cancel"})
 @EntCrudGrant(identities = "merchant", actions = {"view", "cancel"})
 @EntCrudGrant(identities = "super-admin", actions = {"view", "cancel"}, scope = EntCrudGrantScope.ALL)
-@EntCrudEntity(actions = {"view", "create", "cancel"}, operations = {"create="})
+@EntCrudEntity(actions = {"view", "create", "cancel"}, operations = {"create="}, httpExcludedActions = CommerceOrder.CREATE)
 @Getter
 @Setter
 @NoArgsConstructor

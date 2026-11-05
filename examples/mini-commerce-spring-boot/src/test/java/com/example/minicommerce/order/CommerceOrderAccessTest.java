@@ -3,6 +3,11 @@ package com.example.minicommerce.order;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import com.entloom.crud.api.model.CommandResult;
+import com.example.minicommerce.order.handler.PlaceOrderHandler;
+import com.example.minicommerce.order.handler.CancelOrderHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -34,10 +39,12 @@ class CommerceOrderAccessTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
     @SpyBean CrudGovernanceAuditRecorder auditRecorder;
+    @SpyBean PlaceOrderHandler placeOrderHandler;
+    @SpyBean CancelOrderHandler cancelOrderHandler;
     @SpyBean com.entloom.crud.core.capability.dao.EntityDaoFactory daoFactory;
 
     @AfterEach
-    void resetAudit() { reset(auditRecorder); }
+    void resetAudit() { reset(auditRecorder, placeOrderHandler, cancelOrderHandler); }
 
     @BeforeEach
     void prepare() {
@@ -48,6 +55,33 @@ class CommerceOrderAccessTest {
         jdbc.update("insert into customer(id, display_name, email, merchant_id) values (301, '测试客户', 'customer@example.com', 1001)");
         jdbc.update("insert into merchant_product(id,merchant_id,name,price,active,version) values (10,1001,'商品',10,true,0)");
         jdbc.update("insert into commerce_order(id,customer_id,merchant_id,status,total_amount,created_at) values (1,301,1001,'CREATED',10,CURRENT_TIMESTAMP)");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"custom,failed", "custom,null", "custom,wrong-type", "generic,failed", "generic,null", "generic,wrong-type"})
+    void 动作返回失败或非法结果时回滚且只记录一次失败(String entry, String mode) throws Exception {
+        org.mockito.stubbing.Answer<Object> answer = invocation -> {
+            jdbc.update("update commerce_order set status='CANCELLED' where id=1");
+            if ("null".equals(mode)) return null;
+            if ("wrong-type".equals(mode)) return CommandResult.success("错误响应类型");
+            CommandResult<Object> rejected = new CommandResult<>();
+            rejected.setCode("ORDER_REJECTED");
+            rejected.setMessage("订单被拒绝");
+            return rejected;
+        };
+        boolean custom = "custom".equals(entry);
+        if (custom) doAnswer(answer).when(placeOrderHandler).handle(any(), any());
+        else doAnswer(answer).when(cancelOrderHandler).handle(any(), any());
+        mvc.perform(post(custom ? "/api/orders" : "/api/ent-crud/commerceOrder/action/cancel")
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+                .content(custom ? "{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}"
+                    : "{\"payload\":{\"orderId\":1}}"))
+            .andExpect(status().is("failed".equals(mode) ? 400 : 500))
+            .andExpect(jsonPath("$.code").value("failed".equals(mode) ? "ORDER_REJECTED" : "INTERNAL_ERROR"));
+        assertEquals("CREATED", jdbc.queryForObject("select status from commerce_order where id=1", String.class));
+        var event = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
+        verify(auditRecorder, times(1)).record(event.capture());
+        assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, event.getValue().getOutcome());
     }
 
     @Test
@@ -113,8 +147,8 @@ class CommerceOrderAccessTest {
     @Test
     void 匿名商家与管理员均不能代替客户下单() throws Exception {
         for (String token : List.of("", "demo-merchant-a", "demo-platform-admin")) {
-            var request = post("/api/ent-crud/commerceOrder/action/create").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"payload\":{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}}");
+            var request = post("/api/orders").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}");
             if (!token.isEmpty()) request.header("Authorization", "Bearer " + token);
             mvc.perform(request).andExpect(status().isForbidden());
         }
@@ -123,10 +157,14 @@ class CommerceOrderAccessTest {
 
     @Test
     void 下单归属来自当前身份且不能回退通用创建() throws Exception {
-        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}}"))
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}"))
             .andExpect(status().isOk());
         assertEquals(301L, jdbc.queryForObject("select customer_id from commerce_order where id=(select max(id) from commerce_order)", Long.class));
+        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"items\":[{\"merchantProductId\":10,\"quantity\":1}]}}"))
+            .andExpect(status().isForbidden());
+        assertEquals(2, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
         mvc.perform(post("/api/ent-crud/commerceOrder/create").header("Authorization", "Bearer demo-customer-a")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"customerId\":302,\"merchantId\":2001}}"))
             .andExpect(status().isForbidden());
@@ -136,14 +174,14 @@ class CommerceOrderAccessTest {
     }
 
     @Test
-    void 客户与商家只能取消所属订单且状态流转不可重复() throws Exception {
+    void 客户商家按归属取消且管理员可取消全部并禁止重复流转() throws Exception {
         for (String token : List.of("demo-customer-b", "demo-merchant-b")) {
             mvc.perform(post("/api/ent-crud/commerceOrder/action/cancel").header("Authorization", "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"orderId\":1}}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
             assertEquals("CREATED", jdbc.queryForObject("select status from commerce_order where id=1", String.class));
         }
-        for (String token : List.of("demo-customer-a", "demo-merchant-a")) {
+        for (String token : List.of("demo-customer-a", "demo-merchant-a", "demo-platform-admin")) {
             jdbc.update("update commerce_order set status='CREATED' where id=1");
             mvc.perform(post("/api/ent-crud/commerceOrder/action/cancel").header("Authorization", "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"orderId\":1}}"))

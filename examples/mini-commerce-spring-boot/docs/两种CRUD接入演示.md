@@ -1,6 +1,6 @@
-# 两种 CRUD 接入演示
+# CRUD 与业务动作接入演示
 
-两个实体分别展示不同接入方式，均使用同一 CRUD 内核处理授权与持久化。Java 业务默认使用实体，固定投影使用 DTO；通用 HTTP 的动态字段结果保留动态记录。类型合同见[实体优先的类型化 CRUD](../../../docs/guides/crud/实体优先的类型化CRUD.md)。
+文章、商品与订单分别展示不同接入方式，均使用同一 CRUD 内核处理授权与持久化。Java 业务默认使用实体，固定投影使用 DTO；通用 HTTP 的动态字段结果保留动态记录。类型合同见[实体优先的类型化 CRUD](../../../docs/guides/crud/实体优先的类型化CRUD.md)。
 
 | 关注点 | 商户文章 MerchantArticle | 商家商品 MerchantProduct |
 | --- | --- | --- |
@@ -28,11 +28,13 @@
 ```java
 var spec = QuerySpec.builder(MerchantArticle.class, MerchantArticleSummary.class)
     .sorts(List.of(new QuerySort("id", SortDirection.ASC)))
-    .page(new PageRequest(query.page(), query.limit())).build();
+    .page(query.toPageRequest()).build();
 return CrudResponse.success(queryGateway.page(spec));
 ```
 
 网关从可信作用域取得访问者，内核执行授权、商家范围与分页计数。Controller 无需注入访问者、自行解析 `AuthorizationScope` 或为计数重复编写范围 SQL。
+
+无筛选条件的业务分页接口可直接使用公共 `PageInput`：默认第 1 页、每页 20 条，最大 100 条；有业务筛选条件时可在请求 DTO 中组合并通过 `@Valid` 级联校验。应用统一启用 Jackson 未知字段拒绝，业务 DTO 不必逐个声明拒绝方法。
 
 | 接口 | 契约与行为 |
 | --- | --- |
@@ -62,12 +64,40 @@ return CrudResponse.success(queryGateway.page(spec));
 
 商品保留的 MyBatis-Plus Mapper / Service 仅供订单业务流程读取商品，不承载这条通用 CRUD 链路。
 
+## 订单：按动作选择入口，Controller 与 Handler 组合
+
+| 动作 | 唯一 HTTP 入口 | 执行链 |
+| --- | --- | --- |
+| 下单 | `POST /api/orders` | CommerceOrderController → CommandGateway → PlaceOrderHandler → CommerceOrderCommandService |
+| 取消 | `POST /api/ent-crud/commerceOrder/action/cancel` | 通用 Controller → CommandGateway → CancelOrderHandler → CommerceOrderCommandService |
+| 查询 | `/api/ent-crud/commerceOrder/page/detail` 等 | 通用查询流程 |
+
+下单采用明确的业务接口，请求为 `{"items":[{"merchantProductId":101,"quantity":2}]}`，响应保留 `data.orderIds/totalAmount`。Controller 使用 `@EntAccess(accessEntries = "commerce")` 建立可信作用域，调用 `CrudResponse.from(commandGateway.actionResult(PLACE_ORDER, input))`，统一转换 HTTP 响应，保留业务结果、状态、消息和重放标记；`PLACE_ORDER` 与 Handler 注解引用的 `CommerceOrderActions.PlaceOrder` 共用实体、动作及输入输出契约。身份、归属和事务仍由既有授权与业务执行链处理，不直接调用 Service。
+
+订单声明 `httpExcludedActions = CommerceOrder.CREATE`，仅关闭通用 `/action/create` HTTP，不移除内部动作或客户下单授权；`operations = "create="` 继续禁止普通 CRUD 创建绕过业务动作。取消接口的标准契约已满足需求，因此客户、商家和管理员共用通用入口，授权限制订单范围，Service 检查状态与并发条件。每个动作仅保留一个对外入口，HTTP 契约与业务动作独立组合。
+
+动作定义集中在 [CommerceOrderActions](../src/main/java/com/example/minicommerce/order/action/CommerceOrderActions.java)，下单与取消 Handler 均通过注解引用对应定义类。业务代码直接取得结果，HTTP 适配保留完整执行状态：
+
+```java
+// Java 业务调用：类型由共享动作定义约束。
+PlaceOrderResult result = commandGateway.action(PLACE_ORDER, input);
+
+// HTTP 接入：统一保留状态、业务码、消息与重放标记。
+return CrudResponse.from(commandGateway.actionResult(PLACE_ORDER, input));
+```
+
+简单业务可以直接实现在 Handler 中；需要复用业务能力或组织复杂事务时再委托 Service。订单保留命令服务承载拆单和事务编排，不要求所有业务都增加这一层。
+
+请求见 [commerce.http](../requests/commerce.http)。
+
 ## 验证
 
 在示例目录使用 JDK 21：
 
 ```bash
-../../mvnw -Dtest=MerchantArticleIntegrationTest,MerchantProductUpdateIntegrationTest test
+../../mvnw -Dtest=MerchantArticleIntegrationTest,MerchantProductUpdateIntegrationTest,PlaceOrderIntegrationTest,CommerceOrderAccessTest test
 ```
 
 文章测试覆盖自定义分页、详情、增改删、商家隔离、归属填充、实体校验、通用 HTTP 关闭及审计链路；商品测试覆盖公开投影、所属数据、金额校验、字段限制、单条与批量写入、乐观锁和事务回滚。
+
+订单测试覆盖自定义下单入口、身份限制、可信归属、拆单、快照、事务回滚、通用下单入口关闭，以及客户、商家和管理员共用通用取消入口。

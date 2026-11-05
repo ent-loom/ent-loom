@@ -7,14 +7,14 @@ import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.order.dto.CancelOrderCommand;
-import com.example.minicommerce.order.entity.CommerceOrder;
+import com.example.minicommerce.order.action.CommerceOrderActions;
 import com.example.minicommerce.order.service.command.CommerceOrderCommandService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@EntCrudCommandAction(entityClass = CommerceOrder.class, scene = CommerceOrder.CANCEL, name = "取消订单",
+@EntCrudCommandAction(value = CommerceOrderActions.CancelOrder.class, name = "取消订单",
     capability = "cancel-order", accessEntries = "commerce")
 public class CancelOrderHandler implements CommandActionSceneHandler<CancelOrderCommand, Long> {
     private final CommerceOrderCommandService commerceOrderCommandService;

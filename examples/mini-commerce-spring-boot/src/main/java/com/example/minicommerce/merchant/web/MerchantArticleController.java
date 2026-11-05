@@ -1,26 +1,21 @@
 package com.example.minicommerce.merchant.web;
 
 import com.entloom.crud.annotations.EntAccess;
-import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.EntityWriteResult;
-import com.entloom.crud.api.model.PageRequest;
 import com.entloom.crud.api.model.PageResult;
-import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
-import com.example.minicommerce.merchant.dto.CreateMerchantArticle;
+import com.example.minicommerce.common.web.PageInput;
+import com.example.minicommerce.merchant.dto.MerchantArticleCreateInput;
 import com.example.minicommerce.merchant.dto.MerchantArticleSummary;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -43,22 +38,20 @@ public class MerchantArticleController {
     private final CommandGateway commandGateway;
 
     @PostMapping("/page")
-    public CrudResponse<PageResult<MerchantArticleSummary>> page(@Valid @RequestBody Query query) {
+    public CrudResponse<PageResult<MerchantArticleSummary>> page(@Valid @RequestBody PageInput query) {
         var spec = QuerySpec.builder(MerchantArticle.class, MerchantArticleSummary.class)
             .sorts(List.of(new QuerySort("id", SortDirection.ASC)))
-            .page(new PageRequest(query.page(), query.limit())).build();
+            .page(query.toPageRequest()).build();
         return CrudResponse.success(queryGateway.page(spec));
     }
 
     @GetMapping("/{id}")
     public CrudResponse<MerchantArticle> detail(@PathVariable("id") long id) {
-        var spec = QuerySpec.builder(MerchantArticle.class)
-            .filters(List.of(new QueryFilter("id", FilterOperator.EQ, id))).build();
-        return CrudResponse.success(queryGateway.detail(spec));
+        return CrudResponse.success(queryGateway.detail(ARTICLES, id));
     }
 
     @PostMapping
-    public CrudResponse<EntityWriteResult<Long>> create(@RequestBody CreateMerchantArticle input) {
+    public CrudResponse<EntityWriteResult<Long>> create(@RequestBody MerchantArticleCreateInput input) {
         return CrudResponse.success(commandGateway.create(ARTICLES, input.toEntity()));
     }
 
@@ -71,17 +64,5 @@ public class MerchantArticleController {
     @DeleteMapping("/{id}")
     public CrudResponse<EntityWriteResult<Long>> delete(@PathVariable("id") long id) {
         return CrudResponse.success(commandGateway.delete(ARTICLES, id));
-    }
-
-    public record Query(@Min(1) Integer page, @Min(1) @Max(100) Integer limit) {
-        public Query {
-            page = page == null ? 1 : page;
-            limit = limit == null ? 20 : limit;
-        }
-
-        @JsonAnySetter
-        public void rejectUnknownField(String name, Object value) {
-            throw new IllegalArgumentException("不支持的请求字段: " + name);
-        }
     }
 }

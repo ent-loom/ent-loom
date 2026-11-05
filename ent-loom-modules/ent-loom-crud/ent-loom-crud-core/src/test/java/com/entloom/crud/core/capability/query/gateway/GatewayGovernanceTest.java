@@ -114,7 +114,7 @@ class GatewayGovernanceTest {
     }
 
     private QueryGateway queryGateway(QueryRouter queryRouter, CrudGovernanceService governanceService) {
-        return new QueryGatewayImpl(queryRouter, new ExecutionPipeline(governanceService));
+        return new QueryGatewayImpl(queryRouter, new ExecutionPipeline(governanceService), testMetaRegistry(), null);
     }
 
     private CommandGateway commandGateway(

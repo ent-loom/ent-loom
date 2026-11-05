@@ -44,7 +44,7 @@
 
 | 动作 | 请求与约束 |
 | --- | --- |
-| 下单 | `POST /api/ent-crud/commerceOrder/action/create`；客户 Token，载荷只提供 `items`；`customerId` 来自可信身份，`merchantId` 来自商品；跨商家拆单在同一事务中完成 |
+| 下单 | `POST /api/orders`（自定义 Controller → Gateway → Handler，关闭通用下单 HTTP）；客户 Token，载荷只提供 `items`；`customerId` 来自可信身份，`merchantId` 来自商品；跨商家拆单在同一事务中完成 |
 | 取消 | `POST /api/ent-crud/commerceOrder/action/cancel`；载荷 `{"payload":{"orderId":1}}`；客户与商家只能取消所属且状态为 `CREATED` 的订单，归属和原状态同时进入 UPDATE，重复取消拒绝 |
 
 订单关闭通用创建映射，未开放通用更新和删除，不能绕过业务动作。Handler 获取本次授权，订单命令服务在事务中组合 MyBatis-Plus 单实体服务：客户 ID 来自可信身份，商品 ID 来自本次订单，创建逐笔校验订单归属；取消查询和更新均绑定授权范围，更新同时绑定原状态。仅支持全量或客户、商家等值范围，其他范围执行前拒绝。原始 Mapper 由业务负责落实范围与事务，框架不会自动替其施加这些约束。

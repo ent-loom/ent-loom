@@ -8,14 +8,14 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
-import com.example.minicommerce.order.entity.CommerceOrder;
+import com.example.minicommerce.order.action.CommerceOrderActions;
 import com.example.minicommerce.order.service.command.CommerceOrderCommandService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@EntCrudCommandAction(entityClass = CommerceOrder.class, scene = CommerceOrder.CREATE, name = "下单",
+@EntCrudCommandAction(value = CommerceOrderActions.PlaceOrder.class, name = "下单",
     capability = "place-order", accessEntries = "commerce")
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
     private final CommerceOrderCommandService commerceOrderCommandService;

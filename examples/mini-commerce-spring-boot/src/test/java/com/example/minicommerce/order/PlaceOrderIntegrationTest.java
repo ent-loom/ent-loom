@@ -54,7 +54,7 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 同商家商品合并为一笔订单并保留成交快照() throws Exception {
-        String response = mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        String response = mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":1},"
                     + "{\"merchantProductId\":20,\"quantity\":1}]")))
             .andExpect(status().isOk())
@@ -95,7 +95,7 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 业务下单可赋予默认归属但普通DAO局部更新不能转移归属() throws Exception {
-        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":1}]")))
             .andExpect(status().isOk());
         Long orderId = jdbc.queryForObject("select max(id) from commerce_order", Long.class);
@@ -112,7 +112,7 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 多商家下单只生成各商家订单且明细金额与归属一致() throws Exception {
-        String response = mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        String response = mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":2},"
                     + "{\"merchantProductId\":40,\"quantity\":1}]")))
             .andExpect(status().isOk())
@@ -141,7 +141,7 @@ class PlaceOrderIntegrationTest {
     void 小数金额精确计算且商品改价后保留成交金额() throws Exception {
         jdbc.update("update merchant_product set price=0.10 where id=10");
         jdbc.update("update merchant_product set price=19.99 where id=40");
-        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":3},"
                     + "{\"merchantProductId\":40,\"quantity\":2}]")))
             .andExpect(status().isOk())
@@ -170,7 +170,7 @@ class PlaceOrderIntegrationTest {
         jdbc.execute("alter table `%s` add constraint test_order_amount check (%s <= 30)"
             .formatted(table, amountField));
         try {
-            mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+            mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                     .content(command("[{\"merchantProductId\":10,\"quantity\":1},"
                         + "{\"merchantProductId\":40,\"quantity\":1}]")))
                 .andExpect(status().is5xxServerError());
@@ -183,10 +183,10 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 下单拒绝停用或不存在的商家商品() throws Exception {
-        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":30,\"quantity\":1}]")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MERCHANT_PRODUCT_INACTIVE"));
-        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":999,\"quantity\":1}]")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MERCHANT_PRODUCT_NOT_FOUND"));
         assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
@@ -194,6 +194,6 @@ class PlaceOrderIntegrationTest {
     }
 
     private String command(String items) {
-        return "{\"payload\":{\"items\":" + items + "}}";
+        return "{\"items\":" + items + "}";
     }
 }

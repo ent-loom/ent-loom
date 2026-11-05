@@ -428,7 +428,7 @@ class AccessWebAdmissionTest {
     void declared_callable_should_not_fall_back_to_legacy_for_unbound_resources() {
         QueryRouter router = mock(QueryRouter.class);
         CrudGovernanceService legacy = mock(CrudGovernanceService.class);
-        QueryGateway gateway = new QueryGatewayImpl(router, new ExecutionPipeline(legacy));
+        QueryGateway gateway = new QueryGatewayImpl(router, new ExecutionPipeline(legacy), mock(com.entloom.crud.core.runtime.meta.EntityMetaRegistry.class), null);
         runner.withBean(AsyncGatewayController.class, () -> new AsyncGatewayController(gateway)).run(context -> {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
             var initial = mvc.perform(get("/access/async-gateway").header("Authorization", "Bearer merchant")).andReturn();

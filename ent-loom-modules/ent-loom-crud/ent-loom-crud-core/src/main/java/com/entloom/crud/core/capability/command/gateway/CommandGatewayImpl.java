@@ -1,6 +1,10 @@
 package com.entloom.crud.core.capability.command.gateway;
 
 import com.entloom.crud.api.enums.CrudErrorStage;
+import com.entloom.crud.api.model.CommandAction;
+import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.core.runtime.router.CommandActionSceneResolver;
+import com.entloom.crud.core.capability.command.handler.CommandActionContract;
 import com.entloom.crud.core.exception.CrudExceptionContext;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.execution.ExecutionPipeline;
@@ -54,6 +58,21 @@ public class CommandGatewayImpl implements CommandGateway {
         this.idempotencyPolicy = idempotencyPolicy == null ? new IdempotencyPolicy() : idempotencyPolicy;
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
         this.authorizedCommands = authorizedCommands;
+    }
+
+    /** 调用前核对已注册契约，防止错误定义在执行写入后才暴露类型问题。 */
+    @Override
+    public <P, R> CommandResult<R> actionResult(CommandAction<P, R> action, P input) {
+        Objects.requireNonNull(action, "动作定义不能为空");
+        if (!(commandRouter instanceof CommandActionSceneResolver)) {
+            throw new ValidationException("命令路由器缺少业务动作契约解析能力");
+        }
+        CommandActionContract contract = ((CommandActionSceneResolver) commandRouter).resolveActionContract(
+            action.getEntityClass(), java.util.Collections.singletonList(action.getEntityClass()), action.getScene());
+        if (contract.getRequestType() != action.getRequestType() || contract.getResponseType() != action.getResponseType()) {
+            throw new ValidationException("动作定义与已注册契约不匹配: " + action.getScene());
+        }
+        return CommandGateway.super.actionResult(action, input);
     }
 
     /**

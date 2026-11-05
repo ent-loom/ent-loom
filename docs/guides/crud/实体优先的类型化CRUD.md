@@ -53,6 +53,17 @@ public CrudResponse<EntityWriteResult<Long>> update(
 
 `{"title":"新标题"}` 只修改标题；`{"title":null}` 表示显式清空，继续接受实体约束校验。未知属性在绑定时拒绝，主键目标、归属、只读字段、版本和可写权限由内核检查。空 Patch 拒绝，不静默执行空更新。
 
+Java 业务代码使用 Builder 显式构造局部更新，无需维护内部字段集合或 delegate Map：
+
+```java
+var patch = UpdatePatch.builder(MerchantArticle.class, id)
+    .set("title", "新标题")
+    .build();
+commandGateway.update(ARTICLES, id, patch);
+```
+
+`set` 表示显式提交字段，允许传入 null；未调用 `set` 的字段保持不变。`build()` 返回不可变快照，空 Patch 拒绝。启用乐观锁的实体使用 `.expectedVersion(version)` 传入预期版本，不通过 `set("version", ...)` 修改版本。Builder 不授予字段权限，也不替代字段识别、值绑定、实体约束及 DAO 版本检查。
+
 类型化命令保留 `EntityType` 的主键类型，并在 SQL 执行前与实体元数据核对；错误描述符不会先写入再报结果类型错误，基本类型与对应包装类型视为一致。
 
 写入结果使用 `EntityWriteResult<ID>`：`rows` 为影响行数，创建的 `id` 为生成主键。启用乐观锁的删除使用 `delete(type, id, expectedVersion)`。
@@ -62,3 +73,18 @@ public CrudResponse<EntityWriteResult<Long>> update(
 ## 示例
 
 [MerchantArticleController](../../../examples/mini-commerce-spring-boot/src/main/java/com/example/minicommerce/merchant/web/MerchantArticleController.java) 演示实体详情、摘要 DTO、创建输入 DTO 和类型化局部更新；[两种 CRUD 接入演示](../../../examples/mini-commerce-spring-boot/docs/两种CRUD接入演示.md) 对照自定义 Controller 与通用 Controller。
+
+## 业务动作授权与固定更新
+
+业务命令服务通过 `access.requireAction(CommerceOrderActions.CANCEL_ORDER)` 校验当前授权。框架核对当前可信访问作用域、动作实体、实体元数据资源码与动作操作码，业务无需遍历授权内部对象或硬编码资源码。动作契约沿用 Controller 与 Handler 注册共用的 `CommandAction<P, R>`。
+
+```java
+access.requireAction(CommerceOrderActions.CANCEL_ORDER);
+var orders = access.dao(daoFactory, ORDER_TYPE,
+    RowConstraint.eq("status", CommerceOrderStatus.CREATED));
+var patch = UpdatePatch.builder(CommerceOrder.class, id)
+    .set("status", CommerceOrderStatus.CANCELLED).build();
+int rows = orders.updateById(id, patch);
+```
+
+动作校验不替代数据范围约束；DAO 仍将当前授权范围和固定业务条件合并到 SQL。取消订单保留原状态条件，防止并发状态变化被覆盖，并由业务处理未命中的更新结果。

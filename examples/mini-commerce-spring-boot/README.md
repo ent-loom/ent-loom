@@ -4,16 +4,18 @@
 
 > CRUD 2.0 重构进行中；部分旧示例和测试仍待迁移，当前能力以实施清单为准。
 
-## 两种 CRUD 接入方式
+## CRUD 与业务动作接入方式
 
 | 场景 | 实体 | HTTP 入口 | 业务代码 |
 | --- | --- | --- | --- |
 | 自定义 Controller，复用 CRUD 内核 | `MerchantArticle` | `/api/merchant/articles` | Controller 使用实体、摘要 DTO 和类型化 Patch，调用 CRUD 内核 |
+| 自定义 Controller 与 Handler 组合 | `CommerceOrder` 下单 | `/api/orders` | Controller 经 Gateway 调用下单 Handler 与命令服务 |
+| 通用业务动作 | `CommerceOrder` 取消 | `/api/ent-crud/commerceOrder/action/cancel` | 客户、商家和管理员共用取消 Handler，由授权限定范围 |
 | 通用 CRUD 全流程，声明轻度复杂规则 | `MerchantProduct` | `/api/ent-crud/merchantProduct/*` | 实体注解与全局配置；不编写商品 Controller、查询 Service 或 SQL |
 
 文章关闭通用 HTTP，通过自定义路由、扁平写入载荷和固定列表投影体现接口定制；授权、归属填充、字段校验、查询计数、写入事务与审计仍由内核执行。商品通过声明实现商家隔离、公开上架商品、字段白名单、金额校验、乐观锁与批量改价。
 
-完整对照见 [两种 CRUD 接入演示](docs/两种CRUD接入演示.md)。
+完整对照见 [CRUD 与业务动作接入演示](docs/两种CRUD接入演示.md)。
 
 ## 启动
 
@@ -83,7 +85,7 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 | `CommerceOrder` | 客户与商家共用的订单，记录归属、状态和金额 |
 | `CommerceOrderItem` | 订单明细与成交快照，不开放独立 HTTP |
 
-- **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/ent-crud/commerceOrder/action/create`。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
+- **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/orders`，请求直接提交 `items`，不套 `payload`。自定义 `CommerceOrderController` 通过 `CrudResponse.from(commandGateway.actionResult(PLACE_ORDER, input))` 调用下单 Handler，保留结果状态、消息和重放标记；动作常量与 Handler 注解共用 `CommerceOrderActions` 中的类型化定义；实体用 `httpExcludedActions = CommerceOrder.CREATE` 关闭通用下单动作 HTTP，保留内部调用。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
 - **取消**：`POST /api/ent-crud/commerceOrder/action/cancel`，客户与商家只能取消所属且状态为 `CREATED` 的订单。
 - **查询**：订单及商家商品等实体直接复用 `list/page/findOne/detail`，无需业务 Controller 或查询 Service。通用 HTTP 支持动态字段投影，使用动态记录承接授权字段；普通 Java 业务查询默认使用实体或明确 DTO。普通筛选放在 `options`，详情使用顶层 `id`；分页返回 `data.items/data.page`。
 - **文章自定义接口**：[MerchantArticleController](src/main/java/com/example/minicommerce/merchant/web/MerchantArticleController.java) 直接调用查询和命令网关，不经通用 Controller，也不自行拼 SQL 或转换授权范围。请求见 [article.http](requests/article.http)。
@@ -121,7 +123,7 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 
 默认使用 H2 固定表结构，关闭启动 DDL，覆盖数据隔离、字段保护、批量更新、拆单、快照、取消和事务回滚。
 
-两种接入方式可单独验证：`../../mvnw -Dtest=MerchantArticleIntegrationTest,MerchantProductUpdateIntegrationTest test`。
+接入方式可单独验证：`../../mvnw -Dtest=MerchantArticleIntegrationTest,MerchantProductUpdateIntegrationTest,PlaceOrderIntegrationTest,CommerceOrderAccessTest test`。
 
 真实 MySQL 的自动建表、金额类型、索引及业务验收见 [MySQL 8 验收](docs/mysql-acceptance.md)。验收必须使用专用空库，会清理其中的业务数据。
 
@@ -129,4 +131,4 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 
 按业务模块组织服务：实体服务放在 `service/`，查询、摘要与统计服务放在 `service/query/`，独立的业务命令与事务编排服务放在 `service/command/`。仅在存在对应服务时创建子包；包分类不强制增加调用层级。
 
-文章的简单 CRUD 直接由 Controller 调用内核，无需转发 Service；商品的 MyBatis-Plus Mapper / Service 仅供下单流程读取商品，不参与通用 CRUD。订单下单与取消由 `order/service/command/CommerceOrderCommandService.java` 承担。订单 Handler 只负责动作接入、传递可信授权上下文与包装结果；命令服务统一负责业务规则、跨实体协作与事务，包分类不额外增加转发层。
+文章的简单 CRUD 直接由 Controller 调用内核，无需转发 Service；商品的 MyBatis-Plus Mapper / Service 仅供下单流程读取商品，不参与通用 CRUD。订单下单与取消由 `order/service/command/CommerceOrderCommandService.java` 承担。订单下单使用自定义 Controller，取消与查询保留通用入口；每个动作只有一个对外 HTTP 入口。订单 Handler 只负责动作接入、传递可信授权上下文与包装结果；命令服务统一负责业务规则、跨实体协作与事务，包分类不额外增加转发层。命令服务使用 `access.requireAction(PLACE_ORDER / CANCEL_ORDER)` 核对类型化动作授权；取消通过 `UpdatePatch.builder(CommerceOrder.class, id).set("status", CommerceOrderStatus.CANCELLED).build()` 表达固定变更，授权范围与原状态条件仍由 DAO 合并进入 SQL。

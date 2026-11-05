@@ -114,6 +114,25 @@ class MerchantArticleIntegrationTest {
     }
 
     @Test
+    void 分页参数支持默认值并校验边界() throws Exception {
+        for (String body : new String[] {"{}", "{\"page\":null,\"limit\":null}"}) {
+            mvc.perform(post("/api/merchant/articles/page").header("Authorization", "Bearer demo-merchant-a")
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.limit").value(20));
+        }
+        mvc.perform(post("/api/merchant/articles/page").header("Authorization", "Bearer demo-merchant-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"page\":1,\"limit\":100}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.limit").value(100));
+        for (String body : new String[] {"{\"page\":0}", "{\"limit\":0}", "{\"limit\":101}",
+            "{\"unknown\":1}"}) {
+            mvc.perform(post("/api/merchant/articles/page").header("Authorization", "Bearer demo-merchant-a")
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void 管理员全量与非法凭证和非法输入() throws Exception {
         mvc.perform(post("/api/merchant/articles/page").header("Authorization", "Bearer demo-platform-admin")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))

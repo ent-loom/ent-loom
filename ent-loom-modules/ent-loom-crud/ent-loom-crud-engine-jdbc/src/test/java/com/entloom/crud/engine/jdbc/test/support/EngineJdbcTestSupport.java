@@ -159,7 +159,7 @@ public abstract class EngineJdbcTestSupport {
             new DefaultScenePolicyService(new ScenePolicyRegistry(null), new AttributeAccessEntryResolver())
         );
         ExecutionPipeline executionPipeline = new ExecutionPipeline(governanceService);
-        this.queryGateway = new QueryGatewayImpl(queryRouter, executionPipeline);
+        this.queryGateway = new QueryGatewayImpl(queryRouter, executionPipeline, metaRegistry, null);
         this.commandGateway = new CommandGatewayImpl(
             commandRouter,
             idempotencyManager,

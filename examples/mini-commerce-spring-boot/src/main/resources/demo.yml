@@ -37,6 +37,8 @@ ent:
         # 演示入口由服务端路由确定，不能由客户端切换；入口本身不授予实体权限。
         default-access-entry: consumer
         routes:
+          - path: /api/orders/**
+            entry: commerce
           - path: /api/ent-crud/commerceOrder/**
             entry: commerce
           - path: /api/ent-crud/merchantProduct/**

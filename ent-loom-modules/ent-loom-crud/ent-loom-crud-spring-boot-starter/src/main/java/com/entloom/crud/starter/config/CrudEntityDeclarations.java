@@ -112,6 +112,30 @@ public final class CrudEntityDeclarations {
     public Map<String, Set<String>> actions() { return Map.copyOf(actions); }
     public boolean httpExposed(String resource) { return httpExposure.getOrDefault(resource, options.containsKey(resource)); }
 
+    /** 在动作路由注册完成后校验，避免拼错排除码导致 HTTP 意外开放。 */
+    public void validateHttpExcludedActions(EntityMetaRegistry entities,
+        com.entloom.crud.core.runtime.router.CommandActionSceneResolver resolver) {
+        for (EntityMeta meta : entities.getEntityMetas()) {
+            Class<?> type = meta.getEntityType();
+            EntCrudEntity declaration = type.getAnnotation(EntCrudEntity.class);
+            if (declaration == null) continue;
+            Set<String> seen = new LinkedHashSet<>();
+            for (String scene : declaration.httpExcludedActions()) {
+                String source = type.getName() + ".httpExcludedActions: " + scene;
+                require(!scene.isBlank() && scene.equals(scene.trim()) && seen.add(scene),
+                    "排除动作不能为空、含首尾空白或重复: " + source);
+                try {
+                    String canonical = resolver.canonicalizeActionScene(type, List.of(type), scene);
+                    require(scene.equals(canonical), "排除动作必须使用规范 scene 码: " + source);
+                    require(resolver.resolveActionContract(type, List.of(type), scene) != null,
+                        "排除动作未注册: " + source);
+                } catch (RuntimeException error) {
+                    throw new IllegalArgumentException("无效 HTTP 排除动作: " + source, error);
+                }
+            }
+        }
+    }
+
     public void validate(EntityMetaRegistry entities) {
         Set<String> resources = new java.util.LinkedHashSet<>();
         for (EntityMeta meta : entities.getEntityMetas()) {

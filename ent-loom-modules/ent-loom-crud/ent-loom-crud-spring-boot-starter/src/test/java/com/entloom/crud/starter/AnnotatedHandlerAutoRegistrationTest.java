@@ -1,6 +1,7 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.api.model.CommandAction;
 import com.entloom.crud.annotations.EntCrudQueryHandler;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
@@ -213,9 +214,7 @@ class AnnotatedHandlerAutoRegistrationTest {
         }
     }
 
-    @EntCrudCommandAction(
-        entityClass = TestOrderEntity.class,
-        scene = "order.place"
+    @EntCrudCommandAction(value = PlaceOrderActionDefinition.class
     )
     static class PlaceOrderAction implements CommandActionSceneHandler<PlaceOrderRequest, PlaceOrderResponse> {
         @Override
@@ -310,4 +309,10 @@ class AnnotatedHandlerAutoRegistrationTest {
     @com.entloom.crud.annotations.EntCrudEntity(name = "TestOrderEntity", httpExposed = false, actions = {"view", "order.place"})
     static class HandlerBoundary { }
 
+
+    public static final class PlaceOrderActionDefinition extends CommandAction<PlaceOrderRequest, PlaceOrderResponse> {
+        public PlaceOrderActionDefinition() {
+            super(TestOrderEntity.class, "order.place", PlaceOrderRequest.class, PlaceOrderResponse.class);
+        }
+    }
 }

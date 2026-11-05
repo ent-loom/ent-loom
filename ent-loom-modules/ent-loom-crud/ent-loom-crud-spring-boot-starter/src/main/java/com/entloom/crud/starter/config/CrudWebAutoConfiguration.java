@@ -82,6 +82,13 @@ public class CrudWebAutoConfiguration {
     private static final String IMPORT_EXPORT_ENABLED_EXPRESSION =
         "${" + IMPORT_ENABLED_PROPERTY + ":false} or ${" + EXPORT_ENABLED_PROPERTY + ":false}";
 
+    @Bean
+    @ConditionalOnProperty(prefix = "ent.loom.crud.command", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public org.springframework.beans.factory.SmartInitializingSingleton crudHttpExcludedActionsValidator(
+        EntityMetaRegistry entities, CrudEntityDeclarations declarations, CommandActionSceneResolver resolver) {
+        return () -> declarations.validateHttpExcludedActions(entities, resolver);
+    }
+
     /** 同时用于业务 ObjectMapper 和 CRUD ObjectMapper，不要求开启通用 Controller。 */
     @Bean
     public Module crudUpdatePatchModule(ObjectProvider<EntityMetaRegistry> entities) {

@@ -58,6 +58,8 @@ public enum CrudErrorCode {
     SYNC_LIMIT_EXCEEDED,
     /** 行级校验失败。 */
     ROW_VALIDATION_FAILED,
+    /** 业务动作明确拒绝。 */
+    BUSINESS_REJECTED,
     /** 内部错误。 */
     INTERNAL_ERROR
 }

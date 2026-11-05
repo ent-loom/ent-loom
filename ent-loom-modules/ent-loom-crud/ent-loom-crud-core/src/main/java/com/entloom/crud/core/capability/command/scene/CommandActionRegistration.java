@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
+import com.entloom.crud.core.capability.command.handler.CommandActionResults;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.router.CrudRouteKey;
@@ -51,6 +52,8 @@ public final class CommandActionRegistration<P, R> implements CommandSceneHandle
     @Override
     public CommandResult<R> handle(CommandSpec<P> spec,
         SceneDelegate<CommandSpec<P>, CommandResult<R>> delegate) {
-        return handler.handle(spec, delegate);
+        CommandResult<R> result = handler.handle(spec, delegate);
+        CommandActionResults.requireSuccess(result, contract.getResponseType());
+        return result;
     }
 }

@@ -1,5 +1,6 @@
 package com.entloom.e5.statictest;
 
+import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
@@ -76,6 +77,7 @@ class CustomerProfileCrudAdapterTest {
         @SuppressWarnings("unchecked") public <R> PageResult<R> page(QuerySpec<R> spec) { this.spec = (QuerySpec<CustomerProfile>) spec; return new PageResult<R>(); }
         public <R> List<R> list(QuerySpec<R> spec) { throw new UnsupportedOperationException(); }
         public <R> R findOne(QuerySpec<R> spec) { throw new UnsupportedOperationException(); }
+        public <T, ID> T detail(EntityType<T, ID> type, ID id) { throw new UnsupportedOperationException(); }
         public <R> R detail(QuerySpec<R> spec) { throw new UnsupportedOperationException(); }
     }
 

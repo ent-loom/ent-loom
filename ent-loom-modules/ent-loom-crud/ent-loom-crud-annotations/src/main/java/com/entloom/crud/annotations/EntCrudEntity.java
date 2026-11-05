@@ -20,6 +20,9 @@ public @interface EntCrudEntity {
     /** 是否发布通用 HTTP；默认发布，未声明 CRUD 的实体不会被注册。 */
     boolean httpExposed() default true;
 
+    /** 不发布通用 HTTP /action/{scene} 的命令业务动作；使用规范 scene 码，不影响内部 Gateway 调用。 */
+    String[] httpExcludedActions() default {};
+
     /** 框架内部的未指定标记，用于区分缺省与显式空动作集。 */
     String INHERIT_ACTIONS = "<default>";
 

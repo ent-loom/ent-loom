@@ -2,6 +2,7 @@ package com.entloom.crud.core.capability.query.gateway;
 
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.dao.EntityType;
 import java.util.List;
 
 /**
@@ -47,5 +48,18 @@ public interface QueryGateway {
      * @return 详情对象
      */
     <R> R detail(QuerySpec<R> spec);
+
+    /**
+     * 按实体主键获取必须存在的详情，主键字段由实体元数据解析。
+     *
+     * <p>复用详情查询的授权、数据范围和审计链路；不存在或不可见时沿用详情查询语义。</p>
+     *
+     * @param type 实体与主键类型
+     * @param id 非空主键
+     * @param <T> 实体类型
+     * @param <ID> 主键类型
+     * @return 实体详情
+     */
+    <T, ID> T detail(EntityType<T, ID> type, ID id);
 
 }

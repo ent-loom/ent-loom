@@ -1,6 +1,7 @@
 package com.entloom.crud.core.capability.command.engine;
 
 import com.entloom.crud.api.access.*;
+import com.entloom.crud.api.model.CommandAction;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.governance.admission.*;
@@ -18,7 +19,7 @@ class AuthorizedActionContextTest {
         var admission = new AccessAdmissionService(new BusinessIdentityRegistry(List.of())).admit(
             AuthenticationMode.OPTIONAL, CredentialAuthentication::absent, "base", null, null);
         var visitor = admission.getVisitorContext();
-        var context = new AuthorizedActionContext(Order.class, visitor, authorization(visitor), List.of(
+        var context = new AuthorizedActionContext(Order.class, "trade-order", visitor, authorization(visitor), List.of(
             new RelatedDaoAccess(Product.class, RelatedDaoAccess.Operation.READ, "id"),
             new RelatedDaoAccess(Item.class, RelatedDaoAccess.Operation.CREATE, "orderId")));
         try (var ignored = AccessContextScope.enter(admission)) {
@@ -39,9 +40,33 @@ class AuthorizedActionContextTest {
         assertThrows(PermissionDeniedException.class, () -> context.requireDaoMethod(Product.class, "findById"));
     }
 
+    @Test
+    void 类型化动作核对实体资源操作且不能跨作用域使用() {
+        var admission = new AccessAdmissionService(new BusinessIdentityRegistry(List.of())).admit(
+            AuthenticationMode.OPTIONAL, CredentialAuthentication::absent, "base", null, null);
+        var visitor = admission.getVisitorContext();
+        var result = authorization(visitor);
+        var context = new AuthorizedActionContext(Order.class, "trade-order", visitor, result, List.of());
+        var create = action(Order.class, "create");
+        try (var ignored = AccessContextScope.enter(admission)) {
+            assertDoesNotThrow(() -> context.requireAction(create));
+            assertThrows(PermissionDeniedException.class, () -> context.requireAction(action(Product.class, "create")));
+            assertThrows(PermissionDeniedException.class, () -> context.requireAction(action(Order.class, "cancel")));
+            assertThrows(PermissionDeniedException.class, () -> context.requireAction(null));
+            // 元数据资源码可以不同于类名，但必须与授权请求中的资源一致。
+            var wrongResource = new AuthorizedActionContext(Order.class, "other", visitor, result, List.of());
+            assertThrows(PermissionDeniedException.class, () -> wrongResource.requireAction(create));
+        }
+        assertThrows(PermissionDeniedException.class, () -> context.requireAction(create));
+    }
+
+    private CommandAction<Void, Void> action(Class<?> entityType, String scene) {
+        return new CommandAction<Void, Void>(entityType, scene, Void.class, Void.class) { };
+    }
+
     private AuthorizationResult authorization(VisitorContext visitor) {
-        var resource = new ResourceDescriptor(Order.class, "order", null, List.of());
-        var operation = new BusinessOperation("order", "create");
+        var resource = new ResourceDescriptor(Order.class, "trade-order", null, List.of());
+        var operation = new BusinessOperation("trade-order", "create");
         var catalog = new BusinessOperationCatalog(List.of(resource), List.of(new BusinessOperationDeclaration(operation, "测试")));
         var meta = new EntityMeta(Order.class, resource, "orders", "id", null,
             Map.of("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true),

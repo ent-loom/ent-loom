@@ -1165,6 +1165,30 @@ class JdbcEntityDaoTest extends EngineJdbcTestSupport {
     }
 
     @Test
+    void 业务Patch构造器复用DAO版本检查并支持显式清空() {
+        jdbcTemplate.execute("drop table if exists t_versioned_order");
+        jdbcTemplate.execute("create table t_versioned_order(" +
+            "id bigint primary key, name varchar(64), tenant_id varchar(64) not null, version bigint not null)");
+        EntityMetaRegistry registry = versionedRegistry();
+        EntityDao<VersionedEntity, Long> dao = versionedDao(registry);
+        VersionedEntity entity = new VersionedEntity();
+        entity.id = 4L;
+        entity.name = "待清空";
+        dao.insert(entity);
+
+        UpdatePatch<VersionedEntity> missing = UpdatePatch.builder(VersionedEntity.class, 4L)
+            .set("name", null).build();
+        Assertions.assertThrows(ValidationException.class, () -> dao.updateById(4L, missing));
+        UpdatePatch<VersionedEntity> patch = UpdatePatch.builder(VersionedEntity.class, 4L)
+            .set("name", null).expectedVersion(0L).build();
+        Assertions.assertEquals(1, dao.updateById(4L, patch));
+        Assertions.assertNull(jdbcTemplate.queryForObject("select name from t_versioned_order where id=4", String.class));
+        Assertions.assertEquals(Long.valueOf(1L), jdbcTemplate.queryForObject(
+            "select version from t_versioned_order where id=4", Long.class));
+        Assertions.assertThrows(EntityDaoWriteMissException.class, () -> dao.updateById(4L, patch));
+    }
+
+    @Test
     void versioned_entity_should_reject_missing_version_on_entity_update() {
         jdbcTemplate.execute("drop table if exists t_versioned_order");
         jdbcTemplate.execute(

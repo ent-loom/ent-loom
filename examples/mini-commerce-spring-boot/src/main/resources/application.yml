@@ -7,6 +7,9 @@ spring:
       - optional:file:./.env[.properties]
   application:
     name: mini-commerce-spring-boot
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3308}/${MYSQL_DATABASE:mini_commerce}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USER:mini_commerce}

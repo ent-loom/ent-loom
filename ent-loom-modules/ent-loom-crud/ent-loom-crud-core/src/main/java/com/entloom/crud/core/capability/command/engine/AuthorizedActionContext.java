@@ -1,6 +1,7 @@
 package com.entloom.crud.core.capability.command.engine;
 
 import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.model.CommandAction;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.dao.*;
 import com.entloom.crud.core.exception.PermissionDeniedException;
@@ -11,13 +12,15 @@ import com.entloom.crud.core.governance.admission.AccessContextScope;
 /** 统一动作入口注入的可信授权；业务 Handler 以此绑定 DAO 范围，再执行固定业务规则。 */
 public final class AuthorizedActionContext {
     private final Class<?> entityType;
+    private final String resourceCode;
     private final VisitorContext visitor;
     private final AuthorizationResult authorization;
     private final java.util.Map<Class<?>, RelatedDaoAccess> relatedAccess;
 
-    AuthorizedActionContext(Class<?> entityType, VisitorContext visitor, AuthorizationResult authorization,
+    AuthorizedActionContext(Class<?> entityType, String resourceCode, VisitorContext visitor, AuthorizationResult authorization,
         java.util.List<RelatedDaoAccess> relatedAccess) {
         this.entityType = entityType;
+        this.resourceCode = java.util.Objects.requireNonNull(resourceCode, "动作资源码不能为空");
         this.visitor = visitor;
         this.authorization = authorization;
         java.util.Map<Class<?>, RelatedDaoAccess> related = new java.util.LinkedHashMap<>();
@@ -37,6 +40,16 @@ public final class AuthorizedActionContext {
         context.requireCurrent();
         if (context.entityType() != spec.getRootType()) throw new PermissionDeniedException("业务动作实体与当前授权不匹配");
         return context;
+    }
+
+    /** 校验当前可信授权是否匹配类型化动作；资源码来自执行入口解析的实体元数据。 */
+    public void requireAction(CommandAction<?, ?> action) {
+        requireCurrent();
+        if (action == null || entityType != action.getEntityClass()
+            || !resourceCode.equals(authorization.getRequest().getOperation().getResourceCode())
+            || !action.getScene().equals(authorization.getRequest().getOperation().getOperationCode())) {
+            throw new PermissionDeniedException("业务动作授权不匹配");
+        }
     }
 
     /** 固定业务写入由 Handler 决定字段，数据范围进入实际 SQL；不等价于授予通用 update。 */

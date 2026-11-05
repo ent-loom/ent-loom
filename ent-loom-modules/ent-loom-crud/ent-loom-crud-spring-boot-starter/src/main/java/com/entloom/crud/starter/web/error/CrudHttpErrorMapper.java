@@ -4,6 +4,7 @@ import com.entloom.crud.api.enums.CrudErrorCode;
 import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.api.model.CrudErrorEnvelope;
 import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.core.exception.CommandActionRejectedException;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -20,7 +21,8 @@ public final class CrudHttpErrorMapper {
             return new CrudHttpErrorDescriptor(
                 status,
                 new CrudErrorEnvelope(
-                    crudException.getErrorCode().name(),
+                    (crudException instanceof CommandActionRejectedException)
+                        ? ((CommandActionRejectedException) crudException).getCode() : crudException.getErrorCode().name(),
                     status.is5xxServerError() ? "服务暂时不可用，请稍后重试" : crudException.getMessage(),
                     crudException.getStage() == null ? CrudErrorStage.HTTP_CONTRACT : crudException.getStage(),
                     status.is5xxServerError() ? null : crudException.getRouteKey(),
@@ -43,6 +45,7 @@ public final class CrudHttpErrorMapper {
 
     private static HttpStatus mapStatus(CrudErrorCode errorCode) {
         switch (errorCode) {
+            case BUSINESS_REJECTED:
             case VALIDATION_ERROR:
             case TYPE_RESOLUTION_FAILED:
             case ENTITY_SCOPE_ILLEGAL:

@@ -1,6 +1,9 @@
 package com.entloom.crud.core.capability.command.patch;
 
+import com.entloom.crud.core.exception.ValidationException;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -9,6 +12,44 @@ import java.util.Set;
  * @param <T> 实体类型
  */
 public interface UpdatePatch<T> {
+    /** 构造业务代码中的局部更新；字段、类型与版本规则仍由写入内核校验。 */
+    static <T> Builder<T> builder(Class<T> entityType, Object id) {
+        return new Builder<T>(entityType, id);
+    }
+
+    /** 显式 set 表示字段已提交，包括值为 null 的清空操作。 */
+    final class Builder<T> {
+        private final Class<T> entityType;
+        private final Object id;
+        private final Map<String, Object> values = new LinkedHashMap<String, Object>();
+        private Long expectedVersion;
+
+        private Builder(Class<T> entityType, Object id) {
+            this.entityType = Objects.requireNonNull(entityType, "Patch 实体类型不能为空");
+            this.id = Objects.requireNonNull(id, "Patch 主键不能为空");
+        }
+
+        public Builder<T> set(String field, Object value) {
+            if (field == null || field.trim().isEmpty() || !field.equals(field.trim())) {
+                throw new ValidationException("Patch 字段名不能为空或包含首尾空格");
+            }
+            values.put(field, value);
+            return this;
+        }
+
+        /** 乐观锁预期版本，不作为普通字段写入。 */
+        public Builder<T> expectedVersion(Long version) {
+            this.expectedVersion = version;
+            return this;
+        }
+
+        public UpdatePatch<T> build() {
+            if (values.isEmpty()) throw new ValidationException("UpdatePatch 不能为空");
+            return new DefaultUpdatePatch<T>(entityType, null, id, expectedVersion,
+                values.keySet(), values.keySet(), values, values, null);
+        }
+    }
+
     Class<T> getEntityType();
 
     T getEntity();

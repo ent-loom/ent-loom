@@ -1,6 +1,11 @@
 package com.entloom.crud.core.capability.query.gateway;
 
 import com.entloom.crud.api.enums.CrudErrorStage;
+import com.entloom.crud.api.enums.FilterOperator;
+import com.entloom.crud.api.model.QueryFilter;
+import com.entloom.crud.core.capability.dao.EntityType;
+import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.exception.CrudExceptionContext;
@@ -16,6 +21,7 @@ import com.entloom.crud.core.capability.query.spec.QueryExecutionSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.runtime.spec.SpecSnapshotFactory;
 import com.entloom.crud.core.util.RouteKeyFactory;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -29,15 +35,14 @@ public class QueryGatewayImpl implements QueryGateway {
     /** 统一执行管线。 */
     private final ExecutionPipeline executionPipeline;
     private final AuthorizedQueryExecutor authorizedQueries;
-
-    public QueryGatewayImpl(QueryRouter queryRouter, ExecutionPipeline executionPipeline) {
-        this(queryRouter, executionPipeline, null);
-    }
+    /** 实体元数据，用于解析主键属性。 */
+    private final EntityMetaRegistry metaRegistry;
 
     public QueryGatewayImpl(QueryRouter queryRouter, ExecutionPipeline executionPipeline,
-                            AuthorizedQueryExecutor authorizedQueries) {
+                            EntityMetaRegistry metaRegistry, AuthorizedQueryExecutor authorizedQueries) {
         this.queryRouter = Objects.requireNonNull(queryRouter, "queryRouter 不能为空");
         this.executionPipeline = Objects.requireNonNull(executionPipeline, "executionPipeline 不能为空");
+        this.metaRegistry = Objects.requireNonNull(metaRegistry, "metaRegistry 不能为空");
         this.authorizedQueries = authorizedQueries;
     }
 
@@ -107,6 +112,34 @@ public class QueryGatewayImpl implements QueryGateway {
                 return context.route().handler().detail(context.executionSpec());
             }
         );
+    }
+
+    @Override
+    public <T, ID> T detail(EntityType<T, ID> type, ID id) {
+        Objects.requireNonNull(type, "实体类型不能为空");
+        if (id == null || !boxedType(type.idClass()).isInstance(id)) {
+            throw new ValidationException("主键不能为空且必须匹配声明的主键类型");
+        }
+        EntityMeta meta = metaRegistry.getEntityMeta(type.entityClass());
+        if (meta == null || meta.getIdField() == null || meta.getIdField().trim().isEmpty()) {
+            throw new ValidationException("实体未声明主键: " + type.entityClass().getName());
+        }
+        return detail(QuerySpec.builder(type.entityClass())
+            .filters(Collections.singletonList(new QueryFilter(meta.getIdField(), FilterOperator.EQ, id)))
+            .build());
+    }
+
+    /** 主键参数经 Java 自动装箱后，仍按声明的精确类型校验。 */
+    private static Class<?> boxedType(Class<?> type) {
+        if (type == long.class) return Long.class;
+        if (type == int.class) return Integer.class;
+        if (type == short.class) return Short.class;
+        if (type == byte.class) return Byte.class;
+        if (type == boolean.class) return Boolean.class;
+        if (type == double.class) return Double.class;
+        if (type == float.class) return Float.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private AuthorizedQueryExecutor requireAuthorizedQueries() {

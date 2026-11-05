@@ -1,5 +1,6 @@
 package com.entloom.crud.engine.jdbc.query;
 
+import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.access.AuthenticationMode;
@@ -164,7 +165,7 @@ class JdbcAuthorizedQueryExecutorTest {
         legacyRouter = mock(QueryRouter.class);
         legacyGovernance = mock(CrudGovernanceService.class);
         gateway = new QueryGatewayImpl(legacyRouter,
-            new ExecutionPipeline(legacyGovernance, adapter), executor);
+            new ExecutionPipeline(legacyGovernance, adapter), entities, executor);
         allowed = true;
         fields = fields("id", "orderNo");
         scope = AuthorizationScope.or(Arrays.asList(
@@ -526,6 +527,22 @@ class JdbcAuthorizedQueryExecutorTest {
             assertEquals(AuthorizationScope.Kind.OR, event.getAuthorizationResult().getScope().getKind());
             assertNull(event.getGovernanceScope());
         }
+        verifyNoInteractions(legacyRouter, legacyGovernance);
+    }
+
+    @Test
+    void 按主键详情复用授权范围逻辑删除与审计() {
+        var type = EntityType.of(OrderTestEntity.class, Long.class);
+        fields = fields("id", "orderNo", "schoolId", "tenantId", "isDeleted");
+        AccessContextScope.withAdmission(admission(), () -> {
+            assertEquals("one", gateway.detail(type, 1L).getOrderNo());
+            for (long id : new long[]{99L, 13L, 15L}) {
+                assertThrows(com.entloom.crud.core.exception.NotFoundException.class,
+                    () -> gateway.detail(type, id));
+            }
+        });
+        assertEquals(Arrays.asList("1", "99", "13", "15"), targets);
+        assertEquals(4, audit.size());
         verifyNoInteractions(legacyRouter, legacyGovernance);
     }
 

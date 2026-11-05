@@ -192,9 +192,10 @@ public class CrudGatewayConfiguration {
     public QueryGateway queryGateway(
         QueryRouter queryRouter,
         ExecutionPipeline executionPipeline,
+        EntityMetaRegistry metaRegistry,
         ObjectProvider<AuthorizedQueryExecutor> authorizedQueries
     ) {
-        return new QueryGatewayImpl(queryRouter, executionPipeline, authorizedQueries.getIfAvailable());
+        return new QueryGatewayImpl(queryRouter, executionPipeline, metaRegistry, authorizedQueries.getIfAvailable());
     }
 
     /**

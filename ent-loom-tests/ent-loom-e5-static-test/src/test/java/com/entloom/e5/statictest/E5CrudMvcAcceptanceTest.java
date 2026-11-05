@@ -5,6 +5,7 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.api.model.CommandAction;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
@@ -279,9 +280,7 @@ class E5CrudMvcAcceptanceTest {
         public void setStatus(String status) { this.status = status; }
     }
 
-    @EntCrudCommandAction(
-        entityClass = CustomerProfile.class,
-        scene = "profile.activate"
+    @EntCrudCommandAction(value = ProfileActivateActionDefinition.class
     )
     static final class ProfileActivateAction implements CommandActionSceneHandler<ProfileActionRequest, ProfileActionResponse> {
         @Override
@@ -293,6 +292,12 @@ class E5CrudMvcAcceptanceTest {
             response.setProfileId(spec.getPayload().getProfileId());
             response.setStatus("activated");
             return CommandResult.success(response);
+        }
+    }
+
+    public static final class ProfileActivateActionDefinition extends CommandAction<ProfileActionRequest, ProfileActionResponse> {
+        public ProfileActivateActionDefinition() {
+            super(CustomerProfile.class, "profile.activate", ProfileActionRequest.class, ProfileActionResponse.class);
         }
     }
 }

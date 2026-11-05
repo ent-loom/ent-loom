@@ -110,6 +110,7 @@ class CrudHttpErrorMapperContractTest {
     private Map<CrudErrorCode, HttpStatus> expectedStatuses() {
         EnumMap<CrudErrorCode, HttpStatus> statuses = new EnumMap<>(CrudErrorCode.class);
         put(statuses, HttpStatus.BAD_REQUEST,
+            CrudErrorCode.BUSINESS_REJECTED,
             CrudErrorCode.VALIDATION_ERROR,
             CrudErrorCode.TYPE_RESOLUTION_FAILED,
             CrudErrorCode.ENTITY_SCOPE_ILLEGAL,

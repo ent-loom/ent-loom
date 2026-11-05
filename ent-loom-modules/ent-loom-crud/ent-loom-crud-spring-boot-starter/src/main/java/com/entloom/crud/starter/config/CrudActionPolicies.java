@@ -22,12 +22,13 @@ public final class CrudActionPolicies {
         for (String beanName : beans.getBeanNamesForAnnotation(EntCrudCommandAction.class)) {
             EntCrudCommandAction action = beans.findAnnotationOnBean(beanName, EntCrudCommandAction.class);
             if (action == null) continue;
+            var definition = CommandActionDefinitions.resolve(action);
             boolean hasPolicy = !action.capability().isBlank() || action.accessEntries().length > 0 || action.portals().length > 0;
             if (!hasPolicy) continue;
-            if (action.capability().isBlank() || action.accessEntries().length == 0 || action.scene().isBlank()) {
-                throw new IllegalArgumentException("动作策略必须声明 scene、capability 和 accessEntries: " + beanName);
+            if (action.capability().isBlank() || action.accessEntries().length == 0) {
+                throw new IllegalArgumentException("动作策略必须声明 capability 和 accessEntries: " + beanName);
             }
-            var resource = entities.getResourceDescriptor(action.entityClass());
+            var resource = entities.getResourceDescriptor(definition.getEntityClass());
             if (resource == null) throw new IllegalArgumentException("动作引用未注册实体: " + beanName);
             Set<String> portals = new LinkedHashSet<>();
             for (String portal : action.portals()) {
@@ -38,7 +39,7 @@ public final class CrudActionPolicies {
             for (String entry : action.accessEntries()) {
                 if (entry.isBlank()) throw new IllegalArgumentException("动作入口不能为空: " + beanName);
                 result.add(new ScenePolicy(new ScenePolicyKey(entry, resource.getResourceCode(),
-                    CrudOperationKey.of(CommandOperation.ACTION), action.scene()), action.capability(),
+                    CrudOperationKey.of(CommandOperation.ACTION), definition.getScene()), action.capability(),
                     portals));
             }
         }

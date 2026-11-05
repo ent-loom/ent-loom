@@ -47,6 +47,31 @@ class UpdatePatchWriteCommandFactoryTest {
         }
     }
 
+    @Test
+    void 构造器保留显式清空与版本且生成不可变快照() {
+        var builder = UpdatePatch.builder(TestEntity.class, 7L).set("name", null).expectedVersion(3L);
+        var patch = builder.build();
+        builder.set("name", "后续值").set("other", 1);
+        var command = UpdatePatchWriteCommandFactory.create(patch, meta());
+        Assertions.assertEquals(7L, command.getId());
+        Assertions.assertTrue(command.getValues().containsKey("name"));
+        Assertions.assertNull(command.getValues().get("name"));
+        Assertions.assertEquals(3L, patch.getExpectedVersion());
+        Assertions.assertEquals(set("name"), patch.getPresentFields());
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> patch.getValuesForDelegate().put("name", "篡改"));
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> patch.getPresentFields().add("other"));
+    }
+
+    @Test
+    void 构造器仍由内核拒绝主键未知只读与版本字段() {
+        for (String field : Arrays.asList("id", "unknown", "createdAt", "version")) {
+            var patch = UpdatePatch.builder(TestEntity.class, 7L).set(field, "非法写入").build();
+            Assertions.assertThrows(ValidationException.class, () -> UpdatePatchWriteCommandFactory.create(patch, meta()));
+        }
+        Assertions.assertThrows(ValidationException.class, () -> UpdatePatch.builder(TestEntity.class, 7L).build());
+        Assertions.assertThrows(ValidationException.class, () -> UpdatePatch.builder(TestEntity.class, 7L).set(" ", 1));
+    }
+
     private UpdatePatch<TestEntity> patch(
         Set<String> presentFields,
         Set<String> persistableFields,

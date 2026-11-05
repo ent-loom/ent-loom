@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.api.model.CommandAction;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RootBeanDefinition;
@@ -36,12 +37,30 @@ class CrudActionPoliciesTest {
 
     private static class Order { }
 
-    @EntCrudCommandAction(entityClass = Order.class, scene = "create", capability = "place-order", accessEntries = "commerce")
+    @EntCrudCommandAction(value = HandlerDefinition.class, capability = "place-order", accessEntries = "commerce")
     private static class Handler { }
 
-    @EntCrudCommandAction(entityClass = Order.class, scene = "create", capability = "place-order")
+    @EntCrudCommandAction(value = IncompleteHandlerDefinition.class, capability = "place-order")
     private static class IncompleteHandler { }
 
-    @EntCrudCommandAction(entityClass = Order.class, scene = "create", capability = "place-order", accessEntries = "commerce", portals = " ")
+    @EntCrudCommandAction(value = BlankPortalHandlerDefinition.class, capability = "place-order", accessEntries = "commerce", portals = " ")
     private static class BlankPortalHandler { }
+
+    public static final class HandlerDefinition extends CommandAction<Void, Void> {
+        public HandlerDefinition() {
+            super(Order.class, "create", Void.class, Void.class);
+        }
+    }
+
+    public static final class IncompleteHandlerDefinition extends CommandAction<Void, Void> {
+        public IncompleteHandlerDefinition() {
+            super(Order.class, "create", Void.class, Void.class);
+        }
+    }
+
+    public static final class BlankPortalHandlerDefinition extends CommandAction<Void, Void> {
+        public BlankPortalHandlerDefinition() {
+            super(Order.class, "create", Void.class, Void.class);
+        }
+    }
 }

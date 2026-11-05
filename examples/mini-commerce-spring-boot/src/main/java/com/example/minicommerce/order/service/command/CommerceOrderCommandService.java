@@ -1,13 +1,15 @@
 package com.example.minicommerce.order.service.command;
 
+import static com.example.minicommerce.order.action.CommerceOrderActions.CANCEL_ORDER;
+import static com.example.minicommerce.order.action.CommerceOrderActions.PLACE_ORDER;
+
 import com.entloom.crud.core.capability.command.engine.AuthorizedActionContext;
-import com.entloom.crud.core.capability.command.patch.DefaultUpdatePatch;
+import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
-import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.customer.service.CustomerService;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
@@ -46,7 +48,7 @@ public class CommerceOrderCommandService {
 
     @Transactional
     public PlaceOrderResult place(AuthorizedActionContext access, PlaceOrderCommand command) {
-        requireAction(access, CommerceOrder.CREATE);
+        access.requireAction(PLACE_ORDER);
         EntityDao<CommerceOrder, Long> orders = access.dao(daoFactory, ORDER_TYPE);
         Set<Long> productIds = validateItems(command);
         Long customerId = requireCustomer(access);
@@ -56,16 +58,15 @@ public class CommerceOrderCommandService {
 
     @Transactional
     public Long cancel(AuthorizedActionContext access, Long id) {
-        requireAction(access, CommerceOrder.CANCEL);
+        access.requireAction(CANCEL_ORDER);
         CommerceOrder order = access.dao(daoFactory, ORDER_TYPE).findById(id).orElse(null);
         if (order == null) throw new BusinessException(CommerceOrderError.ORDER_NOT_FOUND);
         if (order.getStatus() != CommerceOrderStatus.CREATED) throw new BusinessException(CommerceOrderError.ORDER_NOT_CANCELLABLE);
         // 状态条件与授权范围共同进入 UPDATE，防止查询后的并发状态变化被覆盖。
         EntityDao<CommerceOrder, Long> cancellableOrders = access.dao(daoFactory, ORDER_TYPE,
             RowConstraint.eq("status", CommerceOrderStatus.CREATED));
-        Map<String, Object> values = Map.of("status", CommerceOrderStatus.CANCELLED);
-        var patch = new DefaultUpdatePatch<>(CommerceOrder.class, null, id,
-            values.keySet(), values.keySet(), values, values, null);
+        var patch = UpdatePatch.builder(CommerceOrder.class, id)
+            .set("status", CommerceOrderStatus.CANCELLED).build();
         if (cancellableOrders.updateById(id, patch) != 1) throw new EntityDaoWriteMissException("目标不存在或不可写: CommerceOrder");
         return id;
     }
@@ -132,14 +133,5 @@ public class CommerceOrderCommandService {
             }
         }
         return new PlaceOrderResult(orderIds, total);
-    }
-
-    private static void requireAction(AuthorizedActionContext access, String operation) {
-        access.requireCurrent();
-        if (access.entityType() != CommerceOrder.class
-            || !"commerceOrder".equals(access.authorization().getRequest().getOperation().getResourceCode())
-            || !operation.equals(access.authorization().getRequest().getOperation().getOperationCode())) {
-            throw new PermissionDeniedException("订单动作授权不匹配");
-        }
     }
 }

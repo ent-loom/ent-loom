@@ -69,7 +69,7 @@ public final class AuthorizedActionCommandExecutor implements AuthorizedCommandE
                 ((com.entloom.crud.core.runtime.router.CommandActionSceneResolver) router).resolveActionContract(
                     spec.getRootType(), spec.getEntityClasses(), spec.getScene());
             attributes.put(AuthorizedActionContext.ATTRIBUTE, new AuthorizedActionContext(
-                spec.getRootType(), visitor, result, contract.getRelatedAccess()));
+                spec.getRootType(), resource, visitor, result, contract.getRelatedAccess()));
             CommandExecutionSpec<P> execution = CommandExecutionSpec.<P>executionBuilder().from(spec).attributes(attributes).build();
             com.entloom.crud.core.runtime.router.CommandRoute<P, R> route = router.<P, R>route(execution);
             stage = CrudErrorStage.EXECUTE;

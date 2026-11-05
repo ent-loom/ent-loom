@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config.module;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.starter.config.CommandActionDefinitions;
 import com.entloom.crud.annotations.EntCrudQueryHandler;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationDomain;
@@ -314,13 +315,11 @@ public class SceneHandlerRegistrar implements InitializingBean {
         if (annotation == null) {
             throw new ValidationException("ACTION 处理器必须声明 @EntCrudCommandAction: " + beanClass.getName());
         }
-        String expectedScene = RouteKeyFactory.normalizeScene(annotation.scene());
-        if (expectedScene.isEmpty()) {
-            throw new ValidationException("@EntCrudCommandAction.scene 不能为空: " + beanClass.getName());
-        }
-        var resource = applicationContext.getBean(EntityMetaRegistry.class).getResourceDescriptor(annotation.entityClass());
+        var definition = CommandActionDefinitions.resolve(annotation);
+        String expectedScene = definition.getScene();
+        var resource = applicationContext.getBean(EntityMetaRegistry.class).getResourceDescriptor(definition.getEntityClass());
         if (resource == null) throw new ValidationException("ACTION 处理器引用未注册实体: " + beanClass.getName()
-            + ", entity=" + annotation.entityClass().getName());
+            + ", entity=" + definition.getEntityClass().getName());
         if (!applicationContext.getBean(ScenePolicyRegistry.class).allowsAction(resource.getResourceCode(), expectedScene)) {
             throw new ValidationException("ACTION 处理器超出实体动作边界: " + beanClass.getName() + ", scene=" + expectedScene);
         }
@@ -330,7 +329,10 @@ public class SceneHandlerRegistrar implements InitializingBean {
         }
         Class<P> requestType = resolveActionType(handlerType.getGeneric(0), beanClass);
         Class<R> responseType = resolveActionType(handlerType.getGeneric(1), beanClass);
-        return new CommandActionRegistration<P, R>(annotation.entityClass(), expectedScene, requestType, responseType, handler);
+        if (requestType != definition.getRequestType() || responseType != definition.getResponseType()) {
+            throw new ValidationException("动作定义与 Handler 泛型不匹配: " + beanClass.getName());
+        }
+        return new CommandActionRegistration<P, R>(definition.getEntityClass(), expectedScene, requestType, responseType, handler);
     }
 
     @SuppressWarnings("unchecked")

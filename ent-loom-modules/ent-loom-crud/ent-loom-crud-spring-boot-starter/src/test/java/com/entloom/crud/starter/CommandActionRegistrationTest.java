@@ -1,6 +1,7 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.api.model.CommandAction;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
@@ -75,7 +76,7 @@ class CommandActionRegistrationTest {
     void should_reject_empty_scene() {
         try (GenericApplicationContext context = context(new EmptySceneAction())) {
             assertThatThrownBy(() -> register(context)).isInstanceOf(ValidationException.class)
-                .hasMessageContaining("scene 不能为空");
+                .hasRootCauseMessage("动作 scene 不能为空");
         }
     }
 
@@ -96,6 +97,17 @@ class CommandActionRegistrationTest {
         }
     }
 
+    @Test
+    void 应拒绝与共享定义不一致的处理器类型() {
+        try (GenericApplicationContext context = context(new MismatchedAction())) {
+            assertThatThrownBy(() -> register(context)).isInstanceOf(ValidationException.class)
+                .hasMessageContaining("动作定义与 Handler 泛型不匹配");
+        }
+    }
+
+    @EntCrudCommandAction(GenericActionDefinition.class)
+    public static class MismatchedAction extends GenericAction<String, Long> { }
+
     private GenericApplicationContext context(CommandActionSceneHandler<?, ?> handler) {
         GenericApplicationContext context = new GenericApplicationContext();
         context.getBeanFactory().registerSingleton("action", handler);
@@ -115,7 +127,7 @@ class CommandActionRegistrationTest {
         return router;
     }
 
-    @EntCrudCommandAction(entityClass = TestEntity.class, scene = "ORDER.PLACE")
+    @EntCrudCommandAction(value = GenericActionDefinition.class)
     public static class GenericAction<P, R> implements CommandActionSceneHandler<P, R> {
         @Override
         @SuppressWarnings("unchecked")
@@ -128,11 +140,11 @@ class CommandActionRegistrationTest {
     public static class BoundAction extends GenericAction<String, String> {
     }
 
-    @EntCrudCommandAction(entityClass = TestEntity.class, scene = " ")
+    @EntCrudCommandAction(value = EmptySceneActionDefinition.class)
     public static class EmptySceneAction extends BoundAction {
     }
 
-    @EntCrudCommandAction(entityClass = RestrictedEntity.class, scene = "cancel")
+    @EntCrudCommandAction(value = ForbiddenActionDefinition.class)
     public static class ForbiddenAction extends BoundAction {
     }
 
@@ -148,5 +160,23 @@ class CommandActionRegistrationTest {
     }
 
     private static class TestEntity {
+    }
+
+    public static final class GenericActionDefinition extends CommandAction<String, String> {
+        public GenericActionDefinition() {
+            super(TestEntity.class, "ORDER.PLACE", String.class, String.class);
+        }
+    }
+
+    public static final class EmptySceneActionDefinition extends CommandAction<String, String> {
+        public EmptySceneActionDefinition() {
+            super(TestEntity.class, " ", String.class, String.class);
+        }
+    }
+
+    public static final class ForbiddenActionDefinition extends CommandAction<String, String> {
+        public ForbiddenActionDefinition() {
+            super(RestrictedEntity.class, "cancel", String.class, String.class);
+        }
     }
 }
