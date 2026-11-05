@@ -19,6 +19,9 @@ ent:
         http:
           enabled: true
     crud:
+      identities:
+        operator:
+          id-type: LONG
       example:
         enabled: true
         accounts:

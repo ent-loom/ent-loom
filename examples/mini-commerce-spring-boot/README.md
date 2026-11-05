@@ -67,11 +67,11 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 | `CustomerLevel` | 用户在商家的会员等级：商家维护本店记录，用户只读自己的记录 |
 | `Merchant` | 匿名及顾客只读商家 ID、名称；商家仅查看和修改本人资料，超级管理员可管理全部 |
 | `MerchantProduct`、`MerchantArticle` | 商家商品与文章，维护复用通用 CRUD |
-| `Order` | 客户与商家共用的订单，记录归属、状态和金额 |
-| `OrderItem` | 订单明细与成交快照，不开放独立 HTTP |
+| `CommerceOrder` | 客户与商家共用的订单，记录归属、状态和金额 |
+| `CommerceOrderItem` | 订单明细与成交快照，不开放独立 HTTP |
 
-- **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/ent-crud/order/action/create`。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
-- **取消**：`POST /api/ent-crud/order/action/cancel`，客户与商家只能取消所属且状态为 `CREATED` 的订单。
+- **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/ent-crud/commerceOrder/action/create`。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
+- **取消**：`POST /api/ent-crud/commerceOrder/action/cancel`，客户与商家只能取消所属且状态为 `CREATED` 的订单。
 - **查询**：订单及商家商品等实体直接复用 `list/page/findOne/detail`，无需业务 Controller 或查询 Service。普通筛选放在 `options`，详情使用顶层 `id`；分页返回 `data.items/data.page`。
 - **商品摘要**：`POST /api/merchant/products/page` 接受 `{"page":1,"limit":20,"active":true}`，返回 `id/name/price` DTO。商家与管理员每次重新授权同一 `merchantProduct/view`；商家范围来自授权结果，列表与总数复用 Mapper XML 中的范围和筛选。业务代码负责落实字段与范围，无法表达的授权范围在 SQL 前拒绝。
 - **关联详情**：订单查询默认只读当前表，显式传入 `expandRelations: ["customer", "orderItemList"]` 才读取客户与明细；成交快照不重新读取当前商品。
@@ -82,12 +82,13 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 
 | 位置 | 职责 |
 | --- | --- |
-| [application.yml](src/main/resources/application.yml) | 数据源、元数据扫描、DDL 与实体文档运行配置 |
-| [CommerceAccessConfiguration](src/main/java/com/example/minicommerce/CommerceAccessConfiguration.java) | 共享身份、归属关系和访问策略 |
+| [application.yml](src/main/resources/application.yml) | 数据源、元数据扫描、DDL、实体文档，以及身份结构 |
 | [demo.yml](src/main/resources/demo.yml) | 演示账号、可信身份绑定、入口路由与审计 |
 | 实体 Java 类与 Handler | 实体元数据、权限差异、字段边界、动作和输入契约 |
 
-实体注解声明能力和字段边界，Handler 声明业务动作。例如 `Order` 使用 `workflow` 并增加下单与取消，`MerchantProduct` 继承 `maintainable` 并增加批量更新。
+项目通过 `ent.loom.crud.defaults.actions` 提供标准 CRUD 动作上限；单实体专属授权通过实体上的 `@EntCrudGrant` 就地声明，`@EntCrudEntity` 保留动作、字段和输入约束。通用资源类别基线放在 [crud-policies.yml](src/main/resources/crud-policies.yml)：银行卡选择 `customer-owned`，会员等级选择 `merchant-managed-customer-readable`。商家、客户主数据、商品和订单的专属规则就地声明。动态流程放在 Handler / Service。`application.yml` 的 `grant-defaults` 提供商家/客户归属与管理员默认权限；订单显式限制管理员为 `view/cancel`。详见 [授权整合最佳实践](docs/授权整合最佳实践.md)。
+
+本示例通过 Meta 集成复用 `@EntEntity` 生成 DDL 元数据，无需重复声明空的 `@EntDdlEntity`，也无需额外 YAML 开关；仅在需要 schema、命名策略、表规模等 DDL 专属定制时添加 `@EntDdlEntity`。`@EntDdlField`、`@EntDdlIndex` 可按需独立使用。普通索引省略 `name`，框架按物理表名和有序列名自动命名，超长时截断并追加稳定摘要。
 
 文章正文通过 `@EntField(value = "正文", kind = EntFieldKind.CONTENT)` 表达业务语义，未声明业务上限时推导为 TEXT；格式与容量仍需业务约束。
 
@@ -106,3 +107,9 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 商品摘要协同路径可单独验证：`../../mvnw -Dtest=ProductSummaryServiceTest,ProductSummaryIntegrationTest test`。
 
 真实 MySQL 的自动建表、金额类型、索引及业务验收见 [MySQL 8 验收](docs/mysql-acceptance.md)。验收必须使用专用空库，会清理其中的业务数据。
+
+## 服务目录约定
+
+按业务模块组织服务：实体服务放在 `service/`，查询、摘要与统计服务放在 `service/query/`，独立的业务命令与事务编排服务放在 `service/command/`。仅在存在对应服务时创建子包；包分类不强制增加调用层级。
+
+当前商品摘要服务为 `merchant/service/query/ProductSummaryService.java`；订单操作仍由 `order/service/CommerceOrderService.java` 承担。

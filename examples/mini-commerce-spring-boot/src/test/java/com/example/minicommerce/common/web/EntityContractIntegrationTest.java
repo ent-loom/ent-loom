@@ -10,8 +10,8 @@ import com.example.minicommerce.merchant.entity.MerchantArticle;
 import com.example.minicommerce.merchant.entity.Merchant;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.merchant.entity.MerchantWxConfig;
-import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.order.entity.OrderItem;
+import com.example.minicommerce.order.entity.CommerceOrder;
+import com.example.minicommerce.order.entity.CommerceOrderItem;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 验证实体扫描、默认 HTTP 暴露及 Meta 文档契约。 */
 @SpringBootTest(properties = {
-    "spring.config.import=",
+    "spring.config.import=classpath:demo.yml,classpath:crud-policies.yml",
     "spring.datasource.url=jdbc:h2:mem:commerce-contract;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password="
@@ -65,22 +65,22 @@ class EntityContractIntegrationTest {
 
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
-        assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, Order.class, OrderItem.class,
+        assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, CommerceOrder.class, CommerceOrderItem.class,
                 Merchant.class, MerchantProduct.class, MerchantArticle.class, MerchantWxConfig.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(MerchantProduct.class, exposedEntityRegistry.resolveOrThrow("merchantProduct"));
         assertEquals(CustomerLevel.class, exposedEntityRegistry.resolveOrThrow("customerLevel"));
         assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantArticle"));
         assertEquals(Customer.class, exposedEntityRegistry.resolveOrThrow("customer"));
-        assertEquals(Order.class, exposedEntityRegistry.resolveOrThrow("order"));
+        assertEquals(CommerceOrder.class, exposedEntityRegistry.resolveOrThrow("commerceOrder"));
         assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantOrder"));
         assertEquals(Merchant.class, exposedEntityRegistry.resolveOrThrow("merchant"));
         assertThrows(
             CrudException.class,
-            () -> exposedEntityRegistry.resolveOrThrow("orderItem"));
+            () -> exposedEntityRegistry.resolveOrThrow("commerceOrderItem"));
         assertThrows(
             CrudException.class,
-            () -> exposedEntityRegistry.resolveOrThrow(OrderItem.class.getName()));
+            () -> exposedEntityRegistry.resolveOrThrow(CommerceOrderItem.class.getName()));
     }
 
     @Test
@@ -92,7 +92,7 @@ class EntityContractIntegrationTest {
             .findFirst().orElseThrow();
         assertEquals(Set.of("id", "name", "legalRepresentativeName", "legalRepresentativePhone"), merchant.fields().stream()
             .map(com.entloom.ddl.api.DdlFieldMetadata::fieldName).collect(Collectors.toSet()));
-        for (Class<?> source : java.util.List.of(Order.class, MerchantProduct.class, MerchantArticle.class)) {
+        for (Class<?> source : java.util.List.of(CommerceOrder.class, MerchantProduct.class, MerchantArticle.class)) {
             var edges = entityMetaRegistry.getRelationGraph(source).outgoingOf(source).stream()
                 .filter(edge -> edge.getToEntity() == Merchant.class).toList();
             assertEquals(1, edges.size());
@@ -104,14 +104,14 @@ class EntityContractIntegrationTest {
     @Test
     void 订单结构属性复用已有关系生成展开映射且不映射数据库列() throws Exception {
         for (String name : java.util.List.of("customer", "orderItemList")) {
-            var field = Order.class.getDeclaredField(name);
+            var field = CommerceOrder.class.getDeclaredField(name);
             assertNotNull(field.getAnnotation(com.entloom.meta.annotations.EntField.class));
             assertNull(field.getAnnotation(com.entloom.meta.annotations.EntRelation.class));
             assertNull(field.getAnnotation(com.entloom.crud.annotations.EntCrudField.class));
         }
-        assertNull(Order.class.getDeclaredField("customerId")
+        assertNull(CommerceOrder.class.getDeclaredField("customerId")
             .getAnnotation(com.entloom.crud.annotations.EntCrudField.class));
-        var relations = entityMetaRegistry.getRelationGraph(Order.class).outgoingOf(Order.class);
+        var relations = entityMetaRegistry.getRelationGraph(CommerceOrder.class).outgoingOf(CommerceOrder.class);
         var customer = relations.stream().filter(edge -> "customer".equals(edge.getRelationField())).toList();
         assertEquals(1, customer.size());
         assertEquals("customerId", customer.getFirst().getFromField());
@@ -121,8 +121,8 @@ class EntityContractIntegrationTest {
         assertEquals("id", items.getFirst().getFromField());
         assertEquals("orderId", items.getFirst().getToField());
         var order = ddlMetadataLoader.load(new com.entloom.ddl.api.MetadataLoadRequest(
-                java.util.List.of(), java.util.List.of(Order.class)))
-            .stream().filter(entity -> entity.entityClassName().equals(Order.class.getName()))
+                java.util.List.of(), java.util.List.of(CommerceOrder.class)))
+            .stream().filter(entity -> entity.entityClassName().equals(CommerceOrder.class.getName()))
             .findFirst().orElseThrow();
         assertEquals(Set.of("id", "customerId", "merchantId", "status", "totalAmount", "createdAt"),
             order.fields().stream().filter(com.entloom.ddl.api.DdlFieldMetadata::persisted)
@@ -180,14 +180,14 @@ class EntityContractIntegrationTest {
         mvc.perform(get("/api/ent-doc/contract"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
-                org.hamcrest.Matchers.containsInAnyOrder("customerBankCard", "customer", "customerLevel", "order", "orderItem",
+                org.hamcrest.Matchers.containsInAnyOrder("customerBankCard", "customer", "customerLevel", "commerceOrder", "commerceOrderItem",
                     "merchant", "merchantProduct", "merchantArticle", "merchantWxConfig")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'merchantProduct')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "merchantId", "name", "price", "active", "version")))
-            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'order')].fields[*].property",
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'commerceOrder')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "customerId", "merchantId", "customer", "status",
                     "totalAmount", "createdAt", "orderItemList")))
-            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'orderItem')].fields[*].property",
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'commerceOrderItem')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "orderId", "merchantProductId", "productName", "unitPrice", "quantity", "lineAmount")));
     }
 }

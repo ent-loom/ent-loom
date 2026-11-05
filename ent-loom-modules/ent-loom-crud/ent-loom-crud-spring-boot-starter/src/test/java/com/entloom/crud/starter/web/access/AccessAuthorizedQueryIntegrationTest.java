@@ -5,7 +5,6 @@ import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.AuthenticationMode;
 import com.entloom.crud.api.access.BusinessOperation;
-import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.PageRequest;
@@ -25,8 +24,6 @@ import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
-import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
-import com.entloom.crud.core.governance.policy.CrudOperationMapping;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -151,9 +148,6 @@ class AccessAuthorizedQueryIntegrationTest {
         @Bean CrudHttpAuthenticationSource authentication() {
             return request -> new HttpAccessAuthentication(credentials(), "trusted-entry", "request-1", "trace-1");
         }
-        @Bean BusinessOperationDeclaration view(EntityMetaRegistry entities) {
-            return new BusinessOperationDeclaration(operation(entities), "Project#view");
-        }
         @Bean EntityPolicyTemplate template() {
             return new EntityPolicyTemplate("order-read", "Project#orderRead", Collections.singletonList(
                 new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(), Collections.emptyList())));
@@ -164,12 +158,6 @@ class AccessAuthorizedQueryIntegrationTest {
             var declarations = new com.entloom.crud.starter.config.CrudEntityDeclarations(List.of(TestOrderEntity.class));
             declarations.options().get("TestOrderEntity").setPolicy("order-read");
             return declarations;
-        }
-        @Bean CrudOperationMapping listMapping(EntityMetaRegistry entities) {
-            return new CrudOperationMapping(CrudOperationKey.of(QueryOperation.LIST), null, operation(entities), "Project#list");
-        }
-        @Bean CrudOperationMapping pageMapping(EntityMetaRegistry entities) {
-            return new CrudOperationMapping(CrudOperationKey.of(QueryOperation.PAGE), null, operation(entities), "Project#page");
         }
         @Bean
         @ConditionalOnProperty(name = "test.policy.evaluator.enabled", havingValue = "true", matchIfMissing = true)

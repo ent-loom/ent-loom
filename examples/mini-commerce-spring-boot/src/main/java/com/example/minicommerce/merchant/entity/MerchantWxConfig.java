@@ -4,7 +4,6 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
-import com.entloom.meta.enums.EntFieldKind;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -15,7 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class MerchantWxConfig {
-    @EntField("文章 ID")
+    @EntField("配置 ID")
     private Long id;
 
     @EntField("所属商户 ID")

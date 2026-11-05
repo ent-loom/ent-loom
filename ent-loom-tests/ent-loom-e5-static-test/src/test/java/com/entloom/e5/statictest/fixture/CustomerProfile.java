@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 @com.entloom.ddl.annotations.EntDdlIndex(name = "uk_customer_profile_display_name", fields = "displayName", unique = true)
 @EntCrudEntity(
     httpExposed = false,
+    actions = {"view", "create", "update", "delete", "profile.activate"},
     name = "customer_profile",
     table = "customer_profile",
     idPolicy = CrudIdPolicy.EXPLICIT,

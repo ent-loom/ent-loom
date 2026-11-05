@@ -1,6 +1,8 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
+import com.entloom.crud.core.governance.policy.CrudEntityActions;
+import org.springframework.context.annotation.Import;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -24,7 +26,14 @@ import java.util.TreeSet;
 
 /** 实体声明在编译运行模型前加载一次；不依赖实体注册表，避免归属规则装配成环。 */
 @Configuration(proxyBeanMethods = false)
+@Import(CrudPropertiesConfiguration.class)
 public class CrudEntityDeclarationConfiguration {
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudEntityActions crudEntityActions(CrudProperties properties) {
+        return new CrudEntityActions(properties.getDefaults().getActions());
+    }
+
     @Bean
     public SmartInitializingSingleton removedGlobalEntityContractGuard(org.springframework.core.env.ConfigurableEnvironment environment) {
         return () -> {
@@ -63,7 +72,7 @@ public class CrudEntityDeclarationConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public CrudEntityDeclarations crudEntityDeclarations(Environment environment, ResourceLoader resourceLoader, BeanFactory beanFactory) {
+    public CrudEntityDeclarations crudEntityDeclarations(Environment environment, ResourceLoader resourceLoader, BeanFactory beanFactory, CrudEntityActions actions) {
         Binder binder = Binder.get(environment);
         List<String> packages = binder.bind("ent.loom.meta.base-packages", Bindable.listOf(String.class)).orElse(List.of());
         Set<String> classNames = new TreeSet<>(binder.bind("ent.loom.meta.entity-class-names", Bindable.listOf(String.class)).orElse(List.of()));
@@ -86,6 +95,6 @@ public class CrudEntityDeclarationConfiguration {
                 throw new IllegalArgumentException("无法加载实体类: " + className, exception);
             }
         }
-        return new CrudEntityDeclarations(entityTypes);
+        return new CrudEntityDeclarations(entityTypes, actions);
     }
 }

@@ -3,7 +3,6 @@ package com.entloom.crud.starter.config;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.enums.CommandOperation;
-import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
@@ -12,8 +11,6 @@ import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
-import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
-import com.entloom.crud.core.governance.policy.CrudOperationMapping;
 import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
@@ -44,9 +41,7 @@ class EntityPolicySelectionTest {
         return runner(declaration)
             .withBean(EntityPolicyTemplate.class, () -> new EntityPolicyTemplate("order-read", "Project#orderRead",
                 List.of(new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(), List.of()))))
-            .withBean(BusinessOperationDeclaration.class, () -> new BusinessOperationDeclaration(VIEW, "Project#view"))
-            .withBean(CrudOperationMapping.class, () -> new CrudOperationMapping(
-                CrudOperationKey.of(QueryOperation.LIST), null, VIEW, "Project#list"));
+;
     }
 
     @Test
@@ -71,7 +66,7 @@ class EntityPolicySelectionTest {
                     .hasMessageContaining("映射");
                 assertThat(context.getBean(EntityPolicyRegistry.class)
                     .requireDeclaration(VIEW, PolicyIdentityBranch.publicBranch()).getBindingSource())
-                    .contains("@EntCrudEntity(order)", "access.policy");
+                    .contains("@EntCrudEntity(order)", "policy");
             });
     }
 
@@ -79,20 +74,18 @@ class EntityPolicySelectionTest {
     void 未注册策略启动失败并定位实体注解() {
         runner(MissingPolicyOrder.class).run(context -> {
             assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).hasStackTraceContaining("模板未注册: missing-read")
-                .hasStackTraceContaining("@EntCrudEntity(order)").hasStackTraceContaining("access.policy");
+            assertThat(context.getStartupFailure()).hasStackTraceContaining("未知 Java 策略: missing-read")
+                .hasStackTraceContaining("@EntCrudEntity(order)");
         });
     }
 
     @Test
-    void Yaml与Java同名策略拒绝覆盖并报告双方来源() {
+    void 已移除的Yaml授权配置严格拒绝绑定() {
         javaPolicy(ReadOrder.class)
             .withPropertyValues("ent.loom.crud.access.policies.order-read.actions[0]=view")
             .run(context -> {
                 assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasStackTraceContaining("策略模板重复: order-read")
-                    .hasStackTraceContaining("Project#orderRead")
-                    .hasStackTraceContaining("ent.loom.crud.access.policies.order-read");
+                assertThat(context.getStartupFailure()).hasStackTraceContaining("policies.order-read.actions");
             });
     }
 

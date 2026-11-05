@@ -1,13 +1,13 @@
 # 演示认证与环境设置：由 application.yml 显式导入，无需额外启用 Profile。
 # 本文件提供静态凭证、身份归属和服务端入口，不声明实体操作、数据范围或字段权限。
-# identity.code 关联 CommerceAccessConfiguration 的身份定义，并选择实体注解中的同名授权分支。
-# 正式应用应接入可信认证与身份归属来源，复用全局策略及实体授权声明。
+# identity.code 关联 application.yml 的身份定义，由授权策略识别当前业务身份。
+# 正式应用应接入可信认证与身份归属来源，复用实体授权声明及静态边界。
 ent:
   loom:
     crud:
       example:
         enabled: true
-        # 账号归属由服务端核验；身份码引用 access.identities，ID 按其类型转换。
+        # 账号归属由服务端核验；身份码引用 identities，ID 按其类型转换。
         accounts:
           - token: demo-platform-admin
             subject-id: platform-admin
@@ -37,7 +37,7 @@ ent:
         # 演示入口由服务端路由确定，不能由客户端切换；入口本身不授予实体权限。
         default-access-entry: consumer
         routes:
-          - path: /api/ent-crud/order/**
+          - path: /api/ent-crud/commerceOrder/**
             entry: commerce
           - path: /api/ent-crud/merchantProduct/**
             entry: merchant

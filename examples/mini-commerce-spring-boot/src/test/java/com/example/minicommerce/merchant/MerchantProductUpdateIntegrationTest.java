@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 使用实际配置、认证、授权及 JDBC 事务；测试不加入外层事务。 */
 @SpringBootTest(properties = {
-    "spring.config.import=",
+    "spring.config.import=classpath:demo.yml,classpath:crud-policies.yml",
     "spring.datasource.url=${COMMERCE_TEST_JDBC_URL:jdbc:h2:mem:commerce-merchant;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}",
     "spring.datasource.username=${COMMERCE_TEST_JDBC_USER:sa}",
     "spring.datasource.password=${COMMERCE_TEST_JDBC_PASSWORD:}"
@@ -46,7 +46,7 @@ class MerchantProductUpdateIntegrationTest {
     }
 
     @Test
-    void 公共列表详情仅返回上架商品白名单且不混合登录身份() throws Exception {
+    void 匿名和客户仅返回上架商品白名单且商家仍按归属读取() throws Exception {
         jdbc.update("update merchant_product set active=false where id=102");
         mvc.perform(post("/api/ent-crud/merchantProduct/list").contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(2))
@@ -60,7 +60,12 @@ class MerchantProductUpdateIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{\"id\":102}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.active").value(false));
         mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer demo-customer-a"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items.length()").value(2))
+            .andExpect(jsonPath("$.data.items[0].version").doesNotExist());
+        mvc.perform(post("/api/ent-crud/merchantProduct/detail").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":102}"))
+            .andExpect(status().isNotFound());
         mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer invalid"))
             .andExpect(status().isForbidden());
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
@@ -124,7 +129,8 @@ class MerchantProductUpdateIntegrationTest {
             .andExpect(jsonPath("$.data.page.hasNext").value(true))
             .andExpect(jsonPath("$.data.items[0].merchantId").value(1001));
         mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer demo-customer-a"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.items.length()").value(3));
     }
 
     @Test

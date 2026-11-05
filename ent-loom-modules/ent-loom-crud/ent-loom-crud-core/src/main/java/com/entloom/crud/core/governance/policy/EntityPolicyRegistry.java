@@ -4,6 +4,8 @@ import com.entloom.crud.api.access.AccessBranch;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
+import com.entloom.crud.annotations.EntCrudFieldAccess;
+import com.entloom.crud.annotations.EntCrudFieldUse;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.lang.reflect.Field;
 
 /** 将项目模板与实体字段绑定编译为不可变声明；声明存在不代表已授权。 */
 public final class EntityPolicyRegistry {
@@ -36,19 +39,19 @@ public final class EntityPolicyRegistry {
         BusinessOperationCatalog operations,
         BusinessIdentityRegistry identities
     ) {
-        this(entityMetas, templates, bindings, operations, identities, EntityPolicyRegistry::compileFieldLimit);
+        this(entityMetas, templates, bindings, operations, identities, EntityPolicyRegistry::compileFieldLimit, null);
     }
 
     /** 关联字段能力从同一注册表中的显式关系与目标字段编译，不推导任意连接。 */
     public EntityPolicyRegistry(EntityMetaRegistry entities, Collection<EntityPolicyTemplate> templates,
         Collection<EntityPolicyBinding> bindings, BusinessOperationCatalog operations, BusinessIdentityRegistry identities) {
         this(entities.getEntityMetas(), templates, bindings, operations, identities,
-            meta -> compileFieldLimit(meta, entities));
+            meta -> compileFieldLimit(meta, entities), entities);
     }
 
     private EntityPolicyRegistry(Collection<EntityMeta> entityMetas, Collection<EntityPolicyTemplate> templates,
         Collection<EntityPolicyBinding> bindings, BusinessOperationCatalog operations, BusinessIdentityRegistry identities,
-        Function<EntityMeta, AuthorizationFields> fieldLimits) {
+        Function<EntityMeta, AuthorizationFields> fieldLimits, EntityMetaRegistry relationMetadata) {
         Objects.requireNonNull(entityMetas, "实体元数据不能为空");
         Objects.requireNonNull(templates, "策略模板不能为空");
         Objects.requireNonNull(bindings, "实体绑定不能为空");
@@ -124,7 +127,7 @@ public final class EntityPolicyRegistry {
                 }
                 metadataLimit = declaredLimit.intersect(metadataLimit);
             }
-            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities, metadataLimit));
+            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities, metadataLimit, relationMetadata));
         }
         this.entities = Collections.unmodifiableMap(compiled);
         Map<String, EffectiveEntityPolicy> byResource = new LinkedHashMap<String, EffectiveEntityPolicy>();
@@ -140,7 +143,7 @@ public final class EntityPolicyRegistry {
         EntityPolicyBinding binding,
         BusinessOperationCatalog operations,
         BusinessIdentityRegistry identities,
-        AuthorizationFields fieldLimit
+        AuthorizationFields fieldLimit, EntityMetaRegistry relationMetadata
     ) {
         String resourceCode = meta.getResourceDescriptor().getResourceCode();
         Set<String> neededRoles = new LinkedHashSet<String>();
@@ -164,6 +167,9 @@ public final class EntityPolicyRegistry {
             Map<String, String> relationFields = new LinkedHashMap<String, String>();
             for (String role : rule.getRequiredRelations()) {
                 String field = binding.getRelationFields().get(role);
+                if (field == null && relationMetadata != null) {
+                    field = relationMetadata.requireReference(meta.getEntityType(), role).getFromField();
+                }
                 if (field == null) {
                     throw new ValidationException("缺少关系角色绑定: " + role + "，实体: "
                         + meta.getEntityType().getName() + "，模板来源: " + template.getSource()
@@ -219,6 +225,9 @@ public final class EntityPolicyRegistry {
             if (field.isSortable() && !field.isRelation()) {
                 fields.get(AuthorizationFields.Use.SORT).add(name);
             }
+            for (AuthorizationFields.Use use : excludedUses(meta.getEntityType(), name)) {
+                fields.get(use).remove(name);
+            }
         }
         return AuthorizationFields.of(fields);
     }
@@ -234,16 +243,64 @@ public final class EntityPolicyRegistry {
             EntityFieldMeta relation = meta.resolveFieldMeta(edge.getRelationField());
             EntityMeta target = entities.getEntityMeta(edge.getToEntity());
             // CRUD-only 元数据只保留持久化字段；关联图仍是显式声明的权威来源。
-            if (relation != null && !relation.isRelation() || target == null) continue;
+            if (relation != null && !relation.isRelation() || target == null
+                || excludedUses(meta.getEntityType(), edge.getRelationField()).contains(AuthorizationFields.Use.EXPAND)) continue;
             expanded.add(edge.getRelationField());
+            boolean restricted = false;
             for (EntityFieldMeta field : target.getFieldMetas().values()) {
                 if (!field.isRelation() && field.getColumnName() != null) {
-                    expanded.add(edge.getRelationField() + "." + field.getFieldName());
+                    if (excludedUses(target.getEntityType(), field.getFieldName()).contains(AuthorizationFields.Use.EXPAND)) {
+                        restricted = true;
+                    } else {
+                        expanded.add(edge.getRelationField() + "." + field.getFieldName());
+                    }
                 }
             }
+            // 完整关系授权会绕过逐字段投影；存在受限字段时仅开放逐字段上限。
+            if (restricted) expanded.remove(edge.getRelationField());
         }
         fields.put(AuthorizationFields.Use.EXPAND, expanded);
         return AuthorizationFields.of(fields);
+    }
+
+    /** 判断字段注解是否允许指定用途，供关联读取等无完整关系元数据的路径使用。 */
+    public static boolean allowsFieldUse(Class<?> type, String name, AuthorizationFields.Use use) {
+        return !excludedUses(type, name).contains(use);
+    }
+
+    private static Set<AuthorizationFields.Use> excludedUses(Class<?> type, String name) {
+        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+            Field field;
+            try {
+                field = current.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                continue;
+            }
+            EntCrudFieldAccess access = field.getAnnotation(EntCrudFieldAccess.class);
+            if (access == null) return Collections.emptySet();
+            if ((access.include().length == 0) == (access.exclude().length == 0)) {
+                throw new ValidationException("字段用途必须且只能配置 include 或 exclude: " + type.getName() + "#" + name);
+            }
+            boolean including = access.include().length > 0;
+            Set<EntCrudFieldUse> declared = new LinkedHashSet<EntCrudFieldUse>();
+            for (EntCrudFieldUse use : including ? access.include() : access.exclude()) {
+                if (!declared.add(use)) throw new ValidationException("字段用途重复: " + type.getName() + "#" + name + "/" + use);
+            }
+            if (declared.contains(EntCrudFieldUse.ALL) && declared.size() != 1) {
+                throw new ValidationException("ALL 不能与其他字段用途混用: " + type.getName() + "#" + name);
+            }
+            Set<AuthorizationFields.Use> excluded = new LinkedHashSet<AuthorizationFields.Use>();
+            if (declared.contains(EntCrudFieldUse.ALL)) {
+                if (!including) Collections.addAll(excluded, AuthorizationFields.Use.values());
+            } else if (including) {
+                Collections.addAll(excluded, AuthorizationFields.Use.values());
+                for (EntCrudFieldUse use : declared) excluded.remove(AuthorizationFields.Use.valueOf(use.name()));
+            } else {
+                for (EntCrudFieldUse use : declared) excluded.add(AuthorizationFields.Use.valueOf(use.name()));
+            }
+            return excluded;
+        }
+        return Collections.emptySet();
     }
 
     private static Collection<SelectedRule> selectRules(EntityPolicyTemplate template, EntityPolicyBinding binding) {

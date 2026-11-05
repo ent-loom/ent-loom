@@ -3,7 +3,11 @@ package com.example.minicommerce.common.access;
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.access.AuthorizationRequest;
+import com.entloom.crud.api.access.BusinessOperation;
+import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
 import com.entloom.crud.api.enums.QueryOperation;
+import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
@@ -14,9 +18,10 @@ import com.entloom.crud.core.capability.command.patch.NormalizedUpdatePatch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.example.minicommerce.customer.entity.Customer;
-import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.CommerceOrder;
 import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
+import com.example.minicommerce.merchant.entity.MerchantWxConfig;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 真实主 YAML 与 JDBC 验证：被访问实体和当前归属身份是两个不同概念。 */
 @SpringBootTest(properties = {
-    "spring.config.import=",
+    "spring.config.import=classpath:demo.yml,classpath:crud-policies.yml",
     "spring.datasource.url=jdbc:h2:mem:commerce-owned;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
     "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
     "spring.datasource.password="
@@ -52,6 +57,7 @@ class OwnedEntityIntegrationTest {
     @Autowired BusinessIdentityRegistry businessIdentityRegistry;
     @Autowired EntityMetaRegistry entityMetaRegistry;
     @Autowired MockMvc mvc;
+    @Autowired BusinessAuthorizationService authorization;
 
     @BeforeEach
     void seed() {
@@ -77,18 +83,18 @@ class OwnedEntityIntegrationTest {
         assertFalse(address.resolveFieldMeta("merchantId").isWritable());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
         assertTrue(entityMetaRegistry.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
-        assertTrue(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
-        assertTrue(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("merchantId").isScopeField());
+        assertTrue(entityMetaRegistry.getEntityMeta(CommerceOrder.class).resolveFieldMeta("customerId").isScopeField());
+        assertTrue(entityMetaRegistry.getEntityMeta(CommerceOrder.class).resolveFieldMeta("merchantId").isScopeField());
         assertFalse(entityMetaRegistry.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
-        assertFalse(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
-        for (Class<?> type : List.of(CustomerLevel.class, Order.class)) {
+        assertFalse(entityMetaRegistry.getEntityMeta(CommerceOrder.class).resolveFieldMeta("customerId").isWritable());
+        for (Class<?> type : List.of(CustomerLevel.class, CommerceOrder.class)) {
             var meta = entityMetaRegistry.getEntityMeta(type);
             var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L), type, meta);
             assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, meta));
         }
-        var order = entityMetaRegistry.getEntityMeta(Order.class);
+        var order = entityMetaRegistry.getEntityMeta(CommerceOrder.class);
         var merchantPatch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "merchantId", 2001L),
-            Order.class, order);
+            CommerceOrder.class, order);
         assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(merchantPatch, order));
     }
 
@@ -104,11 +110,27 @@ class OwnedEntityIntegrationTest {
     }
 
     @Test
-    void 内部文章没有独立授权查询入口() {
+    void 内部文章与微信配置不向商家和客户开放独立授权查询() {
         var merchantA = visitor("merchant", "merchant-user-a", "1001", "merchant");
-        assertThrows(PermissionDeniedException.class, () -> list(MerchantArticle.class, merchantA));
-        assertThrows(PermissionDeniedException.class, () -> list(MerchantArticle.class,
-            visitor("customer", "customer-user-a", "301", "consumer")));
+        var customerA = visitor("customer", "customer-user-a", "301", "consumer");
+        for (Class<?> type : List.of(MerchantArticle.class,
+                MerchantWxConfig.class)) {
+            assertThrows(PermissionDeniedException.class, () -> list(type, merchantA));
+            assertThrows(PermissionDeniedException.class, () -> list(type, customerA));
+            String resource = entityMetaRegistry.getEntityMeta(type).getResourceDescriptor().getResourceCode();
+            for (String action : List.of("view", "create", "update", "delete")) {
+                for (var deniedVisitor : List.of(merchantA, customerA)) {
+                    assertThrows(PermissionDeniedException.class, () -> authorization.authorize(
+                        new AuthorizationRequest(deniedVisitor, new BusinessOperation(resource, action), null)));
+                }
+            }
+            // 验证授权结果，无需为内部微信配置额外创建测试表。
+            var admin = visitor("super-admin", "platform-admin", "1", "consumer");
+            for (String action : List.of("view", "create", "update", "delete")) {
+                assertEquals(AccessDecision.ALLOW, authorization.authorize(new AuthorizationRequest(
+                    admin, new BusinessOperation(resource, action), null)).getDecision());
+            }
+        }
     }
 
     @ParameterizedTest

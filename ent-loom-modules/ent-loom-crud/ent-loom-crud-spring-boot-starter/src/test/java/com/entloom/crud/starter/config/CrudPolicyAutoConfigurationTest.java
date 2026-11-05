@@ -40,7 +40,6 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.crud.annotations.EntCrudAccess;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -65,6 +64,25 @@ class CrudPolicyAutoConfigurationTest {
                 return new CrudEntityDeclarations(registry == null ? Collections.emptyList()
                     : registry.getEntityMetas().stream().map(EntityMeta::getEntityType).toList());
             }));
+
+    @Test
+    void binds_project_grant_defaults_and_defaults_to_empty() {
+        runner.run(context -> {
+            var defaults = context.getBean(com.entloom.crud.core.governance.authorization.CrudGrantDefaults.class);
+            assertTrue(defaults.getOwnerFields().isEmpty());
+            assertTrue(defaults.getWildcardIdentities().isEmpty());
+        });
+        runner.withPropertyValues("ent.loom.crud.grant-defaults.owner-fields.teacher=ownerId",
+            "ent.loom.crud.grant-defaults.wildcard-identities[0]=admin").run(context -> {
+                assertEquals(null, context.getStartupFailure());
+                var defaults = context.getBean(com.entloom.crud.core.governance.authorization.CrudGrantDefaults.class);
+                assertEquals(Map.of("teacher", "ownerId"), defaults.getOwnerFields());
+                assertEquals(java.util.Set.of("admin"), defaults.getWildcardIdentities());
+            });
+        runner.withPropertyValues("ent.loom.crud.grant-defaults.owner-fields.teacher=ownerId",
+            "ent.loom.crud.grant-defaults.wildcard-identities[0]=teacher")
+            .run(context -> assertNotNull(context.getStartupFailure()));
+    }
 
     @Test
     void registers_one_business_authorization_service_and_denies_without_permission_evaluator() {
@@ -120,8 +138,6 @@ class CrudPolicyAutoConfigurationTest {
     void relation_resolver_is_wired_into_business_authorization() {
         runner.withBean(EntityMetaRegistry.class, () -> metas(AnnotatedOrder.class))
             .withBean(EntityPolicyTemplate.class, this::template)
-            .withBean(BusinessOperationDeclaration.class,
-                () -> new BusinessOperationDeclaration(new BusinessOperation("order", "view"), "Project#view"))
             .withBean(BusinessPermissionEvaluator.class, () -> (visitor, operation, rule, target) ->
                 BusinessPermissionDecision.allow(AuthorizationScope.all(), AuthorizationFields.none()))
             .withBean(RelationFactResolver.class, () -> (visitor, rule, target, limit) ->
@@ -156,12 +172,8 @@ class CrudPolicyAutoConfigurationTest {
     void compiles_annotation_and_java_bindings_through_one_registry() {
         runner.withBean(EntityMetaRegistry.class, () -> metas(AnnotatedOrder.class, JavaOrder.class, ClassifiedOrder.class))
             .withBean(EntityPolicyTemplate.class, this::template)
-            .withBean("orderViewDeclaration", BusinessOperationDeclaration.class,
-                () -> new BusinessOperationDeclaration(new BusinessOperation("order", "view"), "Project#orderView"))
             .withBean("invoiceViewDeclaration", BusinessOperationDeclaration.class,
                 () -> new BusinessOperationDeclaration(new BusinessOperation("invoice", "view"), "Project#invoiceView"))
-            .withBean("classifiedViewDeclaration", BusinessOperationDeclaration.class,
-                () -> new BusinessOperationDeclaration(new BusinessOperation("classified", "view"), "Project#classifiedView"))
             .withBean(EntityPolicyBinding.class, () -> new EntityPolicyBinding(
                 JavaOrder.class, "record", "Project#invoiceBinding", Collections.singletonMap("owner", "ownerId")))
             .run(context -> {
@@ -170,13 +182,13 @@ class CrudPolicyAutoConfigurationTest {
                 assertEquals("ownerId", registry.requireDeclaration(AnnotatedOrder.class,
                     new BusinessOperation("order", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getRelationFields().get("owner"));
-                assertEquals("@EntCrudEntity(order).access.policy", registry.requireDeclaration(
+                assertEquals("@EntCrudEntity(order).policy", registry.requireDeclaration(
                     AnnotatedOrder.class, new BusinessOperation("order", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
                 assertEquals("Project#invoiceBinding", registry.requireDeclaration(JavaOrder.class,
                     new BusinessOperation("invoice", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getBindingSource());
-                assertEquals("@EntCrudEntity(classified).access.policy", registry.requireDeclaration(
+                assertEquals("@EntCrudEntity(classified).policy", registry.requireDeclaration(
                     ClassifiedOrder.class, new BusinessOperation("classified", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
             });
@@ -186,8 +198,6 @@ class CrudPolicyAutoConfigurationTest {
     void duplicate_annotation_and_java_binding_fails_with_both_sources() {
         runner.withBean(EntityMetaRegistry.class, () -> metas(AnnotatedOrder.class))
             .withBean(EntityPolicyTemplate.class, this::template)
-            .withBean(BusinessOperationDeclaration.class,
-                () -> new BusinessOperationDeclaration(new BusinessOperation("order", "view"), "Project#view"))
             .withBean(EntityPolicyBinding.class, () -> new EntityPolicyBinding(
                 AnnotatedOrder.class, "record", "Project#override", Collections.singletonMap("owner", "ownerId")))
             .run(context -> {
@@ -198,7 +208,7 @@ class CrudPolicyAutoConfigurationTest {
                     cause = cause.getCause();
                     message += " " + cause.getMessage();
                 }
-                assertTrue(message.contains("@EntCrudEntity(order).access.policy"), message);
+                assertTrue(message.contains("@EntCrudEntity(order).policy"), message);
                 assertTrue(message.contains("Project#override"), message);
             });
     }
@@ -216,32 +226,6 @@ class CrudPolicyAutoConfigurationTest {
     }
 
     @Test
-    void duplicate_relation_role_in_annotation_fails_at_startup() {
-        runner.withBean(EntityMetaRegistry.class, () -> metas(DuplicateRelations.class))
-            .run(context -> {
-                assertNotNull(context.getStartupFailure());
-                Throwable cause = context.getStartupFailure();
-                while (cause.getCause() != null) {
-                    cause = cause.getCause();
-                }
-                assertTrue(cause.getMessage().contains("重复关系角色"));
-            });
-    }
-
-    @Test
-    void duplicate_identity_in_annotation_fails_at_startup() {
-        runner.withBean(EntityMetaRegistry.class, () -> metas(ConflictingOrder.class))
-            .run(context -> {
-                assertNotNull(context.getStartupFailure());
-                Throwable cause = context.getStartupFailure();
-                while (cause.getCause() != null) {
-                    cause = cause.getCause();
-                }
-                assertTrue(cause.getMessage().contains("重复身份分支"));
-            });
-    }
-
-    @Test
     void policy_and_mvc_auto_configuration_share_one_identity_registry() {
         new WebApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
@@ -252,6 +236,36 @@ class CrudPolicyAutoConfigurationTest {
                 assertTrue(context.getBean(BusinessIdentityRegistry.class).snapshot().containsKey("teacher"));
             });
     }
+
+    @Test
+    void entity_grants_work_without_global_evaluator_and_cannot_be_bypassed_by_one() {
+        var configured = runner.withBean(EntityMetaRegistry.class, () -> metas(GrantedOrder.class))
+            .withPropertyValues("ent.loom.crud.grant-defaults.owner-fields.teacher=ownerId");
+        configured.run(context -> {
+            assertEquals(null, context.getStartupFailure());
+            assertTrue(context.getBeansOfType(BusinessPermissionEvaluator.class).isEmpty());
+            var request = new AuthorizationRequest(VisitorContext.authenticated(
+                new AccessSubject("subject", AccessSubjectType.HUMAN), new TeacherIdentity("teacher-7"), "base", null, null),
+                new BusinessOperation("order", "view"), null);
+            var result = context.getBean(BusinessAuthorizationService.class).authorize(request);
+            assertEquals(AccessDecision.ALLOW, result.getDecision());
+            assertEquals("ownerId", result.getScope().getField());
+            assertEquals(java.util.List.of("teacher-7"), result.getScope().getValues());
+        });
+        configured.withBean(BusinessPermissionEvaluator.class, () -> (visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), rule.getFieldLimit()))
+            .run(context -> {
+                assertEquals(null, context.getStartupFailure());
+                var request = new AuthorizationRequest(VisitorContext.authenticated(
+                    new AccessSubject("subject", AccessSubjectType.HUMAN), new TeacherIdentity("teacher-7"), "base", null, null),
+                    new BusinessOperation("order", "view"), null);
+                assertEquals("ownerId", context.getBean(BusinessAuthorizationService.class).authorize(request).getScope().getField());
+            });
+    }
+
+    @EntCrudEntity(name = "order")
+    @com.entloom.crud.annotations.EntCrudGrant(identities = "teacher", actions = "view")
+    private static final class GrantedOrder {}
 
     private BusinessIdentityRegistration<TeacherIdentity> teacherRegistration() {
         return new BusinessIdentityRegistration<>("teacher", TeacherIdentity.class,
@@ -296,7 +310,15 @@ class CrudPolicyAutoConfigurationTest {
 
             @Override
             public RelationGraph getRelationGraph(Class<?> rootType) {
-                return RelationGraph.empty();
+                var edge = new com.entloom.crud.core.runtime.meta.RelationEdge();
+                edge.setFromEntity(rootType);
+                edge.setToEntity(rootType);
+                edge.setRelationField("owner");
+                edge.setFromField("ownerId");
+                edge.setToField("id");
+                edge.setCardinality(com.entloom.meta.enums.RelationCardinality.MANY_TO_ONE);
+                edge.setScope(com.entloom.crud.enums.RelationScope.LOCAL_DB);
+                return RelationGraph.of(Collections.singletonList(edge));
             }
 
             @Override
@@ -305,7 +327,7 @@ class CrudPolicyAutoConfigurationTest {
         };
     }
 
-    @EntCrudEntity(name = "order", policy = "record", relations = "owner=ownerId")
+    @EntCrudEntity(name = "order", policy = "record")
     private static final class AnnotatedOrder {
     }
 
@@ -315,18 +337,8 @@ class CrudPolicyAutoConfigurationTest {
     private interface OrderPolicyGroup {
     }
 
-    @EntCrudEntity(name = "classified", policy = "record", relations = "owner=ownerId")
+    @EntCrudEntity(name = "classified", policy = "record")
     private static final class ClassifiedOrder implements OrderPolicyGroup {
-    }
-
-    @EntCrudEntity(name = "order", policy = "record")
-    @EntCrudAccess(identity = "teacher")
-    @EntCrudAccess(identity = "teacher")
-    private static final class ConflictingOrder implements OrderPolicyGroup {
-    }
-
-    @EntCrudEntity(name = "order", relations = {"owner=ownerId", "owner=id"})
-    private static final class DuplicateRelations {
     }
 
     private static final class TeacherIdentity implements BusinessIdentity {

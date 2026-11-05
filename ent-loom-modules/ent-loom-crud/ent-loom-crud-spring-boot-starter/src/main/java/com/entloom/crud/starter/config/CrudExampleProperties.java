@@ -36,7 +36,7 @@ public class CrudExampleProperties {
     @Getter
     @Setter
     public static class Identity {
-        /** 引用 access.identities 中的身份码。 */
+        /** 引用 identities 中的身份码。 */
         private String code;
         /** 身份 ID 文本，按共享定义转换为 long、uuid 等标量。 */
         private String id;

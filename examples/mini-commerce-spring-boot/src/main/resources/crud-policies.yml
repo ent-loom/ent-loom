@@ -1,0 +1,18 @@
+# 通用资源类别基线；具体实体业务规则保留在实体注解。
+# 归属字段复用 application.yml 的 grant-defaults：customerId / merchantId。
+ent:
+  loom:
+    crud:
+      policies:
+        # 客户维护所属资源，例如银行卡、地址等；当前由 CustomerBankCard 使用。
+        customer-owned:
+          grants:
+            - identities: [customer]
+              actions: [view, create, update, delete]
+        # 商家维护所属资源，客户只读取属于本人的记录；当前由 CustomerLevel 使用。
+        merchant-managed-customer-readable:
+          grants:
+            - identities: [merchant]
+              actions: [view, create, update, delete]
+            - identities: [customer]
+              actions: [view]

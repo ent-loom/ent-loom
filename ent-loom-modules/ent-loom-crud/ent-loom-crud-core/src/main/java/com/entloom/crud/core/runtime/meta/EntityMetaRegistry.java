@@ -45,6 +45,22 @@ public interface EntityMetaRegistry {
      */
     RelationGraph getRelationGraph(Class<?> rootType);
 
+    /** 选择指向指定实体主键的唯一单值引用；多条关系时拒绝猜测。 */
+    default RelationEdge requireReference(Class<?> rootType, Class<?> targetType) {
+        return requireReference(rootType, targetType, null);
+    }
+
+    /** 通过关系属性或来源字段消除歧义，不由身份码推导字段。 */
+    default RelationEdge requireReference(Class<?> rootType, Class<?> targetType, String relation) {
+        return EntityRelationResolver.requireReference(this, rootType, targetType, relation);
+    }
+
+    /** 按 Java 策略显式选择的关系属性解析单值引用。 */
+    default RelationEdge requireReference(Class<?> rootType, String relation) {
+        if (relation == null || relation.trim().isEmpty()) throw new IllegalArgumentException("关系属性不能为空");
+        return EntityRelationResolver.requireReference(this, rootType, null, relation);
+    }
+
     /**
      * 启动期校验。
      */

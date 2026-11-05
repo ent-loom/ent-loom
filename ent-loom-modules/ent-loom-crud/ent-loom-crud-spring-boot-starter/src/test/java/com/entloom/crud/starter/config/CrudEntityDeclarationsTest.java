@@ -1,127 +1,69 @@
 package com.entloom.crud.starter.config;
 
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
-/** 实体治理注解的编译与校验合同。 */
+/** 实体只声明操作、输入契约与字段静态边界。 */
 class CrudEntityDeclarationsTest {
     @Test
-    void 注解使用实体实际资源码() {
-        var declarations = new CrudEntityDeclarations(List.of(Named.class, URLValue.class));
-        assertThat(declarations.options()).containsKeys("custom", "urlValue");
-        assertThat(declarations.options().get("custom").getPolicy()).isEqualTo("read");
-    }
-
-    @Test
-    void 显式实体类自动编译治理注解() {
-        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
-            .withUserConfiguration(CrudEntityDeclarationConfiguration.class)
-            .withPropertyValues("ent.loom.meta.entity-class-names=" + Named.class.getName())
-            .withBean(com.entloom.crud.core.runtime.meta.EntityMetaRegistry.class,
-                () -> {
-                    var registry = org.mockito.Mockito.mock(com.entloom.crud.core.runtime.meta.EntityMetaRegistry.class);
-                    var meta = org.mockito.Mockito.mock(com.entloom.crud.core.runtime.meta.EntityMeta.class);
-                    org.mockito.Mockito.when(meta.getResourceDescriptor()).thenReturn(
-                        new com.entloom.crud.core.runtime.meta.ResourceDescriptor(Named.class, "custom", null, List.of()));
-                    org.mockito.Mockito.when(registry.getEntityMetas()).thenReturn(List.of(meta));
-                    return registry;
-                })
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context.getBean(CrudEntityDeclarations.class).options()).containsKey("custom");
-            });
-    }
-
-    @Test
-    void 重复身份和字段上限拒绝启动() {
-        assertThatThrownBy(() -> new CrudEntityDeclarations(List.of(DuplicateAccess.class)))
-            .hasMessageContaining("重复身份分支");
-        assertThatThrownBy(() -> new CrudEntityDeclarations(List.of(DuplicateLimits.class)))
-            .hasMessageContaining("重复字段用途");
-    }
-
-    @Test
-    void 注解资源未注册时拒绝静默忽略() {
-        var declarations = new CrudEntityDeclarations(List.of(Named.class));
-        assertThatThrownBy(() -> declarations.validate(CrudPolicyAutoConfigurationTest.metas(Order.class)))
-            .hasMessageContaining("实体未注册或未扫描: custom");
-    }
-
-    @com.entloom.crud.annotations.EntCrudEntity
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant")
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant")
-    private static class DuplicateAccess { }
-
-    @com.entloom.crud.annotations.EntCrudEntity(fieldLimits = {"RETURN:id", "return:name"})
-    private static class DuplicateLimits { }
-
-    @com.entloom.meta.annotations.EntEntity(entity = "custom")
-    @com.entloom.crud.annotations.EntCrudEntity(policy = "read")
-    private static class Named { }
-
-    @com.entloom.meta.annotations.EntEntity
-    @com.entloom.crud.annotations.EntCrudEntity
-    private static class URLValue { }
-
-    @Test
-    void 注解编译动作输入契约与字段差异() {
-        var declaration = new CrudEntityDeclarations(List.of(AnnotatedOrder.class));
-        var options = declaration.options().get("order");
-        assertThat(options.getPolicy()).isEqualTo("maintainable");
-        assertThat(options.getActionSelection().replacement()).containsExactly("view", "update");
-        assertThat(options.getFieldLimits().get(com.entloom.crud.core.governance.authorization.AuthorizationFields.Use.RETURN))
-            .containsExactly("id", "title");
-        assertThat(options.getAccess().getAccess().get("merchant").getFields()
-            .get(com.entloom.crud.core.governance.authorization.AuthorizationFields.Use.WRITE).getFields())
-            .containsExactly("title");
+    void 资源名称与静态边界统一解析() {
+        var declaration = new CrudEntityDeclarations(List.of(Order.class, URLValue.class));
+        var order = declaration.options().get("order");
+        assertThat(declaration.options()).containsKeys("order", "urlValue");
+        assertThat(order.getPolicy()).isEqualTo("maintainable");
+        assertThat(order.getActions()).containsExactly("view", "update");
+        assertThat(order.getFieldLimits().get(AuthorizationFields.Use.RETURN)).containsExactly("id", "title");
         assertThat(declaration.required().get("order")).containsExactly("title");
         assertThat(declaration.forbidden().get("order")).containsExactly("id");
     }
 
     @Test
-    void 错误字段和关系声明拒绝() {
-        for (Class<?> type : List.of(InvalidRelation.class, DuplicateFieldUse.class, EmptyInclude.class, AllWithFields.class)) {
-            assertThatThrownBy(() -> new CrudEntityDeclarations(List.of(type))).as(type.getSimpleName())
-                .isInstanceOf(IllegalArgumentException.class);
-        }
+    void 空动作关闭全部入口且缺省只读() {
+        assertThat(new CrudEntityDeclarations(List.of(Closed.class)).actions()).containsEntry("order", Set.of());
+        assertThat(new CrudEntityDeclarations(List.of(URLValue.class)).actions()).containsEntry("urlValue", Set.of("view"));
     }
 
     @Test
-    void 显式动作列表限制业务处理器包括空集合() {
-        var closed = new CrudEntityDeclarations(List.of(ClosedActions.class));
-        var standard = new CrudEntityDeclarations(List.of(StandardActions.class));
-        assertThat(closed.actions()).containsEntry("order", java.util.Set.of());
-        assertThat(standard.actions()).containsEntry("order", java.util.Set.of("view"));
+    void 重复动作字段用途和错误关系拒绝启动() {
+        assertThatThrownBy(() -> new CrudEntityDeclarations(List.of(DuplicateActions.class)))
+            .isInstanceOf(com.entloom.crud.core.exception.ValidationException.class).hasMessageContaining("动作重复");
+        assertThatThrownBy(() -> new CrudEntityDeclarations(List.of(DuplicateLimits.class)))
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("重复字段用途");
     }
 
-    @com.entloom.crud.annotations.EntCrudEntity(name = "order", policy = "maintainable",
-        actions = {"view", "update"}, fieldLimits = {"RETURN:id,title", "SORT:id"},
-        requiredCreateFields = "title", forbiddenUpdateFields = "id")
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant", fields =
-        @com.entloom.crud.annotations.EntCrudAccessField(use = "WRITE", mode = "INCLUDE", fields = "title"))
-    private static class AnnotatedOrder { }
+    @Test
+    void 未注册的实体声明不能静默忽略() {
+        var declaration = new CrudEntityDeclarations(List.of(URLValue.class));
+        assertThatThrownBy(() -> declaration.validate(CrudPolicyAutoConfigurationTest.metas(Order.class)))
+            .hasMessageContaining("实体未注册或未扫描: urlValue");
+    }
 
-    @com.entloom.crud.annotations.EntCrudEntity(relations = "bad")
-    private static class InvalidRelation { }
-    @com.entloom.crud.annotations.EntCrudEntity
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant", fields = {
-        @com.entloom.crud.annotations.EntCrudAccessField(use = "WRITE"),
-        @com.entloom.crud.annotations.EntCrudAccessField(use = "write")})
-    private static class DuplicateFieldUse { }
-    @com.entloom.crud.annotations.EntCrudEntity
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant", fields =
-        @com.entloom.crud.annotations.EntCrudAccessField(use = "WRITE", mode = "INCLUDE"))
-    private static class EmptyInclude { }
-    @com.entloom.crud.annotations.EntCrudEntity
-    @com.entloom.crud.annotations.EntCrudAccess(identity = "merchant", fields =
-        @com.entloom.crud.annotations.EntCrudAccessField(use = "WRITE", mode = "ALL", fields = "id"))
-    private static class AllWithFields { }
+    @Test
+    void 项目动作约定用于实体声明并区分空数组() {
+        var defaults = new com.entloom.crud.core.governance.policy.CrudEntityActions(List.of("view", "create", "update", "delete"));
+        var declarations = new CrudEntityDeclarations(List.of(Adjusted.class, Closed.class), defaults);
+        assertThat(declarations.actions()).containsEntry("adjusted", Set.of("view", "create", "update", "batch-update"))
+            .containsEntry("order", Set.of());
+    }
 
-    @com.entloom.crud.annotations.EntCrudEntity(name = "order", actionsSpecified = true)
-    private static class ClosedActions { }
-    @com.entloom.crud.annotations.EntCrudEntity(name = "order", actions = "view")
-    private static class StandardActions { }
+    @EntCrudEntity(name = "adjusted", addActions = "batch-update", removeActions = "delete")
+    private static class Adjusted {}
 
+    @EntCrudEntity(name = "order", policy = "maintainable", actions = {"view", "update"},
+        fieldLimits = {"RETURN:id,title", "SORT:id"}, requiredCreateFields = "title", forbiddenUpdateFields = "id")
     private static class Order { }
+    @EntEntity("URL") @EntCrudEntity
+    private static class URLValue { }
+    @EntCrudEntity(name = "order", actions = {})
+    private static class Closed { }
+    @EntCrudEntity(actions = {"view", "view"})
+    private static class DuplicateActions { }
+    @EntCrudEntity(fieldLimits = {"RETURN:id", "RETURN:title"})
+    private static class DuplicateLimits { }
+
 }

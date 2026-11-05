@@ -3,7 +3,6 @@ package com.entloom.crud.starter.web.access;
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.api.access.AccessSubjectType;
 import com.entloom.crud.api.access.BusinessOperation;
-import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.admission.AccessContextScope;
@@ -15,8 +14,6 @@ import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
-import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
-import com.entloom.crud.core.governance.policy.CrudOperationMapping;
 import com.entloom.crud.core.governance.policy.EntityPolicyBinding;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
@@ -184,20 +181,12 @@ class CrudQueryAdmissionIntegrationTest {
         @Bean @Primary CrudSubjectResolver unusedLegacySubject() {
             return () -> { throw new ValidationException("新授权查询不应解析旧主体"); };
         }
-        @Bean BusinessOperationDeclaration view() { return new BusinessOperationDeclaration(VIEW, "test"); }
         @Bean EntityPolicyTemplate policy() {
             return new EntityPolicyTemplate("read", "test", List.of(new EntityPolicyTemplate.Rule(
                 "view", PolicyIdentityBranch.publicBranch(), List.of())));
         }
         @Bean EntityPolicyBinding binding() {
             return new EntityPolicyBinding(TestOrderEntity.class, "read", "test", Map.of());
-        }
-        @Bean CrudOperationMapping listMapping() { return mapping(QueryOperation.LIST); }
-        @Bean CrudOperationMapping pageMapping() { return mapping(QueryOperation.PAGE); }
-        @Bean CrudOperationMapping findMapping() { return mapping(QueryOperation.FIND_ONE); }
-        @Bean CrudOperationMapping detailMapping() { return mapping(QueryOperation.DETAIL); }
-        private CrudOperationMapping mapping(QueryOperation operation) {
-            return new CrudOperationMapping(CrudOperationKey.of(operation), null, VIEW, "test");
         }
         @Bean BusinessPermissionEvaluator permissions() {
             return (visitor, operation, rule, target) -> BusinessPermissionDecision.allow(

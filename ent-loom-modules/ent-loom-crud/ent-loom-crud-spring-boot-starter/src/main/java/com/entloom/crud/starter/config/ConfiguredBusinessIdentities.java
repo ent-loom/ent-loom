@@ -16,9 +16,9 @@ import java.util.Map;
 public final class ConfiguredBusinessIdentities {
     private final Map<String, BusinessIdentityDefinition> definitions;
 
-    public ConfiguredBusinessIdentities(CrudAccessProperties properties) {
+    public ConfiguredBusinessIdentities(Map<String, CrudIdentityProperties> identities) {
         Map<String, BusinessIdentityDefinition> compiled = new LinkedHashMap<>();
-        properties.getIdentities().forEach((code, identity) -> {
+        identities.forEach((code, identity) -> {
             if (identity == null) throw new ValidationException("身份定义不能为空: " + code);
             compiled.put(code, new BusinessIdentityDefinition(code,
                 identity.getIdField() == null ? code + "Id" : identity.getIdField(), identity.getIdType()));

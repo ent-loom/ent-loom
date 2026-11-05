@@ -58,6 +58,7 @@ public final class DdlSchemaDiffer {
         if (current == null) {
             throw new IllegalArgumentException("current table snapshot must not be null");
         }
+        MysqlIndexNames.validate(entity);
         if (!current.exists()) {
             return new DdlSchemaDiff(false,
                     Collections.<DdlFieldMetadata>emptyList(),
@@ -199,16 +200,16 @@ public final class DdlSchemaDiffer {
                 DdlIndexMetadata index = new DdlIndexMetadata(
                         MysqlCreateTableSqlBuilder.fieldUniqueIndexName(entity.tableName(), field.columnName()),
                         Collections.singletonList(field.columnName()), true, "");
-                putIndex(desired, index, errors);
+                putIndex(entity.tableName(), desired, index, errors);
             }
         }
         for (DdlIndexMetadata index : entity.indexes()) {
-            putIndex(desired, index, errors);
+            putIndex(entity.tableName(), desired, index, errors);
         }
 
         Map<String, DdlIndexMetadata> existing = new LinkedHashMap<String, DdlIndexMetadata>();
         for (DdlIndexMetadata index : current.indexes()) {
-            existing.put(identifierKey(MysqlCreateTableSqlBuilder.resolvedIndexName(index)), index);
+            existing.put(identifierKey(MysqlIndexNames.resolve(entity.tableName(), index)), index);
         }
 
         List<DdlIndexMetadata> added = new ArrayList<DdlIndexMetadata>();
@@ -218,7 +219,7 @@ public final class DdlSchemaDiffer {
                 added.add(entry.getValue());
             } else if (!sameIndex(currentIndex, entry.getValue())) {
                 if (synchronizeAll) {
-                    removedIndexes.add(MysqlCreateTableSqlBuilder.resolvedIndexName(currentIndex));
+                    removedIndexes.add(MysqlIndexNames.resolve(entity.tableName(), currentIndex));
                     added.add(entry.getValue());
                 } else {
                     errors.add("已有索引定义变化暂不支持重建，拒绝修改索引: " + entry.getKey());
@@ -228,7 +229,7 @@ public final class DdlSchemaDiffer {
         for (String existingName : existing.keySet()) {
             if (!desired.containsKey(existingName)) {
                 if (synchronizeAll) {
-                    removedIndexes.add(MysqlCreateTableSqlBuilder.resolvedIndexName(existing.get(existingName)));
+                    removedIndexes.add(MysqlIndexNames.resolve(entity.tableName(), existing.get(existingName)));
                 } else {
                     errors.add("删除索引暂不支持，发现数据库多余索引: " + existing.get(existingName).name());
                 }
@@ -237,10 +238,10 @@ public final class DdlSchemaDiffer {
         return added;
     }
 
-    private static void putIndex(Map<String, DdlIndexMetadata> indexes,
+    private static void putIndex(String tableName, Map<String, DdlIndexMetadata> indexes,
                                  DdlIndexMetadata index,
                                  List<String> errors) {
-        String name = identifierKey(MysqlCreateTableSqlBuilder.resolvedIndexName(index));
+        String name = identifierKey(MysqlIndexNames.resolve(tableName, index));
         DdlIndexMetadata previous = indexes.put(name, index);
         if (previous != null && !sameIndex(previous, index)) {
             errors.add("目标索引名称对应多个不同定义: " + name);

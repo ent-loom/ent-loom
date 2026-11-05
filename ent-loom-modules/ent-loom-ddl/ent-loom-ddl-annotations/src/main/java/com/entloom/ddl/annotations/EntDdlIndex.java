@@ -11,6 +11,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface EntDdlIndex {
+    /** 索引名；为空时根据物理表名与有序列名自动生成，超长时附加稳定摘要。 */
     String name() default "";
     String[] fields() default {};
     boolean unique() default false;

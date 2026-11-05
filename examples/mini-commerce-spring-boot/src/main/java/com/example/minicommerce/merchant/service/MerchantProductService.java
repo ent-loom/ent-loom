@@ -1,5 +1,6 @@
 package com.example.minicommerce.merchant.service;
 
+import com.example.minicommerce.merchant.service.query.ProductSummaryService;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.merchant.mapper.MerchantProductMapper;
@@ -7,11 +8,11 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MerchantProductService extends ServiceImpl<MerchantProductMapper, MerchantProduct> {
-    ProductSummaryService.Page pageAll(Boolean active, int page, int limit) {
+    public ProductSummaryService.Page pageAll(Boolean active, int page, int limit) {
         return page(null, active, page, limit);
     }
 
-    ProductSummaryService.Page pageMerchant(long merchantId, Boolean active, int page, int limit) {
+    public ProductSummaryService.Page pageMerchant(long merchantId, Boolean active, int page, int limit) {
         return page(merchantId, active, page, limit);
     }
 

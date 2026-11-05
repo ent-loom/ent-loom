@@ -36,9 +36,25 @@ import org.springframework.util.unit.DataSize;
 public class CrudProperties {
     private static final Duration DEFAULT_RETENTION = Duration.ofHours(48);
 
-    /** 共享业务访问声明。 */
+    /** 简单业务身份结构；不参与实体关系或归属推导。 */
     @NestedConfigurationProperty
-    private CrudAccessProperties access = new CrudAccessProperties();
+    private Map<String, CrudIdentityProperties> identities = new LinkedHashMap<>();
+    /** 项目归属约定与全局默认授权；默认不授予任何身份。 */
+    private GrantDefaults grantDefaults = new GrantDefaults();
+
+    @Getter
+    @Setter
+    public static class GrantDefaults {
+        /** 身份码到归属字段的映射；不自动授予动作。 */
+        private Map<String, String> ownerFields = new LinkedHashMap<>();
+        /** 默认拥有实体全部已声明动作与全量范围的身份。 */
+        private Set<String> wildcardIdentities = new java.util.LinkedHashSet<>();
+    }
+
+    /** 命名授权基线；实体通过 policy 选择。 */
+    private Map<String, CrudGrantPolicies.Policy> policies = new LinkedHashMap<>();
+    /** 按资源码声明的身份分支局部定制。 */
+    private Map<String, Map<String, CrudGrantPolicies.Grant>> policyOverrides = new LinkedHashMap<>();
     /** 显式启用的本地演示接入。 */
     @NestedConfigurationProperty
     private CrudExampleProperties example = new CrudExampleProperties();
@@ -197,6 +213,8 @@ public class CrudProperties {
     @Getter
     @Setter
     public static class Defaults {
+        /** 实体缺省动作集；不自动授予普通身份权限。 */
+        private java.util.List<String> actions = java.util.List.of("view");
         /** 未显式声明时的主键写入策略。 */
         private CrudIdPolicy idPolicy = CrudIdPolicy.UNSET;
     }

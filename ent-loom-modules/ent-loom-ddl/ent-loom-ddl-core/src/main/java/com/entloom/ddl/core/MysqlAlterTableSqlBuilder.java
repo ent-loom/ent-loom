@@ -58,7 +58,7 @@ public final class MysqlAlterTableSqlBuilder {
     }
 
     public String buildAddIndex(DdlEntityMetadata entity, String schema, DdlIndexMetadata index) {
-        return prefix(entity, schema) + " ADD " + createTableSqlBuilder.buildIndexSql(index);
+        return prefix(entity, schema) + " ADD " + createTableSqlBuilder.buildIndexSql(entity.tableName(), index);
     }
 
     public String buildComment(DdlEntityMetadata entity, String schema) {
@@ -112,7 +112,7 @@ public final class MysqlAlterTableSqlBuilder {
             }
         }
         for (DdlIndexMetadata index : diff.addedIndexes()) {
-            clauses.add("ADD " + createTableSqlBuilder.buildIndexSql(index));
+            clauses.add("ADD " + createTableSqlBuilder.buildIndexSql(entity.tableName(), index));
         }
         if (diff.tableCommentChanged()) {
             clauses.add("COMMENT='" + escapeQuote(entity.comment()) + "'");

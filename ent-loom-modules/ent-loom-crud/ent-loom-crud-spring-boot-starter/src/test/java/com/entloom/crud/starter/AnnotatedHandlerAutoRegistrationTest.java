@@ -53,6 +53,8 @@ class AnnotatedHandlerAutoRegistrationTest {
             CrudAutoConfiguration.class,
             AutoRegistrationTestConfiguration.class
         )
+        .withBean(com.entloom.crud.starter.config.CrudEntityDeclarations.class,
+            () -> new com.entloom.crud.starter.config.CrudEntityDeclarations(java.util.List.of(HandlerBoundary.class)), definition -> definition.setPrimary(true))
         .withPropertyValues(
             "ent.loom.crud.controller.enabled=true",
             "ent.loom.crud.sql-log.mode=full"
@@ -303,4 +305,7 @@ class AnnotatedHandlerAutoRegistrationTest {
         private String handledBy;
         private String orderNo;
     }
+    @com.entloom.crud.annotations.EntCrudEntity(name = "TestOrderEntity", httpExposed = false, actions = {"view", "order.place"})
+    static class HandlerBoundary { }
+
 }

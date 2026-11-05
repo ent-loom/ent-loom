@@ -1,30 +1,36 @@
 package com.example.minicommerce.merchant.entity;
 
-import com.entloom.meta.annotations.EntEntity;
-import com.entloom.crud.annotations.EntCrudAccess;
-import com.entloom.crud.annotations.EntCrudAccessField;
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.annotations.EntCrudGrant;
+import com.entloom.crud.annotations.EntCrudGrantScope;
+import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
-import java.math.BigDecimal;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /** 商家自己的可售商品；商品名称、价格和状态均由商家独立维护。 */
 @EntEntity("商家商品")
-@EntCrudEntity(fieldLimits = {"RETURN:id,merchantId,name,price,active,version", "FILTER:active", "SORT:id", "WRITE:name,price,active"}, addActions = {"batch-update"})
-@EntCrudAccess(identity = "customer", actionsSpecified = true, actions = {})
-@EntCrudAccess(identity = "merchant", addActions = {"batch-update"}, fields = {@EntCrudAccessField(use = "WRITE", mode = "ALL")})
-@EntCrudAccess(identity = "public", actions = {"view"}, rules = {"active=true"}, fields = {
-    @EntCrudAccessField(use = "RETURN", mode = "INCLUDE", fields = {"id", "merchantId", "name", "price"}),
-    @EntCrudAccessField(use = "EXPAND", mode = "NONE")
-})
+@EntCrudGrant(identities = "merchant", actions = {"view", "create", "update", "delete", "batch-update"})
+@EntCrudGrant(identities = {"public", "customer"}, actions = "view", scope = EntCrudGrantScope.EQUAL,
+    scopeField = "active", scopeValue = "true", inheritFields = false,
+    fields = @EntCrudGrant.Fields({"id", "merchantId", "name", "price"}))
+@EntCrudEntity(
+    addActions = "batch-update",
+    fieldLimits = {
+        "RETURN:id,merchantId,name,price,active,version",
+        "FILTER:active",
+        "SORT:id",
+        "WRITE:name,price,active"
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

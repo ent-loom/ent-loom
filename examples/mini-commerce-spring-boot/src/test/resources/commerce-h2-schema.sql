@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS merchant_product (
     active BOOLEAN,
     version BIGINT
 );
-CREATE TABLE IF NOT EXISTS `order` (
+CREATE TABLE IF NOT EXISTS commerce_order (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     customer_id BIGINT,
     merchant_id BIGINT,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `order` (
     total_amount DECIMAL(20,6),
     created_at TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS order_item (
+CREATE TABLE IF NOT EXISTS commerce_order_item (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT,
     merchant_product_id BIGINT,

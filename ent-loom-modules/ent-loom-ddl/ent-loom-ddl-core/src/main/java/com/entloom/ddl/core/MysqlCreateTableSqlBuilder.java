@@ -38,6 +38,7 @@ public final class MysqlCreateTableSqlBuilder {
         if (entity == null) {
             throw new IllegalArgumentException("entity must not be null");
         }
+        MysqlIndexNames.validate(entity);
         List<String> parts = new ArrayList<String>();
         List<String> primaryKeys = new ArrayList<String>();
         List<String> uniqueKeys = new ArrayList<String>();
@@ -65,7 +66,7 @@ public final class MysqlCreateTableSqlBuilder {
         }
         parts.addAll(uniqueKeys);
         for (DdlIndexMetadata index : entity.indexes()) {
-            String indexSql = buildIndexSql(index);
+            String indexSql = buildIndexSql(entity.tableName(), index);
             if (!indexSql.isEmpty()) {
                 parts.add(indexSql);
             }
@@ -132,9 +133,8 @@ public final class MysqlCreateTableSqlBuilder {
         return "UNIQUE KEY " + quote(indexName) + " (" + quote(columnName) + ")";
     }
 
-    String buildIndexSql(DdlIndexMetadata index) {
-        String name = trim(index.name());
-        String resolvedName = resolvedIndexName(index);
+    String buildIndexSql(String tableName, DdlIndexMetadata index) {
+        String resolvedName = MysqlIndexNames.resolve(tableName, index);
         if (!trim(index.expression()).isEmpty()) {
             return (index.unique() ? "UNIQUE KEY " : "KEY ")
                     + quote(resolvedName)
@@ -223,12 +223,8 @@ public final class MysqlCreateTableSqlBuilder {
         return value == null ? "" : value.trim();
     }
 
-    static String resolvedIndexName(DdlIndexMetadata index) {
-        String name = trim(index.name());
-        return name.isEmpty() ? "idx_auto_" + Integer.toHexString(index.hashCode()) : name;
-    }
-
     static String fieldUniqueIndexName(String tableName, String columnName) {
-        return "uk_" + normalize(tableName) + "_" + normalize(columnName);
+        return MysqlIndexNames.resolve(tableName, new DdlIndexMetadata("",
+                java.util.Collections.singletonList(columnName), true, ""));
     }
 }

@@ -4,7 +4,7 @@ import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinde
 import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.example.minicommerce.order.entity.Order;
+import com.example.minicommerce.order.entity.CommerceOrder;
 import com.jayway.jsonpath.JsonPath;
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,22 +28,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** 验证统一订单、按商家拆单、成交快照和整批事务。 */
 @SpringBootTest(properties = {
-    "spring.config.import=",
+    "spring.config.import=classpath:demo.yml,classpath:crud-policies.yml",
     "spring.datasource.url=${COMMERCE_TEST_JDBC_URL:jdbc:h2:mem:commerce-place-order;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}",
     "spring.datasource.username=${COMMERCE_TEST_JDBC_USER:sa}",
     "spring.datasource.password=${COMMERCE_TEST_JDBC_PASSWORD:}"
 })
 @AutoConfigureMockMvc
 class PlaceOrderIntegrationTest {
-    @Autowired EntityDao<Order, Long> orderDao;
+    @Autowired EntityDao<CommerceOrder, Long> commerceOrderDao;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @Autowired EntityMetaRegistry entityMetaRegistry;
 
     @BeforeEach
     void seed() {
-        jdbc.update("delete from order_item");
-        jdbc.update("delete from `order`");
+        jdbc.update("delete from commerce_order_item");
+        jdbc.update("delete from commerce_order");
         jdbc.update("delete from merchant_product");
         jdbc.update("delete from customer");
         jdbc.update("insert into customer(id, display_name, email, merchant_id) values (301, '测试客户', 'test@example.com', 1001)");
@@ -54,7 +54,7 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 同商家商品合并为一笔订单并保留成交快照() throws Exception {
-        String response = mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        String response = mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":1},"
                     + "{\"merchantProductId\":20,\"quantity\":1}]")))
             .andExpect(status().isOk())
@@ -62,9 +62,9 @@ class PlaceOrderIntegrationTest {
             .andExpect(jsonPath("$.data.totalAmount").value(30.0))
             .andReturn().getResponse().getContentAsString();
         long orderId = ((Number) JsonPath.read(response, "$.data.orderIds[0]")).longValue();
-        assertEquals(1, jdbc.queryForObject("select count(*) from `order`", Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
         jdbc.update("update merchant_product set price=99, name='改名商品' where id=10");
-        mvc.perform(post("/api/ent-crud/order/detail").header("Authorization", "Bearer demo-merchant-a")
+        mvc.perform(post("/api/ent-crud/commerceOrder/detail").header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"id\":%d}".formatted(orderId)))
             .andExpect(status().isOk())
@@ -74,7 +74,7 @@ class PlaceOrderIntegrationTest {
             .andExpect(jsonPath("$.data.item.orderItemList").doesNotExist());
 
         // 通用详情显式展开；成交快照直接读取明细，不依赖当前商品信息。
-        String expanded = mvc.perform(post("/api/ent-crud/order/detail")
+        String expanded = mvc.perform(post("/api/ent-crud/commerceOrder/detail")
                 .header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -95,24 +95,24 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 业务下单可赋予默认归属但普通DAO局部更新不能转移归属() throws Exception {
-        mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":1}]")))
             .andExpect(status().isOk());
-        Long orderId = jdbc.queryForObject("select max(id) from `order`", Long.class);
+        Long orderId = jdbc.queryForObject("select max(id) from commerce_order", Long.class);
         var binder = new DefaultCommandPayloadBinder();
         for (String field : List.of("customerId", "merchantId")) {
             var patch = binder.bindUpdatePatch(Map.of("id", orderId, field, 999L),
-                Order.class, entityMetaRegistry.getEntityMeta(Order.class));
-            assertThrows(ValidationException.class, () -> orderDao.updateById(orderId, patch));
+                CommerceOrder.class, entityMetaRegistry.getEntityMeta(CommerceOrder.class));
+            assertThrows(ValidationException.class, () -> commerceOrderDao.updateById(orderId, patch));
         }
-        Order order = orderDao.findById(orderId).orElseThrow();
+        CommerceOrder order = commerceOrderDao.findById(orderId).orElseThrow();
         assertEquals(301L, order.getCustomerId());
         assertEquals(1001L, order.getMerchantId());
     }
 
     @Test
     void 多商家下单只生成各商家订单且明细金额与归属一致() throws Exception {
-        String response = mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        String response = mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":2},"
                     + "{\"merchantProductId\":40,\"quantity\":1}]")))
             .andExpect(status().isOk())
@@ -121,27 +121,27 @@ class PlaceOrderIntegrationTest {
             .andReturn().getResponse().getContentAsString();
         List<Number> ids = JsonPath.read(response, "$.data.orderIds");
         assertEquals(ids.stream().map(Number::longValue).toList(),
-            jdbc.queryForList("select id from `order` order by id", Long.class));
-        List<Order> orders = orderDao.findAllById(ids.stream().map(Number::longValue).toList());
-        assertEquals(List.of(1001L, 2001L), orders.stream().map(Order::getMerchantId).sorted().toList());
-        for (Order order : orders) {
+            jdbc.queryForList("select id from commerce_order order by id", Long.class));
+        List<CommerceOrder> orders = commerceOrderDao.findAllById(ids.stream().map(Number::longValue).toList());
+        assertEquals(List.of(1001L, 2001L), orders.stream().map(CommerceOrder::getMerchantId).sorted().toList());
+        for (CommerceOrder order : orders) {
             assertEquals(301L, order.getCustomerId());
-            BigDecimal amount = jdbc.queryForObject("select sum(line_amount) from order_item where order_id=?",
+            BigDecimal amount = jdbc.queryForObject("select sum(line_amount) from commerce_order_item where order_id=?",
                 BigDecimal.class, order.getId());
             assertEquals(0, order.getTotalAmount().compareTo(amount));
         }
         assertEquals(0, jdbc.queryForObject("""
-            select count(*) from order_item i join `order` o on o.id=i.order_id
+            select count(*) from commerce_order_item i join commerce_order o on o.id=i.order_id
             join merchant_product p on p.id=i.merchant_product_id where o.merchant_id<>p.merchant_id
             """, Integer.class));
-        assertEquals(2, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        assertEquals(2, jdbc.queryForObject("select count(*) from commerce_order_item", Integer.class));
     }
 
     @Test
     void 小数金额精确计算且商品改价后保留成交金额() throws Exception {
         jdbc.update("update merchant_product set price=0.10 where id=10");
         jdbc.update("update merchant_product set price=19.99 where id=40");
-        mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":10,\"quantity\":3},"
                     + "{\"merchantProductId\":40,\"quantity\":2}]")))
             .andExpect(status().isOk())
@@ -150,32 +150,32 @@ class PlaceOrderIntegrationTest {
 
         jdbc.update("update merchant_product set price=99.99, name='改价后商品' where id in (10,40)");
         assertEquals(0, new BigDecimal("40.28").compareTo(jdbc.queryForObject(
-            "select sum(total_amount) from `order`", BigDecimal.class)));
+            "select sum(total_amount) from commerce_order", BigDecimal.class)));
         assertEquals(0, new BigDecimal("0.10").compareTo(jdbc.queryForObject(
-            "select unit_price from order_item where merchant_product_id=10", BigDecimal.class)));
+            "select unit_price from commerce_order_item where merchant_product_id=10", BigDecimal.class)));
         assertEquals(0, new BigDecimal("0.30").compareTo(jdbc.queryForObject(
-            "select line_amount from order_item where merchant_product_id=10", BigDecimal.class)));
+            "select line_amount from commerce_order_item where merchant_product_id=10", BigDecimal.class)));
         assertEquals(0, new BigDecimal("39.98").compareTo(jdbc.queryForObject(
-            "select line_amount from order_item where merchant_product_id=40", BigDecimal.class)));
+            "select line_amount from commerce_order_item where merchant_product_id=40", BigDecimal.class)));
         assertEquals(0, jdbc.queryForObject("""
-            select count(*) from `order` o
-            where o.total_amount<>(select sum(i.line_amount) from order_item i where i.order_id=o.id)
+            select count(*) from commerce_order o
+            where o.total_amount<>(select sum(i.line_amount) from commerce_order_item i where i.order_id=o.id)
             """, Integer.class));
     }
 
     @ParameterizedTest
-    @CsvSource({"order,total_amount", "order_item,line_amount"})
+    @CsvSource({"commerce_order,total_amount", "commerce_order_item,line_amount"})
     void 后续商家写入失败时回滚全部订单和明细(String table, String amountField) throws Exception {
         // 分别在第二个商家的订单、明细写入时触发约束，验证此前已写入的数据全部回滚。
         jdbc.execute("alter table `%s` add constraint test_order_amount check (%s <= 30)"
             .formatted(table, amountField));
         try {
-            mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+            mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                     .content(command("[{\"merchantProductId\":10,\"quantity\":1},"
                         + "{\"merchantProductId\":40,\"quantity\":1}]")))
                 .andExpect(status().is5xxServerError());
-            assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
-            assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+            assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
+            assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order_item", Integer.class));
         } finally {
             jdbc.execute("alter table `%s` drop constraint test_order_amount".formatted(table));
         }
@@ -183,14 +183,14 @@ class PlaceOrderIntegrationTest {
 
     @Test
     void 下单拒绝停用或不存在的商家商品() throws Exception {
-        mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":30,\"quantity\":1}]")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MERCHANT_PRODUCT_INACTIVE"));
-        mvc.perform(post("/api/ent-crud/order/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/commerceOrder/action/create").header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
                 .content(command("[{\"merchantProductId\":999,\"quantity\":1}]")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MERCHANT_PRODUCT_NOT_FOUND"));
-        assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
-        assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from commerce_order_item", Integer.class));
     }
 
     private String command(String items) {

@@ -1,5 +1,7 @@
 package com.entloom.meta.adapter.crud;
 
+import com.entloom.crud.core.runtime.model.CrudScopeFields;
+import java.util.Objects;
 import com.entloom.crud.api.enums.JoinType;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.crud.annotations.EntCrudEntity;
@@ -53,6 +55,7 @@ import java.util.Set;
  * Adapts Meta descriptors to CRUD runtime metadata.
  */
 public class MetaCrudAdapter implements ResourceCatalogAdapter {
+    private final CrudScopeFields scopeFieldDefaults;
     private final List<EntityMeta> entityMetas = new ArrayList<EntityMeta>();
     private final List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
     private final Map<String, Class<?>> entityTypes = new LinkedHashMap<String, Class<?>>();
@@ -147,6 +150,16 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         MetaDiagnosticPolicy diagnosticPolicy,
         CrudIdPolicyDefaults idPolicyDefaults
     ) {
+        this(entityClasses, parser, nativeParser, merger, diagnosticPolicy, idPolicyDefaults,
+            CrudScopeFields.none());
+    }
+
+    public MetaCrudAdapter(
+        Collection<Class<?>> entityClasses, EntMetaParser parser, CrudNativeAnnotationParser nativeParser,
+        CrudRuntimeModelMerger merger, MetaDiagnosticPolicy diagnosticPolicy, CrudIdPolicyDefaults idPolicyDefaults,
+        CrudScopeFields scopeFieldDefaults
+    ) {
+        this.scopeFieldDefaults = Objects.requireNonNull(scopeFieldDefaults, "默认治理字段解析器不能为空");
         if (parser == null) {
             throw new IllegalArgumentException("parser 不能为空");
         }
@@ -228,6 +241,14 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
         Class<?> entityClass = model.entityClass();
         String idField = model.idField().value();
         EntityIdPolicy idPolicy = resolveIdPolicy(entityClass, idField);
+        EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);
+        Set<String> persistentFields = new LinkedHashSet<String>();
+        for (CrudFieldRuntimeModel field : model.fields()) {
+            if (!field.relation() && field.columnName().value() != null && !field.fieldName().equals(idField)) {
+                persistentFields.add(field.fieldName());
+            }
+        }
+        Set<String> scopeFields = scopeFieldDefaults.resolve(entityClass, persistentFields);
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         for (CrudFieldRuntimeModel field : model.fields()) {
             Class<?> javaType = field.javaType() == null ? Object.class : field.javaType();
@@ -241,8 +262,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     field.relation(),
                     field.filterable(),
                     field.sortable(),
-                    field.writable(),
-                    field.scopeField(),
+                    field.writable() && !field.scopeField() && !scopeFields.contains(field.fieldName()),
+                    field.scopeField() || scopeFields.contains(field.fieldName()),
                     field.immutable(),
                     field.label(),
                     field.inputRequired() && !(field.fieldName().equals(idField) && idPolicy == EntityIdPolicy.GENERATED),
@@ -250,9 +271,8 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                 ).withDateTimeRole(field.dateTimeRole())
             );
         }
-        EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);
         if (crudEntity != null) {
-            for (String scopeField : crudEntity.scopeFields()) {
+            for (String scopeField : scopeFields) {
                 if (!fieldMetas.containsKey(scopeField)) {
                     throw new IllegalArgumentException("治理字段必须映射数据库列: " + entityClass.getName() + "#" + scopeField);
                 }

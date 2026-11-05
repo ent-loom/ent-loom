@@ -5,6 +5,8 @@ import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
 import com.entloom.crud.core.runtime.contract.CrudInputContract;
 import com.entloom.crud.core.runtime.model.CrudIdPolicyDefaults;
+import com.entloom.crud.core.runtime.model.CrudScopeFields;
+import com.entloom.crud.core.governance.authorization.CrudGrantDefaults;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.crud.MetaCrudAdapter;
@@ -93,7 +95,8 @@ public class EntLoomMetaAutoConfiguration {
         BeanFactory beanFactory,
         ObjectProvider<CrudConvention> conventionProvider,
         ObjectProvider<CrudInputContract> inputContractProvider,
-        ObjectProvider<CrudIdPolicyDefaults> idPolicyDefaultsProvider
+        ObjectProvider<CrudIdPolicyDefaults> idPolicyDefaultsProvider,
+        ObjectProvider<CrudGrantDefaults> grantDefaultsProvider
     ) {
         List<CrudConvention> conventions = new ArrayList<CrudConvention>();
         conventionProvider.orderedStream().forEach(conventions::add);
@@ -104,7 +107,8 @@ public class EntLoomMetaAutoConfiguration {
             new CrudNativeAnnotationParser(conventions, new CreatedTimeFields(properties.getDefaults().getCreatedTimeFields())),
             new CrudRuntimeModelMerger(inputContract == null ? CrudInputContract.empty() : inputContract),
             diagnosticPolicy(properties),
-            idPolicyDefaultsProvider.getIfAvailable(CrudIdPolicyDefaults::new)
+            idPolicyDefaultsProvider.getIfAvailable(CrudIdPolicyDefaults::new),
+            new CrudScopeFields(grantDefaultsProvider.getIfAvailable(CrudGrantDefaults::none).getOwnerFields().values())
         );
     }
 

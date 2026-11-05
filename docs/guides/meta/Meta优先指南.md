@@ -96,7 +96,7 @@ private List<OrderItem> orderItemList;
 private Long orderId;
 ```
 
-CRUD 根据 `List<OrderItem>` 与唯一反向多对一引用补全 `Order.id → OrderItem.orderId`。这仅产生候选映射，HTTP 仍需显式 `expandRelations` 和父资源授权。声明式策略省略 `EXPAND` 时开放候选普通字段，仅字段差异需要配置；`NONE` 可关闭展开。多个反向外键时不猜测，需要在集合上通过 `@EntCrudField` 指定目标字段及基数；无关系事实或泛型未知时不生成映射。显式一对多省略 `sourceField` 时使用当前实体主键；自动补全则保留反向关系的实际连接键。
+CRUD 根据 `List<OrderItem>` 与唯一反向多对一引用补全 `Order.id → OrderItem.orderId`。这仅产生候选映射，HTTP 仍需显式 `expandRelations` 和父资源授权。Java 判定器须显式返回 `EXPAND` 字段能力；缺失或空集合关闭展开，仍受实体静态字段上限约束。多个反向外键时不猜测，需要在集合上通过 `@EntCrudField` 指定目标字段及基数；无关系事实或泛型未知时不生成映射。显式一对多省略 `sourceField` 时使用当前实体主键；自动补全则保留反向关系的实际连接键。
 
 ## 组件覆盖
 

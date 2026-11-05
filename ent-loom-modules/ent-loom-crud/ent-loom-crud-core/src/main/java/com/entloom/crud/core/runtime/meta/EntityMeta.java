@@ -114,6 +114,10 @@ public class EntityMeta {
         LinkedHashMap<String, String> columns = new LinkedHashMap<String, String>();
         java.util.LinkedHashSet<String> allowed = new java.util.LinkedHashSet<String>();
         for (Map.Entry<String, EntityFieldMeta> entry : copy.entrySet()) {
+            EntityFieldMeta field = entry.getValue();
+            if (field.isScopeField() && (field.isRelation() || entry.getKey().equals(idField))) {
+                throw new ValidationException("治理字段必须是主键以外的持久化标量属性: " + entityName + "#" + entry.getKey());
+            }
             allowed.add(entry.getKey());
             columns.put(entry.getKey(), entry.getValue().getColumnName());
         }

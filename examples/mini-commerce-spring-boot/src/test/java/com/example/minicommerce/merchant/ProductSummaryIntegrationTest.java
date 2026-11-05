@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-    "spring.config.import=",
+    "spring.config.import=classpath:demo.yml,classpath:crud-policies.yml",
     "spring.datasource.url=${COMMERCE_TEST_JDBC_URL:jdbc:h2:mem:commerce-product-summary;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}",
     "spring.datasource.username=${COMMERCE_TEST_JDBC_USER:sa}",
     "spring.datasource.password=${COMMERCE_TEST_JDBC_PASSWORD:}"

@@ -44,8 +44,8 @@ class ConfiguredExampleAccountsTest {
         .withConfiguration(AutoConfigurations.of(CrudExampleAutoConfiguration.class,
             CrudPolicyAutoConfiguration.class, CrudAccessWebAutoConfiguration.class))
         .withUserConfiguration(MvcConfiguration.class)
-        .withPropertyValues("ent.loom.crud.access.identities.customer.id-type=long",
-            "ent.loom.crud.access.identities.merchant.id-type=long", PREFIX + "enabled=true", PREFIX + "default-access-entry=consumer",
+        .withPropertyValues("ent.loom.crud.identities.customer.id-type=long",
+            "ent.loom.crud.identities.merchant.id-type=long", PREFIX + "enabled=true", PREFIX + "default-access-entry=consumer",
             PREFIX + "routes[0].path=/api/merchant/**", PREFIX + "routes[0].entry=merchant",
             PREFIX + "accounts[0].token=customer-a", PREFIX + "accounts[0].subject-id=user-a",
             PREFIX + "accounts[0].identity.code=customer", PREFIX + "accounts[0].identity.id=301",
@@ -128,7 +128,7 @@ class ConfiguredExampleAccountsTest {
     void 未知字段缺失身份或缺失类型启动失败() {
         runner.withPropertyValues(PREFIX + "accounts[2].token=wrong", PREFIX + "accounts[2].subject-id=user-c",
             PREFIX + "accounts[2].unknownId=1").run(context -> assertThat(context).hasFailed());
-        runner.withPropertyValues("ent.loom.crud.access.identities.merchant.id-type=")
+        runner.withPropertyValues("ent.loom.crud.identities.merchant.id-type=")
             .run(context -> assertThat(context).hasFailed());
         runner.withPropertyValues(PREFIX + "accounts[2].token=missing-identity", PREFIX + "accounts[2].subject-id=user-c")
             .run(context -> assertThat(context).hasFailed());

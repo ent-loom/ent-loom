@@ -1,10 +1,11 @@
 package com.example.customerprofile;
 
 import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.crud.annotations.EntCrudAccess;
-import com.entloom.crud.annotations.EntCrudAccessField;
+import com.entloom.crud.annotations.EntCrudGrant;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+
+import static com.entloom.crud.annotations.EntCrudGrantScope.ALL;
 
 /**
  * The only entity in this example.
@@ -14,15 +15,15 @@ import com.entloom.meta.annotations.EntField;
     value = "Customer Profile",
     service = "customer-profile"
 )
+@EntCrudGrant(identities = "operator", actions = {"view", "create", "update", "delete"}, scope = ALL)
 @EntCrudEntity(
     name = "customer_profile",
     table = "customer_profile",
     ownerService = "customer-profile",
-    policy = "profile-management",
+    actions = {"view", "create", "update", "delete"},
     requiredCreateFields = {"displayName", "email"},
     forbiddenUpdateFields = "id"
 )
-@EntCrudAccess(identity = "operator", fields = @EntCrudAccessField(use = "WRITE", mode = "ALL"))
 public class CustomerProfile {
     @EntField("ID")
     private Long id;

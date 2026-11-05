@@ -7,6 +7,7 @@ import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
+import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
@@ -46,7 +47,8 @@ final class JdbcAuthorizedRelationReader {
         Set<String> seen = new LinkedHashSet<String>();
         for (String name : relations) {
             EntityFieldMeta relation = root.resolveFieldMeta(name);
-            if (name == null || (relation != null && !relation.isRelation()) || !seen.add(name)) {
+            if (name == null || (relation != null && !relation.isRelation()) || !seen.add(name)
+                || !EntityPolicyRegistry.allowsFieldUse(root.getEntityType(), name, AuthorizationFields.Use.EXPAND)) {
                 throw new PermissionDeniedException("关联展开必须使用唯一的已声明关系: " + name);
             }
             RelationEdge edge = null;
@@ -70,6 +72,7 @@ final class JdbcAuthorizedRelationReader {
             List<String> returned = new ArrayList<String>();
             for (EntityFieldMeta field : target.getFieldMetas().values()) {
                 if (!field.isRelation() && field.getColumnName() != null
+                    && EntityPolicyRegistry.allowsFieldUse(target.getEntityType(), field.getFieldName(), AuthorizationFields.Use.EXPAND)
                     && (fields.allows(AuthorizationFields.Use.EXPAND, name)
                         || fields.allows(AuthorizationFields.Use.EXPAND, name + "." + field.getFieldName()))) {
                     returned.add(field.getFieldName());

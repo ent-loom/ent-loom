@@ -14,8 +14,8 @@ import org.springframework.context.annotation.Import;
 public class CrudIdentityConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    public ConfiguredBusinessIdentities configuredBusinessIdentities(CrudAccessProperties properties) {
-        return new ConfiguredBusinessIdentities(properties);
+    public ConfiguredBusinessIdentities configuredBusinessIdentities(CrudProperties properties) {
+        return new ConfiguredBusinessIdentities(properties.getIdentities());
     }
 
     @Bean

@@ -3,6 +3,7 @@ spring:
   config:
     import:
       - classpath:demo.yml
+      - classpath:crud-policies.yml
       - optional:file:./.env[.properties]
   application:
     name: mini-commerce-spring-boot
@@ -26,7 +27,23 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # 通用 HTTP 仅发布有 CRUD 声明且未关闭的实体；默认策略不自动发布内部实体。
+      defaults:
+        actions: [view, create, update, delete]
+      # 身份结构；通用基线在 crud-policies.yml，实体特例在 @EntCrudGrant，全局归属与管理员默认在 grant-defaults。
+      grant-defaults:
+        owner-fields:
+          merchant: merchantId
+          customer: customerId
+        wildcard-identities: [super-admin]
+      identities:
+        customer:
+          id-type: LONG
+        merchant:
+          id-type: LONG
+        super-admin:
+          id-type: LONG
+          id-field: superAdminId
+      # 通用 HTTP 仅发布有 CRUD 声明且未关闭的实体，开放不代表授权。
       controller:
         enabled: true
     # 开发环境按实体同步表结构，包含删除多余列。

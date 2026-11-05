@@ -14,32 +14,23 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface EntCrudEntity {
-    /** 共享业务策略码；为空表示由程序化策略绑定。 */
+    /** 命名 YAML 授权基线或 Java 策略码；与实体上的 EntCrudGrant 互斥。 */
     String policy() default "";
 
     /** 是否发布通用 HTTP；默认发布，未声明 CRUD 的实体不会被注册。 */
     boolean httpExposed() default true;
 
-    /** 实体最终开放的业务动作；为空且 actionsSpecified 为 false 时沿用共享策略动作。 */
-    String[] actions() default {};
+    /** 框架内部的未指定标记，用于区分缺省与显式空动作集。 */
+    String INHERIT_ACTIONS = "<default>";
 
-    /** 显式设置动作，用于声明空集合关闭所有动作。 */
-    boolean actionsSpecified() default false;
+    /** 完整替换项目默认动作集；空数组关闭全部动作，不可与 addActions/removeActions 混用。 */
+    String[] actions() default {INHERIT_ACTIONS};
 
-    /** 在共享策略动作上追加的实体动作。 */
+    /** 在项目默认动作集上追加操作。 */
     String[] addActions() default {};
 
-    /** 从共享策略动作中移除的实体动作。 */
+    /** 从项目默认动作集中移除操作。 */
     String[] removeActions() default {};
-
-    /** 归属关系角色；空数组表示沿用全局关系推导。 */
-    String[] ownership() default {};
-
-    /** 是否显式设置 ownership；用于区分空集合关闭推导与省略继承。 */
-    boolean ownershipSpecified() default false;
-
-    /** 关系角色到实体字段，格式为 role=field。 */
-    String[] relations() default {};
 
     /** 静态字段上限，格式为 USE:field1,field2；未声明用途关闭。 */
     String[] fieldLimits() default {};
@@ -103,11 +94,15 @@ public @interface EntCrudEntity {
     String logicDeleteDeletedValue() default "";
 
     /**
-     * 治理范围字段；创建时由可信治理范围提供，不能由普通载荷覆盖。
+     * 治理范围字段；缺省取全局身份归属字段与实体持久化标量字段的交集。
+     * 显式数组完整替换（空数组关闭缺省保护）；创建时由可信范围补齐或校验。
      *
      * @return 范围字段名
      */
-    String[] scopeFields() default {};
+    String[] scopeFields() default {INHERIT_SCOPE_FIELDS};
+
+    /** 框架内部未指定标记，区分缺省推导与显式空数组。 */
+    String INHERIT_SCOPE_FIELDS = "<default>";
 
     /**
      * 所属服务名。

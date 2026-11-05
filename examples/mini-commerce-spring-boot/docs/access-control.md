@@ -6,9 +6,9 @@
 
 访问链路：`Bearer Token → 可信主体与业务身份 → 实体动作授权 → 数据范围与字段限制`。
 
-- [CommerceAccessConfiguration](../src/main/java/com/example/minicommerce/CommerceAccessConfiguration.java)：定义身份结构、归属关系、共享策略和管理员缺省授权。
+- [application.yml](../src/main/resources/application.yml)：定义身份结构与运行配置，导入通用基线 `crud-policies.yml`。
 - [demo.yml](../src/main/resources/demo.yml)：核验演示 Token，绑定服务端身份与归属，配置入口路由；入口本身不授予实体权限。
-- 实体类和 Handler 注解：选择策略，声明实体的动作、授权、字段和输入契约差异。
+- 实体类和 Handler 注解：声明操作、字段上限和输入契约；单实体专属授权通过 `@EntCrudGrant` 就地声明；银行卡和会员等级通过 `@EntCrudEntity(policy = "...")` 选择 YAML 通用基线；`application.yml` 的 `grant-defaults` 只声明全局归属约定。
 
 例如 `demo-merchant-a` 绑定 `merchant / 1001`，授权使用实体策略的 `merchant` 分支。请求体和 Header 不能切换归属；身份结构定义本身不证明账号归属。正式接入时替换演示认证与归属来源，复用策略和实体声明。
 
@@ -16,33 +16,34 @@
 
 | 实体 | 策略与业务边界 |
 | --- | --- |
-| 商家文章 | 继承 `maintainable`，商家维护本人数据 |
-| 客户地址 | 继承 `maintainable`，撤销商家权限，客户只查询本人地址 |
-| 商家商品 | 继承 `maintainable`，另授予商家 `batch-update`；匿名只查询启用商品 |
-| 客户主数据 | 收窄 `maintainable`，由平台管理员创建、更新和读取，禁止删除 |
-| 订单 | 使用 `workflow`；客户与商家读取所属订单，客户下单，双方取消；管理员不代替客户下单 |
-| 商家、订单明细 | `http-exposed: false`，不开放独立通用接口 |
+| 商家文章 | 内部实体，通用 HTTP 关闭 |
+| 客户地址 | 客户按可信归属维护，商家无独立访问权限 |
+| 商家商品 | 实体声明商家显式获得 `batch-update`；匿名只查询启用商品 |
+| 客户主数据 | 实体按身份声明操作资格，禁止删除 |
+| 订单 | 实体声明业务操作；客户与商家读取所属订单，客户下单，双方取消；管理员不代替客户下单 |
+| 商家 | 商家维护本人信息；客户及匿名仅查看商家摘要 |
+| 订单明细 | `httpExposed = false`，不开放独立通用接口 |
 
-只有声明 CRUD 且未关闭的实体才发布通用 HTTP。最终开放能力由有效策略的 `actions` 决定；增加动作仍须授予对应身份，范围不产生操作授权。
+只有声明 CRUD 且未关闭的实体才发布通用 HTTP。最终开放能力受实体 `actions` 上限约束；增加动作仍须授予对应身份，范围不产生操作授权。
 
 ## 查询与商品维护
 
 查询条件与可信归属范围取交集，数据、计数和关联投影遵守同一范围；商品分页只允许 `active` 作为普通筛选，`merchantId` 等归属字段由授权范围注入，身份或必要范围缺失时拒绝，不退化为全量查询。
 
-公共商品只返回 `id/merchantId/name/price`，关闭关联展开。公共浏览可不带凭证；无效凭证拒绝，登录身份不借用公共权限。商家可读取本人全部商品，客户身份未获商品读取授权。实体边界来自 `MerchantProduct` 的 Java 注解。
+公共商品只返回 `id/merchantId/name/price`，关闭关联展开。公共浏览可不带凭证；无效凭证拒绝。商家可读取本人全部商品，客户与匿名用户都只能读取启用商品摘要。实体动作及字段上限来自 Java 注解，身份授权来自 `@EntCrudGrant`。
 
 订单默认只查值字段；显式请求 `expandRelations` 才展开客户与明细。关联范围归父订单，不授予目标实体独立访问权限。每个关系单次展开累计最多 1000 条，超限失败。框架规则见 [受授权关联读取](../../../docs/guides/crud/受授权关联读取.md)。
 
 商品可修改 `name/price/active`，主键、归属、版本等字段受保护。单条更新与批量更新独立授权；`POST /api/ent-crud/merchantProduct/updateBatch` 逐项校验归属、字段和版本，整批成功或回滚。
 
-商品实体的静态字段上限在 `MerchantProduct` 的 `@EntCrudEntity` 与 `@EntCrudAccess` 中声明：返回允许商品摘要字段，筛选只允许 `active`，稳定排序只允许主键 `id`，写入只允许 `name/price/active`；身份策略只能继续收窄。
+商品实体的静态字段上限在 `MerchantProduct` 的 `@EntCrudEntity` 中声明：返回允许商品摘要字段，筛选只允许 `active`，稳定排序只允许主键 `id`，写入只允许 `name/price/active`；身份策略只能继续收窄。
 
 ## 下单与取消
 
 | 动作 | 请求与约束 |
 | --- | --- |
-| 下单 | `POST /api/ent-crud/order/action/create`；客户 Token，载荷只提供 `items`；`customerId` 来自可信身份，`merchantId` 来自商品；跨商家拆单在同一事务中完成 |
-| 取消 | `POST /api/ent-crud/order/action/cancel`；载荷 `{"payload":{"orderId":1}}`；客户与商家只能取消所属且状态为 `CREATED` 的订单，归属和原状态同时进入 UPDATE，重复取消拒绝 |
+| 下单 | `POST /api/ent-crud/commerceOrder/action/create`；客户 Token，载荷只提供 `items`；`customerId` 来自可信身份，`merchantId` 来自商品；跨商家拆单在同一事务中完成 |
+| 取消 | `POST /api/ent-crud/commerceOrder/action/cancel`；载荷 `{"payload":{"orderId":1}}`；客户与商家只能取消所属且状态为 `CREATED` 的订单，归属和原状态同时进入 UPDATE，重复取消拒绝 |
 
 订单关闭通用创建映射，未开放通用更新和删除，不能绕过业务动作。Handler 获取本次授权，订单编排服务在事务中组合 MyBatis-Plus 单实体服务：客户 ID 来自可信身份，商品 ID 来自本次订单，创建逐笔校验订单归属；取消查询和更新均绑定授权范围，更新同时绑定原状态。仅支持全量或客户、商家等值范围，其他范围执行前拒绝。原始 Mapper 由业务负责落实范围与事务，框架不会自动替其施加这些约束。
 
@@ -58,4 +59,17 @@
 | 409 | 范围写入或版本未命中，返回 `WRITE_CONFLICT` |
 | 500 | 未知异常，服务端记录日志并返回通用错误 |
 
-服务端可通过 `ConfiguredAccessPolicies.snapshot()` 查看最终授权及配置来源，不提供公共诊断接口。完整配置语义见 [配置参考](../../../docs/guides/配置参考.md)。
+策略在启动期冻结为 `EntityPolicyRegistry`；每次访问使用可信身份构造范围并执行可选实体动态扩展，不提供公共策略诊断接口。完整配置语义见 [配置参考](../../../docs/guides/配置参考.md)。
+
+### 商城归属约定与实体例外
+
+- 框架先校验实体声明的操作和身份资格；归属字段存在本身不会授予权限。
+- 商户身份默认使用 `merchantId`，客户身份默认使用 `customerId`；实体上实际存在的这些字段同时默认成为写入归属保护字段，无需重复声明 `scopeFields`；`Merchant` 的商户身份与 `Customer` 的客户身份显式覆盖为 `id`。
+- 管理员全局 `*` 默认开放实体声明的全部动作和全量范围；订单显式覆盖为仅 `view/cancel`，不能代客户下单。客户读取商户基础资料、匿名和客户读取上架商品，由实体 `@EntCrudGrant` 显式声明；商户文章和微信配置不绑定普通身份策略，商家和客户无独立授权入口，保留管理员原有全局授权。
+- 框架统一处理身份、归属范围及字段投影；实体 `@EntCrudGrant` 维护公开字段白名单等必要差异；普通写入字段沿用框架上限，订单筛选与可信范围取交集，最终字段权限仍由框架与实体上限取交集。
+- 启动时按实体策略检查已授权身份所需的归属字段，缺失即报错，不回退到全量范围。
+- 订单状态等动作业务约束继续由业务服务处理。
+
+订单明细使用 `scopeFields = "orderId"` 显式指定父订单归属保护，主键不参与默认推导。
+
+公开摘要使用 `@EntCrudGrant.Fields` 字段白名单；其他身份沿用实体上限和默认归属保护，不重复声明仅写入用途的同义白名单。订单归属和金额均可作为普通筛选条件，所有查询与当前身份的可信范围取交集，指定其他归属只会返回空集合。

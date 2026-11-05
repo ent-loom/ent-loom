@@ -33,7 +33,7 @@ class MysqlCreateTableSqlBuilderTest {
         assertTrue(first.indexOf("`id` bigint") < first.indexOf("`name` varchar(64)"));
         assertTrue(first.indexOf("PRIMARY KEY (`id`)") < first.indexOf("UNIQUE KEY `uk_user_name`"));
         assertTrue(first.indexOf("UNIQUE KEY `uk_user_name`") < first.indexOf("KEY `idx_created_name`"));
-        assertTrue(first.indexOf("KEY `idx_created_name`") < first.indexOf("UNIQUE KEY `idx_auto_"));
+        assertTrue(first.indexOf("KEY `idx_created_name`") < first.indexOf("UNIQUE KEY `uk_user_expr_"));
         assertTrue(first.contains("DEFAULT 'guest''s' COMMENT '名称 ''用户'"));
         assertTrue(first.contains("`amount` decimal(18,2) NOT NULL DEFAULT 0.00 COMMENT '金额'"));
         assertTrue(first.contains("`active` tinyint(1) NOT NULL DEFAULT TRUE"));

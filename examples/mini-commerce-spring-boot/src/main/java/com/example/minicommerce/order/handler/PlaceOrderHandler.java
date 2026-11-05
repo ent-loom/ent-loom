@@ -8,21 +8,21 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
-import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.order.service.OrderApplicationService;
+import com.example.minicommerce.order.entity.CommerceOrder;
+import com.example.minicommerce.order.service.CommerceOrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@EntCrudCommandAction(entityClass = Order.class, scene = Order.CREATE, name = "下单",
+@EntCrudCommandAction(entityClass = CommerceOrder.class, scene = CommerceOrder.CREATE, name = "下单",
     capability = "place-order", accessEntries = "commerce")
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    private final OrderApplicationService orderApplicationService;
+    private final CommerceOrderService commerceOrderService;
 
     @Override
     public CommandResult<PlaceOrderResult> handle(CommandSpec<PlaceOrderCommand> spec,
         SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
-        return CommandResult.success(orderApplicationService.place(AuthorizedActionContext.require(spec), spec.getPayload()));
+        return CommandResult.success(commerceOrderService.place(AuthorizedActionContext.require(spec), spec.getPayload()));
     }
 }

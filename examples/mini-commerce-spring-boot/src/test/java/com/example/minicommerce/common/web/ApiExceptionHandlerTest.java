@@ -4,7 +4,7 @@ import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.starter.web.error.EntBusinessExceptionHandler;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.example.minicommerce.common.exception.BusinessException;
-import com.example.minicommerce.order.enums.OrderError;
+import com.example.minicommerce.order.enums.CommerceOrderError;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.junit.jupiter.api.BeforeEach;
@@ -119,7 +119,7 @@ class ApiExceptionHandlerTest {
         void error(@PathVariable String kind) {
             throw switch (kind) {
                 case "permission" -> new PermissionDeniedException("无权访问");
-                case "business" -> new BusinessException(OrderError.ITEMS_REQUIRED);
+                case "business" -> new BusinessException(CommerceOrderError.ITEMS_REQUIRED);
                 case "status" -> new ResponseStatusException(HttpStatus.NOT_FOUND, "内部资源定位信息");
                 case "annotated-status" -> new MissingResourceException();
                 default -> new IllegalStateException("内部 SQL 与连接信息");

@@ -19,21 +19,12 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 class CrudPropertiesTest {
-    @Test
-    void 访问策略同时使用配置和JavaBean时拒绝() {
-        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
-            .withUserConfiguration(CrudPropertiesConfiguration.class)
-            .withBean(CrudAccessProperties.class, CrudAccessProperties::new)
-            .withPropertyValues("ent.loom.crud.access.identities.operator.id-type=LONG")
-            .run(context -> org.assertj.core.api.Assertions.assertThat(context).hasFailed()
-                .getFailure().hasMessageContaining("不能同时使用应用配置和 CrudAccessProperties Bean"));
-    }
     @ParameterizedTest
     @ValueSource(strings = {"defaults.id-policy", "sql-log.mode", "sql-log.output",
         "controller.default-read-result-mode", "controller.default-null-field-mode",
         "controller.string-filter.default-like-mode", "query.default-sort.time-direction",
         "query.default-sort.id-direction", "command.create-scope-field-validation-mode", "idempotency.mode",
-        "governance.permission-rules[0].decision", "access.identities.customer.id-type"})
+        "governance.permission-rules[0].decision", "identities.customer.id-type"})
     void 显式空枚举与空白枚举应在启动时拒绝并定位配置(String property) {
         String key = "ent.loom.crud." + property;
         for (String value : Arrays.asList("", " ")) {
@@ -89,16 +80,15 @@ class CrudPropertiesTest {
     void 根配置与子配置共享绑定实例() {
         new org.springframework.boot.test.context.runner.ApplicationContextRunner()
             .withUserConfiguration(CrudPropertiesConfiguration.class)
-            .withPropertyValues("ent.loom.crud.access.identities.customer.id-type=long",
+            .withPropertyValues("ent.loom.crud.identities.customer.id-type=long",
                 "ent.loom.crud.example.enabled=true", "ent.loom.crud.idempotency.retention=30m",
                 "ent.loom.crud.import-export.retention=2d", "ent.loom.crud.import-export.max-file-size=2MB")
             .run(context -> {
                 org.assertj.core.api.Assertions.assertThat(context).hasNotFailed();
                 CrudProperties properties = context.getBean(CrudProperties.class);
-                Assertions.assertSame(properties.getAccess(), context.getBean(CrudAccessProperties.class));
                 Assertions.assertSame(properties.getExample(), context.getBean(CrudExampleProperties.class));
                 Assertions.assertTrue(properties.getExample().isEnabled());
-                Assertions.assertTrue(properties.getAccess().getIdentities().containsKey("customer"));
+                Assertions.assertTrue(properties.getIdentities().containsKey("customer"));
                 Assertions.assertEquals(java.time.Duration.ofMinutes(30), properties.getIdempotency().getRetention());
                 Assertions.assertEquals(java.time.Duration.ofDays(2), properties.getImportExport().getRetention());
                 Assertions.assertEquals(2 * 1024 * 1024, properties.getImportExport().getMaxFileSize().toBytes());
@@ -106,7 +96,7 @@ class CrudPropertiesTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"enabeld=true", "access.unknown=true", "example.enabeld=true",
+    @ValueSource(strings = {"enabeld=true", "access.unknown=true", "access.identities.customer.id-type=LONG", "example.enabeld=true",
         "idempotency.retention-hours=48", "import-export.max-file-bytes=100"})
     void 未知配置与已删除配置应在启动时定位报错(String property) {
         String key = "ent.loom.crud." + property.substring(0, property.indexOf('='));

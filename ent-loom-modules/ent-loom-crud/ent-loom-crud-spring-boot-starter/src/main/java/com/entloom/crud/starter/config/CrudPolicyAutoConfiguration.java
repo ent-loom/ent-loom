@@ -11,11 +11,15 @@ import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
+import com.entloom.crud.core.governance.authorization.CrudGrantDefaults;
+import com.entloom.crud.core.governance.authorization.CrudGrantRegistry;
+import com.entloom.crud.core.governance.authorization.EntityGrantCustomizer;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.fact.RelationFactResolver;
 import com.entloom.crud.core.governance.fact.RelationFactService;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.core.governance.policy.BusinessOperationCatalog;
+import com.entloom.crud.core.governance.policy.CrudEntityActions;
 import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
 import com.entloom.crud.core.governance.policy.CrudOperationMapping;
 import com.entloom.crud.core.governance.policy.CrudOperationMappingRegistry;
@@ -35,7 +39,6 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.query.JdbcAuthorizedQueryExecutor;
 import com.entloom.crud.engine.jdbc.command.JdbcAuthorizedCommandExecutor;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
@@ -46,7 +49,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-/** 汇总 YAML、Java 声明与实体注解，在启动期交由同一 Core 编译器校验。 */
+/** 汇总 Java 策略与实体静态边界，CRUD 与 MVC 共享同一按次授权服务。 */
 @AutoConfiguration(after = CrudAutoConfiguration.class, before = CrudAccessWebAutoConfiguration.class)
 @Import({CrudPropertiesConfiguration.class, CrudIdentityConfiguration.class, CrudEntityDeclarationConfiguration.class})
 public class CrudPolicyAutoConfiguration {
@@ -54,7 +57,7 @@ public class CrudPolicyAutoConfiguration {
     @Bean
     @ConditionalOnBean(GuardedSqlExecutor.class)
     public org.springframework.beans.factory.SmartInitializingSingleton configuredAccessExecutionGuard(
-        ConfiguredAccessPolicies configured, EntityMetaRegistry entities,
+        CrudPolicyDeclarations configured, EntityMetaRegistry entities,
         ObjectProvider<com.entloom.crud.core.runtime.router.CommandRouter> routers,
         ObjectProvider<AuthorizedCommandExecutor> commands, ObjectProvider<AuthorizedQueryExecutor> queries) {
         return () -> {
@@ -107,23 +110,33 @@ public class CrudPolicyAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public CrudGrantDefaults crudGrantDefaults(CrudProperties properties) {
+        var defaults = properties.getGrantDefaults();
+        return new CrudGrantDefaults(defaults.getOwnerFields(), defaults.getWildcardIdentities());
+    }
+
+    @Bean
     @ConditionalOnBean(EntityMetaRegistry.class)
-    public ConfiguredAccessPolicies configuredAccessPolicies(CrudAccessProperties properties,
-        EntityMetaRegistry entities, BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions,
+    public CrudGrantRegistry crudGrantRegistry(EntityMetaRegistry entities, BusinessIdentityRegistry identities,
+                                               CrudGrantDefaults defaults, ObjectProvider<EntityGrantCustomizer> extensions, CrudEntityActions actions, CrudProperties properties) {
+        return new CrudGrantRegistry(entities, identities, defaults, extensions.orderedStream().toList(), actions,
+            CrudGrantPolicies.resolve(entities, properties));
+    }
+
+    @Bean
+    @ConditionalOnBean(EntityMetaRegistry.class)
+    public CrudPolicyDeclarations crudPolicyDeclarations(EntityMetaRegistry entities,
         CrudEntityDeclarations declarations, ObjectProvider<EntityPolicyTemplate> templates,
-        ObjectProvider<EntityPolicyBinding> javaBindings, ScenePolicyRegistry scenes) {
-        // 在生成操作目录前检查所有来源，重名始终报告策略冲突，不受 Bean 装配顺序影响。
-        var sources = new LinkedHashMap<String, String>();
-        properties.getPolicies().keySet().forEach(code -> sources.put(code, "ent.loom.crud.access.policies." + code));
-        templates.orderedStream().forEach(template -> {
-            String previous = sources.putIfAbsent(template.getCode(), template.getSource());
-            if (previous != null) {
-                throw new ValidationException("策略模板重复: " + template.getCode()
-                    + "，来源: " + previous + " / " + template.getSource());
-            }
-        });
-        return new ConfiguredAccessPolicies(properties, entities, identities, definitions, declarations,
-            javaBindings.orderedStream().map(EntityPolicyBinding::getEntityType).collect(Collectors.toSet()), scenes);
+        ObjectProvider<EntityPolicyBinding> javaBindings, ScenePolicyRegistry scenes, CrudGrantRegistry grants, CrudProperties properties) {
+        List<EntityPolicyTemplate> allTemplates = new ArrayList<>(templates.orderedStream().toList());
+        for (var template : allTemplates) {
+            if (properties.getPolicies().containsKey(template.getCode()))
+                throw new ValidationException("YAML 与 Java 策略名称重复: " + template.getCode());
+        }
+        allTemplates.addAll(grants.getTemplates());
+        List<EntityPolicyBinding> allBindings = new ArrayList<>(javaBindings.orderedStream().toList());
+        return new CrudPolicyDeclarations(entities, declarations, allTemplates, allBindings, grants.getBindings(), scenes);
     }
 
     @Bean
@@ -132,7 +145,7 @@ public class CrudPolicyAutoConfiguration {
     public BusinessOperationCatalog businessOperationCatalog(
         EntityMetaRegistry entities,
         ObjectProvider<BusinessOperationDeclaration> declarations,
-        ConfiguredAccessPolicies configured
+        CrudPolicyDeclarations configured
     ) {
         List<ResourceDescriptor> resources = new ArrayList<ResourceDescriptor>();
         for (EntityMeta meta : entities.getEntityMetas()) {
@@ -150,7 +163,7 @@ public class CrudPolicyAutoConfiguration {
         EntityMetaRegistry entities,
         BusinessOperationCatalog operations,
         ObjectProvider<CrudOperationMapping> mappings,
-        ConfiguredAccessPolicies configured,
+        CrudPolicyDeclarations configured,
         ScenePolicyRegistry scenes
     ) {
         List<CrudOperationMapping> all = new ArrayList<>(mappings.orderedStream().collect(Collectors.toList()));
@@ -166,9 +179,12 @@ public class CrudPolicyAutoConfiguration {
         EntityPolicyRegistry policies,
         ObjectProvider<BusinessPermissionEvaluator> evaluators,
         ObjectProvider<RelationFactService> facts,
-        ConfiguredAccessPolicies configured
+        CrudGrantRegistry grants
     ) {
-        BusinessPermissionEvaluator evaluator = configured.evaluator(evaluators.getIfAvailable());
+        BusinessPermissionEvaluator programmatic = evaluators.getIfAvailable(() ->
+            (visitor, operation, rule, target) -> com.entloom.crud.core.governance.authorization.BusinessPermissionDecision.deny());
+        BusinessPermissionEvaluator evaluator = (visitor, operation, rule, target) -> grants.governs(operation.getResourceCode())
+            ? grants.evaluate(visitor, operation, rule, target) : programmatic.evaluate(visitor, operation, rule, target);
         return new BusinessAuthorizationService(operations, policies, evaluator, facts.getIfAvailable());
     }
 
@@ -199,9 +215,10 @@ public class CrudPolicyAutoConfiguration {
     @Bean
     @ConditionalOnBean(EntityMetaRegistry.class)
     @ConditionalOnMissingBean
-    public RelationFactService relationFactService(ObjectProvider<RelationFactResolver> resolver,
-        ConfiguredAccessPolicies configured) {
-        return new RelationFactService(configured.relations(resolver.getIfAvailable()), 256);
+    public RelationFactService relationFactService(ObjectProvider<RelationFactResolver> resolver) {
+        return new RelationFactService(resolver.getIfAvailable(() -> (visitor, rule, target, limit) -> {
+            throw new com.entloom.crud.core.exception.PermissionDeniedException("关系事实解析器未配置: " + rule.getOperation());
+        }), 256);
     }
 
     @Bean
@@ -247,14 +264,13 @@ public class CrudPolicyAutoConfiguration {
         BusinessOperationCatalog operations,
         BusinessIdentityRegistry identities,
         ObjectProvider<EntityPolicyTemplate> templates,
-        ObjectProvider<EntityPolicyBinding> javaBindings,
-        ConfiguredAccessPolicies configured
+        CrudPolicyDeclarations configured,
+        CrudGrantRegistry grants
     ) {
         List<EntityPolicyBinding> bindings = new ArrayList<EntityPolicyBinding>();
-        bindings.addAll(javaBindings.orderedStream().collect(Collectors.toList()));
         bindings.addAll(configured.bindings());
         List<EntityPolicyTemplate> all = new ArrayList<>(templates.orderedStream().collect(Collectors.toList()));
-        all.addAll(configured.templates());
+        all.addAll(grants.getTemplates());
         return new EntityPolicyRegistry(entities, all, bindings, operations, identities);
     }
 

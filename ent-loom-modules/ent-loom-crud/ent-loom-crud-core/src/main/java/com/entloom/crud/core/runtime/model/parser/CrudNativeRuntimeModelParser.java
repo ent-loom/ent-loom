@@ -1,5 +1,7 @@
 package com.entloom.crud.core.runtime.model.parser;
 
+import com.entloom.crud.core.runtime.model.CrudScopeFields;
+import java.util.Objects;
 import com.entloom.base.util.reflect.EntityProperties;
 
 import com.entloom.crud.annotations.EntCrudEntity;
@@ -40,6 +42,7 @@ import java.util.Set;
 public class CrudNativeRuntimeModelParser {
     private final CrudNativeAnnotationParser annotationParser;
     private final CrudIdPolicyDefaults idPolicyDefaults;
+    private final CrudScopeFields scopeFieldDefaults;
 
     public CrudNativeRuntimeModelParser() {
         this(java.util.Collections.<CrudConvention>emptyList(), new CrudIdPolicyDefaults());
@@ -57,6 +60,12 @@ public class CrudNativeRuntimeModelParser {
         Collection<? extends CrudConvention> conventions,
         CrudIdPolicyDefaults idPolicyDefaults
     ) {
+        this(conventions, idPolicyDefaults, CrudScopeFields.none());
+    }
+
+    public CrudNativeRuntimeModelParser(Collection<? extends CrudConvention> conventions,
+        CrudIdPolicyDefaults idPolicyDefaults, CrudScopeFields scopeFieldDefaults) {
+        this.scopeFieldDefaults = Objects.requireNonNull(scopeFieldDefaults, "默认治理字段解析器不能为空");
         this.annotationParser = new CrudNativeAnnotationParser(conventions);
         this.idPolicyDefaults = idPolicyDefaults == null ? new CrudIdPolicyDefaults() : idPolicyDefaults;
     }
@@ -90,7 +99,11 @@ public class CrudNativeRuntimeModelParser {
         Map<String, EntityFieldMeta> fieldMetas = new LinkedHashMap<String, EntityFieldMeta>();
         List<RelationEdge> relationEdges = new ArrayList<RelationEdge>();
         String idField = nativeModel.idField().value();
-        String[] scopeFields = entity == null ? new String[0] : entity.scopeFields();
+        Set<String> persistentFields = new java.util.LinkedHashSet<String>();
+        for (Field field : EntityProperties.fields(entityClass)) {
+            if (isPersistentField(field) && !field.getName().equals(idField)) persistentFields.add(field.getName());
+        }
+        Set<String> scopeFields = scopeFieldDefaults.resolve(entityClass, persistentFields);
         for (Field field : EntityProperties.fields(entityClass)) {
             EntCrudField relation = field.getAnnotation(EntCrudField.class);
             if (relation != null) {
@@ -99,7 +112,7 @@ public class CrudNativeRuntimeModelParser {
             if (isPersistentField(field)) {
                 fieldMetas.put(
                     field.getName(),
-                    toFieldMeta(field, findFieldModel(nativeModel, field.getName()), contains(scopeFields, field.getName()))
+                    toFieldMeta(field, findFieldModel(nativeModel, field.getName()), scopeFields.contains(field.getName()))
                 );
             }
         }
@@ -110,11 +123,6 @@ public class CrudNativeRuntimeModelParser {
             nativeModel.ownerService().value(),
             resourceAliases(entityClass)
         );
-        for (String scopeField : scopeFields) {
-            if (!fieldMetas.containsKey(scopeField)) {
-                throw new ValidationException("治理字段必须映射数据库列: " + entityClass.getName() + "#" + scopeField);
-            }
-        }
         EntityMeta entityMeta = new EntityMeta(
             entityClass,
             descriptor,
@@ -152,17 +160,6 @@ public class CrudNativeRuntimeModelParser {
         ).withDateTimeRole(nativeField == null ? null : nativeField.dateTimeRole().value());
     }
 
-    private boolean contains(String[] fields, String fieldName) {
-        if (fields == null || fieldName == null) {
-            return false;
-        }
-        for (String field : fields) {
-            if (fieldName.equals(field == null ? null : field.trim())) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private CrudNativeFieldModel findFieldModel(CrudNativeEntityModel model, String fieldName) {
         if (model == null) {

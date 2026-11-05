@@ -2,7 +2,7 @@ package com.example.minicommerce.merchant.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.merchant.service.ProductSummaryService;
+import com.example.minicommerce.merchant.service.query.ProductSummaryService;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
