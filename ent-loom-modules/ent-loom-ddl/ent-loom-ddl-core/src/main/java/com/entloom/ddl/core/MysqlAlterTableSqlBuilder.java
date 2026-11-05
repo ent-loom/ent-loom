@@ -24,20 +24,37 @@ public final class MysqlAlterTableSqlBuilder {
     }
 
     public String buildAddColumn(DdlEntityMetadata entity, String schema, DdlFieldMetadata field) {
-        return prefix(entity, schema) + " ADD COLUMN " + createTableSqlBuilder.buildColumnSql(field);
+        return buildAddColumn(entity, schema, field, createTableSqlBuilder.resolve(entity, null,
+                com.entloom.ddl.api.DdlCharacterSetMetadata.unknown()));
+    }
+
+    public String buildAddColumn(DdlEntityMetadata entity, String schema, DdlFieldMetadata field, MysqlTableResolution resolution) {
+        return prefix(entity, schema) + " ADD COLUMN " + createTableSqlBuilder.buildColumnSql(field, resolution.column(field));
     }
 
     public String buildModifyColumn(DdlEntityMetadata entity, String schema, DdlFieldChange change) {
-        return prefix(entity, schema) + " MODIFY COLUMN "
-                + MysqlCreateTableSqlBuilder.quote(change.desiredField().columnName()) + " "
-                + createTableSqlBuilder.buildColumnDefinition(change.desiredField(), change.existingAutoIncrement());
+        return buildModifyColumn(entity, schema, change, createTableSqlBuilder.resolve(entity, null,
+                com.entloom.ddl.api.DdlCharacterSetMetadata.unknown()));
     }
 
     public String buildChangeColumn(DdlEntityMetadata entity, String schema, DdlFieldChange change) {
+        return buildChangeColumn(entity, schema, change, createTableSqlBuilder.resolve(entity, null,
+                com.entloom.ddl.api.DdlCharacterSetMetadata.unknown()));
+    }
+
+    public String buildModifyColumn(DdlEntityMetadata entity, String schema, DdlFieldChange change, MysqlTableResolution resolution) {
+        return prefix(entity, schema) + " MODIFY COLUMN "
+                + MysqlCreateTableSqlBuilder.quote(change.desiredField().columnName()) + " "
+                + createTableSqlBuilder.buildColumnDefinition(change.desiredField(), change.existingAutoIncrement(),
+                    resolution.column(change.desiredField()));
+    }
+
+    public String buildChangeColumn(DdlEntityMetadata entity, String schema, DdlFieldChange change, MysqlTableResolution resolution) {
         return prefix(entity, schema) + " CHANGE COLUMN "
                 + MysqlCreateTableSqlBuilder.quote(change.existingColumnName()) + " "
                 + MysqlCreateTableSqlBuilder.quote(change.desiredField().columnName()) + " "
-                + createTableSqlBuilder.buildColumnDefinition(change.desiredField(), change.existingAutoIncrement());
+                + createTableSqlBuilder.buildColumnDefinition(change.desiredField(), change.existingAutoIncrement(),
+                    resolution.column(change.desiredField()));
     }
 
     public String buildAddIndex(DdlEntityMetadata entity, String schema, DdlIndexMetadata index) {
@@ -54,6 +71,12 @@ public final class MysqlAlterTableSqlBuilder {
      */
     public String buildSynchronize(DdlEntityMetadata entity, String schema,
                                    DdlTableSnapshot current, DdlSchemaDiff diff) {
+        return buildSynchronize(entity, schema, current, diff,
+                createTableSqlBuilder.resolve(entity, current, current.characterSet()));
+    }
+
+    public String buildSynchronize(DdlEntityMetadata entity, String schema, DdlTableSnapshot current,
+                            DdlSchemaDiff diff, MysqlTableResolution resolution) {
         List<String> clauses = new ArrayList<String>();
         for (String index : diff.removedIndexes()) {
             clauses.add("DROP INDEX " + MysqlCreateTableSqlBuilder.quote(index));
@@ -62,14 +85,14 @@ public final class MysqlAlterTableSqlBuilder {
             clauses.add("DROP PRIMARY KEY");
         }
         for (DdlFieldMetadata field : diff.addedFields()) {
-            clauses.add("ADD COLUMN " + createTableSqlBuilder.buildColumnSql(field));
+            clauses.add("ADD COLUMN " + createTableSqlBuilder.buildColumnSql(field, resolution.column(field)));
         }
         for (DdlFieldChange change : diff.changedFields()) {
             DdlFieldMetadata desired = change.desiredField();
             boolean preserveAutoIncrement = change.existingAutoIncrement()
                     && desired.generationStrategy() != GenerationStrategy.NONE;
             String definition = MysqlCreateTableSqlBuilder.quote(desired.columnName()) + " "
-                    + createTableSqlBuilder.buildColumnDefinition(desired, preserveAutoIncrement);
+                    + createTableSqlBuilder.buildColumnDefinition(desired, preserveAutoIncrement, resolution.column(desired));
             clauses.add(change.renamed()
                     ? "CHANGE COLUMN " + MysqlCreateTableSqlBuilder.quote(change.existingColumnName()) + " " + definition
                     : "MODIFY COLUMN " + definition);

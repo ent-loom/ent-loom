@@ -78,6 +78,22 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 
 执行模式已支持显式 `CREATE_MODIFY_DELETE_ALL`：按实体表同步全部结构差异，包含删除多余列、删除或重建索引、修改主键及不兼容字段变化；单表合并为一条 ALTER，可能丢失数据。受控模式 `CREATE_MODIFY_TABLE_AND_METAS` 保留既有安全边界，详情见[自动迁移安全边界](../../docs/guides/ddl/自动迁移安全边界.md)。
 
+文本推导增量（2026-10-17）：三个加载入口均承接 `sqlType`，String 的显式 VARCHAR / CHAR / TEXT / MEDIUMTEXT / LONGTEXT 已开放；其他非 AUTO 组合明确报错，不静默回退。`DdlTextCapacity` 独立保留业务上限、显式物理长度及来源；默认 `varchar(200)` 不反写为业务约束。文本参数、业务容量不足、声明冲突与 TEXT 列索引冲突在执行前拒绝；P2 已完成：无物理配置且有正业务上限的 String + AUTO 按有效字符集最坏字节数选择 VARCHAR / TEXT / MEDIUMTEXT / LONGTEXT，缺失上下文或超限报错；未声明时仍为 varchar(200)，受控迁移白名单不扩大。
+
+`MysqlTypeMapper` 统一解析单表目标为不可变 `MysqlTableResolution`，CREATE / Diff / ALTER 复用同一结果。引擎先读取目标库/表/列字符集及 MAXLEN：新库、新表显式固定所选默认值，MODIFY/CHANGE 保留原列字符集/排序规则，新增列使用表默认值；空 schema 仅使用当前 catalog，非 MySQL 不伪造上下文。原始定义字符集修饰只接受与已验证上下文一致的值，不自动迁移字符集；未知定义保留原文并产生有限校验告警；已有文本列无法可靠保留属性时拒绝修改，仍受原迁移白名单约束。TEXT 非 NULL 默认值尚不支持。
+
+无数据库的 SQL 构建需要调用方提供设计目标字符集，不能把缺少上下文当作容量校验通过：
+
+```java
+MysqlCreateTableSqlBuilder builder = new MysqlCreateTableSqlBuilder();
+DdlCharacterSetMetadata charset = new DdlCharacterSetMetadata("utf8mb4", "utf8mb4_bin", 4);
+MysqlTableResolution target = builder.resolve(entity, null, charset);
+String sql = builder.build(entity, "example", target);
+// target.warnings() 暴露未知原始定义的有限校验范围。
+```
+
+真实库应从 `QueryStrategy` 取得上下文；构建修改计划时传入实际表快照，不能用表默认值替代已有列覆盖值。验收入口及证据见唯一实施看板。
+
 ## 6. 非核心边界（避免 ddl-core 过重）
 
 以下能力建议不直接塞进 `ddl-core`，而是放扩展模块：
@@ -87,3 +103,7 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 3. 强业务定制的字段名模式推断规则
 
 这样可以保证 `ent-loom-ddl` 核心长期稳定，扩展能力按业务自由演进。
+
+### Meta 业务文本的缺省存储策略
+
+Meta DDL Adapter 将业务语义投影为独立 DDL 模型，Core 不读取 Meta 注解：普通 `TEXT` 无上限仍为 `varchar(200)`；`@EntField(value = "正文", kind = EntFieldKind.CONTENT)` 正文和 `EntFieldKind.RICH_CONTENT` 富文本无上限时提供 TEXT 缺省提示，不伪造业务长度。二者声明正业务上限时采用 AUTO 容量选型；富文本上限取自 `richContent.maxLength`。物理类型、物理 length 或 columnDefinition 显式配置优先，继续校验业务容量、参数、默认值和索引。`multiline` 不改变存储策略；TEXT 缺省不表示无限容量，跨类别迁移不自动放行。

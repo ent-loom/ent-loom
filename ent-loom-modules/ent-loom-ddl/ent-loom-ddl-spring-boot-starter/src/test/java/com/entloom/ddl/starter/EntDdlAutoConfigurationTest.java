@@ -24,6 +24,24 @@ class EntDdlAutoConfigurationTest {
             .withUserConfiguration(EntDdlAutoConfiguration.class);
 
     @Test
+    void Starter默认加载器应保留显式文本类型() {
+        contextRunner.run(context -> {
+            com.entloom.ddl.api.MetadataLoader loader = context.getBean(com.entloom.ddl.api.MetadataLoader.class);
+            com.entloom.ddl.api.DdlFieldMetadata field = loader.load(new com.entloom.ddl.api.MetadataLoadRequest(
+                    java.util.Collections.emptyList(), java.util.Collections.singletonList(TextEntity.class)))
+                    .get(0).fields().get(0);
+            org.junit.jupiter.api.Assertions.assertEquals(com.entloom.ddl.enums.SqlType.TEXT, field.sqlType());
+            org.junit.jupiter.api.Assertions.assertEquals(-1, field.textCapacity().businessMaxLength());
+        });
+    }
+
+    @com.entloom.ddl.annotations.EntDdlEntity
+    private static class TextEntity {
+        @com.entloom.ddl.annotations.EntDdlField(sqlType = com.entloom.ddl.enums.SqlType.TEXT)
+        String content;
+    }
+
+    @Test
     @DisplayName("Starter 不默认注册 Noop 查询和执行器")
     void shouldNotRegisterNoopSpiByDefault() {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();

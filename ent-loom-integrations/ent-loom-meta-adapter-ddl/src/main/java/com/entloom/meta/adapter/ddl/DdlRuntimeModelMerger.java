@@ -2,6 +2,8 @@ package com.entloom.meta.adapter.ddl;
 
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
+import com.entloom.ddl.api.DdlTextCapacity;
+import com.entloom.ddl.enums.SqlType;
 import com.entloom.ddl.api.DdlGenerationDefaults;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
@@ -192,7 +194,7 @@ final class DdlRuntimeModelMerger {
         SourcedValue<Integer> length = choose(
             "length", entityClass, fieldName,
             nativeField == null ? null : nativeField.length(),
-            constraintInteger(metaField, "text.maxLength"),
+            textMaxLength(metaField),
             SourcedValue.defaulted(Integer.valueOf(-1)),
             diagnostics
         );
@@ -253,7 +255,14 @@ final class DdlRuntimeModelMerger {
                 valueOrDefault(defaultValue, ""),
                 valueOrDefault(comment, ""),
                 valueOrDefault(renameFrom, ""),
-                valueOrDefault(generation, GenerationStrategy.UNSET)
+                valueOrDefault(generation, GenerationStrategy.UNSET),
+                textSqlType(metaField, nativeField),
+                javaType == String.class ? new DdlTextCapacity(
+                    valueOrDefault(textMaxLength(metaField), Integer.valueOf(-1)).intValue(),
+                    entityClass.getName() + "#" + fieldName + "." + textCapacityProperty(metaField),
+                    nativeField == null ? -1 : valueOrDefault(nativeField.length(), Integer.valueOf(-1)).intValue(),
+                    entityClass.getName() + "#" + fieldName + "@EntDdlField.length")
+                    : DdlTextCapacity.unspecified()
             );
         } catch (IllegalArgumentException exception) {
             diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.UNKNOWN)
@@ -450,6 +459,33 @@ final class DdlRuntimeModelMerger {
             ? GenerationStrategy.AUTO_INCREMENT : GenerationStrategy.NONE;
         return source == null ? SourcedValue.metaExplicit(strategy)
             : SourcedValue.of(strategy, source.source(), source.state(), source.explicit(), source.ruleId());
+    }
+
+    /** 业务类型只提供缺省策略，不覆盖显式物理配置，也不制造业务长度。 */
+    private SqlType textSqlType(EntFieldDescriptor field, DdlNativeFieldModel nativeField) {
+        SqlType hint = nativeField == null ? SqlType.AUTO : nativeField.sqlType();
+        if (hint != SqlType.AUTO || field == null || field.javaType() != String.class) {
+            return hint;
+        }
+        boolean physical = nativeField != null
+            && (!valueOrDefault(nativeField.columnDefinition(), "").isEmpty()
+                || valueOrDefault(nativeField.length(), Integer.valueOf(-1)).intValue() >= 0);
+        SourcedValue<Integer> maximum = textMaxLength(field);
+        if (physical || (maximum != null && maximum.value() != null && maximum.value().intValue() >= 0)) {
+            return SqlType.AUTO;
+        }
+        boolean content = EntFieldKind.RICH_CONTENT.name().equals(field.fieldKind())
+            || EntFieldKind.CONTENT.name().equals(field.fieldKind());
+        return content ? SqlType.TEXT : SqlType.AUTO;
+    }
+
+    private String textCapacityProperty(EntFieldDescriptor field) {
+        return field != null && EntFieldKind.RICH_CONTENT.name().equals(field.fieldKind())
+            ? "richContent.maxLength" : "text.maxLength";
+    }
+
+    private SourcedValue<Integer> textMaxLength(EntFieldDescriptor field) {
+        return constraintInteger(field, textCapacityProperty(field));
     }
 
     private SourcedValue<Integer> constraintInteger(EntFieldDescriptor field, String name) {

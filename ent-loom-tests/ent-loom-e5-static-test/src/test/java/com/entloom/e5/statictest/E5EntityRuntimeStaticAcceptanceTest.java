@@ -81,13 +81,17 @@ class E5EntityRuntimeStaticAcceptanceTest {
         Assertions.assertEquals(1, ddl.indexes().size());
         Assertions.assertEquals("display_name", ddl.indexes().get(0).fields().get(0));
 
-        String createTableSql = new MysqlCreateTableSqlBuilder().build(ddl, "static_acceptance");
+        MysqlCreateTableSqlBuilder builder = new MysqlCreateTableSqlBuilder();
+        // 静态验收显式选择目标字符集；不把缺少数据库连接解释为已通过容量校验。
+        com.entloom.ddl.core.MysqlTableResolution resolution = builder.resolve(ddl, null,
+                new com.entloom.ddl.api.DdlCharacterSetMetadata("utf8mb4", "utf8mb4_bin", 4));
+        String createTableSql = builder.build(ddl, "static_acceptance", resolution);
         Assertions.assertTrue(createTableSql.contains("CREATE TABLE IF NOT EXISTS `static_acceptance`.`customer_profile`"));
         Assertions.assertTrue(createTableSql.contains("`id` bigint NOT NULL AUTO_INCREMENT"));
-        Assertions.assertTrue(createTableSql.contains("`display_name` varchar(64) NOT NULL"));
+        Assertions.assertTrue(createTableSql.contains("`display_name` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL"));
         Assertions.assertTrue(createTableSql.contains("`credit_limit` decimal(10,2) NOT NULL"));
         Assertions.assertTrue(createTableSql.contains("`registered_at` datetime NOT NULL"));
-        Assertions.assertTrue(createTableSql.contains("`avatar_url` varchar(255) NULL"));
+        Assertions.assertTrue(createTableSql.contains("`avatar_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL"));
         Assertions.assertTrue(createTableSql.contains("PRIMARY KEY (`id`)"));
         Assertions.assertTrue(createTableSql.contains("UNIQUE KEY `uk_customer_profile_display_name` (`display_name`)"));
     }

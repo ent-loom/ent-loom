@@ -14,6 +14,7 @@ import java.util.Set;
  * String)} 表示。</p>
  */
 public final class DdlTableSnapshot {
+    private final DdlCharacterSetMetadata characterSet;
     private final boolean exists;
     private final String schema;
     private final String tableName;
@@ -29,6 +30,14 @@ public final class DdlTableSnapshot {
                             List<DdlColumnMetadata> columns,
                             List<String> primaryKeyColumns,
                             List<DdlIndexMetadata> indexes) {
+        this(exists, schema, tableName, comment, columns, primaryKeyColumns, indexes,
+                DdlCharacterSetMetadata.unknown());
+    }
+
+    public DdlTableSnapshot(boolean exists, String schema, String tableName, String comment,
+                            List<DdlColumnMetadata> columns, List<String> primaryKeyColumns,
+                            List<DdlIndexMetadata> indexes, DdlCharacterSetMetadata characterSet) {
+        this.characterSet = java.util.Objects.requireNonNull(characterSet, "characterSet must not be null");
         this.exists = exists;
         this.schema = trim(schema);
         this.tableName = requireText(tableName, "tableName");
@@ -47,6 +56,11 @@ public final class DdlTableSnapshot {
                 Collections.<DdlColumnMetadata>emptyList(),
                 Collections.<String>emptyList(),
                 Collections.<DdlIndexMetadata>emptyList());
+    }
+
+    /** 表默认值；不能用于替代已有列自身的字符集。 */
+    public DdlCharacterSetMetadata characterSet() {
+        return characterSet;
     }
 
     public boolean exists() {

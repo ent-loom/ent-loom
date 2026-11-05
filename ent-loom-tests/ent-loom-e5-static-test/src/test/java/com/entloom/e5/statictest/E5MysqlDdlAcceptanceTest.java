@@ -3,11 +3,9 @@ package com.entloom.e5.statictest;
 import com.entloom.ddl.api.DdlExecutionMode;
 import com.entloom.ddl.api.DdlTableSnapshot;
 import com.entloom.ddl.api.QueryStrategy;
-import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
 import com.entloom.e5.statictest.fixture.CustomerProfile;
 import com.entloom.testsupport.mysql.MysqlIntegrationSettings;
-import java.util.Collections;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +45,36 @@ class E5MysqlDdlAcceptanceTest {
 
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.registerBean(DataSource.class, () -> dataSource);
-        context.registerBean(EntDdlSpringOptions.class, () -> options(schema));
+        context.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource(
+            "e5-ddl", java.util.Map.of(
+                "ent.loom.ddl.schema", schema,
+                "ent.loom.ddl.create-database-if-missing", true,
+                "ent.loom.ddl.mode", DdlExecutionMode.CREATE_TABLE.name(),
+                "ent.loom.ddl.entity-class-names[0]", CustomerProfile.class.getName())));
+        // Meta 实体按业务资源码 customer_profile 消费共享 YAML，不能改用原生类名键。
+        context.registerBean(com.entloom.ddl.api.MetadataLoader.class, () -> {
+            com.entloom.meta.adapter.ddl.MetaDdlAdapter adapter = new com.entloom.meta.adapter.ddl.MetaDdlAdapter(
+                java.util.Collections.singletonList(CustomerProfile.class),
+                new com.entloom.meta.core.parser.ReflectiveEntMetaParser(),
+                com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(),
+                new com.entloom.ddl.api.DdlGenerationDefaults(),
+                context.getBean(com.entloom.declaration.EntityDeclarations.class));
+            return new com.entloom.ddl.api.MetadataLoader() {
+                public java.util.List<com.entloom.ddl.api.DdlEntityMetadata> load(com.entloom.ddl.api.MetadataLoadRequest request) {
+                    return adapter.models();
+                }
+                public void validateDeclarations(com.entloom.ddl.api.MetadataLoadRequest request) {
+                    adapter.validateDeclarations();
+                }
+            };
+        });
+        // 共享实体 YAML 同时包含 CRUD / DOC；注册真实声明消费者，保留组件校验。
+        context.registerBean(com.entloom.crud.starter.config.CrudEntityDeclarations.class,
+            () -> new com.entloom.crud.starter.config.CrudEntityDeclarations(
+                context.getBean(com.entloom.declaration.EntityDeclarations.class)));
+        context.registerBean(com.entloom.meta.adapter.doc.DocEntityDeclarations.class,
+            () -> new com.entloom.meta.adapter.doc.DocEntityDeclarations(
+                context.getBean(com.entloom.declaration.EntityDeclarations.class)));
         context.register(EntDdlAutoConfiguration.class);
         Throwable primaryFailure = null;
         try {
@@ -84,16 +111,6 @@ class E5MysqlDdlAcceptanceTest {
         } finally {
             cleanUp(context, jdbcTemplate, schema, primaryFailure, settings.keepSchema());
         }
-    }
-
-    private static EntDdlSpringOptions options(String schema) {
-        EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setSchema(schema);
-        options.setCreateDatabaseIfMissing(true);
-        options.setMode(DdlExecutionMode.CREATE_TABLE);
-        options.setEntityClasses(Collections.<Class<?>>singletonList(
-            CustomerProfile.class));
-        return options;
     }
 
     private static int count(JdbcTemplate jdbcTemplate, String sql, Object... arguments) {

@@ -45,6 +45,13 @@ public final class DdlSchemaDiffer {
     }
 
     public DdlSchemaDiff diff(DdlEntityMetadata entity, DdlTableSnapshot current, boolean synchronizeAll) {
+        if (entity == null || current == null) { throw new IllegalArgumentException("实体与表快照不能为空"); }
+        return diff(entity, current, synchronizeAll,
+                typeMapper.resolveTable(entity, current, current.characterSet()));
+    }
+
+    public DdlSchemaDiff diff(DdlEntityMetadata entity, DdlTableSnapshot current, boolean synchronizeAll,
+                       MysqlTableResolution resolution) {
         if (entity == null) {
             throw new IllegalArgumentException("entity must not be null");
         }
@@ -60,7 +67,7 @@ public final class DdlSchemaDiffer {
         }
 
         List<String> errors = new ArrayList<String>();
-        List<String> warnings = new ArrayList<String>();
+        List<String> warnings = new ArrayList<String>(resolution.warnings());
         if (!entity.tableName().equals(current.tableName())) {
             errors.add("当前表名与实体表名不一致: " + current.tableName());
         }
@@ -97,7 +104,7 @@ public final class DdlSchemaDiffer {
                 errors.add("数据库列被多个实体字段重复映射: " + existingName);
                 continue;
             }
-            compareField(existingName, existing, desired, changedFields, errors, synchronizeAll);
+            compareField(existingName, existing, desired, changedFields, errors, synchronizeAll, resolution.column(desired));
         }
 
         for (DdlColumnMetadata currentColumn : currentColumns.values()) {
@@ -136,10 +143,8 @@ public final class DdlSchemaDiffer {
                               DdlFieldMetadata desired,
                               List<DdlFieldChange> changedFields,
                               List<String> errors,
-                              boolean synchronizeAll) {
-        String desiredType = desired.columnDefinition().isEmpty()
-                ? typeMapper.toSqlType(desired)
-                : desired.columnDefinition();
+                              boolean synchronizeAll, MysqlColumnType resolvedType) {
+        String desiredType = resolvedType.sqlType();
         String currentType = normalizeType(existing.sqlType());
         String normalizedDesiredType = normalizeType(desiredType);
         int initialErrorCount = errors.size();

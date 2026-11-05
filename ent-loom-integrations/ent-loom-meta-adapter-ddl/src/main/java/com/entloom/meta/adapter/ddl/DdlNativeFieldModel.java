@@ -1,9 +1,11 @@
 package com.entloom.meta.adapter.ddl;
 
 import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.ddl.enums.SqlType;
 import com.entloom.meta.contract.value.SourcedValue;
 
 final class DdlNativeFieldModel {
+    private final SqlType sqlType;
     private final String fieldName;
     private final Class<?> javaType;
     private final SourcedValue<String> columnName;
@@ -35,8 +37,10 @@ final class DdlNativeFieldModel {
         SourcedValue<String> defaultValue,
         SourcedValue<String> comment,
         SourcedValue<String> renameFrom,
-        SourcedValue<GenerationStrategy> generationStrategy
+        SourcedValue<GenerationStrategy> generationStrategy,
+        SqlType sqlType
     ) {
+        this.sqlType = sqlType;
         this.fieldName = fieldName;
         this.javaType = javaType;
         this.columnName = columnName;
@@ -52,6 +56,10 @@ final class DdlNativeFieldModel {
         this.comment = comment;
         this.renameFrom = renameFrom;
         this.generationStrategy = generationStrategy;
+    }
+
+    SqlType sqlType() {
+        return sqlType;
     }
 
     String fieldName() {

@@ -39,6 +39,23 @@ class EntityContractIntegrationTest {
     @Autowired ExposedEntityRegistry exposedEntities;
     @Autowired EntityMetaRegistry entityMetaRegistry;
     @Autowired MockMvc mvc;
+    @Autowired com.entloom.ddl.api.MetadataLoader ddlMetadataLoader;
+
+    @Test
+    void 商户文章仅凭正文业务语义推导文本列() {
+        com.entloom.ddl.api.DdlEntityMetadata article = ddlMetadataLoader.load(
+                new com.entloom.ddl.api.MetadataLoadRequest(java.util.List.of(), java.util.List.of(MerchantArticle.class)))
+            .stream().filter(entity -> entity.entityClassName().equals(MerchantArticle.class.getName())).findFirst().orElseThrow();
+        com.entloom.ddl.api.DdlFieldMetadata content = article.fields().stream()
+            .filter(field -> field.fieldName().equals("content")).findFirst().orElseThrow();
+        assertEquals("text", new com.entloom.ddl.core.MysqlTypeMapper().toSqlType(content));
+        assertEquals(-1, content.textCapacity().businessMaxLength());
+        assertEquals(-1, content.textCapacity().physicalLength());
+        com.entloom.ddl.api.DdlFieldMetadata title = article.fields().stream()
+            .filter(field -> field.fieldName().equals("title")).findFirst().orElseThrow();
+        assertEquals("varchar(200)", new com.entloom.ddl.core.MysqlTypeMapper().toSqlType(title));
+    }
+
 
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {

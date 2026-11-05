@@ -24,7 +24,7 @@ public @interface EntMetaRichContent {
     SanitizePolicy sanitizePolicy() default SanitizePolicy.UNSET;
 
     /**
-     * 最大内容长度，-1 表示不限制。
+     * 最大内容长度，-1 表示未声明业务上限，不代表数据库无限容量。
      */
     int maxLength() default -1;
 

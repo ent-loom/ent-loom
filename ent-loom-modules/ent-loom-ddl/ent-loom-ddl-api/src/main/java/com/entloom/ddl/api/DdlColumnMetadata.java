@@ -9,6 +9,7 @@ import java.util.Objects;
  * 数据库方言读取策略提供，例如 {@code bigint}、{@code varchar(80)}。</p>
  */
 public final class DdlColumnMetadata {
+    private final DdlCharacterSetMetadata characterSet;
     private final String columnName;
     private final String sqlType;
     private final boolean nullable;
@@ -46,6 +47,14 @@ public final class DdlColumnMetadata {
                              String comment,
                              boolean autoIncrement,
                              boolean generated) {
+        this(columnName, sqlType, nullable, defaultValue, comment, autoIncrement, generated,
+                DdlCharacterSetMetadata.unknown());
+    }
+
+    public DdlColumnMetadata(String columnName, String sqlType, boolean nullable, String defaultValue,
+                             String comment, boolean autoIncrement, boolean generated,
+                             DdlCharacterSetMetadata characterSet) {
+        this.characterSet = Objects.requireNonNull(characterSet, "characterSet must not be null");
         this.columnName = requireText(columnName, "columnName");
         this.sqlType = requireText(sqlType, "sqlType");
         this.nullable = nullable;
@@ -54,6 +63,11 @@ public final class DdlColumnMetadata {
         this.comment = trim(comment);
         this.autoIncrement = autoIncrement;
         this.generated = generated;
+    }
+
+    /** 非文本列或不支持读取的数据库返回 unknown。 */
+    public DdlCharacterSetMetadata characterSet() {
+        return characterSet;
     }
 
     public String columnName() {

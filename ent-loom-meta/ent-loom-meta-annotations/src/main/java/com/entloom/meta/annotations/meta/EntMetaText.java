@@ -26,7 +26,7 @@ public @interface EntMetaText {
     OptionalBoolean multiline() default OptionalBoolean.UNSET;
 
     /**
-     * 最大长度，-1 表示不限制。
+     * 最大长度，-1 表示未声明业务上限，不代表数据库无限容量。
      */
     int maxLength() default -1;
 

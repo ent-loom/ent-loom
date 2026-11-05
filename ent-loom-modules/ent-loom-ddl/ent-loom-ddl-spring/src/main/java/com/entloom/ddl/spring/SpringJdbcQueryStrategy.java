@@ -1,6 +1,7 @@
 package com.entloom.ddl.spring;
 
 import com.entloom.ddl.api.DdlColumnMetadata;
+import com.entloom.ddl.api.DdlCharacterSetMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.DdlTableSnapshot;
@@ -56,6 +57,56 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
     }
 
     @Override
+    public DdlCharacterSetMetadata readDatabaseCharacterSet(String schema) {
+        return jdbcTemplate.execute((ConnectionCallback<DdlCharacterSetMetadata>) connection -> {
+            requireMysql(connection);
+            String catalog = trim(schema).isEmpty() ? requireText(connection.getCatalog(), "当前数据库") : trim(schema);
+            return readCharacterSet(connection,
+                    "SELECT s.DEFAULT_CHARACTER_SET_NAME AS CHARACTER_SET_NAME,"
+                    + " s.DEFAULT_COLLATION_NAME AS COLLATION_NAME, c.MAXLEN"
+                    + " FROM information_schema.SCHEMATA s JOIN information_schema.CHARACTER_SETS c"
+                    + " ON c.CHARACTER_SET_NAME = s.DEFAULT_CHARACTER_SET_NAME WHERE s.SCHEMA_NAME = ?",
+                    catalog);
+        });
+    }
+
+    @Override
+    public DdlCharacterSetMetadata readServerCharacterSet() {
+        return jdbcTemplate.execute((ConnectionCallback<DdlCharacterSetMetadata>) connection -> {
+            requireMysql(connection);
+            return readCharacterSet(connection,
+                    "SELECT c.CHARACTER_SET_NAME, co.COLLATION_NAME, c.MAXLEN"
+                    + " FROM information_schema.CHARACTER_SETS c JOIN information_schema.COLLATIONS co"
+                    + " ON co.CHARACTER_SET_NAME = c.CHARACTER_SET_NAME"
+                    + " WHERE c.CHARACTER_SET_NAME = @@character_set_server"
+                    + " AND co.COLLATION_NAME = @@collation_server");
+        });
+    }
+
+    private static void requireMysql(Connection connection) throws SQLException {
+        if (!isMysql(connection)) {
+            throw new UnsupportedOperationException("字符集上下文读取仅支持 MySQL，不推测其他数据库默认值");
+        }
+    }
+
+    private static DdlCharacterSetMetadata readCharacterSet(Connection connection, String sql,
+                                                            String... parameters) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (int index = 0; index < parameters.length; index++) {
+                statement.setString(index + 1, parameters[index]);
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? characterSet(result) : DdlCharacterSetMetadata.unknown();
+            }
+        }
+    }
+
+    private static DdlCharacterSetMetadata characterSet(ResultSet result) throws SQLException {
+        return new DdlCharacterSetMetadata(result.getString("CHARACTER_SET_NAME"),
+                result.getString("COLLATION_NAME"), result.getInt("MAXLEN"));
+    }
+
+    @Override
     public DdlTableSnapshot readTable(String schema, String tableName) {
         String normalizedTableName = requireText(tableName, "tableName");
         return jdbcTemplate.execute((ConnectionCallback<DdlTableSnapshot>) connection ->
@@ -80,7 +131,14 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
             indexes = mergeMysqlExpressionIndexes(connection, table, indexes);
         }
         return new DdlTableSnapshot(true, schema, tableName, table.comment,
-                columns, primaryKeys, indexes);
+                columns, primaryKeys, indexes, isMysql(connection)
+                    ? readCharacterSet(connection,
+                        "SELECT co.CHARACTER_SET_NAME, co.COLLATION_NAME, c.MAXLEN"
+                        + " FROM information_schema.TABLES t JOIN information_schema.COLLATIONS co"
+                        + " ON co.COLLATION_NAME = t.TABLE_COLLATION JOIN information_schema.CHARACTER_SETS c"
+                        + " ON c.CHARACTER_SET_NAME = co.CHARACTER_SET_NAME"
+                        + " WHERE t.TABLE_SCHEMA = ? AND t.TABLE_NAME = ?", table.catalog, table.tableName)
+                    : DdlCharacterSetMetadata.unknown());
     }
 
     private static TableInfo findTable(DatabaseMetaData metaData,
@@ -88,6 +146,19 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
                                        String schema,
                                        String tableName) throws SQLException {
         String catalog = schema.isEmpty() ? trim(connection.getCatalog()) : schema;
+        if (isMysql(connection)) {
+            requireText(catalog, "当前数据库");
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT TABLE_NAME, TABLE_COMMENT FROM information_schema.TABLES"
+                    + " WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND TABLE_TYPE = 'BASE TABLE'")) {
+                statement.setString(1, catalog);
+                statement.setString(2, tableName);
+                try (ResultSet result = statement.executeQuery()) {
+                    return result.next() ? new TableInfo(catalog, "", result.getString("TABLE_NAME"),
+                            trim(result.getString("TABLE_COMMENT"))) : null;
+                }
+            }
+        }
         String schemaName = schema.isEmpty() ? trim(connection.getSchema()) : schema;
         List<MetadataScope> scopes = new ArrayList<MetadataScope>();
         addScope(scopes, catalog, schemaName);
@@ -110,9 +181,11 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
 
     private static List<DdlColumnMetadata> readMysqlColumns(Connection connection,
                                                            TableInfo table) throws SQLException {
-        String sql = "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_COMMENT, EXTRA"
-                + " FROM information_schema.columns WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
-                + " ORDER BY ORDINAL_POSITION";
+        String sql = "SELECT col.COLUMN_NAME, col.COLUMN_TYPE, col.IS_NULLABLE, col.COLUMN_DEFAULT,"
+                + " col.COLUMN_COMMENT, col.EXTRA, col.CHARACTER_SET_NAME, col.COLLATION_NAME, c.MAXLEN"
+                + " FROM information_schema.COLUMNS col LEFT JOIN information_schema.CHARACTER_SETS c"
+                + " ON c.CHARACTER_SET_NAME = col.CHARACTER_SET_NAME"
+                + " WHERE col.TABLE_SCHEMA = ? AND col.TABLE_NAME = ? ORDER BY col.ORDINAL_POSITION";
         List<DdlColumnMetadata> columns = new ArrayList<DdlColumnMetadata>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, !trim(table.catalog).isEmpty() ? table.catalog : table.schema);
@@ -126,7 +199,8 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
                             resultSet.getString("COLUMN_DEFAULT"),
                             resultSet.getString("COLUMN_COMMENT"),
                             extra.contains("auto_increment"),
-                            extra.contains("VIRTUAL GENERATED") || extra.contains("STORED GENERATED")));
+                            extra.contains("VIRTUAL GENERATED") || extra.contains("STORED GENERATED"),
+                            characterSet(resultSet)));
                 }
             }
         }

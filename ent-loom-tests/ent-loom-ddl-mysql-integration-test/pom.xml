@@ -24,6 +24,16 @@
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-meta-adapter-ddl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-ddl-bootstrap</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-test-support</artifactId>
             <scope>test</scope>
         </dependency>

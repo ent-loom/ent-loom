@@ -1,6 +1,8 @@
 package com.entloom.ddl.core;
 
 import com.entloom.ddl.api.DdlEntityMetadata;
+import com.entloom.ddl.api.DdlTableSnapshot;
+import com.entloom.ddl.api.DdlCharacterSetMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.GenerationStrategy;
@@ -21,7 +23,18 @@ public final class MysqlCreateTableSqlBuilder {
         this.typeMapper = typeMapper == null ? new MysqlTypeMapper() : typeMapper;
     }
 
+    public MysqlTableResolution resolve(DdlEntityMetadata entity, DdlTableSnapshot current,
+                                         DdlCharacterSetMetadata characterSet) {
+        return typeMapper.resolveTable(entity, current, characterSet);
+    }
+
+    boolean needsCharacterSet(DdlEntityMetadata entity) { return typeMapper.needsCharacterSet(entity); }
+
     public String build(DdlEntityMetadata entity, String schema) {
+        return build(entity, schema, resolve(entity, null, DdlCharacterSetMetadata.unknown()));
+    }
+
+    public String build(DdlEntityMetadata entity, String schema, MysqlTableResolution resolution) {
         if (entity == null) {
             throw new IllegalArgumentException("entity must not be null");
         }
@@ -33,7 +46,7 @@ public final class MysqlCreateTableSqlBuilder {
             if (!field.persisted()) {
                 continue;
             }
-            parts.add(buildColumnSql(field));
+            parts.add(buildColumnSql(field, resolution.column(field)));
             if (field.primaryKey()) {
                 primaryKeys.add(quote(field.columnName()));
             }
@@ -63,6 +76,10 @@ public final class MysqlCreateTableSqlBuilder {
         sql.append("CREATE TABLE IF NOT EXISTS ").append(fullTable).append(" (\n  ");
         sql.append(join(parts, ",\n  "));
         sql.append("\n)");
+        if (resolution.defaultCharacterSet().known()) {
+            sql.append(" DEFAULT CHARACTER SET ").append(resolution.defaultCharacterSet().characterSet())
+                    .append(" COLLATE ").append(resolution.defaultCharacterSet().collation());
+        }
         if (!trim(entity.comment()).isEmpty()) {
             sql.append(" COMMENT='").append(escapeQuote(entity.comment())).append("'");
         }
@@ -73,28 +90,32 @@ public final class MysqlCreateTableSqlBuilder {
         return quote(field.columnName()) + " " + buildColumnDefinition(field);
     }
 
+    String buildColumnSql(DdlFieldMetadata field, MysqlColumnType type) {
+        return quote(field.columnName()) + " " + buildColumnDefinition(field, false, type);
+    }
+
     String buildColumnDefinition(DdlFieldMetadata field) {
         return buildColumnDefinition(field, false);
     }
 
     String buildColumnDefinition(DdlFieldMetadata field, boolean existingAutoIncrement) {
+        return buildColumnDefinition(field, existingAutoIncrement,
+                typeMapper.resolve(field, DdlCharacterSetMetadata.unknown()));
+    }
+
+    String buildColumnDefinition(DdlFieldMetadata field, boolean existingAutoIncrement, MysqlColumnType type) {
+        String sqlType = type.sqlType();
         GenerationStrategy strategy = field.generationStrategy();
         if (strategy == GenerationStrategy.SEQUENCE || strategy == GenerationStrategy.UUID) {
             throw new IllegalArgumentException("MySQL 尚不支持该数据库生成策略: " + field.fieldName() + " -> " + strategy);
         }
         StringBuilder sb = new StringBuilder();
-        if (!trim(field.columnDefinition()).isEmpty()) {
-            sb.append(field.columnDefinition());
-        } else {
-            sb.append(typeMapper.toSqlType(field));
-        }
+        sb.append(type.definition());
         sb.append(field.nullable() ? " NULL" : " NOT NULL");
         if (!trim(field.defaultValue()).isEmpty()) {
             sb.append(" DEFAULT ").append(defaultLiteral(field.defaultValue(), field.javaType()));
         }
         if (strategy == GenerationStrategy.AUTO_INCREMENT || strategy == GenerationStrategy.IDENTITY || existingAutoIncrement) {
-            String sqlType = trim(field.columnDefinition()).isEmpty()
-                ? typeMapper.toSqlType(field) : field.columnDefinition().trim();
             if (!sqlType.toLowerCase(java.util.Locale.ROOT).matches("(?:tinyint|smallint|mediumint|int|integer|bigint)(?:\\(\\d+\\))?(?:\\s+unsigned)?")) {
                 throw new IllegalArgumentException("MySQL 自增列必须使用整数列类型: " + field.fieldName());
             }

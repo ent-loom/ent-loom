@@ -38,6 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SpringJdbcExecutionContractTest {
 
     @Test
+    void H2不能伪造MySQL字符集上下文() {
+        SpringJdbcQueryStrategy query = new SpringJdbcQueryStrategy(h2DataSource("ddl_charset_unsupported"));
+        assertThrows(UnsupportedOperationException.class, () -> query.readDatabaseCharacterSet("PUBLIC"));
+        assertThrows(UnsupportedOperationException.class, query::readServerCharacterSet);
+    }
+
+    @Test
     @DisplayName("Spring JDBC 查询和执行成功，并释放连接资源")
     void shouldQueryExecuteAndReleaseConnections() {
         TrackingDataSource dataSource = new TrackingDataSource(h2DataSource("ddl_execution_success"));

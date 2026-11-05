@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @EnabledIfEnvironmentVariable(named = "COMMERCE_TEST_JDBC_URL", matches = "jdbc:mysql:.*")
 @SpringBootTest(properties = {
     "spring.config.import=",
+    "ent.loom.ddl.mode=CREATE_MODIFY_DELETE_ALL",
     "spring.datasource.url=${COMMERCE_TEST_JDBC_URL}",
     "spring.datasource.username=${COMMERCE_TEST_JDBC_USER}",
     "spring.datasource.password=${COMMERCE_TEST_JDBC_PASSWORD}"
@@ -72,6 +73,24 @@ class MysqlSchemaAcceptanceTest {
                 select column_name from information_schema.statistics
                 where table_schema=database() and table_name=? and index_name=? order by seq_in_index
                 """, String.class, index[0], index[1]));
+        }
+    }
+
+    @Test
+    void 正文业务语义生成TEXT且可读写多字节内容() {
+        assertEquals("text", jdbc.queryForObject("""
+            select data_type from information_schema.columns
+            where table_schema=database() and table_name='merchant_article' and column_name='content'
+            """, String.class));
+        String content = "正文😀".repeat(1000);
+        jdbc.update("INSERT INTO merchant_article (merchant_id, title, content) VALUES (?, ?, ?)",
+            999999L, "业务语义验收", content);
+        try {
+            assertEquals(content, jdbc.queryForObject(
+                "SELECT content FROM merchant_article WHERE merchant_id = ? AND title = ?",
+                String.class, 999999L, "业务语义验收"));
+        } finally {
+            jdbc.update("DELETE FROM merchant_article WHERE merchant_id = ? AND title = ?", 999999L, "业务语义验收");
         }
     }
 

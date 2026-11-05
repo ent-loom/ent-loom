@@ -14,6 +14,8 @@ public enum EntFieldKind {
     REF_ID,
     /** 普通文本。 */
     TEXT,
+    /** 正文内容，格式未限定，区别于普通短文本和富文本。 */
+    CONTENT,
     /** 富文本内容。 */
     RICH_CONTENT,
     /** 数值。 */

@@ -30,6 +30,65 @@ import org.junit.jupiter.api.Test;
 class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
+    void 业务正文与富文本默认可用且物理配置优先() {
+        DdlEntityMetadata model = adapter(Collections.<Class<?>>singletonList(ContentDefaults.class)).models().get(0);
+        com.entloom.ddl.core.MysqlTypeMapper mapper = new com.entloom.ddl.core.MysqlTypeMapper();
+        com.entloom.ddl.api.DdlCharacterSetMetadata charset = new com.entloom.ddl.api.DdlCharacterSetMetadata(
+                "utf8mb4", "utf8mb4_bin", 4);
+        String[] names = {"ordinary", "multiline", "body", "rich", "bounded", "boundedRich", "physical", "raw", "fixed"};
+        String[] targets = {"varchar(200)", "varchar(200)", "text", "text", "mediumtext", "mediumtext", "varchar(100)", "longtext", "mediumtext"};
+        for (int index = 0; index < names.length; index++) {
+            Assertions.assertEquals(targets[index], mapper.resolve(field(model, names[index]), charset).sqlType(), names[index]);
+        }
+        Assertions.assertEquals(-1, field(model, "body").textCapacity().businessMaxLength());
+        Assertions.assertEquals(-1, field(model, "body").textCapacity().physicalLength());
+        Assertions.assertEquals(20000, field(model, "boundedRich").textCapacity().businessMaxLength());
+        Assertions.assertTrue(field(model, "boundedRich").textCapacity().businessSource().endsWith(".richContent.maxLength"));
+        DdlEntityMetadata insufficient = adapter(Collections.<Class<?>>singletonList(InsufficientRich.class)).models().get(0);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> mapper.resolve(insufficient.fields().get(0), charset));
+    }
+
+    @EntEntity
+    private static class ContentDefaults {
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.TEXT) String ordinary;
+        @EntMetaText(multiline = OptionalBoolean.TRUE) String multiline;
+        @com.entloom.meta.annotations.EntField(kind = com.entloom.meta.enums.EntFieldKind.CONTENT) String body;
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.RICH_CONTENT) String rich;
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.CONTENT) @EntMetaText(maxLength = 20000) String bounded;
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.RICH_CONTENT)
+        @com.entloom.meta.annotations.meta.EntMetaRichContent(maxLength = 20000) String boundedRich;
+        @com.entloom.meta.annotations.EntField(kind = com.entloom.meta.enums.EntFieldKind.CONTENT) @EntDdlField(length = 100) String physical;
+        @com.entloom.meta.annotations.EntField(kind = com.entloom.meta.enums.EntFieldKind.CONTENT) @EntDdlField(columnDefinition = "longtext") String raw;
+        @com.entloom.meta.annotations.EntField(kind = com.entloom.meta.enums.EntFieldKind.CONTENT) @EntDdlField(sqlType = SqlType.MEDIUMTEXT) String fixed;
+    }
+
+    @EntEntity
+    private static class InsufficientRich {
+        @EntField(kind = com.entloom.meta.enums.EntFieldKind.RICH_CONTENT)
+        @com.entloom.meta.annotations.meta.EntMetaRichContent(maxLength = 20000)
+        @EntDdlField(sqlType = SqlType.TEXT) String content;
+    }
+
+    @Test
+    void 混合声明应独立保留业务容量与物理长度() {
+        DdlFieldMetadata content = field(adapter(Collections.<Class<?>>singletonList(TextCapacityEntity.class))
+                .models().get(0), "content");
+        Assertions.assertEquals(SqlType.VARCHAR, content.sqlType());
+        Assertions.assertEquals(100, content.length());
+        Assertions.assertEquals(100, content.textCapacity().physicalLength());
+        Assertions.assertEquals(1000, content.textCapacity().businessMaxLength());
+        Assertions.assertTrue(content.textCapacity().businessSource().endsWith(".text.maxLength"));
+        Assertions.assertTrue(content.textCapacity().physicalSource().endsWith("@EntDdlField.length"));
+    }
+
+    @EntEntity
+    private static class TextCapacityEntity {
+        @EntMetaText(maxLength = 1000)
+        @EntDdlField(sqlType = SqlType.VARCHAR, length = 100)
+        String content;
+    }
+
+    @Test
     void 应支持MetaOnly并把通用语义投影为DDL模型() {
         MetaDdlAdapter adapter = adapter(Collections.<Class<?>>singletonList(MetaOnlyAccount.class));
 
@@ -43,6 +102,8 @@ class MetaDdlAdapterP0AcceptanceTest {
         DdlFieldMetadata displayName = field(model, "displayName");
         Assertions.assertEquals("display_name", displayName.columnName());
         Assertions.assertEquals(64, displayName.length());
+        Assertions.assertEquals(64, displayName.textCapacity().businessMaxLength());
+        Assertions.assertEquals(-1, displayName.textCapacity().physicalLength());
         Assertions.assertFalse(displayName.nullable());
         DdlFieldMetadata amount = field(model, "amount");
         Assertions.assertEquals(10, amount.precision());
@@ -68,6 +129,8 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertEquals(GenerationStrategy.AUTO_INCREMENT, id.generationStrategy());
         DdlFieldMetadata code = field(model, "code");
         Assertions.assertEquals(32, code.length());
+        Assertions.assertEquals(32, code.textCapacity().physicalLength());
+        Assertions.assertEquals(-1, code.textCapacity().businessMaxLength());
         Assertions.assertEquals("'new'", code.defaultValue());
         Assertions.assertEquals("old_code", code.renameFrom());
         Assertions.assertEquals(1, model.indexes().size());

@@ -464,7 +464,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             && EntityProperty.isSingleColumnType(field.getType()) && kind != EntFieldKind.REF_ID) {
             addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntRelation", EntFieldKind.REF_ID, diagnostics);
         }
-        if (findAnnotation(field, EntMetaText.class) != null && kind != EntFieldKind.TEXT) {
+        if (findAnnotation(field, EntMetaText.class) != null && kind != EntFieldKind.TEXT && kind != EntFieldKind.CONTENT) {
             addKindMismatchDiagnostic(entityClass, entityName, field, kind, "EntMetaText", EntFieldKind.TEXT, diagnostics);
         }
         if (findAnnotation(field, EntMetaNumber.class) != null && kind != EntFieldKind.NUMBER) {

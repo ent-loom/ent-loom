@@ -14,7 +14,6 @@ import com.entloom.ddl.api.MetadataLoadRequest;
 import com.entloom.ddl.api.SqlExecutor;
 import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.ddl.mysql.fixture.MysqlAccount;
-import com.entloom.ddl.spring.EntDdlSpringOptions;
 import com.entloom.ddl.starter.EntDdlAutoConfiguration;
 import com.entloom.testsupport.mysql.MysqlIntegrationSettings;
 import java.util.Collections;
@@ -62,7 +61,12 @@ class DdlMysqlIntegrationTest {
 
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.registerBean(DataSource.class, () -> dataSource);
-        context.registerBean(EntDdlSpringOptions.class, () -> options(schema));
+        context.getEnvironment().getPropertySources().addFirst(new org.springframework.core.env.MapPropertySource(
+                "mysql-ddl-test", java.util.Map.of(
+                    "ent.loom.ddl.schema", schema,
+                    "ent.loom.ddl.create-database-if-missing", "true",
+                    "ent.loom.ddl.mode", "CREATE_TABLE",
+                    "ent.loom.ddl.base-packages[0]", "com.entloom.ddl.mysql.fixture")));
         context.register(EntDdlAutoConfiguration.class);
         Throwable primaryFailure = null;
         try {
@@ -105,6 +109,20 @@ class DdlMysqlIntegrationTest {
                 assertTrue(result.success(), result.errors().toString());
                 assertTrue(result.generatedSql().isEmpty(), result.generatedSql().toString());
             }
+            // 使用 Starter 实际装配的默认 Loader 与 Engine，验证显式文本声明进入真实 MySQL。
+            DdlEntityMetadata explicitText = context.getBean(MetadataLoader.class).load(new MetadataLoadRequest(
+                    Collections.emptyList(), Collections.singletonList(DdlExplicitTextMysqlTest.NativeText.class))).get(0);
+            DdlExecutionRequest explicitRequest = new DdlExecutionRequest(schema, false, DdlExecutionMode.CREATE_TABLE,
+                    Collections.singletonList(explicitText));
+            DdlExecutionResult explicitResult = context.getBean(DdlEngine.class).execute(explicitRequest,
+                    context.getBean(QueryStrategy.class), context.getBean(SqlExecutor.class));
+            assertTrue(explicitResult.success(), explicitResult.errors().toString());
+            assertEquals("text", columnType(jdbcTemplate, schema, explicitText.tableName(), "body"));
+            assertEquals("longtext", columnType(jdbcTemplate, schema, explicitText.tableName(), "archive"));
+            assertNoFurtherChanges(context.getBean(DdlEngine.class), context.getBean(QueryStrategy.class),
+                    context.getBean(SqlExecutor.class), new DdlExecutionRequest(schema, false,
+                        DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS, Collections.singletonList(explicitText)));
+            verifyCharacterSetMetadata(context.getBean(QueryStrategy.class), jdbcTemplate, dataSource, schema);
             verifyExtraColumns(context, jdbcTemplate, schema, table, modifyRequest);
             verifyFullSynchronization(context, jdbcTemplate, schema, table, modifyRequest);
         } catch (RuntimeException | Error exception) {
@@ -112,6 +130,49 @@ class DdlMysqlIntegrationTest {
             throw exception;
         } finally {
             cleanUp(context, jdbcTemplate, schema, primaryFailure, settings.keepSchema());
+        }
+    }
+
+    private static void verifyCharacterSetMetadata(QueryStrategy query, JdbcTemplate jdbc,
+                                                   DataSource dataSource, String schema) {
+        com.entloom.ddl.api.DdlCharacterSetMetadata database = query.readDatabaseCharacterSet(schema);
+        assertTrue(database.known());
+        assertEquals(jdbc.queryForObject("SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA"
+                + " WHERE SCHEMA_NAME = ?", String.class, schema), database.characterSet());
+        com.entloom.ddl.api.DdlCharacterSetMetadata server = query.readServerCharacterSet();
+        assertEquals(jdbc.queryForObject("SELECT @@character_set_server", String.class), server.characterSet());
+        assertEquals(jdbc.queryForObject("SELECT @@collation_server", String.class), server.collation());
+        assertFalse(query.readDatabaseCharacterSet(schema + "_missing").known());
+
+        String qualified = "`" + schema + "`.`charset_probe`";
+        jdbc.execute("CREATE TABLE " + qualified + " (id BIGINT, inherited VARCHAR(100),"
+                + " content VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin)"
+                + " DEFAULT CHARACTER SET latin1 COLLATE latin1_bin");
+        try {
+            DdlTableSnapshot snapshot = query.readTable(schema, "charset_probe");
+            assertEquals("latin1", snapshot.characterSet().characterSet());
+            assertEquals("latin1_bin", snapshot.characterSet().collation());
+            assertEquals(1, snapshot.characterSet().maxBytesPerCharacter());
+            assertFalse(snapshot.columns().get(0).characterSet().known());
+            assertEquals("latin1", snapshot.columns().get(1).characterSet().characterSet());
+            assertEquals("utf8mb4", snapshot.columns().get(2).characterSet().characterSet());
+            assertEquals("utf8mb4_bin", snapshot.columns().get(2).characterSet().collation());
+            assertEquals(4, snapshot.columns().get(2).characterSet().maxBytesPerCharacter());
+            assertFalse(query.readTable(schema + "_missing", "charset_probe").exists());
+            jdbc.update("INSERT INTO " + qualified + " (content) VALUES (?)", "中文😀");
+            assertEquals("中文😀", jdbc.queryForObject("SELECT content FROM " + qualified, String.class));
+            // 空 schema 只使用当前 catalog，不能回退搜索其他库的同名表。
+            try (java.sql.Connection connection = dataSource.getConnection()) {
+                connection.setCatalog(schema);
+                QueryStrategy current = new com.entloom.ddl.spring.SpringJdbcQueryStrategy(
+                        new org.springframework.jdbc.datasource.SingleConnectionDataSource(connection, true));
+                assertEquals(database.characterSet(), current.readDatabaseCharacterSet("").characterSet());
+                assertEquals("latin1", current.readTable("", "charset_probe").characterSet().characterSet());
+            } catch (java.sql.SQLException exception) {
+                throw new IllegalStateException("当前库字符集读取验收失败", exception);
+            }
+        } finally {
+            jdbc.execute("DROP TABLE " + qualified);
         }
     }
 
@@ -152,15 +213,6 @@ class DdlMysqlIntegrationTest {
         assertTrue(rejected.errors().stream().anyMatch(error -> error.contains("required_legacy")
                 && error.contains("无默认值")));
         assertTrue(rejected.executedSql().isEmpty());
-    }
-
-    private static EntDdlSpringOptions options(String schema) {
-        EntDdlSpringOptions options = new EntDdlSpringOptions();
-        options.setSchema(schema);
-        options.setCreateDatabaseIfMissing(true);
-        options.setMode(DdlExecutionMode.CREATE_TABLE);
-        options.setBasePackages(Collections.singletonList("com.entloom.ddl.mysql.fixture"));
-        return options;
     }
 
     private static void verifyFullSynchronization(AnnotationConfigApplicationContext context,

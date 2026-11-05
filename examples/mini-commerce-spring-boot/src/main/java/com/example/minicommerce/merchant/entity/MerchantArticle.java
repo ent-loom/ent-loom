@@ -1,7 +1,6 @@
 package com.example.minicommerce.merchant.entity;
 
-import com.entloom.ddl.annotations.EntDdlField;
-import com.entloom.ddl.enums.SqlType;
+import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;
@@ -22,7 +21,6 @@ public class MerchantArticle {
     @EntField("标题")
     private String title;
 
-    @EntField("正文")
-    @EntDdlField(sqlType = SqlType.TEXT)
+    @EntField(value = "正文", kind = EntFieldKind.CONTENT)
     private String content;
 }

@@ -65,7 +65,11 @@ final class DdlNativeAnnotationParser {
     private DdlNativeFieldModel toField(Class<?> entityClass, Field field, MetaDiagnosticCollector diagnostics) {
         EntDdlField annotation = field.getAnnotation(EntDdlField.class);
         if (annotation != null) {
-            warnUnsupported(entityClass, field.getName(), "sqlType", annotation.sqlType() != SqlType.AUTO, diagnostics);
+            warnUnsupported(entityClass, field.getName(), "sqlType", annotation.sqlType() != SqlType.AUTO
+                && !(field.getType() == String.class && (annotation.sqlType() == SqlType.VARCHAR
+                    || annotation.sqlType() == SqlType.CHAR || annotation.sqlType() == SqlType.TEXT
+                    || annotation.sqlType() == SqlType.MEDIUMTEXT
+                    || annotation.sqlType() == SqlType.LONGTEXT)), diagnostics);
             warnUnsupported(entityClass, field.getName(), "collation", blankAsNull(annotation.collation()) != null, diagnostics);
             warnUnsupported(entityClass, field.getName(), "dialectOptions", blankAsNull(annotation.dialectOptions()) != null, diagnostics);
             warnUnsupported(entityClass, field.getName(), "defaultValueHint",
@@ -114,7 +118,7 @@ final class DdlNativeAnnotationParser {
             annotation == null || annotation.primaryKey() == OptionalBoolean.UNSET
                 ? SourcedValue.inferred(primaryKey)
                 : nativeValue(primaryKey),
-            annotation == null || annotation.length() < 0 ? SourcedValue.unknown(null) : nativeValue(annotation.length()),
+            annotation == null || annotation.length() == -1 ? SourcedValue.unknown(null) : nativeValue(annotation.length()),
             annotation == null || annotation.precision() < 0 ? SourcedValue.unknown(null) : nativeValue(annotation.precision()),
             annotation == null || annotation.scale() < 0 ? SourcedValue.unknown(null) : nativeValue(annotation.scale()),
             annotation == null || blankAsNull(annotation.defaultValue()) == null
@@ -128,7 +132,8 @@ final class DdlNativeAnnotationParser {
                 : nativeValue(annotation.renameFrom().trim()),
             annotation == null || annotation.generationStrategy() == GenerationStrategy.UNSET
                 ? SourcedValue.unknown(null)
-                : nativeValue(annotation.generationStrategy())
+                : nativeValue(annotation.generationStrategy()),
+            annotation == null ? SqlType.AUTO : annotation.sqlType()
         );
     }
 

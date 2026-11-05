@@ -21,6 +21,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class AnnotationMetadataLoaderTest {
     @Test
+    void 应保留显式文本类型物理长度与声明来源() {
+        DdlEntityMetadata model = new AnnotationMetadataLoader().load(new MetadataLoadRequest(
+                Collections.<String>emptyList(), Collections.<Class<?>>singletonList(TextEntity.class))).get(0);
+        DdlFieldMetadata field = model.fields().get(0);
+        assertEquals(com.entloom.ddl.enums.SqlType.VARCHAR, field.sqlType());
+        assertEquals(100, field.length());
+        assertEquals(100, field.textCapacity().physicalLength());
+        assertEquals(-1, field.textCapacity().businessMaxLength());
+        assertTrue(field.textCapacity().physicalSource().contains("#content@EntDdlField.length"));
+    }
+
+    @EntDdlEntity
+    private static class TextEntity {
+        @com.entloom.ddl.annotations.EntDdlField(sqlType = com.entloom.ddl.enums.SqlType.VARCHAR, length = 100)
+        String content;
+    }
+
+    @Test
     void should_exclude_complex_properties_without_explicit_annotation() {
         DdlEntityMetadata model = new AnnotationMetadataLoader().load(new MetadataLoadRequest(
             Collections.<String>emptyList(), Collections.<Class<?>>singletonList(Aggregate.class))).get(0);

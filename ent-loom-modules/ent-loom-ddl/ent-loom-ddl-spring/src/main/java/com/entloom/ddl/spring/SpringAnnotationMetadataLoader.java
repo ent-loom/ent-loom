@@ -7,6 +7,8 @@ import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
+import com.entloom.ddl.api.DdlTextCapacity;
+import com.entloom.ddl.enums.SqlType;
 import com.entloom.ddl.api.DdlGenerationDefaults;
 import com.entloom.ddl.api.DdlIndexMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
@@ -151,7 +153,12 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
                     ann == null ? "" : ann.renameFrom(),
                     ann != null && ann.generationStrategy() != GenerationStrategy.UNSET
                         ? ann.generationStrategy()
-                        : primaryKey ? defaults.generationStrategy() : GenerationStrategy.UNSET));
+                        : primaryKey ? defaults.generationStrategy() : GenerationStrategy.UNSET,
+                    ann == null ? SqlType.AUTO : ann.sqlType(),
+                    field.getType() == String.class && ann != null
+                        ? new DdlTextCapacity(-1, "", ann.length(),
+                            entityClass.getName() + "#" + field.getName() + "@EntDdlField.length")
+                        : DdlTextCapacity.unspecified()));
         }
         return fields;
     }

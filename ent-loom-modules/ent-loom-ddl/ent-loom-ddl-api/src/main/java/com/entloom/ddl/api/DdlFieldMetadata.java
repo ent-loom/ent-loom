@@ -1,6 +1,7 @@
 package com.entloom.ddl.api;
 
 import com.entloom.ddl.enums.GenerationStrategy;
+import com.entloom.ddl.enums.SqlType;
 import java.util.Objects;
 
 /**
@@ -11,6 +12,8 @@ import java.util.Objects;
  * 主键字段不允许声明为可空。</p>
  */
 public final class DdlFieldMetadata {
+    private final SqlType sqlType;
+    private final DdlTextCapacity textCapacity;
     private final String fieldName;
     private final String columnName;
     private final Class<?> javaType;
@@ -60,6 +63,21 @@ public final class DdlFieldMetadata {
                             String comment,
                             String renameFrom,
                             GenerationStrategy generationStrategy) {
+        this(fieldName, columnName, javaType, columnDefinition, nullable, unique, persisted, primaryKey,
+                length, precision, scale, defaultValue, comment, renameFrom, generationStrategy,
+                SqlType.AUTO, DdlTextCapacity.unspecified());
+    }
+
+    /**
+     * 保留类型提示与独立文本容量声明；length 仍为原有合并参数。
+     */
+    public DdlFieldMetadata(String fieldName, String columnName, Class<?> javaType,
+                            String columnDefinition, boolean nullable, boolean unique,
+                            boolean persisted, boolean primaryKey, int length, int precision, int scale,
+                            String defaultValue, String comment, String renameFrom,
+                            GenerationStrategy generationStrategy, SqlType sqlType, DdlTextCapacity textCapacity) {
+        this.sqlType = Objects.requireNonNull(sqlType, "sqlType must not be null");
+        this.textCapacity = Objects.requireNonNull(textCapacity, "textCapacity must not be null");
         this.fieldName = requireText(fieldName, "fieldName");
         this.columnName = requireText(columnName, "columnName");
         this.javaType = Objects.requireNonNull(javaType, "javaType must not be null");
@@ -76,6 +94,14 @@ public final class DdlFieldMetadata {
         this.renameFrom = trim(renameFrom);
         this.generationStrategy = generationStrategy == null ? GenerationStrategy.UNSET : generationStrategy;
         validate();
+    }
+
+    public SqlType sqlType() {
+        return sqlType;
+    }
+
+    public DdlTextCapacity textCapacity() {
+        return textCapacity;
     }
 
     public String fieldName() {

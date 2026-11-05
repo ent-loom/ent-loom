@@ -2,11 +2,11 @@
 
 > 历史记录：2026-10-16 实体声明集中化迁移后，旧策略、动作、字段权限与索引注解及全局实体差异入口已删除。当前合同以[配置参考](../../../guides/配置参考.md#实体-yaml)为准。
 
-> 状态：E5 已完成，后续 DDL 阶段未排期
-> 当前大项：无
-> 当前小项：无
+> 状态：E5 与文本容量 P1–P3 已完成；业务语义缺省策略补齐已验收
+> 当前大项：业务元数据到 DDL 文本推导补齐已收口
+> 当前小项：无；正文与富文本缺省策略已收口
 > 阻塞项：无
-> 最近核验：2026-10-15，显式全量结构同步与 MySQL 8 验收完成
+> 最近核验：2026-10-17，显式文本统一解析与 MySQL 8 闭环通过；全仓普通回归及定向真实数据库验收通过
 
 本文是 DDL 的唯一执行看板。它把模块 README 中的能力设想收敛为可验收的阶段，后续每次只推进一个小项。
 
@@ -55,7 +55,7 @@ declare["实体声明\n@EntDdlEntity / @EntDdlField"]
 | DDL 测试基线 | 已建立 | Core 25 项、Spring 14 项和 Meta Adapter 7 项测试覆盖 SQL、差异、H2 读取 / 执行、投影、诊断和模块边界 |
 | 实体全链路验收 | E5 已完成 | `CustomerProfile` 已覆盖静态 Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 与使用说明 |
 
-当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md`、`ent-loom-integrations/README.md`、[实体全链路验收](../../../guides/ddl/实体全链路验收.md) 及现有实现；E1-E5 已完成，后续 DDL 阶段尚未排期。
+当前事实来源：`ent-loom-modules/ent-loom-ddl/README.md`、`ent-loom-integrations/README.md`、[实体全链路验收](../../../guides/ddl/实体全链路验收.md) 及现有实现；E1-E5 已完成，业务元数据到 DDL 补齐 P1、P2、P3 已完成，验收证据见下方。
 
 ## 范围与边界
 
@@ -288,7 +288,32 @@ E5.3 验收证据（2026-08-26）：
 - Mermaid：使用说明中的主链图区分静态 Runtime Model 投影、DDL Starter 到 MySQL 8、CRUD 到 H2 + MockMvc；不把它们表述为同一业务进程或同一数据源。
 - 边界验证：不新增生产模块、Testcontainers、真实 HTTP 服务、复杂关系或业务权限。
 
-E5 阶段门禁（已完成）：一个无关系的 `CustomerProfile` 已贯通静态 Meta / DDL / CRUD / DOC / UI Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 和可重复的使用说明。当前 DDL 主线停在 E5，后续阶段未排期。
+E5 阶段门禁（已完成）：一个无关系的 `CustomerProfile` 已贯通静态 Meta / DDL / CRUD / DOC / UI Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 和可重复的使用说明。后续业务元数据到 DDL 补齐按下方 P0-P3 执行项推进。
+
+## 业务元数据到 DDL 推导补齐
+
+规则依据：[业务元数据到 DDL 推导补齐方案](业务元数据到DDL推导补齐方案.md#p0-固定规则2026-10-17)。此处是唯一执行状态，方案仅维护合同与验收范围。
+
+- [x] **P0 规则与范围**：2026-10-17 核对模型、三个加载入口、SQL 构建/比较及 JDBC 查询，固定显式文本支持清单、参数和容量算法、字符集读取路径、原始定义有限校验与计划阻断边界。仅文档与代码核对，未宣称运行时或 MySQL 验收完成。
+- [x] **P1.1 模型与加载入口**：独立保存业务文本上限、物理长度、sqlType 及必要来源；Meta Adapter、Bootstrap、Spring 同步承接，Starter 默认 Spring Loader 纳入入口测试。该项不独立开放未经校验的类型生成行为。
+- [x] **P1.2 字符集上下文读取**：DDL API 提供独立字符集模型、库/服务器查询接口与表/列快照；Spring JDBC 读取目标库/表/列及 MAXLEN，空 schema 只查当前 catalog，非 MySQL 不伪造上下文。重命名匹配、新增列/新表/新库的上下文选取与无连接构建参数传递由 P1.3 在引擎统一消费。
+- [x] **P1.3 显式文本统一解析**：CREATE / Diff / ALTER 共用结果，检查参数、业务容量、声明冲突及已知索引冲突；MODIFY/CHANGE 保留原列字符集与排序规则；错误阻止整个执行计划。
+- [x] **P1.4 阶段门禁**：JDK 21 Maven Wrapper 相关模块与上游测试；MySQL 8 验证三个入口及 Starter、utf8mb4 文本读写、允许修改/重命名后属性保留、再次比较无差异；未支持组合明确拒绝。通过后方可标记 P1 完成。
+- [x] **P2 AUTO 文本容量推导**：复用同一解析合同，完成容量选型及对应验收。
+- [x] **P2.1 显式 MEDIUMTEXT**：枚举与三个入口承接；统一解析、容量校验、规范化比较及 ALTER 复用；覆盖 utf8mb4 / latin1 上限与超限、参数及索引冲突、缺失上下文、受控迁移拒绝；真实 MySQL 验证三个入口建表与多字节读写、全量同步属性保留及再次无差异。
+- [x] **P2.2 AUTO 文本容量选择**：按业务上限与有效字符集选择最小可用类型，保留无声明默认值及受控迁移白名单。
+- [x] **P3 组合验收与示例**：完成组合回归与文档；MerchantArticle 仅在正文格式、真实业务上限与推导验收明确后调整，不虚构长度。
+
+P1 验收证据（2026-10-17）：
+
+- JDK 21 执行 `./mvnw clean test` 完成全仓普通 Reactor 回归：1136 项测试，0 失败、0 错误、5 项专用验收按 profile 默认跳过。定向执行 `./mvnw -pl :ent-loom-ddl-mysql-integration-test -am -Pmysql-integration test`：22 个构件成功，143 项测试，0 失败、0 错误、0 跳过，其中 Core 54、Adapter 13、Bootstrap 10、Spring 22、Starter 6、真实 MySQL 2 项，其余为上游测试。
+- `MysqlColumnType` / `MysqlTableResolution` 保存不可变目标结果；引擎先获取库/表/原列上下文，再解析并在 CREATE / Diff / ALTER 中复用，不重复推导。新库、新表固定读取到的默认字符集，已有列 MODIFY/CHANGE 保留原字符集与排序规则，新列采用表默认值。
+- 开放 String + VARCHAR / CHAR / TEXT / LONGTEXT；可识别原始定义进行同一校验和规范化；参数冲突、容量不足、已知类型不兼容及 TEXT 普通/复合列索引、主键、唯一约束冲突阻止整个计划。其他显式 sqlType/Java 组合拒绝且不回退；支持的声明不再产生 Adapter 消费未支持警告。
+- `MysqlExplicitTextContractTest` 覆盖最坏编码宽度、边界、未声明长度、冲突、非法参数、缺失上下文、未知原始定义有限告警与已知错误阻断、重命名属性保留、受控转换拒绝、全量同步仍校验容量、计划错误零执行；字符与枚举维持原 AUTO 类型并保留文本列属性。
+- `DdlExplicitTextMysqlTest` 与 `DdlMysqlIntegrationTest` 覆盖三个 Loader 及 Starter 默认路径、Meta-only/混合声明、四种文本类型建表与多字节内容、原始 VARCHAR 定义规范化、已有库/新库、表与列默认值不同、MODIFY/CHANGE 与新增列、显式全量同步、重复执行零差异。单列合法但整行超限时由真实 MySQL 拒绝；静态容量错误阻止其他实体表被部分创建。
+- E5 静态 SQL 验收显式提供设计目标字符集并检查物理 SQL；MySQL 测试继续使用随机隔离 schema 与原清理约定。框架运行时未引入 Meta 依赖，新增跨入口测试依赖仅在测试构件。
+
+当前边界：显式 MEDIUMTEXT 与 AUTO 容量选型已完成；普通文本无业务上限且无物理配置仍为 varchar(200)，正文和富文本缺省 TEXT；显式物理配置优先并校验业务容量；原始定义中的字符集修饰仅接受与已验证上下文一致的值，不自动转换字符集；未知原始定义保留原文并有限校验，不追加可能改变原意的字符集修饰；已有文本列无法可靠保留属性时明确拒绝修改，不能绕过已知参数/字符容量错误及迁移白名单。TEXT 非 NULL 默认值需要表达式合同，当前明确拒绝。MerchantArticle 现改用 CONTENT 业务类型推导默认 TEXT，不虚构业务长度，也不据此宣称覆盖任意正文输入。注释来源、数值、枚举增强、JSON 等仍为后续独立小项。
 
 ## 依赖与禁止跨越
 
@@ -318,3 +343,29 @@ flowchart TB
 3. 删除本清单中已完成阶段的详细过程，只保留验收结论和未完成事项。
 4. 更新[当前实施总览](../当前实施总览.md)和[框架实施清单](../实施清单.md)。
 5. 将下一个阶段设为当前阶段，保持 DDL 主线一次只推进一个阶段。
+
+P2.1 验收证据（2026-10-17）：JDK 21 定向 MySQL Reactor 22 个构件成功，144 项测试通过（含 2 项真实 MySQL 验收），无失败、错误或跳过。
+
+P2.2 实现与验收（2026-10-17）：
+
+- 仅对无显式物理配置且有正业务上限的 String + AUTO 启用容量选型；必须提供有效字符集，以 long 计算最坏字节数，依次选择 VARCHAR / TEXT / MEDIUMTEXT / LONGTEXT，超限拒绝。其他 Java 类型和无声明默认值保持原合同。
+- 复用统一解析结果及 TEXT 参数、默认值、索引校验，受控迁移白名单不扩大。测试覆盖 utf8mb4 两组切换边界、latin1 的 VARCHAR/TEXT/MEDIUMTEXT 边界、LONGTEXT 超限、缺失字符集与物理覆盖不足；真实 MySQL 覆盖业务注解 AUTO 建表、中文 emoji 读写、全量同步保留列字符集、重复无差异。
+- JDK 21 Maven Wrapper 全仓 `test`：1138 项，0 失败、0 错误、5 项专用验收按默认 profile 跳过；定向 MySQL Reactor：22 个构件成功、145 项测试通过（含 2 项真实 MySQL），无失败、错误、跳过。
+
+P3 组合验收与示例核对（2026-10-17）：
+
+- 增加真实 MySQL 组合：库默认 utf8mb4、表默认 latin1、原列 utf8mb4；新表 AUTO 使用库默认，新增列使用表默认，原列重命名与跨类别全量同步使用原列属性。验证 VARCHAR / TEXT / MEDIUMTEXT 选型、原数据保留、边界文本写入、受控拒绝零执行与重复无差异。
+- E5 MySQL 测试通过 Meta Adapter 按业务资源码匹配 YAML，按 Starter 配置属性声明实体，统一声明校验与执行入口；注册共享 YAML 中实际 CRUD/DOC 声明消费者，保留组件校验，仅启动 DDL 执行链。
+- 示例 Java 中仅 MerchantArticle 使用显式文本提示；正文格式和真实上限尚未明确，继续保留 TEXT，不虚构业务上限。示例 README 说明字节容量及业务输入校验边界；指南与架构事实同步更新。
+- JDK 21 Maven Wrapper 执行 DDL MySQL + E5 及上游组合 Reactor：1071 项测试，0 失败、0 错误、0 跳过，包含 DDL 文本与 E5/DAO 真实 MySQL 验收；P2.2 全仓普通回归 1138 项的证据继续有效，本轮未改生产代码。
+
+### 业务语义缺省策略补齐（2026-10-17）
+
+此前 P1–P3 验证的是显式物理类型及长度驱动容量推导，未覆盖“业务类型缺省可用”的完整目标。本项补齐该缺口，不将文本容量闭环等同于全部业务语义推导完成。
+
+- 新增 `EntFieldKind.CONTENT` 表达正文，避免将长篇纯文本误标为富文本。`RICH_CONTENT` 表达富文本格式类别；两者缺省提供 TEXT 存储提示，普通文本保持 varchar(200)。不根据字段名称或 multiline 猜测正文。
+- 显式物理类型、length、columnDefinition 优先；无物理覆盖且有正业务上限时复用容量选型。富文本独立承接 richContent.maxLength，来源诊断同步；未声明上限不制造业务长度、不等同无限容量，TEXT 默认值/索引约束及迁移保护继续有效。
+- MerchantArticle 移除 DDL 类型注解，仅用 `@EntField(value = "正文", kind = EntFieldKind.CONTENT)`；示例入口测试验证实际 MetadataLoader 输出正文 TEXT、标题 varchar(200)，二者不伪造业务上限。
+
+- 验收：JDK 21 全仓普通 Reactor 1140 项，0 失败、0 错误、6 项按条件跳过；DDL 定向 MySQL Reactor 147 项全部通过。示例普通测试 92 项，0 失败、0 错误、4 项 MySQL 用例跳过；该 4 项随后在随机隔离 MySQL 库单独执行全部通过，包含 MerchantArticle 正文实际 TEXT 列及中文 emoji 读写，随机库已清理。
+- 示例 H2 业务测试改用固定测试表结构并关闭 MySQL DDL，未伪造字符集；MySQL 结构验收显式启用 DDL。精细文本注解仅在长度、格式等定制需求下叠加，正文缺省仅需 EntField.kind，普通文本无需额外声明。

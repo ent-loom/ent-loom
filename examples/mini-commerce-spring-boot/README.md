@@ -163,3 +163,20 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 ## 实体声明
 
 `src/main/resources/ent/entities` 集中每个实体的策略、字段权限、动作、输入契约与索引。Order 声明下单动作和客户/商家索引，MerchantProduct 显式开放批量更新，Customer 通过 access: JAVA 复用现有治理链。Java 保留字段、关系结构、基础说明和 Handler。操作逐动作覆盖，空列表保留业务动作而关闭通用映射；批量逐目标授权，任一失败整批回滚。
+
+### 文章正文的业务语义与 DDL 推导
+
+`MerchantArticle.content` 使用业务声明，不再耦合物理 SQL 类型：
+
+```java
+@EntField(value = "正文", kind = EntFieldKind.CONTENT)
+private String content;
+```
+
+`CONTENT` 表示格式未限定的正文；只有明确是富文本时才使用 `@EntField(kind = EntFieldKind.RICH_CONTENT)`。两者未声明业务上限时默认推导 TEXT，普通文本仍默认 `varchar(200)`；多行展示本身不表示长篇内容。
+
+可选的 `maxLength` 表达真实业务上限：普通文本或正文使用 `@EntMetaText(maxLength = ...)`，富文本使用 `@EntMetaRichContent(maxLength = ...)`。有正上限且未提供物理覆盖时，按有效字符集选择 VARCHAR / TEXT / MEDIUMTEXT / LONGTEXT；不要求为了推导而虚构长度。`@EntDdlField` 的类型、长度或原始定义优先，业务容量继续独立校验。
+
+当前示例没有明确正文业务上限，因此缺省使用 TEXT，不代表无限容量。MySQL TEXT 上限为 65535 字节，utf8mb4 按最坏 4 字节只能保证 16383 字符，应用输入校验与正文格式仍由业务确定。已有列的跨类别变化继续受迁移安全规则约束。
+
+H2 业务测试使用 `src/test/resources/commerce-h2-schema.sql` 固定表结构，关闭启动 DDL，不伪造 MySQL 字符集。DDL 类型与字符集由真实 MySQL 验收覆盖；`MysqlSchemaAcceptanceTest` 显式启用 DDL。需要让可切换数据源的业务测试在 MySQL 上初始化表时，设置 `COMMERCE_TEST_DDL_MODE=CREATE_MODIFY_DELETE_ALL`，仅使用专用验收库。
