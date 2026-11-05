@@ -4,3 +4,8 @@ crud:
   access:
     customer:
       actions: [view]
+    merchant:
+      fields:
+        WRITE:
+          mode: INCLUDE
+          fields: [level]

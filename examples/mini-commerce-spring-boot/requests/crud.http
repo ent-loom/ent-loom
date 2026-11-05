@@ -28,7 +28,7 @@ POST {{baseUrl}}/api/ent-crud/customer/detail
 Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
-{"options": {"filter": {"id": {{customerId}}}}}
+{"id": {{customerId}}}
 
 ### 删除客户：预期 403，示例统一关闭客户删除以保护订单关联
 POST {{baseUrl}}/api/ent-crud/customer/delete

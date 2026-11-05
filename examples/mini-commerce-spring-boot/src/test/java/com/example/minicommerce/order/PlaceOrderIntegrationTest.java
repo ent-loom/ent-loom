@@ -46,7 +46,7 @@ class PlaceOrderIntegrationTest {
         jdbc.update("delete from `order`");
         jdbc.update("delete from merchant_product");
         jdbc.update("delete from customer");
-        jdbc.update("insert into customer values (301, '测试客户', 'test@example.com')");
+        jdbc.update("insert into customer(id, display_name, email, merchant_id) values (301, '测试客户', 'test@example.com', 1001)");
         jdbc.update("insert into merchant_product(id, merchant_id, name, price, active, version) values "
             + "(10, 1001, '商家一商品', 10, true, 0), (20, 1001, '商家二商品', 20, true, 0), "
             + "(30, 2001, '停用商品', 30, false, 0), (40, 2001, '商家二商品', 40, true, 0)");
@@ -66,7 +66,7 @@ class PlaceOrderIntegrationTest {
         jdbc.update("update merchant_product set price=99, name='改名商品' where id=10");
         mvc.perform(post("/api/ent-crud/order/detail").header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"options\":{\"filter\":{\"id\":%d}}}".formatted(orderId)))
+                .content("{\"id\":%d}".formatted(orderId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.item.merchantId").value(1001))
             .andExpect(jsonPath("$.data.item.totalAmount").value(30.0))
@@ -78,7 +78,7 @@ class PlaceOrderIntegrationTest {
                 .header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"options":{"filter":{"id":%d},"expandRelations":["customer","orderItemList"]}}
+                    {"id":%d,"options":{"expandRelations":["customer","orderItemList"]}}
                     """.formatted(orderId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.item.customer.id").value(301))

@@ -27,13 +27,8 @@ Authorization: Bearer demo-profile-admin
 Content-Type: application/json
 
 {
+  "id": {{customerId}},
   "options": {
-    "requestId": "customer-profile-detail-1",
-    "filterMap": {
-      "id": {
-        "op": "EQ",
-        "value": {{customerId}}
-      }
-    }
+    "requestId": "customer-profile-detail-1"
   }
 }

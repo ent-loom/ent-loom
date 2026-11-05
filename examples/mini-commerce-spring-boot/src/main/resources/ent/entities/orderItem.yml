@@ -3,5 +3,4 @@ ddl:
     - name: idx_order_item_order
       fields: [orderId]
 crud:
-  access:
-    policy: record
+  http-exposed: false

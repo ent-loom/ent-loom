@@ -11,30 +11,33 @@ public final class AuthorizationResult {
     private final AccessDecision decision;
     private final AuthorizationScope scope;
     private final AuthorizationFields fields;
+    private final BusinessPermissionDecision.Kind kind;
 
     private AuthorizationResult(AuthorizationRequest request, AccessDecision decision,
-                                AuthorizationScope scope, AuthorizationFields fields) {
+                                AuthorizationScope scope, AuthorizationFields fields, BusinessPermissionDecision.Kind kind) {
         this.request = Objects.requireNonNull(request, "授权请求不能为空");
         this.decision = decision;
         this.scope = scope;
         this.fields = fields;
+        this.kind = kind;
     }
 
     static AuthorizationResult granted(AuthorizationRequest request, AuthorizationScope scope, AuthorizationFields fields) {
         return new AuthorizationResult(request, AccessDecision.ALLOW,
             Objects.requireNonNull(scope, "允许结果必须有明确范围"),
-            Objects.requireNonNull(fields, "允许结果必须有明确字段约束"));
+            Objects.requireNonNull(fields, "允许结果必须有明确字段约束"), BusinessPermissionDecision.Kind.ALLOW);
     }
 
-    static AuthorizationResult denied(AuthorizationRequest request) {
+    static AuthorizationResult denied(AuthorizationRequest request, BusinessPermissionDecision.Kind kind) {
         return new AuthorizationResult(request, AccessDecision.DENY,
-            AuthorizationScope.none(), AuthorizationFields.none());
+            AuthorizationScope.none(), AuthorizationFields.none(), kind);
     }
 
     public AuthorizationRequest getRequest() { return request; }
     public AccessDecision getDecision() { return decision; }
     public AuthorizationScope getScope() { return scope; }
     public AuthorizationFields getFields() { return fields; }
+    public BusinessPermissionDecision.Kind getKind() { return kind; }
 
     /** 执行适配必须用原请求校验本次授权，不能把结果复用到另一目标或调用。 */
     public void requireApplicable(AuthorizationRequest current) {

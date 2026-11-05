@@ -4,3 +4,8 @@ crud:
   access:
     merchant:
       actions: []
+    customer:
+      fields:
+        WRITE:
+          mode: INCLUDE
+          fields: [bankName, cardLastFour, bindingToken]

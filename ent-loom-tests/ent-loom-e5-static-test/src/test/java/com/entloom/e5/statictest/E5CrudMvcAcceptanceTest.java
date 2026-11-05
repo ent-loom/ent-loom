@@ -143,7 +143,7 @@ class E5CrudMvcAcceptanceTest {
     }
 
     private static String detailRequest(String requestId) {
-        return "{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":501}},\"requestId\":\""
+        return "{\"id\":501,\"options\":{\"requestId\":\""
             + requestId + "\"}}";
     }
 

@@ -6,6 +6,15 @@ crud:
   relations:
     merchant: id
   access:
+    customer:
+      actions: [view]
+      scope: all
+      fields:
+        RETURN:
+          mode: INCLUDE
+          fields: [id, name]
+        EXPAND:
+          mode: NONE
     public:
       actions: [view]
       scope: all
@@ -15,3 +24,7 @@ crud:
           fields: [id, name]
     merchant:
       actions: [view, update]
+      fields:
+        WRITE:
+          mode: INCLUDE
+          fields: [name, legalRepresentativeName, legalRepresentativePhone]

@@ -72,26 +72,19 @@ Content-Type: application/json
 
 ## DETAIL：确认更新结果
 
-详情使用 `POST /{entity}/detail`。推荐使用主键过滤，并保留唯一的 `requestId`，这样可以确认更新后的值来自数据库，而不是客户端缓存。
+详情使用 `POST /{entity}/detail`，在顶层提供唯一主键 `id`，并保留唯一的 `requestId`。
 
 ```http
 POST http://localhost:8080/api/ent-crud/customer_profile/detail
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-detail-after-update-1",
-    "filterMap": {
-      "id": {
-        "op": "EQ",
-        "value": 1000000000001
-      }
-    }
-  }
+  "id": 1000000000001,
+  "options": {"requestId": "customer-detail-after-update-1"}
 }
 ```
 
-`DETAIL` 要求匹配一条记录：匹配不到返回未找到错误，匹配多条返回 `QUERY_NOT_UNIQUE`。只需要判断是否存在时，可使用 `FIND_ONE`；它在 0 条时返回空值，语义不同于 `DETAIL`。
+`DETAIL` 按主键定位；不存在或不可访问时返回未找到。只需要判断是否存在时，可使用 `FIND_ONE`；它在 0 条时返回空值。
 
 ## DELETE：按主键删除
 

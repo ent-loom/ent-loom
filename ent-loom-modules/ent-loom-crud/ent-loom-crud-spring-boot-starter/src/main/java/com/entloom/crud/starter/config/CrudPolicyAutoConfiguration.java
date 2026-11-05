@@ -256,4 +256,10 @@ public class CrudPolicyAutoConfiguration {
         return new EntityPolicyRegistry(entities, all, bindings, operations, identities);
     }
 
+    @Bean
+    @ConditionalOnBean(EntityMetaRegistry.class)
+    public org.springframework.beans.factory.SmartInitializingSingleton crudPageFieldLimitValidator(
+        EntityMetaRegistry entities, EntityPolicyRegistry policies, CrudOperationMappingRegistry mappings) {
+        return () -> policies.validatePageMappings(mappings, entities.getEntityMetas());
+    }
 }

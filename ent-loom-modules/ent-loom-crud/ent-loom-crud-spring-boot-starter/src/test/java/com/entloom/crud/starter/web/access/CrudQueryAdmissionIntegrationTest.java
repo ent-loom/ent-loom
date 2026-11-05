@@ -73,7 +73,8 @@ class CrudQueryAdmissionIntegrationTest {
                 .andExpect(jsonPath("$.data.page.total").value(2));
             for (String operation : List.of("findOne", "detail")) {
                 mvc.perform(post(ROOT + "/" + operation).header("Authorization", "Bearer valid")
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":2}}}"))
+                        .contentType(MediaType.APPLICATION_JSON).content(operation.equals("detail")
+                            ? "{\"id\":2}" : "{\"options\":{\"filter\":{\"id\":2}}}"))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.orderNo").value("ORD-2"))
                     .andExpect(jsonPath("$.data.item.id").doesNotExist());
             }
@@ -201,7 +202,8 @@ class CrudQueryAdmissionIntegrationTest {
         @Bean BusinessPermissionEvaluator permissions() {
             return (visitor, operation, rule, target) -> BusinessPermissionDecision.allow(
                 AuthorizationScope.in("id", List.of(2L, 4L)), AuthorizationFields.of(
-                    Map.of(AuthorizationFields.Use.RETURN, List.of("orderNo"))));
+                    Map.of(AuthorizationFields.Use.RETURN, List.of("orderNo"),
+                        AuthorizationFields.Use.SORT, List.of("createdAt", "id"))));
         }
     }
 }

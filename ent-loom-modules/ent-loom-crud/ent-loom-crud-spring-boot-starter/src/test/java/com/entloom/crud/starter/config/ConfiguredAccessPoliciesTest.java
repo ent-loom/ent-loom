@@ -352,6 +352,74 @@ class ConfiguredAccessPoliciesTest {
     }
 
     @Test
+    void 分页映射要求静态主键排序() {
+        runner("crud: {field-limits: {RETURN: [id]}}")
+            .run(context -> assertThat(context).hasFailed().getFailure().hasMessageContaining("分页必须在字段上限开放主键排序: order/id"));
+        runner("crud: {field-limits: {RETURN: [id]}, operations: {view: [DETAIL]}}")
+            .run(context -> assertThat(context).hasNotFailed());
+        runner("crud: {field-limits: {RETURN: [id], SORT: [id]}}")
+            .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void 自定义策略注册表仍经过分页启动检查() {
+        var custom = mock(EntityPolicyRegistry.class);
+        runner("crud: {}")
+            .withBean(EntityPolicyRegistry.class, () -> custom)
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                org.mockito.Mockito.verify(custom).validatePageMappings(
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+            });
+    }
+
+    @Test
+    void 实体字段上限限制配置与动态授权并校验元数据() {
+        runner("""
+            crud:
+              field-limits:
+                RETURN: [id, title]
+                FILTER: [active]
+                SORT: [id]
+            """).withBean(BusinessPermissionEvaluator.class, () -> (visitor, operation, rule, target) ->
+                BusinessPermissionDecision.allow(AuthorizationScope.all(), AuthorizationFields.of(Map.of(
+                    AuthorizationFields.Use.RETURN, Set.of("id", "title", "merchantId"),
+                    AuthorizationFields.Use.SORT, Set.of("id", "title"),
+                    AuthorizationFields.Use.FILTER, Set.of("active", "merchantId")))))
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                var fields = authorize(context, "merchant", "view").getFields();
+                assertThat(fields.allows(AuthorizationFields.Use.RETURN, "id")).isTrue();
+                assertThat(fields.allows(AuthorizationFields.Use.RETURN, "merchantId")).isFalse();
+                assertThat(fields.allows(AuthorizationFields.Use.SORT, "id")).isTrue();
+                assertThat(fields.allows(AuthorizationFields.Use.SORT, "title")).isFalse();
+                assertThat(fields.allows(AuthorizationFields.Use.WRITE, "title")).isFalse();
+                assertThat(context.getBean(ConfiguredAccessPolicies.class).snapshot().get("order").fields()
+                    .get("merchant").get(AuthorizationFields.Use.RETURN)).containsExactlyInAnyOrder("id", "title");
+            });
+        runner("crud: {field-limits: {WRITE: [id]}}")
+            .run(context -> assertThat(context).hasFailed());
+        runner("crud: {field-limits: {RETURN: [missing]}}")
+            .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void 声明式策略保留动态目标拒绝类别() {
+        runner("crud: {}")
+            .withBean(BusinessPermissionEvaluator.class, () -> (visitor, operation, rule, target) ->
+                BusinessPermissionDecision.targetInaccessible())
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                var subject = new AccessSubject("actor", AccessSubjectType.HUMAN);
+                var visitor = VisitorContext.authenticated(subject,
+                    context.getBean(BusinessIdentityRegistry.class).resolve(subject, "merchant", "42"), "commerce", null, null);
+                var request = new AuthorizationRequest(visitor, new BusinessOperation("order", "view"), "42");
+                assertThat(context.getBean(BusinessAuthorizationService.class).authorize(request).getKind())
+                    .isEqualTo(BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE);
+            });
+    }
+
+    @Test
     void 动态规则只能收窄YAML范围与字段且公共分支不携带身份() {
         runner("""
             crud:

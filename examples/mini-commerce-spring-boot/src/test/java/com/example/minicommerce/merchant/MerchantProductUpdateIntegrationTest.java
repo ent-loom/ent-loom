@@ -54,10 +54,10 @@ class MerchantProductUpdateIntegrationTest {
             .andExpect(jsonPath("$.data.items[0].version").doesNotExist())
             .andExpect(jsonPath("$.data.items[0].active").doesNotExist());
         mvc.perform(post("/api/ent-crud/merchantProduct/detail").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"options\":{\"filter\":{\"id\":102}}}"))
+                .content("{\"id\":102}"))
             .andExpect(status().isNotFound());
         mvc.perform(post("/api/ent-crud/merchantProduct/detail").header("Authorization", "Bearer demo-merchant-a")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":102}}}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":102}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.active").value(false));
         mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer demo-customer-a"))
             .andExpect(status().isForbidden());
@@ -116,8 +116,7 @@ class MerchantProductUpdateIntegrationTest {
         mvc.perform(post("/api/ent-crud/merchantProduct/page").header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"filter\":{\"merchantId\":2001}}}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(0))
-            .andExpect(jsonPath("$.data.items").isEmpty());
+            .andExpect(status().isForbidden());
         mvc.perform(post("/api/ent-crud/merchantProduct/page").header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"limit\":1,\"countMode\":\"NONE\"}}"))

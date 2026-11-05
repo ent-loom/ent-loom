@@ -22,6 +22,7 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
         private CrudAccessProperties.Policy access = new CrudAccessProperties.Policy();
         private List<String> ownership;
         private Map<String, List<String>> operations;
+        private Map<AuthorizationFields.Use, List<String>> fieldLimits;
         private Map<String, String> relations = new LinkedHashMap<>();
     }
     /** 实体动作：列表替换，或在策略上增减；全局策略仍使用完整列表。 */
@@ -55,7 +56,7 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
         declarations.entities().forEach((resource, root) -> {
             DeclarationNode crud = root.members().get("crud");
             if (crud == null) return;
-            crud.only("access", "operations", "relations", "ownership", "contracts", "actions", "allowed-operations", "http-exposed");
+            crud.only("access", "operations", "relations", "ownership", "contracts", "actions", "allowed-operations", "http-exposed", "field-limits");
             Map<String, DeclarationNode> nodes = crud.members();
             if (nodes.containsKey("http-exposed")) httpExposure.put(resource, nodes.get("http-exposed").bool());
             if (nodes.containsKey("actions")) parseActions(resource, nodes.get("actions"));
@@ -69,6 +70,16 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
                 allowedOperations.put(resource, Set.copyOf(keys));
             }
             EntityOptions entity = new EntityOptions();
+            if (nodes.containsKey("field-limits")) {
+                Map<AuthorizationFields.Use, List<String>> limits = new LinkedHashMap<>();
+                nodes.get("field-limits").members().forEach((name, node) -> {
+                    var use = node.enumValue(AuthorizationFields.Use.class, name);
+                    var fields = node.strings();
+                    if (new java.util.LinkedHashSet<>(fields).size() != fields.size()) throw node.error("字段上限包含重复字段");
+                    if (limits.putIfAbsent(use, fields) != null) throw node.error("重复字段用途: " + name);
+                });
+                entity.setFieldLimits(limits);
+            }
             if (nodes.containsKey("access")) {
                 DeclarationNode access = nodes.get("access");
                 var values = access.members();

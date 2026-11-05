@@ -4,6 +4,17 @@
 
 实体枚举和字段用途以 Java 大写常量名展示，例如 `mode: INCLUDE`、`UPDATE_BATCH`、`WRITE`；解析兼容大小写及连字符/下划线，Java 属性名仍按实体声明填写，例如 `customerId`。
 
+实体可通过 `crud.field-limits` 为 `RETURN`、`WRITE`、`FILTER`、`SORT`、`STATS`、`EXPAND` 分别声明字段上限。声明此项后，未列出的用途关闭；它与元数据和按次授权共同收窄，不能单独授予权限。超出元数据的字段在启动时拒绝。Java 策略绑定应在绑定中声明上限，不能与实体 YAML 混合声明。
+
+```yaml
+crud:
+  field-limits:
+    RETURN: [id, name, price]
+    FILTER: [active]
+    SORT: [id]
+    WRITE: [price]
+```
+
 ## 最小示例
 
 仅在 Java 业务中使用实体、关闭通用 HTTP：

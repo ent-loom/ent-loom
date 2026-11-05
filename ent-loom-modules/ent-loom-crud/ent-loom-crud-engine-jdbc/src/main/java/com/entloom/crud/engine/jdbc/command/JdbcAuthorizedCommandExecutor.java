@@ -24,6 +24,7 @@ import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.CrudExceptionContext;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
+import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
@@ -170,7 +171,9 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         } catch (RuntimeException | Error failure) {
             CrudGovernanceAuditOutcome outcome = invocation.stage == CrudErrorStage.EXECUTE
                 ? CrudGovernanceAuditOutcome.EXECUTION_FAILED : CrudGovernanceAuditOutcome.GOVERNANCE_DENIED;
-            CrudGovernanceAuditReasonCode reason = failure instanceof EntityDaoWriteMissException
+            CrudGovernanceAuditReasonCode reason = invocation.result != null
+                && invocation.result.getKind() == BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE
+                ? CrudGovernanceAuditReasonCode.DATA_SCOPE_DENIED : failure instanceof EntityDaoWriteMissException
                 ? CrudGovernanceAuditReasonCode.EXECUTION_FAILED
                 : failure instanceof CrudException
                     ? CrudGovernanceAuditReasonCode.fromCrudErrorCode(((CrudException) failure).getErrorCode())
@@ -414,11 +417,20 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
 
     private void requireApplicable(VisitorContext visitor, EntityMeta meta, CommandOperation operation,
                                    String targetId, AuthorizationResult result) {
-        if (result == null || result.getDecision() != AccessDecision.ALLOW
+        if (result == null
             || result.getRequest().getVisitor() != visitor
             || !Objects.equals(result.getRequest().getTargetId(), targetId)
             || !meta.getResourceDescriptor().getResourceCode().equals(result.getRequest().getOperation().getResourceCode())) {
             throw new PermissionDeniedException("授权结果不适用于本次根实体写入");
+        }
+        if (result.getKind() == BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE && targetId != null
+            && (operation == CommandOperation.UPDATE || operation == CommandOperation.DELETE)) {
+            EntityDaoWriteMissException inaccessible = new EntityDaoWriteMissException("目标不存在或不可写: " + meta.getEntityName());
+            inaccessible.withStage(CrudErrorStage.EXECUTE);
+            throw inaccessible;
+        }
+        if (result.getDecision() != AccessDecision.ALLOW) {
+            throw new PermissionDeniedException("业务授权被拒绝");
         }
     }
 

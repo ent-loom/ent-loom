@@ -38,6 +38,7 @@ import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
 import com.entloom.crud.starter.support.TestOrderEntity;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -180,7 +181,8 @@ class AccessAuthorizedQueryIntegrationTest {
                 state.decisions.incrementAndGet();
                 return state.allowed.get() ? BusinessPermissionDecision.allow(
                     AuthorizationScope.in("id", List.of(2L, 4L)), AuthorizationFields.of(
-                        Collections.singletonMap(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"))))
+                        Map.of(AuthorizationFields.Use.RETURN, List.of("orderNo"),
+                            AuthorizationFields.Use.SORT, List.of("createdAt", "id"))))
                     : BusinessPermissionDecision.deny();
             };
         }

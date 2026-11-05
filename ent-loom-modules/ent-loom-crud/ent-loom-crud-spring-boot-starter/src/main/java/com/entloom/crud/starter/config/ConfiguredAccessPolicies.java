@@ -92,11 +92,14 @@ public final class ConfiguredAccessPolicies {
             String resource = meta.getResourceDescriptor().getResourceCode();
             var declaration = entityFiles.options().getOrDefault(resource, new CrudEntityDeclarations.EntityOptions());
             String selected = declaration.getPolicy();
-            if (selected == null && javaBoundEntities.contains(meta.getEntityType())) continue;
+            if (selected == null && javaBoundEntities.contains(meta.getEntityType())) {
+                require(declaration.getFieldLimits() == null, entityFiles.source(resource) + ": Java 策略绑定须自行声明字段上限");
+                continue;
+            }
             // 仅已发布或已有实体差异的资源应用缺省；内部未声明资源不会自动发布。
             if (selected == null && entityFiles.httpExposed(resource)) selected = config.getDefaultPolicy();
             if (selected == null) {
-                require(declaration.getActionSelection() == null && declaration.getAccess().getAccess().isEmpty() && declaration.getOperations() == null,
+                require(declaration.getActionSelection() == null && declaration.getAccess().getAccess().isEmpty() && declaration.getOperations() == null && declaration.getFieldLimits() == null,
                     entityFiles.source(resource) + ": 实体访问差异缺少有效策略，请选择 access.policy 或为已发布实体配置 default-policy");
                 continue;
             }
@@ -104,7 +107,7 @@ public final class ConfiguredAccessPolicies {
                 : entityFiles.source(resource, "access.policy");
             CrudAccessProperties.Policy policy = config.getPolicies().get(selected);
             if (policy == null) {
-                require(declaration.getActionSelection() == null && declaration.getAccess().getAccess().isEmpty() && declaration.getOperations() == null,
+                require(declaration.getActionSelection() == null && declaration.getAccess().getAccess().isEmpty() && declaration.getOperations() == null && declaration.getFieldLimits() == null,
                     source + ": Java 策略的操作、字段与授权由项目声明");
                 bindings.add(new EntityPolicyBinding(meta.getEntityType(), selected, source, declaration.getRelations()));
                 continue;
@@ -192,7 +195,13 @@ public final class ConfiguredAccessPolicies {
             // 实体差异在配置边界折叠为普通 Core 模板，运行时只保留一条授权链。
             String compiledCode = "configured/" + resource;
             templates.add(new EntityPolicyTemplate(compiledCode, source, policyRules));
-            bindings.add(new EntityPolicyBinding(meta.getEntityType(), compiledCode, source, relationFields));
+            EntityPolicyBinding binding = new EntityPolicyBinding(meta.getEntityType(), compiledCode, source, relationFields,
+                List.of(), declaration.getFieldLimits());
+            bindings.add(binding);
+            if (binding.getFieldLimit() != null) {
+                fieldSnapshot.replaceAll((identity, snapshot) -> AuthorizationFields.of(snapshot)
+                    .intersect(binding.getFieldLimit()).snapshot());
+            }
             for (var action : operationCatalog.entrySet()) {
                 BusinessOperation operation = new BusinessOperation(resource, action.getKey());
                 operations.add(new BusinessOperationDeclaration(operation, entitySource));
@@ -493,7 +502,7 @@ public final class ConfiguredAccessPolicies {
             if (dynamic == null) return BusinessPermissionDecision.allow(scope, allowed);
             var decision = dynamic.evaluate(visitor, operation, rule, target);
             return decision == null || decision.getKind() != BusinessPermissionDecision.Kind.ALLOW
-                ? BusinessPermissionDecision.deny()
+                ? (decision == null ? BusinessPermissionDecision.deny() : decision)
                 : BusinessPermissionDecision.allow(AuthorizationScope.intersect(scope, decision.getScope()),
                     allowed.intersect(decision.getFields().resolveDefaults(rule.getFieldLimit())));
         };

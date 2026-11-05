@@ -84,6 +84,17 @@ class BusinessAuthorizationServiceTest {
     }
 
     @Test
+    void target_denial_requires_a_target_and_retains_its_category() {
+        BusinessAuthorizationService service = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.targetInaccessible());
+        AuthorizationResult target = service.authorize(request(teacher(), VIEW, "order-1"));
+        assertEquals(AccessDecision.DENY, target.getDecision());
+        assertEquals(BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE, target.getKind());
+        assertEquals(BusinessPermissionDecision.Kind.DENY, service.authorize(request(teacher(), VIEW, null)).getKind());
+        assertThrows(PermissionDeniedException.class, () -> target.requireApplicable(target.getRequest()));
+    }
+
+    @Test
     void selects_exact_identity_branch_and_sanitizes_public_branch() {
         AtomicInteger publicCalls = new AtomicInteger();
         BusinessAuthorizationService service = service((visitor, operation, rule, target) -> {

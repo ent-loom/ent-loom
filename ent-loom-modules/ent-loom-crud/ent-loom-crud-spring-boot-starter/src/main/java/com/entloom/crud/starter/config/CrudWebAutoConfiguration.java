@@ -226,14 +226,16 @@ public class CrudWebAutoConfiguration {
             CrudTimeFilterResolver timeFilterResolver,
             @Qualifier("crudObjectMapper") ObjectMapper objectMapper,
             CrudProperties properties,
-            CrudStringFilterPolicy stringFilterPolicy
+            CrudStringFilterPolicy stringFilterPolicy,
+            EntityMetaRegistry entityMetaRegistry
     ) {
         return new CrudQuerySpecAssembler(
             requestSupport,
             timeFilterResolver,
             objectMapper,
             properties.getController().getDefaultReadResultMode(),
-            stringFilterPolicy
+            stringFilterPolicy,
+            entityMetaRegistry
         );
     }
 

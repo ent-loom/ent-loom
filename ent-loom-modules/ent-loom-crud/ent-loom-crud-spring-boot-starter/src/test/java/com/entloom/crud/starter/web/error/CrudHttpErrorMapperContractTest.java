@@ -33,8 +33,14 @@ class CrudHttpErrorMapperContractTest {
             Assertions.assertEquals(expectedStatuses.get(code), descriptor.getStatus(), code.name());
             Assertions.assertEquals(code.name(), descriptor.getError().getCode(), code.name() + ".code");
             Assertions.assertEquals(CrudErrorStage.EXECUTE, descriptor.getError().getStage(), code.name() + ".stage");
-            Assertions.assertEquals("TEST_" + code.name(), descriptor.getError().getReason(), code.name() + ".reason");
-            Assertions.assertEquals("TestOrderEntity|TEST", descriptor.getError().getRouteKey(), code.name() + ".routeKey");
+            if (descriptor.getStatus().is5xxServerError()) {
+                Assertions.assertEquals("服务暂时不可用，请稍后重试", descriptor.getError().getMessage());
+                Assertions.assertEquals(code.name(), descriptor.getError().getReason());
+                Assertions.assertNull(descriptor.getError().getRouteKey());
+            } else {
+                Assertions.assertEquals("TEST_" + code.name(), descriptor.getError().getReason(), code.name() + ".reason");
+                Assertions.assertEquals("TestOrderEntity|TEST", descriptor.getError().getRouteKey(), code.name() + ".routeKey");
+            }
         }
     }
 
@@ -75,11 +81,13 @@ class CrudHttpErrorMapperContractTest {
         Assertions.assertEquals(CrudErrorStage.HTTP_CONTRACT, frameworkError.getError().getStage());
         Assertions.assertEquals("VALIDATION_ERROR", frameworkError.getError().getReason());
 
-        CrudHttpErrorDescriptor unexpectedError = CrudHttpErrorMapper.map(new IllegalStateException("测试异常"));
+        CrudHttpErrorDescriptor unexpectedError = CrudHttpErrorMapper.map(
+            new IllegalStateException("select password from account"));
         Assertions.assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, unexpectedError.getStatus());
         Assertions.assertEquals(CrudErrorCode.INTERNAL_ERROR.name(), unexpectedError.getError().getCode());
         Assertions.assertEquals(CrudErrorStage.UNKNOWN, unexpectedError.getError().getStage());
         Assertions.assertEquals(CrudErrorCode.INTERNAL_ERROR.name(), unexpectedError.getError().getReason());
+        Assertions.assertEquals("服务暂时不可用，请稍后重试", unexpectedError.getError().getMessage());
     }
 
     private void assertMapping(

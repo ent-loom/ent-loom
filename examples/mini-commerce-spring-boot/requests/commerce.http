@@ -37,14 +37,14 @@ POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options": {"filter": {"id": {{orderId}}}}}
+{"id": {{orderId}}}
 
 ### 同一详情接口显式展开客户和成交明细，不重新读取当前商品
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":{{orderId}}},"expandRelations":["customer","orderItemList"]}}
+{"id":{{orderId}},"options":{"expandRelations":["customer","orderItemList"]}}
 
 ### 默认订单创建未授权
 POST {{baseUrl}}/api/ent-crud/order/create

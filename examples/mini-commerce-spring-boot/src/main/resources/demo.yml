@@ -41,6 +41,8 @@ ent:
             entry: commerce
           - path: /api/ent-crud/merchantProduct/**
             entry: merchant
+          - path: /api/merchant/products/**
+            entry: merchant
           - path: /api/ent-crud/merchantArticle/**
             entry: merchant
       governance:

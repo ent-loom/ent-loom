@@ -104,11 +104,9 @@ class OwnedEntityIntegrationTest {
     }
 
     @Test
-    void 文章是实体而商户是访问身份和归属者() {
+    void 内部文章没有独立授权查询入口() {
         var merchantA = visitor("merchant", "merchant-user-a", "1001", "merchant");
-        var merchantB = visitor("merchant", "merchant-user-b", "2001", "merchant");
-        assertEquals(List.of(1001L), list(MerchantArticle.class, merchantA).stream().map(row -> row.longValue("merchantId")).toList());
-        assertEquals(List.of(2001L), list(MerchantArticle.class, merchantB).stream().map(row -> row.longValue("merchantId")).toList());
+        assertThrows(PermissionDeniedException.class, () -> list(MerchantArticle.class, merchantA));
         assertThrows(PermissionDeniedException.class, () -> list(MerchantArticle.class,
             visitor("customer", "customer-user-a", "301", "consumer")));
     }
@@ -118,9 +116,7 @@ class OwnedEntityIntegrationTest {
         "customerLevel, demo-customer-a, customerId, 301, 1",
         "customerLevel, demo-customer-b, customerId, 302, 2",
         "customerLevel, demo-merchant-a, merchantId, 1001, 1",
-        "customerLevel, demo-merchant-b, merchantId, 2001, 2",
-        "merchantArticle, demo-merchant-a, merchantId, 1001, 1",
-        "merchantArticle, demo-merchant-b, merchantId, 2001, 2"
+        "customerLevel, demo-merchant-b, merchantId, 2001, 2"
     })
     void 普通归属实体无需业务Controller即可分页并读取本人详情(String entity, String token,
         String ownerField, long owner, long id) throws Exception {
@@ -130,19 +126,19 @@ class OwnedEntityIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.page.total").value(1))
             .andExpect(jsonPath("$.data.items[0]." + ownerField).value(owner));
         mvc.perform(post("/api/ent-crud/" + entity + "/detail").header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":" + id + "}}}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":" + id + "}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.item." + ownerField).value(owner));
         long otherId = id == 1 ? 2 : 1;
         mvc.perform(post("/api/ent-crud/" + entity + "/detail").header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":" + otherId + "}}}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":" + otherId + "}"))
             .andExpect(status().isNotFound());
     }
 
     @ParameterizedTest
     @CsvSource({"merchantArticle, demo-customer-a"})
-    void 通用入口不因实体已暴露而授予其他身份读取权限(String entity, String token) throws Exception {
+    void 内部实体通用入口不开放(String entity, String token) throws Exception {
         mvc.perform(post("/api/ent-crud/" + entity + "/list").header("Authorization", "Bearer " + token))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -156,7 +152,7 @@ class OwnedEntityIntegrationTest {
         long id = ((Number) com.jayway.jsonpath.JsonPath.read(created, "$.data.id")).longValue();
         assertEquals(301L, jdbc.queryForObject("select customer_id from customer_bank_card where id=?", Long.class, id));
         String payload = "{\"payload\":{\"id\":" + id + ",\"bankName\":\"更新银行\"}}";
-        String query = "{\"options\":{\"filter\":{\"id\":" + id + "}}}";
+        String query = "{\"id\":" + id + "}";
         for (String action : List.of("create", "detail", "update", "delete")) {
             mvc.perform(post("/api/ent-crud/customerBankCard/" + action)
                     .header("Authorization", "Bearer demo-merchant-a").contentType(MediaType.APPLICATION_JSON)
@@ -179,7 +175,8 @@ class OwnedEntityIntegrationTest {
                 .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(query))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.bankName").value("更新银行"));
         mvc.perform(post("/api/ent-crud/customerBankCard/delete")
-                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(payload))
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":" + id + "}}"))
             .andExpect(status().isOk());
         assertEquals(0, jdbc.queryForObject("select count(*) from customer_bank_card", Integer.class));
     }

@@ -34,7 +34,7 @@ class OrderDaoIntegrationTest {
         jdbc.update("delete from order_item");
         jdbc.update("delete from `order`");
         jdbc.update("delete from customer");
-        jdbc.update("insert into customer(id,display_name,email) values (1,'客户甲','a@example.com')");
+        jdbc.update("insert into customer(id,display_name,email,merchant_id) values (1,'客户甲','a@example.com',1001)");
     }
 
     @Test

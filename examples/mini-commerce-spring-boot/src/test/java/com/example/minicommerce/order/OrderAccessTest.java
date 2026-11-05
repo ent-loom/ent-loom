@@ -44,7 +44,7 @@ class OrderAccessTest {
         jdbc.update("delete from `order`");
         jdbc.update("delete from merchant_product");
         jdbc.update("delete from customer");
-        jdbc.update("insert into customer values (301, '测试客户', 'customer@example.com')");
+        jdbc.update("insert into customer(id, display_name, email, merchant_id) values (301, '测试客户', 'customer@example.com', 1001)");
         jdbc.update("insert into merchant_product(id,merchant_id,name,price,active,version) values (10,1001,'商品',10,true,0)");
         jdbc.update("insert into `order`(id,customer_id,merchant_id,status,total_amount,created_at) values (1,301,1001,'CREATED',10,CURRENT_TIMESTAMP)");
     }

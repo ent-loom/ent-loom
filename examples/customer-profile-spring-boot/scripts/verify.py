@@ -123,8 +123,8 @@ def verify(repository=None, skip_build=False):
         created_id = int(create["data"]["id"])
         check(created_id == customer_id, "CREATE 返回的 ID 不匹配")
         detail = request(base_url + "/api/ent-crud/customer_profile/detail", {
-            "options": {"requestId": project + "-detail",
-                        "filterMap": {"id": {"op": "EQ", "value": created_id}}},
+            "id": created_id,
+            "options": {"requestId": project + "-detail"},
         })
         (logs / "detail.json").write_text(json.dumps(detail, ensure_ascii=False, indent=2))
         check(detail.get("success") is True, f"DETAIL 失败：{detail}")

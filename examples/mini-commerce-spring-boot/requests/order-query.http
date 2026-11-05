@@ -67,21 +67,21 @@ POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":501}}}
+{"id":501}
 
 ### 商家甲读取同一订单值字段
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":501}}}
+{"id":501}
 
 ### 商家甲跨归属详情：404；相同条件 findOne 返回 data.item=null（默认空字段省略）
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":502}}}
+{"id":502}
 
 ### 客户甲试图指定其他客户归属：403，FILTER 未授予当前归属字段
 POST {{baseUrl}}/api/ent-crud/order/page
@@ -112,18 +112,18 @@ POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":501},"expandRelations":["customer","orderItemList"]}}
+{"id":501,"options":{"expandRelations":["customer","orderItemList"]}}
 
 ### 商家甲按同一接口读取订单明细成交快照
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":501},"expandRelations":["orderItemList"]}}
+{"id":501,"options":{"expandRelations":["orderItemList"]}}
 
 ### 嵌套展开仍拒绝：403
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"options":{"filter":{"id":501},"expandRelations":["customer.address"]}}
+{"id":501,"options":{"expandRelations":["customer.address"]}}

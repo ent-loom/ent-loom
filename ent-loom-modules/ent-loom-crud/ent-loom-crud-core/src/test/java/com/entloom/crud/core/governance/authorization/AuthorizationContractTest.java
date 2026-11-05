@@ -51,7 +51,7 @@ class AuthorizationContractTest {
         assertThrows(NullPointerException.class, () -> AuthorizationResult.granted(request, null, fields));
         assertThrows(NullPointerException.class, () -> AuthorizationResult.granted(request, AuthorizationScope.all(), null));
 
-        AuthorizationResult denied = AuthorizationResult.denied(request);
+        AuthorizationResult denied = AuthorizationResult.denied(request, BusinessPermissionDecision.Kind.DENY);
         assertEquals(AccessDecision.DENY, denied.getDecision());
         assertSame(AuthorizationScope.none(), denied.getScope());
         assertFalse(denied.getFields().allows(AuthorizationFields.Use.RETURN, "status"));
@@ -112,7 +112,7 @@ class AuthorizationContractTest {
             EntityDaoBatchAuthorizationContext.of(oversized)
         );
 
-        AuthorizationResult denied = AuthorizationResult.denied(request);
+        AuthorizationResult denied = AuthorizationResult.denied(request, BusinessPermissionDecision.Kind.DENY);
         assertThrows(PermissionDeniedException.class,
             () -> EntityDaoAuthorizationContext.of(request, denied));
         assertThrows(NullPointerException.class,

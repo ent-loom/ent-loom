@@ -8,6 +8,19 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "field-limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "RETURN": { "$ref": "#/$defs/fields" },
+            "WRITE": { "$ref": "#/$defs/fields" },
+            "FILTER": { "$ref": "#/$defs/fields" },
+            "SORT": { "$ref": "#/$defs/fields" },
+            "STATS": { "$ref": "#/$defs/fields" },
+            "EXPAND": { "$ref": "#/$defs/fields" }
+          },
+          "description": "实体各用途的静态字段上限；未列出的用途关闭，动态授权不能扩大。字段仍受元数据限制。"
+        },
         "operations": {
           "type": "object",
           "additionalProperties": {

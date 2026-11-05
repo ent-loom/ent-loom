@@ -16,6 +16,8 @@ import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.exception.PermissionDeniedException;
+import com.entloom.crud.core.exception.NotFoundException;
+import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.CrudExceptionContext;
@@ -96,10 +98,14 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
 
     @Override
     public CrudRecord findOne(VisitorContext visitor, QuerySpec<?> spec) {
-        return execute(visitor, spec, QueryOperation.FIND_ONE, (query, invocation) -> {
-            CrudRecord row = executor.executeFindOne(query, CrudRecord.class);
-            return row == null ? null : project(Collections.singletonList(row), invocation).get(0);
-        });
+        try {
+            return execute(visitor, spec, QueryOperation.FIND_ONE, (query, invocation) -> {
+                CrudRecord row = executor.executeFindOne(query, CrudRecord.class);
+                return row == null ? null : project(Collections.singletonList(row), invocation).get(0);
+            });
+        } catch (TargetInaccessibleException inaccessible) {
+            return null;
+        }
     }
 
     @Override
@@ -123,7 +129,8 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         } catch (RuntimeException | Error failure) {
             CrudGovernanceAuditOutcome outcome = invocation.stage == CrudErrorStage.EXECUTE
                 ? CrudGovernanceAuditOutcome.EXECUTION_FAILED : CrudGovernanceAuditOutcome.GOVERNANCE_DENIED;
-            CrudGovernanceAuditReasonCode reason = failure instanceof CrudException
+            CrudGovernanceAuditReasonCode reason = failure instanceof TargetInaccessibleException
+                ? CrudGovernanceAuditReasonCode.DATA_SCOPE_DENIED : failure instanceof CrudException
                 ? CrudGovernanceAuditReasonCode.fromCrudErrorCode(((CrudException) failure).getErrorCode())
                 : CrudGovernanceAuditReasonCode.EXECUTION_FAILED;
             try {
@@ -150,26 +157,49 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         String targetId = targetId(spec, meta, operation);
         AuthorizationResult result = authorization.authorize(visitor, spec, targetId);
         invocation.result = result;
-        if (result.getDecision() != AccessDecision.ALLOW || result.getRequest().getVisitor() != visitor
+        if (result.getRequest().getVisitor() != visitor
             || !Objects.equals(result.getRequest().getTargetId(), targetId) || meta == null || meta.getEntityType() != spec.getRootType()
             || !result.getRequest().getOperation().getResourceCode().equals(meta.getResourceDescriptor().getResourceCode())) {
             throw new PermissionDeniedException("授权结果不适用于本次根实体查询");
         }
+        if (result.getKind() == BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE && targetId != null) {
+            throw new TargetInaccessibleException();
+        }
+        if (result.getDecision() != AccessDecision.ALLOW) {
+            throw new PermissionDeniedException("业务授权被拒绝");
+        }
+        QuerySpec<?> effective = spec;
+        List<QuerySort> defaults = defaultSortResolver.resolve(spec, meta);
+        if (defaults != null && !defaults.isEmpty()) {
+            effective = spec.toBuilder().sorts(defaults).build();
+        }
         List<String> selected = validateFields(spec, meta, result.getFields(), operation);
+        if (operation == QueryOperation.PAGE) {
+            for (QuerySort sort : effective.getSorts()) {
+                if (sort == null || sort.getDirection() == null
+                    || (sort.getTarget() != SortTarget.AUTO && sort.getTarget() != SortTarget.FIELD)) {
+                    throw new ValidationException("根实体排序仅支持字段及明确方向");
+                }
+                requireField(meta, result.getFields(), AuthorizationFields.Use.SORT, sort.getField());
+            }
+            requireField(meta, result.getFields(), AuthorizationFields.Use.SORT, meta.getIdField());
+        }
         invocation.returned = selected;
-        invocation.relations = relations.prepare(meta, spec.getExpandRelations(), result.getFields());
+        invocation.relations = relations.prepare(meta, effective.getExpandRelations(), result.getFields());
         LinkedHashSet<String> fetched = new LinkedHashSet<String>(selected);
         for (JdbcAuthorizedRelationReader.Projection relation : invocation.relations) fetched.add(relation.edge.getFromField());
-        QuerySpec<?> effective = spec.toBuilder().selectFields(new ArrayList<String>(fetched))
+        effective = effective.toBuilder().selectFields(new ArrayList<String>(fetched))
             .expandRelations(Collections.<String>emptyList()).build();
-        // 调用方排序已完成授权校验；内部缺省排序复用统一角色解析，不增加字段权限。
-        List<QuerySort> defaults = defaultSortResolver.resolve(effective, meta);
-        if (defaults != null && !defaults.isEmpty()) {
-            effective = effective.toBuilder().sorts(defaults).build();
-        }
         sqlGuard.beforeCompile(effective);
         QueryPlan plan = planner.plan(effective, meta, RelationGraph.empty());
         return compiler.compileAuthorized(plan, result.getScope());
+    }
+
+    private static final class TargetInaccessibleException extends NotFoundException {
+        private TargetInaccessibleException() {
+            super("明细不存在");
+            withStage(CrudErrorStage.EXECUTE);
+        }
     }
 
     private void record(VisitorContext visitor, Invocation invocation, QueryOperation operation,
@@ -207,6 +237,10 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         if (spec.getOp() != null && spec.getOp() != operation) {
             throw new ValidationException("执行方法与 spec.op 的查询操作不一致");
         }
+        if (operation == QueryOperation.PAGE && spec.getPage() != null
+            && spec.getPage().getLimit() > 100) {
+            throw new ValidationException("受授权分页每页最多 100 条");
+        }
         if (spec.getResultType() != CrudRecord.class || (spec.getScene() != null && !spec.getScene().trim().isEmpty())
             || spec.getAccessDecision() != AccessDecision.ALLOW
             || spec.getEntityClasses().size() > 1
@@ -222,6 +256,9 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     private String targetId(QuerySpec<?> spec, EntityMeta meta, QueryOperation operation) {
         if (operation == QueryOperation.LIST || operation == QueryOperation.PAGE) {
             return null;
+        }
+        if (operation == QueryOperation.DETAIL && spec.getFilters().size() != 1) {
+            throw new PermissionDeniedException("详情查询只能使用一个主键等值目标");
         }
         QueryFilter target = null;
         for (QueryFilter filter : spec.getFilters()) {

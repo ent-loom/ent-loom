@@ -1,8 +1,15 @@
 -- H2 业务测试固定表结构，不冒充 MySQL 字符集及 DDL 验收。
+CREATE TABLE IF NOT EXISTS merchant (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(200),
+    legal_representative_name VARCHAR(200),
+    legal_representative_phone VARCHAR(200)
+);
 CREATE TABLE IF NOT EXISTS customer (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     display_name VARCHAR(200),
-    email VARCHAR(200)
+    email VARCHAR(200),
+    merchant_id BIGINT
 );
 CREATE TABLE IF NOT EXISTS customer_bank_card (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -55,7 +55,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                     }
                 if url.endswith("/create"):
                     return {"success": True, "data": {"id": 123}}
-                self.assertEqual(body["options"]["filterMap"]["id"]["value"], 123)
+                self.assertEqual(body["id"], 123)
                 return {"success": True, "data": {"item": {
                     "id": 123, "displayName": "wrong" if fail_detail else "Ada Lovelace",
                     "email": "ada@example.com"}}}

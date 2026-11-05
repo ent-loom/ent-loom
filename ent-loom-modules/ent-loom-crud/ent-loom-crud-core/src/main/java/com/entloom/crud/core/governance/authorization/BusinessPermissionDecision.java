@@ -8,11 +8,15 @@ public final class BusinessPermissionDecision {
         /** 明确允许。 */
         ALLOW,
         /** 明确拒绝。 */
-        DENY
+        DENY,
+        /** 操作允许，但指定目标不可访问。 */
+        TARGET_INACCESSIBLE
     }
 
     private static final BusinessPermissionDecision DENIED = new BusinessPermissionDecision(
         Kind.DENY, AuthorizationScope.none(), AuthorizationFields.none());
+    private static final BusinessPermissionDecision TARGET_INACCESSIBLE = new BusinessPermissionDecision(
+        Kind.TARGET_INACCESSIBLE, AuthorizationScope.none(), AuthorizationFields.none());
 
     private final Kind kind;
     private final AuthorizationScope scope;
@@ -31,6 +35,8 @@ public final class BusinessPermissionDecision {
     }
 
     public static BusinessPermissionDecision deny() { return DENIED; }
+
+    public static BusinessPermissionDecision targetInaccessible() { return TARGET_INACCESSIBLE; }
 
     public Kind getKind() { return kind; }
     public AuthorizationScope getScope() { return scope; }

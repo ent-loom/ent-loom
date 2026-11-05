@@ -5,6 +5,7 @@ import com.entloom.crud.api.access.BusinessIdentity;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
@@ -23,6 +24,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EntityPolicyRegistryTest {
     private static final PolicyIdentityBranch TEACHER = PolicyIdentityBranch.identity("teacher");
+
+    @Test
+    void 显式字段上限关闭未声明用途并拒绝超出元数据() {
+        EntityPolicyTemplate template = template("record", "Project#record", "student");
+        Map<AuthorizationFields.Use, Collection<String>> limit = new java.util.EnumMap<>(AuthorizationFields.Use.class);
+        limit.put(AuthorizationFields.Use.RETURN, Collections.singletonList("id"));
+        EntityPolicyBinding binding = new EntityPolicyBinding(Order.class, "record", "Order#policy",
+            Collections.singletonMap("student", "studentId"), Collections.emptyList(), limit);
+        EntityPolicyRegistry registry = registry(Collections.singletonList(meta(Order.class, "order", "studentId")),
+            Collections.singletonList(template), Collections.singletonList(binding), catalog("order"));
+        AuthorizationFields fields = registry.requireDeclaration(new BusinessOperation("order", "view"), TEACHER).getFieldLimit();
+        assertTrue(fields.allows(AuthorizationFields.Use.RETURN, "id"));
+        assertTrue(!fields.allows(AuthorizationFields.Use.RETURN, "studentId"));
+        assertTrue(!fields.allows(AuthorizationFields.Use.SORT, "id"));
+        limit.put(AuthorizationFields.Use.WRITE, Collections.singletonList("id"));
+        EntityPolicyBinding invalid = new EntityPolicyBinding(Order.class, "record", "Order#policy",
+            Collections.singletonMap("student", "studentId"), Collections.emptyList(), limit);
+        assertError("字段上限超出实体元数据", Collections.singletonList(template), Collections.singletonList(invalid), catalog("order"));
+    }
 
     @Test
     void compiles_one_template_for_multiple_entities_with_independent_relation_fields() {

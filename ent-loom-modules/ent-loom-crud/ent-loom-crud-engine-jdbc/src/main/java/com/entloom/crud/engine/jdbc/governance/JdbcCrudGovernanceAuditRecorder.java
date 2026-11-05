@@ -130,6 +130,7 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
         if (result != null) {
             Map<String, Object> authorization = new LinkedHashMap<String, Object>();
             authorization.put("decision", result.getDecision() == null ? null : result.getDecision().name());
+            authorization.put("kind", result.getKind().name());
             authorization.put("invocationId", result.getRequest().getInvocationId());
             authorization.put("resource", result.getRequest().getOperation().getResourceCode());
             authorization.put("operation", result.getRequest().getOperation().getOperationCode());

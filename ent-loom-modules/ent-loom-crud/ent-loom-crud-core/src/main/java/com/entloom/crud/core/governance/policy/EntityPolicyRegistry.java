@@ -2,6 +2,8 @@ package com.entloom.crud.core.governance.policy;
 
 import com.entloom.crud.api.access.AccessBranch;
 import com.entloom.crud.api.access.BusinessOperation;
+import com.entloom.crud.api.enums.CrudOperationKey;
+import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
@@ -109,7 +111,20 @@ public final class EntityPolicyRegistry {
                 throw new ValidationException("绑定模板未注册: " + binding.getTemplateCode()
                     + "，实体: " + binding.getEntityType().getName() + "，来源: " + binding.getSource());
             }
-            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities, fieldLimits.apply(meta)));
+            AuthorizationFields metadataLimit = fieldLimits.apply(meta);
+            AuthorizationFields declaredLimit = binding.getFieldLimit();
+            if (declaredLimit != null) {
+                for (Map.Entry<AuthorizationFields.Use, Set<String>> entry : declaredLimit.snapshot().entrySet()) {
+                    for (String field : entry.getValue()) {
+                        if (!metadataLimit.allows(entry.getKey(), field)) {
+                            throw new ValidationException("字段上限超出实体元数据: " + entry.getKey() + "/" + field
+                                + "，实体: " + meta.getEntityType().getName() + "，来源: " + binding.getSource());
+                        }
+                    }
+                }
+                metadataLimit = declaredLimit.intersect(metadataLimit);
+            }
+            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities, metadataLimit));
         }
         this.entities = Collections.unmodifiableMap(compiled);
         Map<String, EffectiveEntityPolicy> byResource = new LinkedHashMap<String, EffectiveEntityPolicy>();
@@ -174,7 +189,7 @@ public final class EntityPolicyRegistry {
                     + meta.getEntityType().getName() + "，来源: " + binding.getSource());
             }
         }
-        return new EffectiveEntityPolicy(resourceCode, rules);
+        return new EffectiveEntityPolicy(resourceCode, rules, fieldLimit);
     }
 
     /** 统一计算用途静态上限，供策略及声明式字段模式编译复用。 */
@@ -269,6 +284,18 @@ public final class EntityPolicyRegistry {
     /** 资源是否选择新策略；不代表当前操作已获授权。 */
     public boolean containsResource(String resourceCode) {
         return resources.containsKey(resourceCode);
+    }
+
+    /** 已映射分页的资源必须静态允许稳定主键排序。 */
+    public void validatePageMappings(CrudOperationMappingRegistry mappings, Collection<EntityMeta> metas) {
+        for (EntityMeta meta : metas) {
+            String resource = meta.getResourceDescriptor().getResourceCode();
+            EffectiveEntityPolicy policy = resources.get(resource);
+            if (policy != null && mappings.contains(resource, CrudOperationKey.of(QueryOperation.PAGE), null)
+                && (meta.getIdField() == null || !policy.fieldLimit.allows(AuthorizationFields.Use.SORT, meta.getIdField()))) {
+                throw new ValidationException("分页必须在字段上限开放主键排序: " + resource + "/" + meta.getIdField());
+            }
+        }
     }
 
     /** 仅取得已编译的静态声明；动态权限、关系事实与操作授权由后续治理内核判定。 */
@@ -398,11 +425,14 @@ public final class EntityPolicyRegistry {
 
     private static final class EffectiveEntityPolicy {
         private final String resourceCode;
+        private final AuthorizationFields fieldLimit;
         private final Map<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> rules;
 
         private EffectiveEntityPolicy(String resourceCode,
-                                      Map<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> source) {
+                                      Map<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> source,
+                                      AuthorizationFields fieldLimit) {
             this.resourceCode = resourceCode;
+            this.fieldLimit = fieldLimit;
             Map<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> copy =
                 new LinkedHashMap<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>>();
             for (Map.Entry<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> entry : source.entrySet()) {

@@ -16,14 +16,16 @@ public final class CrudHttpErrorMapper {
     public static CrudHttpErrorDescriptor map(Exception ex) {
         if (ex instanceof CrudException) {
             CrudException crudException = (CrudException) ex;
+            HttpStatus status = mapStatus(crudException.getErrorCode());
             return new CrudHttpErrorDescriptor(
-                mapStatus(crudException.getErrorCode()),
+                status,
                 new CrudErrorEnvelope(
                     crudException.getErrorCode().name(),
-                    crudException.getMessage(),
+                    status.is5xxServerError() ? "服务暂时不可用，请稍后重试" : crudException.getMessage(),
                     crudException.getStage() == null ? CrudErrorStage.HTTP_CONTRACT : crudException.getStage(),
-                    crudException.getRouteKey(),
-                    crudException.getReason() == null ? crudException.getErrorCode().name() : crudException.getReason()
+                    status.is5xxServerError() ? null : crudException.getRouteKey(),
+                    status.is5xxServerError() || crudException.getReason() == null
+                        ? crudException.getErrorCode().name() : crudException.getReason()
                 )
             );
         }
@@ -31,7 +33,7 @@ public final class CrudHttpErrorMapper {
             HttpStatus.INTERNAL_SERVER_ERROR,
             new CrudErrorEnvelope(
                 CrudErrorCode.INTERNAL_ERROR.name(),
-                ex.getMessage(),
+                "服务暂时不可用，请稍后重试",
                 CrudErrorStage.UNKNOWN,
                 null,
                 CrudErrorCode.INTERNAL_ERROR.name()

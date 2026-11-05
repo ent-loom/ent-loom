@@ -49,7 +49,11 @@ public final class BusinessAuthorizationService {
         BusinessPermissionDecision decision = evaluator.evaluate(effectiveVisitor, request.getOperation(), rule,
             request.getTargetId());
         if (decision == null || decision.getKind() != BusinessPermissionDecision.Kind.ALLOW) {
-            return AuthorizationResult.denied(request);
+            BusinessPermissionDecision.Kind kind = decision == null ? BusinessPermissionDecision.Kind.DENY : decision.getKind();
+            if (kind == BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE && request.getTargetId() == null) {
+                kind = BusinessPermissionDecision.Kind.DENY;
+            }
+            return AuthorizationResult.denied(request, kind);
         }
         AuthorizationScope scope = decision.getScope();
         if (!rule.getRelationFields().isEmpty()) {

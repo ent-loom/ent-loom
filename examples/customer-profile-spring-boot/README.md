@@ -161,7 +161,7 @@ Invoke-RestMethod -Method Post `
   -Uri http://localhost:8080/api/ent-crud/customer_profile/detail `
   -Headers @{ Authorization = "Bearer demo-profile-admin" } `
   -ContentType application/json `
-  -Body (ConvertTo-Json @{ options = @{ requestId = "customer-profile-detail-1"; filterMap = @{ id = @{ op = "EQ"; value = $id } } } } -Depth 8)
+  -Body (ConvertTo-Json @{ id = $id; options = @{ requestId = "customer-profile-detail-1" } } -Depth 8)
 ```
 
 框架源码构建验证时，先在 **ent-loom 仓库根目录**安装到隔离仓库，再进入示例目录执行脚本。macOS/Linux：

@@ -283,7 +283,7 @@ class AccessWebAdmissionTest {
         runner.run(context -> {
             mvc(context.getSourceApplicationContext()).perform(get("/access/anonymous").header("Authorization", "Bearer failure"))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value("可信认证来源处理失败"));
+                .andExpect(jsonPath("$.message").value("服务暂时不可用，请稍后重试"));
             assertThat(context.getBean(Calls.class).controllerCalls.get()).isZero();
             assertThat(AccessWebRequestContext.find(context.getBean(Calls.class).request.get())).isNull();
         });

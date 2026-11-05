@@ -58,7 +58,7 @@ class MerchantAccessIntegrationTest {
             .andExpect(jsonPath("$.data.items[0].legalRepresentativeName").value("法人甲"))
             .andExpect(jsonPath("$.data.items[0].legalRepresentativePhone").value("13800000001"));
         mvc.perform(post("/api/ent-crud/merchant/detail").header("Authorization", "Bearer demo-merchant-a")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":2001}}}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":2001}"))
             .andExpect(status().isNotFound());
         mvc.perform(post("/api/ent-crud/merchant/update").header("Authorization", "Bearer demo-merchant-a")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -75,8 +75,10 @@ class MerchantAccessIntegrationTest {
         mvc.perform(post("/api/ent-crud/merchant/list").header("Authorization", "Bearer demo-platform-admin")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(2))
-            .andExpect(jsonPath("$.data.items[*].legalRepresentativeName.length()").value(2))
-            .andExpect(jsonPath("$.data.items[*].legalRepresentativePhone.length()").value(2));
+            .andExpect(jsonPath("$.data.items[0].legalRepresentativeName").exists())
+            .andExpect(jsonPath("$.data.items[1].legalRepresentativeName").exists())
+            .andExpect(jsonPath("$.data.items[0].legalRepresentativePhone").exists())
+            .andExpect(jsonPath("$.data.items[1].legalRepresentativePhone").exists());
     }
 
 }

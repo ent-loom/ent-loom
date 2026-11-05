@@ -53,6 +53,8 @@ Query、Command、Import、Export 还受各自的 `enabled` 开关控制。
 | COMMAND | `POST` | `/{entity}/saveOrUpdateBatch[/{scene}]` | `CrudCommandHttpRequest` |
 | COMMAND | `POST` | `/{entity}/action/{scene}` | `CrudCommandHttpRequest` |
 
+`detail` 必须在请求顶层提供单个标量 `id`，例如 `{"id":101}`；不能同时携带普通筛选条件。其他读取操作不接受顶层 `id`。
+
 ## Import / Export
 
 | Domain | Method | 路径 | 结果 |

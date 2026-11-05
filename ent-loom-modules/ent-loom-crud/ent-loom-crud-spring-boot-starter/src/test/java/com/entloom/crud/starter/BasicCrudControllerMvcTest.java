@@ -66,6 +66,57 @@ class BasicCrudControllerMvcTest {
     }
 
     @Test
+    void standard_page_should_default_to_twenty_rows_and_reject_more_than_one_hundred() throws Exception {
+        contextRunner.run(context -> {
+            MockMvc mockMvc = buildMockMvc(context);
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(20))
+                .andExpect(jsonPath("$.data.page.page").value(1))
+                .andExpect(jsonPath("$.data.page.limit").value(20));
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"options\":{\"limit\":101}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        });
+    }
+
+    @Test
+    void detail_should_accept_top_level_id_and_reject_mixed_target_filters() throws Exception {
+        contextRunner.run(context -> {
+            MockMvc mockMvc = buildMockMvc(context);
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"id\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.item.id").value(1));
+
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"id\":1,\"options\":{\"filter\":{\"id\":2}}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+            for (String body : new String[] {"{}", "{\"id\":null}", "{\"id\":[]}",
+                "{\"options\":{\"filter\":{\"id\":1}}}"}) {
+                mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+            }
+            mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"id\":1}"))
+                .andExpect(status().isBadRequest());
+        });
+    }
+
+    @Test
     void controller_should_omit_null_fields_by_default_and_allow_query_override() throws Exception {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);
@@ -224,7 +275,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":101}},\"requestId\":\"req-detail-1\"}}"))
+                    .content("{\"id\":101,\"options\":{\"requestId\":\"req-detail-1\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requestId").value("req-detail-1"))
                 .andExpect(jsonPath("$.operation").value("DETAIL"))
@@ -294,7 +345,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":302}},\"requestId\":\"req-detail-302\"}}"))
+                    .content("{\"id\":302,\"options\":{\"requestId\":\"req-detail-302\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.item.order_no").value("ORD-302"));
         });
@@ -372,7 +423,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":301}},\"requestId\":\"req-detail-301\"}}"))
+                    .content("{\"id\":301,\"options\":{\"requestId\":\"req-detail-301\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.item.order_no").value("ORD-301"));
         });
@@ -457,17 +508,17 @@ class BasicCrudControllerMvcTest {
     }
 
     @Test
-    void controller_should_fail_when_detail_hits_multi_rows() throws Exception {
+    void controller_should_reject_detail_without_target_id() throws Exception {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"options\":{\"requestId\":\"req-detail-multi\",\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}}}"))
-                .andExpect(status().isConflict())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.requestId").value("req-detail-multi"))
                 .andExpect(jsonPath("$.operation").value("DETAIL"))
-                .andExpect(jsonPath("$.code").value("QUERY_NOT_UNIQUE"));
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
     }
 

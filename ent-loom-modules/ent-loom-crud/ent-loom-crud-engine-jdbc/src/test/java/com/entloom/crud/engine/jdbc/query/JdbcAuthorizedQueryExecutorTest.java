@@ -103,6 +103,7 @@ class JdbcAuthorizedQueryExecutorTest {
     private AuthorizationScope scope;
     private AuthorizationFields fields;
     private boolean allowed;
+    private boolean targetInaccessible;
     private int decisions;
     private final List<String> targets = new ArrayList<String>();
     private final List<String> executedSql = new ArrayList<String>();
@@ -134,7 +135,8 @@ class JdbcAuthorizedQueryExecutorTest {
                 assertTrue(current.isAnonymous());
                 assertEquals(view, operation);
                 targets.add(target);
-                return allowed ? BusinessPermissionDecision.allow(scope, fields) : BusinessPermissionDecision.deny();
+                return targetInaccessible ? BusinessPermissionDecision.targetInaccessible()
+                    : allowed ? BusinessPermissionDecision.allow(scope, fields) : BusinessPermissionDecision.deny();
             });
         SqlSafetyGuard safety = new SqlSafetyGuard(new SqlIdentifierAllowlistValidator(entities), new SqlParameterLimiter());
         SqlSecurityGuard guard = new SqlSecurityGuard() {
@@ -171,9 +173,26 @@ class JdbcAuthorizedQueryExecutorTest {
     }
 
     @Test
+    void 目标拒绝与未命中一致且不执行SQL() {
+        targetInaccessible = true;
+        var denied = assertThrows(com.entloom.crud.core.exception.NotFoundException.class, () -> executor.detail(visitor, targetQuery(1L)));
+        assertEquals(com.entloom.crud.api.enums.CrudErrorStage.EXECUTE, denied.getStage());
+        assertNull(executor.findOne(visitor, targetQuery(1L)));
+        assertThrows(PermissionDeniedException.class, () -> executor.page(visitor, query()));
+        assertTrue(executedSql.isEmpty());
+        assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED, audit.get(0).getOutcome());
+        assertEquals("DATA_SCOPE_DENIED", audit.get(0).getReasonCode());
+        assertEquals(BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE, audit.get(0).getAuthorizationResult().getKind());
+        new JdbcCrudGovernanceAuditRecorder(jdbc, null, true).record(audit.get(0));
+        String json = jdbc.queryForObject("select authorization_json from entloom_crud_governance_audit", String.class);
+        assertTrue(json.contains("\"kind\":\"TARGET_INACCESSIBLE\""));
+    }
+
+    @Test
     void 关联按授权根记录批量加载且连接键和未授权字段不泄露() {
         Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<>(AuthorizationFields.Use.class);
         uses.put(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"));
+        uses.put(AuthorizationFields.Use.SORT, Collections.singletonList("id"));
         uses.put(AuthorizationFields.Use.EXPAND, Collections.singletonList("items.skuCode"));
         fields = AuthorizationFields.of(uses);
         QuerySpec<CrudRecord> request = query().toBuilder().expandRelations(Collections.singletonList("items"))
@@ -274,19 +293,25 @@ class JdbcAuthorizedQueryExecutorTest {
     }
 
     @Test
-    void stable_page_sort_should_not_grant_caller_sort_permissions() {
-        // 仅授权返回字段，默认分页仍稳定；主键不会出现在投影中。
+    void stable_page_sort_requires_primary_key_sort_permission() {
+        // 缺少主键 SORT 时不能通过框架追加排序间接使用该字段。
         fields = AuthorizationFields.of(Collections.singletonMap(
             AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo")));
         QuerySpec<CrudRecord> firstPage = query().toBuilder().page(new PageRequest(1, 1)).build();
         QuerySpec<CrudRecord> secondPage = query().toBuilder().page(new PageRequest(2, 1)).build();
-        assertEquals("one", executor.page(visitor, firstPage).getItems().get(0).string("orderNo"));
-        assertEquals("four", executor.page(visitor, secondPage).getItems().get(0).string("orderNo"));
-        assertEquals(Collections.singleton("orderNo"), executor.page(visitor, firstPage).getItems().get(0).keys());
         int executions = executedSql.size();
+        assertThrows(PermissionDeniedException.class, () -> executor.page(visitor, firstPage));
         assertThrows(PermissionDeniedException.class, () -> executor.page(visitor, firstPage.toBuilder()
             .sorts(Collections.singletonList(new QuerySort("id", SortDirection.ASC))).build()));
         assertEquals(executions, executedSql.size());
+
+        Map<AuthorizationFields.Use, List<String>> granted = new EnumMap<>(AuthorizationFields.Use.class);
+        granted.put(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"));
+        granted.put(AuthorizationFields.Use.SORT, Collections.singletonList("id"));
+        fields = AuthorizationFields.of(granted);
+        assertEquals("one", executor.page(visitor, firstPage).getItems().get(0).string("orderNo"));
+        assertEquals("four", executor.page(visitor, secondPage).getItems().get(0).string("orderNo"));
+        assertEquals(Collections.singleton("orderNo"), executor.page(visitor, firstPage).getItems().get(0).keys());
 
         // 授权业务字段排序后，相同值由框架追加主键排序，跨页顺序确定。
         fields = fields("id", "orderNo");
@@ -445,9 +470,12 @@ class JdbcAuthorizedQueryExecutorTest {
             assertThrows(PermissionDeniedException.class, () -> gateway.detail(query().toBuilder()
                 .filters(Collections.singletonList(new QueryFilter("id", FilterOperator.IN,
                     Collections.singletonList(1L)))).build()));
+            assertThrows(PermissionDeniedException.class, () -> gateway.detail(query().toBuilder()
+                .filters(Arrays.asList(new QueryFilter("id", FilterOperator.EQ, 1L),
+                    new QueryFilter("orderNo", FilterOperator.EQ, "one"))).build()));
         });
         assertEquals(0, decisions);
-        assertEquals(3, audit.size());
+        assertEquals(4, audit.size());
         assertTrue(audit.stream().allMatch(event -> event.getOutcome() == CrudGovernanceAuditOutcome.GOVERNANCE_DENIED));
     }
 
@@ -538,7 +566,8 @@ class JdbcAuthorizedQueryExecutorTest {
         Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<AuthorizationFields.Use, List<String>>(AuthorizationFields.Use.class);
         uses.put(AuthorizationFields.Use.RETURN, Arrays.asList(returned));
         uses.put(AuthorizationFields.Use.FILTER, Collections.singletonList("orderNo"));
-        uses.put(AuthorizationFields.Use.SORT, Collections.singletonList("orderNo"));
+        uses.put(AuthorizationFields.Use.SORT, Arrays.asList(returned).contains("id")
+            ? Arrays.asList("id", "orderNo") : Collections.singletonList("orderNo"));
         return AuthorizationFields.of(uses);
     }
 

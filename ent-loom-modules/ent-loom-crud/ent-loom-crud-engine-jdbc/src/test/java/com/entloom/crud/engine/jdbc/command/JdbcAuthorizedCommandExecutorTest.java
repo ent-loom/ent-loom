@@ -73,6 +73,7 @@ class JdbcAuthorizedCommandExecutorTest {
     private final List<CrudGovernanceAuditEvent> audit = new ArrayList<CrudGovernanceAuditEvent>();
     private final AtomicBoolean allowed = new AtomicBoolean(true);
     private final java.util.Set<String> deniedTargets = new java.util.HashSet<>();
+    private final java.util.Set<String> inaccessibleTargets = new java.util.HashSet<>();
     private final List<String> targets = new ArrayList<String>();
     private AuthorizationScope createScope = AuthorizationScope.equal("schoolId", 1L);
 
@@ -113,7 +114,8 @@ class JdbcAuthorizedCommandExecutorTest {
         BusinessAuthorizationService service = new BusinessAuthorizationService(operations, policies,
             (current, operation, rule, target) -> {
                 targets.add(target);
-                return allowed.get() && !deniedTargets.contains(target) ? BusinessPermissionDecision.allow(
+                return inaccessibleTargets.contains(target) ? BusinessPermissionDecision.targetInaccessible()
+                    : allowed.get() && !deniedTargets.contains(target) ? BusinessPermissionDecision.allow(
                     operation.equals(create) ? createScope : AuthorizationScope.in("id", Arrays.asList(1L, 4L)),
                     AuthorizationFields.of(Collections.singletonMap(AuthorizationFields.Use.WRITE,
                         Collections.singletonList("orderNo")))) : BusinessPermissionDecision.deny();
@@ -188,6 +190,17 @@ class JdbcAuthorizedCommandExecutorTest {
     private CommandSpec<Map<String, Object>> create(Map<String, Object> values) {
         return CommandSpec.<Map<String, Object>>builder().rootType(OrderTestEntity.class).op(CommandOperation.CREATE)
             .payload(values).resultType(CommandResult.class).build();
+    }
+
+    @Test
+    void 目标拒绝按写入未命中处理并记录授权拒绝() {
+        inaccessibleTargets.add("1");
+        var denied = assertThrows(EntityDaoWriteMissException.class, () -> executor.action(visitor, update(1L, map("orderNo", "bad"))));
+        assertEquals(com.entloom.crud.api.enums.CrudErrorStage.EXECUTE, denied.getStage());
+        assertEquals("one", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED, audit.get(0).getOutcome());
+        assertEquals("DATA_SCOPE_DENIED", audit.get(0).getReasonCode());
+        assertEquals(BusinessPermissionDecision.Kind.TARGET_INACCESSIBLE, audit.get(0).getAuthorizationResult().getKind());
     }
 
     @Test

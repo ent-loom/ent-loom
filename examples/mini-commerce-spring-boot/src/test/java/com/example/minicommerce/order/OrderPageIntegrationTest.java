@@ -38,8 +38,8 @@ class OrderPageIntegrationTest {
         jdbc.update("delete from order_item");
         jdbc.update("delete from `order`");
         jdbc.update("delete from customer");
-        jdbc.update("insert into customer(id,display_name,email) values "
-            + "(301,'客户甲','a@example.com'),(302,'客户乙','b@example.com')");
+        jdbc.update("insert into customer(id,display_name,email,merchant_id) values "
+            + "(301,'客户甲','a@example.com',1001),(302,'客户乙','b@example.com',2001)");
         jdbc.update("""
             insert into `order`(id, customer_id, merchant_id, status, total_amount, created_at) values
             (501, 301, 1001, 'CREATED', 10, '2026-10-07 10:00:00'),
@@ -58,7 +58,7 @@ class OrderPageIntegrationTest {
     @ParameterizedTest
     @CsvSource({"demo-customer-a,3,504,502,501", "demo-merchant-a,3,504,503,501"})
     void 同一通用分页入口按可信身份限制范围(String token, long total, long a, long b, long c) throws Exception {
-        JsonNode data = assertPage(post("page", token, "{}"), total, 1, 10, a, b, c);
+        JsonNode data = assertPage(post("page", token, "{}"), total, 1, 20, a, b, c);
         JsonNode item = data.get("items").get(0);
         assertEquals("CREATED", item.get("status").asText());
         assertTrue(item.hasNonNull("createdAt"));
@@ -69,7 +69,7 @@ class OrderPageIntegrationTest {
     @ParameterizedTest
     @CsvSource({"demo-customer-b,505,503", "demo-merchant-b,505,502"})
     void 另一账号只读取各自范围(String token, long a, long b) throws Exception {
-        assertPage(post("page", token, "{}"), 2, 1, 10, a, b);
+        assertPage(post("page", token, "{}"), 2, 1, 20, a, b);
     }
 
     @ParameterizedTest
@@ -78,7 +78,7 @@ class OrderPageIntegrationTest {
         String request = "{\"options\":{\"filter\":{\"%s\":%d},\"page\":%d,\"limit\":1}}";
         assertPage(post("page", token, request.formatted(field, id, 1)), 2, 1, 1, 504);
         assertPage(post("page", token, request.formatted(field, id, 2)), 2, 2, 1, 501);
-        assertPage(post("page", token, "{\"options\":{\"filter\":{\"%s\":9999}}}".formatted(field)), 0, 1, 10);
+        assertPage(post("page", token, "{\"options\":{\"filter\":{\"%s\":9999}}}".formatted(field)), 0, 1, 20);
     }
 
     @ParameterizedTest
@@ -93,7 +93,7 @@ class OrderPageIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"page", "list", "detail", "findOne"})
     void 缺失或无效凭证及伪造请求头均不能使用旧演示主体读取订单(String operation) {
-        String body = "{\"options\":{\"filter\":{\"id\":501}}}";
+        String body = operation.equals("detail") ? "{\"id\":501}" : "{\"options\":{\"filter\":{\"id\":501}}}";
         assertStatus(post(operation, null, body), 403);
         assertStatus(post(operation, "unknown", body), 403);
         assertStatus(post(operation, null, body, forgedHeaders()), 403);
@@ -103,15 +103,15 @@ class OrderPageIntegrationTest {
     @CsvSource({"demo-customer-a,customerId,302", "demo-merchant-a,merchantId,2001"})
     void 请求条件不能指定当前归属且请求头不能切换身份(String token, String field, long id) throws Exception {
         assertStatus(post("page", token, "{\"options\":{\"filter\":{\"%s\":%d}}}".formatted(field, id)), 403);
-        if (token.contains("customer")) assertPage(post("page", token, "{}", forgedHeaders()), 3, 1, 10, 504, 502, 501);
-        else assertPage(post("page", token, "{}", forgedHeaders()), 3, 1, 10, 504, 503, 501);
+        if (token.contains("customer")) assertPage(post("page", token, "{}", forgedHeaders()), 3, 1, 20, 504, 502, 501);
+        else assertPage(post("page", token, "{}", forgedHeaders()), 3, 1, 20, 504, 503, 501);
     }
 
     @ParameterizedTest
     @CsvSource({"demo-customer-a,503", "demo-customer-b,501", "demo-merchant-a,502", "demo-merchant-b,501"})
     void 跨归属详情不可见且唯一查询返回空(String token, long id) throws Exception {
         String body = "{\"options\":{\"filter\":{\"id\":%d}}}".formatted(id);
-        assertStatus(post("detail", token, body), 404);
+        assertStatus(post("detail", token, "{\"id\":%d}".formatted(id)), 404);
         assertTrue(data(post("findOne", token, body)).get("item").isNull());
     }
 
@@ -119,18 +119,18 @@ class OrderPageIntegrationTest {
     @ValueSource(strings = {"demo-customer-a", "demo-merchant-a"})
     void 通用详情只返回值字段且不自动填充结构属性(String token) throws Exception {
         JsonNode item = data(post("detail", token,
-            "{\"options\":{\"filter\":{\"id\":501}}}")).get("item");
+            "{\"id\":501}")).get("item");
         assertEquals(501, item.get("id").asLong());
         assertEquals(301, item.get("customerId").asLong());
         assertEquals(1001, item.get("merchantId").asLong());
         assertFalse(item.has("customer"));
         assertFalse(item.has("orderItemList"));
         item = data(post("detail", token,
-            "{\"options\":{\"filter\":{\"id\":501},\"selectFields\":[\"id\"]}}")).get("item");
+            "{\"id\":501,\"options\":{\"selectFields\":[\"id\"]}}")).get("item");
         assertEquals(1, item.size());
         assertEquals(501, item.get("id").asLong());
         assertStatus(post("list", token, "{\"entityCodes\":[\"order\",\"orderItem\"]}"), 404);
-        assertStatus(post("detail", token, "{\"options\":{\"resultMode\":\"ENTITY\",\"filter\":{\"id\":501}}}"), 403);
+        assertStatus(post("detail", token, "{\"id\":501,\"options\":{\"resultMode\":\"ENTITY\"}}"), 403);
         assertStatus(post("page/custom", token, "{}"), 403);
         assertStatus(post("page", token, "{\"options\":{\"selectFields\":[\"customer.email\"]}}"), 403);
     }
@@ -142,7 +142,9 @@ class OrderPageIntegrationTest {
             {"options":{"filter":{"id":501},"expandRelations":["customer","orderItemList"]}}
             """;
         for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
-            JsonNode result = data(post(operation, token, body));
+            String actualBody = operation.equals("detail")
+                ? "{\"id\":501,\"options\":{\"expandRelations\":[\"customer\",\"orderItemList\"]}}" : body;
+            JsonNode result = data(post(operation, token, actualBody));
             JsonNode item = operation.equals("page") || operation.equals("list")
                 ? result.get("items").get(0) : result.get("item");
             assertEquals(501, item.get("id").asLong());
@@ -153,8 +155,10 @@ class OrderPageIntegrationTest {
             item.get("orderItemList").forEach(line -> assertEquals(501, line.get("orderId").asLong()));
             if (operation.equals("page")) assertEquals(1, result.get("page").get("total").asLong());
 
-            JsonNode onlyItems = data(post(operation, token,
-                "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"orderItemList\"]}}"));
+            String onlyItemsBody = operation.equals("detail")
+                ? "{\"id\":501,\"options\":{\"expandRelations\":[\"orderItemList\"]}}"
+                : "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"orderItemList\"]}}";
+            JsonNode onlyItems = data(post(operation, token, onlyItemsBody));
             JsonNode withoutCustomer = operation.equals("page") || operation.equals("list")
                 ? onlyItems.get("items").get(0) : onlyItems.get("item");
             assertFalse(withoutCustomer.has("customer"));
@@ -167,8 +171,10 @@ class OrderPageIntegrationTest {
     void 未授权关系及嵌套展开仍拒绝(String token) {
         for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
             for (String relation : new String[] {"merchantId", "customer.address", "orderItemList.merchantProduct"}) {
-                assertStatus(post(operation, token,
-                    "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"%s\"]}}".formatted(relation)), 403);
+                String body = operation.equals("detail")
+                    ? "{\"id\":501,\"options\":{\"expandRelations\":[\"%s\"]}}".formatted(relation)
+                    : "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"%s\"]}}".formatted(relation);
+                assertStatus(post(operation, token, body), 403);
             }
         }
     }
@@ -179,20 +185,21 @@ class OrderPageIntegrationTest {
         String body = """
             {"options":{"filter":{"id":%d},"expandRelations":["customer","orderItemList"]}}
             """.formatted(id);
-        assertStatus(post("detail", token, body), 404);
+        String detailBody = "{\"id\":%d,\"options\":{\"expandRelations\":[\"customer\",\"orderItemList\"]}}".formatted(id);
+        assertStatus(post("detail", token, detailBody), 404);
         assertTrue(data(post("findOne", token, body)).get("item").isNull());
         for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
-            assertStatus(post(operation, null, body), 403);
+            assertStatus(post(operation, null, operation.equals("detail") ? detailBody : body), 403);
         }
         assertTrue(data(post("list", token, body)).get("items").isEmpty());
-        assertPage(post("page", token, body), 0, 1, 10);
+        assertPage(post("page", token, body), 0, 1, 20);
     }
 
     @Test
     void 展开区分无明细与客户缺失且不存在订单遵循唯一查询语义() throws Exception {
         jdbc.update("delete from customer where id=301");
         String body = """
-            {"options":{"filter":{"id":504},"nullFieldMode":"INCLUDE","expandRelations":["customer","orderItemList"]}}
+            {"id":504,"options":{"nullFieldMode":"INCLUDE","expandRelations":["customer","orderItemList"]}}
             """;
         JsonNode item = data(post("detail", "demo-customer-a", body)).get("item");
         assertTrue(item.path("customer").isNull());
@@ -202,7 +209,9 @@ class OrderPageIntegrationTest {
             .get("item").has("customer"));
         String missing = body.replace("504", "9999");
         assertStatus(post("detail", "demo-customer-a", missing), 404);
-        assertTrue(data(post("findOne", "demo-customer-a", missing)).get("item").isNull());
+        assertTrue(data(post("findOne", "demo-customer-a",
+            "{\"options\":{\"filter\":{\"id\":9999},\"expandRelations\":[\"customer\",\"orderItemList\"]}}"))
+            .get("item").isNull());
     }
 
     @ParameterizedTest
@@ -239,12 +248,12 @@ class OrderPageIntegrationTest {
     @Test
     void 默认排序优先创建时间而显式排序优先调用方且同时间按主键倒序() throws Exception {
         jdbc.update("update `order` set created_at='2026-10-08 10:00:00' where id=501");
-        assertPage(post("page", "demo-customer-a", "{}"), 3, 1, 10, 501, 504, 502);
+        assertPage(post("page", "demo-customer-a", "{}"), 3, 1, 20, 501, 504, 502);
         assertPage(post("page", "demo-customer-a",
             "{\"options\":{\"sorts\":[{\"field\":\"id\",\"direction\":\"DESC\"}]}}"),
-            3, 1, 10, 504, 502, 501);
+            3, 1, 20, 504, 502, 501);
         jdbc.update("update `order` set created_at='2026-10-08 10:00:00' where id=502");
-        assertPage(post("page", "demo-customer-a", "{}"), 3, 1, 10, 502, 501, 504);
+        assertPage(post("page", "demo-customer-a", "{}"), 3, 1, 20, 502, 501, 504);
     }
 
     @ParameterizedTest
@@ -253,11 +262,11 @@ class OrderPageIntegrationTest {
         for (String field : new String[] {"id", "totalAmount"}) {
             assertPage(post("page", token,
                 "{\"options\":{\"sorts\":[{\"field\":\"%s\",\"direction\":\"DESC\"}]}}".formatted(field)),
-                3, 1, 10, 504, middle, 501);
+                3, 1, 20, 504, middle, 501);
         }
         assertPage(post("page", token,
             "{\"options\":{\"sorts\":[{\"field\":\"createdAt\",\"direction\":\"DESC\"}]}}"),
-            3, 1, 10, 504, token.contains("customer") ? 501 : middle,
+            3, 1, 20, 504, token.contains("customer") ? 501 : middle,
             token.contains("customer") ? middle : 501);
         assertPage(post("page", token,
             "{\"options\":{\"sorts\":[{\"field\":\"createdAt\",\"direction\":\"DESC\"}],\"page\":2,\"limit\":1}}"),

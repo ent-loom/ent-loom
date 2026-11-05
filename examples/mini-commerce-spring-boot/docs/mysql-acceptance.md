@@ -12,6 +12,7 @@
 | 成交快照 | 商品改名、改价后保留原名称与单价；`0.10 × 3 + 19.99 × 2 = 40.28` 精确保存 |
 | 事务回滚 | 第二个商家的订单或明细写入失败，整批订单与明细全部回滚 |
 | 访问控制 | 公共商品白名单、客户与商家隔离、筛选与分页、无效令牌及伪造归属拒绝 |
+| MVC 商品摘要 | 按次授权、商家范围、管理员全量、固定 DTO 投影及分页总数 |
 | 商品维护与订单取消 | 字段保护、乐观锁、批量更新回滚、所属 CREATED 订单取消及动作审计 |
 
 ## 执行
@@ -41,7 +42,7 @@ export COMMERCE_TEST_JDBC_USER=commerce_acceptance
 export COMMERCE_TEST_JDBC_PASSWORD=acceptance_only
 export COMMERCE_TEST_DDL_MODE=CREATE_MODIFY_DELETE_ALL
 
-../../mvnw -Dtest=MysqlSchemaAcceptanceTest,PlaceOrderIntegrationTest,OrderPageIntegrationTest,OrderAccessTest,MerchantProductUpdateIntegrationTest test
+../../mvnw -Dtest=MysqlSchemaAcceptanceTest,PlaceOrderIntegrationTest,OrderPageIntegrationTest,OrderAccessTest,MerchantProductUpdateIntegrationTest,ProductSummaryIntegrationTest test
 ```
 
 `COMMERCE_TEST_JDBC_*` 仅控制上述验收用例的数据源，不读取开发 `.env` 中的数据库配置。未设置时，业务用例使用 H2，MySQL 表结构检查自动跳过。上述用例须串行执行，不配置并行测试。

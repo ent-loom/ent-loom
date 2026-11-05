@@ -9,6 +9,7 @@ import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
 import com.example.minicommerce.merchant.entity.Merchant;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
+import com.example.minicommerce.merchant.entity.MerchantWxConfig;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.jayway.jsonpath.JsonPath;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +44,7 @@ class EntityContractIntegrationTest {
     @Autowired ExposedEntityRegistry exposedEntities;
     @Autowired EntityMetaRegistry entityMetaRegistry;
     @Autowired MockMvc mvc;
+    @Autowired JdbcTemplate jdbc;
     @Autowired com.entloom.ddl.api.MetadataLoader ddlMetadataLoader;
 
     @Test
@@ -63,15 +66,15 @@ class EntityContractIntegrationTest {
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
         assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, Order.class, OrderItem.class,
-                Merchant.class, MerchantProduct.class, MerchantArticle.class),
+                Merchant.class, MerchantProduct.class, MerchantArticle.class, MerchantWxConfig.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
         assertEquals(CustomerLevel.class, exposedEntities.resolveOrThrow("customerLevel"));
-        assertEquals(MerchantArticle.class, exposedEntities.resolveOrThrow("merchantArticle"));
+        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantArticle"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantOrder"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchant"));
+        assertEquals(Merchant.class, exposedEntities.resolveOrThrow("merchant"));
         assertThrows(
             CrudException.class,
             () -> exposedEntities.resolveOrThrow("orderItem"));
@@ -127,6 +130,19 @@ class EntityContractIntegrationTest {
     }
 
     @Test
+    void 客户身份按主键限定客户资料范围() throws Exception {
+        jdbc.update("delete from customer");
+        jdbc.update("insert into customer(id, display_name, email, merchant_id) values "
+            + "(301, '客户甲', 'a@example.com', 1001), (302, '客户乙', 'b@example.com', 2001)");
+        mvc.perform(post("/api/ent-crud/customer/detail").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":301}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.id").value(301));
+        mvc.perform(post("/api/ent-crud/customer/detail").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"id\":302}"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void 客户基础Crud保留创建更新读取和删除拒绝() throws Exception {
         mvc.perform(post("/api/ent-crud/customer/create").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -148,7 +164,7 @@ class EntityContractIntegrationTest {
             .andExpect(status().isOk());
         mvc.perform(post("/api/ent-crud/customer/detail").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"options":{"filter":{"id":%d}}}
+                    {"id":%d}
                     """.formatted(id)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.item.displayName").value("已更新客户"));
@@ -165,7 +181,7 @@ class EntityContractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
                 org.hamcrest.Matchers.containsInAnyOrder("customerBankCard", "customer", "customerLevel", "order", "orderItem",
-                    "merchant", "merchantProduct", "merchantArticle")))
+                    "merchant", "merchantProduct", "merchantArticle", "merchantWxConfig")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'merchantProduct')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "merchantId", "name", "price", "active", "version")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'order')].fields[*].property",

@@ -2,7 +2,7 @@
 
 面向多商家的实体编程示例：商家维护自己的商品，客户一次结算可购买多个商家的商品；服务端按商家拆单，并保存商品名称、成交价和金额快照。
 
-> 当前处于 CRUD 重构准备阶段；客户实体的身份范围配置尚未对齐，启动会被授权配置校验拒绝，待重构时同步处理。
+> CRUD 2.0 重构进行中；部分旧示例和测试仍待迁移，当前能力以实施清单为准。
 
 ## 启动
 
@@ -72,7 +72,8 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 
 - **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/ent-crud/order/action/create`。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
 - **取消**：`POST /api/ent-crud/order/action/cancel`，客户与商家只能取消所属且状态为 `CREATED` 的订单。
-- **查询**：订单及商家商品等实体直接复用 `list/page/findOne/detail`，无需业务 Controller 或查询 Service。请求条件放在 `options`，分页返回 `data.items/data.page`。
+- **查询**：订单及商家商品等实体直接复用 `list/page/findOne/detail`，无需业务 Controller 或查询 Service。普通筛选放在 `options`，详情使用顶层 `id`；分页返回 `data.items/data.page`。
+- **商品摘要**：`POST /api/merchant/products/page` 接受 `{"page":1,"limit":20,"active":true}`，返回 `id/name/price` DTO。商家与管理员每次重新授权同一 `merchantProduct/view`；商家范围来自授权结果，列表与总数使用相同范围和筛选。直接使用 JDBC 的业务 Mapper 负责落实固定投影、参数化条件和范围，无法表达的授权范围在 SQL 前拒绝。
 - **关联详情**：订单查询默认只读当前表，显式传入 `expandRelations: ["customer", "orderItemList"]` 才读取客户与明细；成交快照不重新读取当前商品。
 
 业务 Handler 通过 `AuthorizedActionContext` 获取可信身份，并创建受授权范围约束的 `EntityDao`，无需空 DAO 接口。数据隔离、字段限制和错误响应见 [访问控制](docs/access-control.md)。
@@ -100,5 +101,7 @@ Java 保留字段、关系事实和业务处理，YAML 集中声明实体能力�
 ```
 
 默认使用 H2 固定表结构，关闭启动 DDL，覆盖数据隔离、字段保护、批量更新、拆单、快照、取消和事务回滚。
+
+商品摘要协同路径可单独验证：`../../mvnw -Dtest=ProductSummaryServiceTest,ProductSummaryIntegrationTest test`。
 
 真实 MySQL 的自动建表、金额类型、索引及业务验收见 [MySQL 8 验收](docs/mysql-acceptance.md)。验收必须使用专用空库，会清理其中的业务数据。
