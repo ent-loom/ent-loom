@@ -45,7 +45,7 @@ Content-Type: application/json
 
 {"options":{"limit":100}}
 
-### 无凭证：403
+### 匿名浏览：仅返回启用商品的 id/merchantId/name/price，隐藏 active/version
 POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 
 ### 无效凭证：403
@@ -57,3 +57,24 @@ POST {{baseUrl}}/api/ent-crud/merchantProduct/update
 Content-Type: application/json
 
 {"payload":{"id":101,"price":1,"version":1,"merchantId":2001}}
+
+### 商家创建商品：归属自动填充，版本初始化为 0，无需 Controller / Handler
+POST {{baseUrl}}/api/ent-crud/merchantProduct/create
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"payload":{"name":"新上架商品","price":18.5,"active":true}}
+
+### 商家按启用状态筛选、按 ID 排序分页；筛选与本人范围取交集
+POST {{baseUrl}}/api/ent-crud/merchantProduct/page
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"page":1,"limit":10,"filter":{"active":true},"sorts":[{"field":"id","direction":"ASC"}]}}
+
+### 金额校验失败：400；规则来自实体 Bean Validation 注解
+POST {{baseUrl}}/api/ent-crud/merchantProduct/create
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"payload":{"name":"非法价格","price":0,"active":true}}

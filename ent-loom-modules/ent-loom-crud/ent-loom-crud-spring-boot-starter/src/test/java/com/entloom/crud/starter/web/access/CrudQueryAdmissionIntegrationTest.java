@@ -149,6 +149,7 @@ class CrudQueryAdmissionIntegrationTest {
 
     private static MockMvc mvc(WebApplicationContext context) {
         var builder = MockMvcBuilders.webAppContextSetup(context);
+        builder.addFilters(context.getBean("crudHttpRequestContextFilter", FilterRegistrationBean.class).getFilter());
         if (context.containsBean("crudAccessAuthenticationFilter")) {
             builder.addFilters(context.getBean("crudAccessAuthenticationFilter", FilterRegistrationBean.class).getFilter());
         }
@@ -165,7 +166,7 @@ class CrudQueryAdmissionIntegrationTest {
             return request -> new HttpAccessAuthentication(request.getHeader("Authorization") == null
                 ? CredentialAuthentication.absent() : "Bearer valid".equals(request.getHeader("Authorization"))
                 ? CredentialAuthentication.authenticated(new AccessSubject("actor", AccessSubjectType.HUMAN))
-                : CredentialAuthentication.invalid(), "trusted-entry", "request", "trace");
+                : CredentialAuthentication.invalid(), "trusted-entry");
         }
     }
 

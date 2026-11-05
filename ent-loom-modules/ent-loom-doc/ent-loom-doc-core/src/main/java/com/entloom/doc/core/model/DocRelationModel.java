@@ -12,6 +12,7 @@ public final class DocRelationModel {
     private final String relationField;
     private final SourcedValue<String> targetService;
     private final SourcedValue<String> targetEntity;
+    private final SourcedValue<Class<?>> targetClass;
     private final SourcedValue<String> sourceField;
     private final SourcedValue<String> targetField;
     private final SourcedValue<RelationCardinality> cardinality;
@@ -25,6 +26,7 @@ public final class DocRelationModel {
         String relationField,
         SourcedValue<String> targetService,
         SourcedValue<String> targetEntity,
+        SourcedValue<Class<?>> targetClass,
         SourcedValue<String> sourceField,
         SourcedValue<String> targetField,
         SourcedValue<RelationCardinality> cardinality,
@@ -37,6 +39,7 @@ public final class DocRelationModel {
         this.relationField = relationField;
         this.targetService = targetService == null ? SourcedValue.unknown(null) : targetService;
         this.targetEntity = targetEntity == null ? SourcedValue.unknown(null) : targetEntity;
+        this.targetClass = targetClass == null ? SourcedValue.unknown(null) : targetClass;
         this.sourceField = sourceField == null ? SourcedValue.unknown(null) : sourceField;
         this.targetField = targetField == null ? SourcedValue.unknown(null) : targetField;
         this.cardinality = cardinality == null ? SourcedValue.unknown(null) : cardinality;
@@ -57,6 +60,11 @@ public final class DocRelationModel {
 
     public SourcedValue<String> targetEntity() {
         return targetEntity;
+    }
+
+    /** 类引用的实际目标，供适配器校验注册身份。 */
+    public SourcedValue<Class<?>> targetClass() {
+        return targetClass;
     }
 
     public SourcedValue<String> sourceField() {

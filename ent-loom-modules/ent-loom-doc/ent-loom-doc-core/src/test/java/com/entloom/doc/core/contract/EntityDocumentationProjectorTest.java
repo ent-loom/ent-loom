@@ -233,6 +233,7 @@ class EntityDocumentationProjectorTest {
             field,
             SourcedValue.unknown(null),
             SourcedValue.explicit(target, MetaValueSource.NATIVE_EXPLICIT),
+            SourcedValue.unknown(null),
             SourcedValue.explicit(sourceField, MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.explicit(targetField, MetaValueSource.NATIVE_EXPLICIT),
             SourcedValue.explicit(RelationCardinality.MANY_TO_ONE, MetaValueSource.NATIVE_EXPLICIT),

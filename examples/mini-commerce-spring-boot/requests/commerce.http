@@ -12,7 +12,6 @@ Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {
-  "options": {"requestId": "commerce-customer-create-1"},
   "payload": {
     "displayName": "Ada Lovelace",
     "email": "ada@example.com"

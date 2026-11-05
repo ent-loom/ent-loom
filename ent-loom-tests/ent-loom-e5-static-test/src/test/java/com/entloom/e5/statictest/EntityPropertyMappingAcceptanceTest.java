@@ -258,10 +258,10 @@ class EntityPropertyMappingAcceptanceTest {
         public BigDecimal amount;
         public byte[] binary;
         @EntField("订单明细")
-        @EntRelation(targetEntity = "item", sourceField = "id", targetField = "orderId",
+        @EntRelation(value = Item.class, sourceField = "id", targetField = "orderId",
             cardinality = RelationCardinality.ONE_TO_MANY)
         public List<Item> items;
-        @EntRelation(targetEntity = "item", sourceField = "id", targetField = "orderId",
+        @EntRelation(value = Item.class, sourceField = "id", targetField = "orderId",
             cardinality = RelationCardinality.ONE_TO_MANY)
         public List<Item> unnamedItems;
         public Item customer;

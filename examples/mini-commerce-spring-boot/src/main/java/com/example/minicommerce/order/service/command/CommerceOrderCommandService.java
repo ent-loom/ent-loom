@@ -1,13 +1,13 @@
-package com.example.minicommerce.order.service;
+package com.example.minicommerce.order.service.command;
 
 import com.entloom.crud.core.capability.command.engine.AuthorizedActionContext;
-import com.entloom.crud.core.exception.EntityDaoWriteMissException;
-import com.entloom.crud.core.exception.PermissionDeniedException;
+import com.entloom.crud.core.capability.command.patch.DefaultUpdatePatch;
 import com.entloom.crud.core.capability.dao.EntityDao;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.capability.dao.RowConstraint;
-import com.entloom.crud.core.capability.command.patch.DefaultUpdatePatch;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.customer.service.CustomerService;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
@@ -19,6 +19,7 @@ import com.example.minicommerce.order.entity.CommerceOrder;
 import com.example.minicommerce.order.entity.CommerceOrderItem;
 import com.example.minicommerce.order.enums.CommerceOrderError;
 import com.example.minicommerce.order.enums.CommerceOrderStatus;
+import com.example.minicommerce.order.service.CommerceOrderItemService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,10 +33,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 订单业务与事务编排；根实体数据访问复用框架授权范围。 */
+/** 订单命令服务：统一承担下单、取消的业务规则与事务编排；订单访问复用框架授权范围。 */
 @Service
 @RequiredArgsConstructor
-public class CommerceOrderService {
+public class CommerceOrderCommandService {
     private static final EntityType<CommerceOrder, Long> ORDER_TYPE = EntityType.of(CommerceOrder.class, Long.class);
 
     private final CustomerService customerService;
@@ -47,6 +48,29 @@ public class CommerceOrderService {
     public PlaceOrderResult place(AuthorizedActionContext access, PlaceOrderCommand command) {
         requireAction(access, CommerceOrder.CREATE);
         EntityDao<CommerceOrder, Long> orders = access.dao(daoFactory, ORDER_TYPE);
+        Set<Long> productIds = validateItems(command);
+        Long customerId = requireCustomer(access);
+        Map<Long, List<CommerceOrderItem>> groups = groupItemsByMerchant(command.items(), productIds);
+        return createOrders(orders, customerId, groups);
+    }
+
+    @Transactional
+    public Long cancel(AuthorizedActionContext access, Long id) {
+        requireAction(access, CommerceOrder.CANCEL);
+        CommerceOrder order = access.dao(daoFactory, ORDER_TYPE).findById(id).orElse(null);
+        if (order == null) throw new BusinessException(CommerceOrderError.ORDER_NOT_FOUND);
+        if (order.getStatus() != CommerceOrderStatus.CREATED) throw new BusinessException(CommerceOrderError.ORDER_NOT_CANCELLABLE);
+        // 状态条件与授权范围共同进入 UPDATE，防止查询后的并发状态变化被覆盖。
+        EntityDao<CommerceOrder, Long> cancellableOrders = access.dao(daoFactory, ORDER_TYPE,
+            RowConstraint.eq("status", CommerceOrderStatus.CREATED));
+        Map<String, Object> values = Map.of("status", CommerceOrderStatus.CANCELLED);
+        var patch = new DefaultUpdatePatch<>(CommerceOrder.class, null, id,
+            values.keySet(), values.keySet(), values, values, null);
+        if (cancellableOrders.updateById(id, patch) != 1) throw new EntityDaoWriteMissException("目标不存在或不可写: CommerceOrder");
+        return id;
+    }
+
+    private static Set<Long> validateItems(PlaceOrderCommand command) {
         if (command == null) throw new BusinessException(CommerceOrderError.REQUEST_REQUIRED);
         if (command.items() == null || command.items().isEmpty()) throw new BusinessException(CommerceOrderError.ITEMS_REQUIRED);
         Set<Long> ids = new LinkedHashSet<>();
@@ -57,12 +81,21 @@ public class CommerceOrderService {
             if (item.quantity() <= 0) throw new BusinessException(CommerceOrderError.QUANTITY_INVALID);
             if (!ids.add(item.merchantProductId())) throw new BusinessException(CommerceOrderError.DUPLICATE_MERCHANT_PRODUCT);
         }
+        return ids;
+    }
+
+    private Long requireCustomer(AuthorizedActionContext access) {
         Long customerId = Long.valueOf(access.visitor().requireIdentity("customer").getIdentityId());
         if (customerService.getById(customerId) == null) throw new BusinessException(CommerceOrderError.CUSTOMER_NOT_FOUND);
-        Map<Long, MerchantProduct> productMap = merchantProductService.listByIds(ids).stream()
+        return customerId;
+    }
+
+    /** 使用当前商品信息生成订单明细快照，并按商家拆分。 */
+    private Map<Long, List<CommerceOrderItem>> groupItemsByMerchant(List<PlaceOrderItem> requests, Set<Long> productIds) {
+        Map<Long, MerchantProduct> productMap = merchantProductService.listByIds(productIds).stream()
             .collect(Collectors.toMap(MerchantProduct::getId, product -> product));
         Map<Long, List<CommerceOrderItem>> groups = new LinkedHashMap<>();
-        for (PlaceOrderItem request : command.items()) {
+        for (PlaceOrderItem request : requests) {
             MerchantProduct product = productMap.get(request.merchantProductId());
             if (product == null) throw new BusinessException(CommerceOrderError.MERCHANT_PRODUCT_NOT_FOUND);
             if (!Boolean.TRUE.equals(product.getActive())) throw new BusinessException(CommerceOrderError.MERCHANT_PRODUCT_INACTIVE);
@@ -75,6 +108,11 @@ public class CommerceOrderService {
             item.setLineAmount(product.getPrice().multiply(BigDecimal.valueOf(request.quantity())));
             groups.computeIfAbsent(product.getMerchantId(), ignored -> new ArrayList<>()).add(item);
         }
+        return groups;
+    }
+
+    private PlaceOrderResult createOrders(EntityDao<CommerceOrder, Long> orders, Long customerId,
+        Map<Long, List<CommerceOrderItem>> groups) {
         List<Long> orderIds = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         LocalDateTime createdAt = LocalDateTime.now();
@@ -94,22 +132,6 @@ public class CommerceOrderService {
             }
         }
         return new PlaceOrderResult(orderIds, total);
-    }
-
-    @Transactional
-    public Long cancel(AuthorizedActionContext access, Long id) {
-        requireAction(access, CommerceOrder.CANCEL);
-        CommerceOrder order = access.dao(daoFactory, ORDER_TYPE).findById(id).orElse(null);
-        if (order == null) throw new BusinessException(CommerceOrderError.ORDER_NOT_FOUND);
-        if (order.getStatus() != CommerceOrderStatus.CREATED) throw new BusinessException(CommerceOrderError.ORDER_NOT_CANCELLABLE);
-        // 状态条件与授权范围共同进入 UPDATE，防止查询后的并发状态变化被覆盖。
-        EntityDao<CommerceOrder, Long> cancellableOrders = access.dao(daoFactory, ORDER_TYPE,
-            RowConstraint.eq("status", CommerceOrderStatus.CREATED));
-        Map<String, Object> values = Map.of("status", CommerceOrderStatus.CANCELLED);
-        var patch = new DefaultUpdatePatch<>(CommerceOrder.class, null, id,
-            values.keySet(), values.keySet(), values, values, null);
-        if (cancellableOrders.updateById(id, patch) != 1) throw new EntityDaoWriteMissException("目标不存在或不可写: CommerceOrder");
-        return id;
     }
 
     private static void requireAction(AuthorizedActionContext access, String operation) {

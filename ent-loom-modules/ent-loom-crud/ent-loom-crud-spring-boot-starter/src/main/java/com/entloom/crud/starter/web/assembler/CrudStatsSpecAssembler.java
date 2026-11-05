@@ -98,10 +98,6 @@ public class CrudStatsSpecAssembler {
         return builder.build();
     }
 
-    public String resolveRequestId(CrudStatsHttpRequest request) {
-        return requestSupport.resolveRequestId(request.getOptions().getRequestId());
-    }
-
     /**
      * 根据 stats 模式补充分页/限制参数。
      */

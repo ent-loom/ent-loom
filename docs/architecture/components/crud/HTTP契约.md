@@ -30,7 +30,7 @@ Query、Command、Import、Export 还受各自的 `enabled` 开关控制。
 
 必须提供 `CrudHttpAuthenticationSource`，并由其认证结果和身份注册表构建本次访问者作用域。缺少认证来源、缺少或无效凭证均返回 403；实体未暴露仍返回对应暴露错误。准入只提供可信上下文，后续操作映射、身份分支、数据范围和字段能力仍由业务授权执行器判定。新授权查询和命令不调用旧 `CrudSubjectResolver`；未绑定策略的资源继续原治理。
 
-当前新授权查询支持根实体 `CrudRecord` 及父资源 `EXPAND` 授予的本地一级关联字段投影；声明式策略缺省允许候选关联普通字段，本次仍需显式请求展开。先查授权根记录，再按连接键批量补数，内部连接字段不自动公开；实体/DTO、场景、多实体连接、嵌套及远程展开继续在 SQL 前拒绝。关联范围、字段与规模边界见[受授权关联读取](../../../guides/crud/受授权关联读取.md)。此准入覆盖内置查询及标准命令 Controller；业务 ACTION 保留场景准入，统计及导入导出不自动开放。受授权命令支持单目标 UPDATE/DELETE 以及显式映射的 UPDATE_BATCH；其余形状拒绝。详见[标准查询统一入口实施计划](../../../evolution/roadmap/crud/标准查询统一入口实施计划.md)。
+当前新授权查询支持根实体 `CrudRecord` 及父资源 `EXPAND` 授予的本地一级关联字段投影；声明式策略缺省允许候选关联普通字段，本次仍需显式请求展开。先查授权根记录，再按连接键批量补数，内部连接字段不自动公开；实体 / DTO 和一级关联 DTO 使用完整字段授权；场景、多实体连接、嵌套及远程展开继续在 SQL 前拒绝。关联范围、字段与规模边界见[受授权关联读取](../../../guides/crud/受授权关联读取.md)。此准入覆盖内置查询及标准命令 Controller；业务 ACTION 保留场景准入，统计及导入导出不自动开放。受授权命令支持单目标 UPDATE/DELETE 以及显式映射的 UPDATE_BATCH；其余形状拒绝。详见[标准查询统一入口实施计划](../../../evolution/roadmap/crud/标准查询统一入口实施计划.md)。
 
 ## Query / Command / Stats
 
@@ -74,6 +74,7 @@ Import 需要业务先将源文件保存到 `FileService` 并提供 `sourceFile.
 
 - `scene` 只能来自路径，客户端传入 `options.scene` 会被拒绝。
 - 未建模的顶层字段和 `options.*` 字段会被拒绝。
+- 请求体不提供 `requestId`；HTTP 入口在认证前为每次请求生成，响应和审计使用同一标识。
 - Query 的 `options.nullFieldMode` 支持 `INCLUDE`（保留）和 `OMIT`（隐藏），未传时使用 `controller.default-null-field-mode`；仅作用于查询载荷 `item` / `items[]` 中的记录字段。
 - `options.sortExpression` 不受支持。
 - 服务端身份、访问入口和治理属性通过 `CrudInvocationContext` 提供，不能由普通 HTTP 参数注入。
@@ -92,6 +93,12 @@ data / meta
 
 失败时 `error` 提供 `code`、`message`、`stage`、`routeKey`、`requestId`、`traceId`
 和 `reason`。二进制下载成功时直接返回文件流；开始写出后不能再切换为 JSON 错误。
+
+`requestId` 用于关联本次请求，服务端生成，与幂等键独立。`traceId` 来自已接入的链路追踪上下文，未启用时可为空；认证失败等提前返回的 JSON 错误也使用本次请求标识。
+
+业务 Controller 可用 `CrudResponse.success(data)` 或 `CrudResponse.failure(code, message)` 创建基础响应。框架在 HTTP 响应写出前补充请求与操作信息，因此静态工厂返回时这些上下文字段尚未填充；直接写出的认证错误使用同一增强逻辑。文件等其他响应类型不受影响。
+
+Servlet 同步处理及 MVC `Callable` 由框架绑定并恢复线程上下文；异步或错误重新分派复用原请求标识。`@Async`、`CompletableFuture`、`DeferredResult` 的生产线程及自建线程不自动继承，跨线程任务须显式传递所需快照，并按任务边界独立处理身份与授权。当前 `traceId` 读取 MDC 的 `traceId`，接入链路追踪时需在本框架请求过滤器之前写入该字段。
 
 错误阶段：
 

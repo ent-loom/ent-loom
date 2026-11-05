@@ -198,11 +198,11 @@ class MetaDocAdapterStaticFixtureTest {
         private String orderNo;
 
         @EntField
-        @EntRelation(targetEntity = "customer")
+        @EntRelation(Customer.class)
         @EntDocField(targetEntityLabel = "客户", relationRemark = "订单归属客户")
         private Long customerId;
 
-        @EntRelation(targetEntity = "order_item", targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)
+        @EntRelation(value = OrderItem.class, targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)
         private List<OrderItem> items;
     }
 

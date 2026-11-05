@@ -87,14 +87,6 @@ public class CrudImportExportSpecAssembler {
             .build();
     }
 
-    public String resolveRequestId(CrudExportHttpRequest request) {
-        return requestSupport.resolveRequestId(request == null ? null : request.getRequestId());
-    }
-
-    public String resolveRequestId(CrudImportHttpRequest request) {
-        return requestSupport.resolveRequestId(request == null ? null : request.getRequestId());
-    }
-
     private static FileRef sourceFile(String sourceFileId) {
         if (sourceFileId == null || sourceFileId.trim().isEmpty()) {
             return null;
@@ -134,6 +126,11 @@ public class CrudImportExportSpecAssembler {
         Map<String, Object> attributes,
         Map<String, Object> extraFields
     ) {
+        if (extraFields != null && extraFields.keySet().stream()
+            .anyMatch(key -> key != null && ("requestid".equals(key.trim().toLowerCase(Locale.ROOT))
+                || "traceid".equals(key.trim().toLowerCase(Locale.ROOT))))) {
+            throw new ValidationException("请求标识由服务端提供");
+        }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         copyAllowed(result, attributes);
         copyAllowed(result, extraFields);
@@ -154,6 +151,8 @@ public class CrudImportExportSpecAssembler {
     private static boolean isReserved(String key) {
         String normalized = key.trim().toLowerCase(Locale.ROOT);
         return "subject".equals(normalized)
+            || "requestid".equals(normalized)
+            || "traceid".equals(normalized)
             || "tenant".equals(normalized)
             || "tenantid".equals(normalized)
             || "org".equals(normalized)

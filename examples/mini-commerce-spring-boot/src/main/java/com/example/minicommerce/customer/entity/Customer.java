@@ -5,6 +5,7 @@ import com.entloom.crud.annotations.EntCrudGrant;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
+import com.example.minicommerce.merchant.entity.Merchant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -28,7 +29,7 @@ public class Customer {
     private String email;
 
     @EntField("所属商户 ID")
-    @EntRelation(targetEntity = "merchant")
+    @EntRelation(Merchant.class)
     private Long merchantId;
 
 }

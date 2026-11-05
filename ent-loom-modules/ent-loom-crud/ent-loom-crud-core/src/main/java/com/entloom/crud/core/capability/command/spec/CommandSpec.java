@@ -29,6 +29,8 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
     private final List<QueryFilter> targetFilters;
     /** 结果类型。 */
     private final Class<?> resultType;
+    /** 类型化入口声明的主键类型；动态命令可省略。 */
+    private final Class<?> idType;
 
     protected <B extends AbstractBuilder<P, B>> CommandSpec(AbstractBuilder<P, B> builder) {
         super(builder);
@@ -39,6 +41,7 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
         this.dryRun = builder.dryRun;
         this.targetFilters = Collections.unmodifiableList(copyFilters(builder.targetFilters));
         this.resultType = builder.resultType;
+        this.idType = builder.idType;
     }
 
     public static <P> Builder<P> builder() {
@@ -57,7 +60,8 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
             .expectedVersion(expectedVersion)
             .dryRun(dryRun)
             .targetFilters(getTargetFilters())
-            .resultType(resultType);
+            .resultType(resultType)
+            .idType(idType);
     }
 
     public final CommandOperation getOp() {
@@ -90,6 +94,10 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
 
     public final Class<?> getResultType() {
         return resultType;
+    }
+
+    public final Class<?> getIdType() {
+        return idType;
     }
 
     private static List<QueryFilter> copyFilters(List<QueryFilter> source) {
@@ -127,6 +135,7 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
         private boolean dryRun;
         private List<QueryFilter> targetFilters = new ArrayList<QueryFilter>();
         private Class<?> resultType;
+        private Class<?> idType;
 
         public B op(CommandOperation op) {
             this.op = op;
@@ -160,6 +169,11 @@ public class CommandSpec<P> extends BaseSpec implements OperationKeySpec {
 
         public B resultType(Class<?> resultType) {
             this.resultType = resultType;
+            return self();
+        }
+
+        public B idType(Class<?> idType) {
+            this.idType = idType;
             return self();
         }
 

@@ -38,6 +38,25 @@ import org.junit.jupiter.api.Test;
 class CrudNativeParserAndMergerTest {
 
     @Test
+    void 原生显式目标标识覆盖类引用时同步清除原目标类() {
+        MetaDiagnosticResult<CrudEntityRuntimeModel> result = new CrudRuntimeModelMerger().merge(
+            TargetOverrideOrder.class, new ReflectiveEntMetaParser().parse(TargetOverrideOrder.class),
+            new CrudNativeAnnotationParser().parseWithDiagnostics(TargetOverrideOrder.class).value());
+
+        CrudRelationRuntimeModel relation = result.value().relations().get(0);
+        Assertions.assertEquals("native_customer", relation.targetEntity().value());
+        Assertions.assertNull(relation.targetClass().value());
+    }
+
+    @EntEntity
+    private static class TargetOverrideOrder {
+        Long id;
+        @EntRelation(MergeCustomer.class)
+        @EntCrudField(targetEntity = "native_customer")
+        Long customerId;
+    }
+
+    @Test
     void 默认服务合并应保留来源且原生显式覆盖不产生冲突() {
         ReflectiveEntMetaParser parser = new ReflectiveEntMetaParser(
             Collections.emptyList(), new MetaEntityDefaults("mini-commerce"));
@@ -272,7 +291,7 @@ class CrudNativeParserAndMergerTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "merge_customer", sourceField = "customerId", targetField = "idCode")
+        @EntRelation(value = MergeCustomer.class, sourceField = "customerId", targetField = "idCode")
         @EntCrudField(targetClass = MergeCustomer.class, sourceField = "buyerId", targetField = "customerCode")
         private Long customerId;
 

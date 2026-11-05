@@ -116,31 +116,31 @@ class RelationAuthorizationMetadataTest {
     @EntEntity(entity = "invoice")
     static class Invoice {
         Long id;
-        @EntRelation(targetEntity = "seller") Long sellerRef;
+        @EntRelation(Seller.class) Long sellerRef;
     }
 
     @EntEntity(entity = "ownedInvoice") @EntCrudEntity(scopeFields = "sellerRef")
     static class OwnedInvoice {
         Long id;
-        @EntRelation(targetEntity = "seller") Long sellerRef;
+        @EntRelation(Seller.class) Long sellerRef;
     }
 
     @EntEntity(entity = "approval")
     static class Approval {
         Long id;
-        @EntRelation(targetEntity = "seller") Long ownerRef;
-        @EntRelation(targetEntity = "seller") Long reviewerRef;
+        @EntRelation(Seller.class) Long ownerRef;
+        @EntRelation(Seller.class) Long reviewerRef;
     }
 
     @EntEntity(entity = "naturalKeyInvoice")
     static class NaturalKeyInvoice {
         Long id;
-        @EntRelation(targetEntity = "seller", targetField = "code") String sellerCode;
+        @EntRelation(value = Seller.class, targetField = "code") String sellerCode;
     }
 
     @EntEntity(entity = "brokenInvoice")
     static class BrokenInvoice {
         Long id;
-        @EntRelation(targetEntity = "seller") String sellerRef;
+        @EntRelation(Seller.class) String sellerRef;
     }
 }

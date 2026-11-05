@@ -14,6 +14,7 @@ import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudCommandController;
 import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
@@ -70,9 +71,11 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
                 throw new PermissionDeniedException("缺少 HTTP 可信认证适配器或 Filter 认证结果");
             }
             HttpAccessAuthentication authentication = state.authentication();
+            CrudHttpRequestContext requestContext = CrudHttpRequestContext.current();
             AccessAdmission admission = admissionService.admit(access == null ? AuthenticationMode.OPTIONAL : access.value(),
                 authentication::getAuthentication,
-                authentication.getAccessEntry(), authentication.getRequestId(), authentication.getTraceId());
+                authentication.getAccessEntry(), requestContext == null ? null : requestContext.getRequestId(),
+                requestContext == null ? null : requestContext.getTraceId());
             if (access != null) {
                 requireIdentity(admission, access.identity());
                 requireTrustedSource(admission, access);

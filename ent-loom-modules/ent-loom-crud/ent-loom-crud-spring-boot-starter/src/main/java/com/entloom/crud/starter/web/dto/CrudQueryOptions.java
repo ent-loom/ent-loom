@@ -19,8 +19,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CrudQueryOptions {
-    /** 请求标识。 */
-    private String requestId;
     /** 页码。 */
     private Integer page;
     /** 分页大小。 */

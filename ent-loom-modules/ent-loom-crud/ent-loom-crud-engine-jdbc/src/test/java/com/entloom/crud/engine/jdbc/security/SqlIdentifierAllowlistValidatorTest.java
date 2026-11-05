@@ -46,7 +46,7 @@ class SqlIdentifierAllowlistValidatorTest {
     }
 
     @Test
-    void validate_command_spec_should_reject_non_map_payload() {
+    void validate_command_spec_should_reject_payload_without_properties() {
         SqlIdentifierAllowlistValidator validator = new SqlIdentifierAllowlistValidator(testMetaRegistry());
         CommandSpec<Object> spec = CommandSpec.<Object>builder()
             .rootType(TestEntity.class)
@@ -57,7 +57,7 @@ class SqlIdentifierAllowlistValidatorTest {
 
         ValidationException ex = Assertions.assertThrows(ValidationException.class, () -> validator.validateCommandSpec(spec));
 
-        Assertions.assertTrue(ex.getMessage().contains("命令载荷必须是 Map、CrudRecord 或 WriteCommand"));
+        Assertions.assertTrue(ex.getMessage().contains("命令载荷必须包含实体或 DTO 属性"));
     }
 
     @Test

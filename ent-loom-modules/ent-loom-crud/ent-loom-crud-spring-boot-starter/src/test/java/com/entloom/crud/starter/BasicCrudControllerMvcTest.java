@@ -8,6 +8,12 @@ import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
 import com.entloom.crud.starter.web.support.CrudResponseDateFormatAdvice;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
+import com.entloom.crud.api.model.CrudResponse;
+import com.entloom.crud.core.runtime.context.CrudInvocationContext;
+import com.entloom.crud.core.exception.CrudException;
+import com.entloom.crud.starter.web.dto.CrudReadHttpRequest;
+import com.entloom.crud.starter.web.facade.EntCrudQueryFacade;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -44,16 +50,59 @@ class BasicCrudControllerMvcTest {
         );
 
     @Test
+    void 多次查询返回的响应保留各自操作信息() {
+        contextRunner.run(context -> buildMockMvc(context)
+            .perform(post("/test/composite").contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestId").isNotEmpty())
+            .andExpect(jsonPath("$.operation").value("PAGE"))
+            .andExpect(jsonPath("$.data.page.total").value(21)));
+    }
+
+    @Test
+    void 捕获查询异常后成功响应不继承失败操作() {
+        contextRunner.run(context -> {
+            MockMvc mvc = buildMockMvc(context);
+            for (String path : new String[]{"/test/caught/direct", "/test/caught/after-page", "/test/caught/invalid-option"}) {
+                mvc.perform(post(path))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").value("ok"))
+                    .andExpect(jsonPath("$.requestId").isNotEmpty())
+                    .andExpect(jsonPath("$.operation").doesNotExist())
+                    .andExpect(jsonPath("$.operationDomain").doesNotExist());
+            }
+            mvc.perform(post("/test/caught/after-page-error"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.operation").doesNotExist());
+        });
+    }
+
+    @Test
+    void 未捕获的查询异常仍保留失败操作() {
+        contextRunner.run(context -> {
+            MockMvc mvc = buildMockMvc(context);
+            mvc.perform(post("/api/ent-crud/MissingEntity/list").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.operation").value("LIST"));
+            mvc.perform(post("/api/ent-crud/TestOrderEntity/page").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"options\":{\"nullFieldMode\":\"INVALID\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.operation").value("PAGE"));
+        });
+    }
+
+    @Test
     void controller_should_page_test_entity() throws Exception {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-1\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-page-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.items.length()").value(10))
                 .andExpect(jsonPath("$.data.page.total").value(21))
@@ -142,9 +191,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":2,\"requestId\":\"req-page-view-1\",\"viewType\":\"orderSummary\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":2,\"viewType\":\"orderSummary\"}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-view-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].id").value(1))
                 .andExpect(jsonPath("$.data.items[0].orderNo").value("ORD-1"))
@@ -161,10 +210,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/list")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"limit\":3,\"requestId\":\"req-list-1\",\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":5}}}}"))
+                    .content("{\"options\":{\"limit\":3,\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":5}}}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-list-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.items.length()").value(3))
                 .andExpect(jsonPath("$.data.items[0].id").value(5))
                 .andExpect(jsonPath("$.data.items[1].id").value(6))
@@ -181,15 +230,15 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":2,\"requestId\":\"req-page-result-mode-invalid\",\"resultMode\":\"DTO\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":2,\"resultMode\":\"DTO\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-page-result-mode-invalid"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.stage").value("HTTP_CONTRACT"))
                 .andExpect(jsonPath("$.error.reason").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.error.requestId").value("req-page-result-mode-invalid"));
+                .andExpect(jsonPath("$.error.requestId").isNotEmpty());
         });
     }
 
@@ -200,15 +249,15 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page/missingScene")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":2,\"requestId\":\"req-page-route-miss\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":2}}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.requestId").value("req-page-route-miss"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"))
                 .andExpect(jsonPath("$.error.stage").value("ROUTE"))
                 .andExpect(jsonPath("$.error.reason").value("ROUTE_NOT_FOUND"))
                 .andExpect(jsonPath("$.error.routeKey").value("com.entloom.crud.starter.support.TestOrderEntity|QUERY/PAGE|missingscene"))
-                .andExpect(jsonPath("$.error.requestId").value("req-page-route-miss"));
+                .andExpect(jsonPath("$.error.requestId").isNotEmpty());
         });
     }
 
@@ -219,9 +268,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":2,\"requestId\":\"req-page-count-mode-invalid\",\"countMode\":\"FAST\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":2,\"countMode\":\"FAST\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-page-count-mode-invalid"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -234,9 +283,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-sort-expression-removed\",\"sortExpression\":\"id,DESC\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"sortExpression\":\"id,DESC\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-page-sort-expression-removed"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -249,9 +298,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-page-exists-filter\"},\"existsRelationFilter\":{\"relation\":\"items\",\"filters\":[]}}"))
+                    .content("{\"options\":{},\"existsRelationFilter\":{\"relation\":\"items\",\"filters\":[]}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-page-exists-filter"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.stage").value("HTTP_CONTRACT"))
@@ -266,36 +315,36 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/create")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-create-1\"},\"payload\":{\"id\":101,\"orderNo\":\"ORD-101\",\"deleted\":0}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":101,\"orderNo\":\"ORD-101\",\"deleted\":0}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-create-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("CREATE"))
                 .andExpect(jsonPath("$.data.id").value(101));
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"id\":101,\"options\":{\"requestId\":\"req-detail-1\"}}"))
+                    .content("{\"id\":101,\"options\":{}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-detail-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("DETAIL"))
                 .andExpect(jsonPath("$.data.item.order_no").value("ORD-101"));
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/update")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-update-1\"},\"payload\":{\"id\":101,\"orderNo\":\"ORD-101-UPDATED\"}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":101,\"orderNo\":\"ORD-101-UPDATED\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-update-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("UPDATE"))
                 .andExpect(jsonPath("$.data.rows").value(1));
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/delete")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-delete-1\"},\"payload\":{\"id\":101}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":101}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-delete-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("DELETE"))
                 .andExpect(jsonPath("$.data.rows").value(1));
         });
@@ -308,9 +357,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/update")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-update-target-filters\",\"targetFilters\":[{\"field\":\"id\",\"op\":\"EQ\",\"value\":1}]},\"payload\":{\"orderNo\":\"ORD-TARGET\"}}"))
+                    .content("{\"options\":{\"targetFilters\":[{\"field\":\"id\",\"op\":\"EQ\",\"value\":1}]},\"payload\":{\"orderNo\":\"ORD-TARGET\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-update-target-filters"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("UPDATE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.error.stage").value("HTTP_CONTRACT"))
@@ -325,27 +374,27 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/saveOrUpdate")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-save-or-update-update-1\"},\"payload\":{\"id\":1,\"orderNo\":\"ORD-1-SAVE-OR-UPDATE\"}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":1,\"orderNo\":\"ORD-1-SAVE-OR-UPDATE\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-save-or-update-update-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.operation").value("UPDATE"))
                 .andExpect(jsonPath("$.data.rows").value(1))
                 .andExpect(jsonPath("$.data.id").value(1));
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/saveOrUpdate")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-save-or-update-create-1\"},\"payload\":{\"id\":302,\"orderNo\":\"ORD-302\",\"deleted\":0}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":302,\"orderNo\":\"ORD-302\",\"deleted\":0}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-save-or-update-create-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.operation").value("CREATE"))
                 .andExpect(jsonPath("$.data.rows").value(1))
                 .andExpect(jsonPath("$.data.id").value(302));
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"id\":302,\"options\":{\"requestId\":\"req-detail-302\"}}"))
+                    .content("{\"id\":302,\"options\":{}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.item.order_no").value("ORD-302"));
         });
@@ -358,10 +407,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/createBatch")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-create-batch-1\"},\"payload\":{\"items\":[{\"id\":401,\"orderNo\":\"ORD-401\",\"deleted\":0},{\"id\":402,\"orderNo\":\"ORD-402\",\"deleted\":0}]}}"))
+                    .content("{\"options\":{},\"payload\":{\"items\":[{\"id\":401,\"orderNo\":\"ORD-401\",\"deleted\":0},{\"id\":402,\"orderNo\":\"ORD-402\",\"deleted\":0}]}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-create-batch-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.rows").value(2))
                 .andExpect(jsonPath("$.data.items[0].operation").value("CREATE"))
                 .andExpect(jsonPath("$.data.items[0].id").value(401))
@@ -370,7 +419,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/list")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"limit\":5,\"requestId\":\"req-list-created-batch\",\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":401}}}}"))
+                    .content("{\"options\":{\"limit\":5,\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":401}}}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].order_no").value("ORD-401"))
@@ -385,10 +434,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/updateBatch")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-update-batch-1\"},\"payload\":{\"items\":[{\"id\":3,\"orderNo\":\"ORD-3-BATCH\"},{\"id\":4,\"orderNo\":\"ORD-4-BATCH\"}]}}"))
+                    .content("{\"options\":{},\"payload\":{\"items\":[{\"id\":3,\"orderNo\":\"ORD-3-BATCH\"},{\"id\":4,\"orderNo\":\"ORD-4-BATCH\"}]}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-update-batch-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.rows").value(2))
                 .andExpect(jsonPath("$.data.items[0].operation").value("UPDATE"))
                 .andExpect(jsonPath("$.data.items[0].id").value(3))
@@ -397,7 +446,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/list")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"limit\":5,\"requestId\":\"req-list-updated-batch\",\"filterMap\":{\"id\":{\"op\":\"IN\",\"value\":[3,4]}}}}"))
+                    .content("{\"options\":{\"limit\":5,\"filterMap\":{\"id\":{\"op\":\"IN\",\"value\":[3,4]}}}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].order_no").value("ORD-3-BATCH"))
@@ -412,10 +461,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/saveOrUpdateBatch")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-save-or-update-batch-1\"},\"payload\":{\"items\":[{\"id\":1,\"orderNo\":\"ORD-1-BATCH\"},{\"id\":301,\"orderNo\":\"ORD-301\",\"deleted\":0}]}}"))
+                    .content("{\"options\":{},\"payload\":{\"items\":[{\"id\":1,\"orderNo\":\"ORD-1-BATCH\"},{\"id\":301,\"orderNo\":\"ORD-301\",\"deleted\":0}]}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-save-or-update-batch-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("SAVE_OR_UPDATE_BATCH"))
                 .andExpect(jsonPath("$.data.rows").value(2))
                 .andExpect(jsonPath("$.data.items[0].operation").value("UPDATE"))
@@ -423,7 +472,7 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"id\":301,\"options\":{\"requestId\":\"req-detail-301\"}}"))
+                    .content("{\"id\":301,\"options\":{}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.item.order_no").value("ORD-301"));
         });
@@ -436,10 +485,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/deleteBatch")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-delete-batch-1\"},\"payload\":{\"ids\":[1,2]}}"))
+                    .content("{\"options\":{},\"payload\":{\"ids\":[1,2]}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-delete-batch-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("DELETE_BATCH"))
                 .andExpect(jsonPath("$.data.rows").value(2))
                 .andExpect(jsonPath("$.data.items[0].id").value(1))
@@ -454,9 +503,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-find-one-1\",\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":1}}}}"))
+                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":1}}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-find-one-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("FIND_ONE"))
                 .andExpect(jsonPath("$.data.item.id").value(1));
         });
@@ -469,9 +518,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-find-one-miss\",\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":999999}}}}"))
+                    .content("{\"options\":{\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":999999}}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-find-one-miss"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("FIND_ONE"))
                 .andExpect(jsonPath("$.data.item").isEmpty());
         });
@@ -484,9 +533,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-find-one-multi\",\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}}}"))
+                    .content("{\"options\":{\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}}}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.requestId").value("req-find-one-multi"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("FIND_ONE"))
                 .andExpect(jsonPath("$.code").value("QUERY_NOT_UNIQUE"));
         });
@@ -499,9 +548,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/findOne")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-find-one-limit\",\"page\":1,\"limit\":1,\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":1}}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":1,\"filterMap\":{\"id\":{\"op\":\"EQ\",\"value\":1}}}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-find-one-limit"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("FIND_ONE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -514,9 +563,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/detail")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-detail-multi\",\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}}}"))
+                    .content("{\"options\":{\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-detail-multi"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("DETAIL"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -529,9 +578,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}},\"requestId\":\"req-agg-1\"},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}]}}"))
+                    .content("{\"options\":{\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-agg-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.data.mode").value("SCALAR"))
@@ -549,9 +598,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}},\"sorts\":[{\"field\":\"paidOrders\",\"direction\":\"DESC\"}],\"requestId\":\"req-agg-page-1\"},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}],\"includeSummary\":true,\"includeTotalGroups\":true}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filterMap\":{\"paid\":{\"op\":\"EQ\",\"value\":true}},\"sorts\":[{\"field\":\"paidOrders\",\"direction\":\"DESC\"}]},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}],\"includeSummary\":true,\"includeTotalGroups\":true}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-agg-page-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.mode").value("PAGE"))
                 .andExpect(jsonPath("$.data.columns.dimensions[0]").value("paymentChannel"))
                 .andExpect(jsonPath("$.data.columns.metrics[0]").value("paidOrders"))
@@ -571,9 +620,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"sorts\":[{\"field\":\"totalAmountSum\",\"direction\":\"DESC\",\"target\":\"METRIC\"}],\"requestId\":\"req-agg-page-target-1\"},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"SUM\",\"field\":\"totalAmount\",\"alias\":\"totalAmountSum\"}],\"includeSummary\":true,\"includeTotalGroups\":true}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"sorts\":[{\"field\":\"totalAmountSum\",\"direction\":\"DESC\",\"target\":\"METRIC\"}]},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"SUM\",\"field\":\"totalAmount\",\"alias\":\"totalAmountSum\"}],\"includeSummary\":true,\"includeTotalGroups\":true}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-agg-page-target-1"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.data.mode").value("PAGE"))
                 .andExpect(jsonPath("$.data.rows[0].dimensions.paymentChannel").value("WECHAT"))
                 .andExpect(jsonPath("$.data.rows[0].metrics.totalAmountSum").value("1150"));
@@ -587,9 +636,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-sort-expression-removed\",\"sortExpression\":\"paidOrders,DESC\"},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}]}}"))
+                    .content("{\"options\":{\"sortExpression\":\"paidOrders,DESC\"},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}]}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-stats-sort-expression-removed"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -603,9 +652,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-payload-sorts-reject\"},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}],\"sorts\":[{\"field\":\"paidOrders\",\"direction\":\"DESC\"}]}}"))
+                    .content("{\"options\":{},\"stats\":{\"groupBy\":[{\"field\":\"paymentChannel\"}],\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"paidOrders\"}],\"sorts\":[{\"field\":\"paidOrders\",\"direction\":\"DESC\"}]}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.requestId").value("req-stats-payload-sorts-reject"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
     }
@@ -617,10 +666,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-error\"},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-page-error"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -633,10 +682,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-stats-empty\"},\"stats\":{}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10},\"stats\":{}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-page-stats-empty"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -649,9 +698,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-options-filters\",\"filters\":[{\"field\":\"paid\",\"op\":\"EQ\",\"value\":true}]},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filters\":[{\"field\":\"paid\",\"op\":\"EQ\",\"value\":true}]},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-stats-options-filters"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.data.mode").value("SCALAR"))
@@ -666,9 +715,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-filter-layered\",\"filter\":{\"paid\":true},\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":10}},\"filterList\":[{\"field\":\"id\",\"op\":\"LE\",\"value\":16}]}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filter\":{\"paid\":true},\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":10}},\"filterList\":[{\"field\":\"id\",\"op\":\"LE\",\"value\":16}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-filter-layered"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.page.total").value(4))
                 .andExpect(jsonPath("$.data.items.length()").value(4))
@@ -683,9 +732,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-ignore-blank\",\"filter\":{\"orderNo\":\"  \"},\"filterMap\":{\"status\":{\"op\":\"EQ\",\"value\":\"\"},\"id\":{\"op\":\"GE\",\"value\":10}}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filter\":{\"orderNo\":\"  \"},\"filterMap\":{\"status\":{\"op\":\"EQ\",\"value\":\"\"},\"id\":{\"op\":\"GE\",\"value\":10}}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-ignore-blank"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.page.total").value(12))
                 .andExpect(jsonPath("$.data.items.length()").value(10))
@@ -700,10 +749,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-structured-filter-reject\",\"filter\":{\"orderNo\":{\"op\":\"LIKE\",\"value\":\"%ORD%\"}}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filter\":{\"orderNo\":{\"op\":\"LIKE\",\"value\":\"%ORD%\"}}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-page-structured-filter-reject"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -716,10 +765,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":10,\"requestId\":\"req-page-object-filter-reject\",\"filter\":{\"orderNo\":{\"keyword\":\"ORD\"}}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":10,\"filter\":{\"orderNo\":{\"keyword\":\"ORD\"}}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-page-object-filter-reject"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         });
@@ -732,9 +781,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":20,\"requestId\":\"req-page-default-like\",\"filter\":{\"orderNo\":\"ORD-1\"}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":20,\"filter\":{\"orderNo\":\"ORD-1\"}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-default-like"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.page.total").value(11))
                 .andExpect(jsonPath("$.data.items.length()").value(11))
@@ -749,9 +798,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":20,\"requestId\":\"req-page-enum-eq\",\"filter\":{\"status\":\"A\"}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":20,\"filter\":{\"status\":\"A\"}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-enum-eq"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.page.total").value(0))
                 .andExpect(jsonPath("$.data.items.length()").value(0));
@@ -765,9 +814,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":20,\"requestId\":\"req-page-default-like-exclude\",\"filter\":{\"orderNo\":\"ORD-1\"}}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":20,\"filter\":{\"orderNo\":\"ORD-1\"}}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-page-default-like-exclude"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("PAGE"))
                 .andExpect(jsonPath("$.data.page.total").value(1))
                 .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -782,9 +831,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-filter-layered\",\"filter\":{\"paid\":true},\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":10}},\"filterList\":[{\"field\":\"id\",\"op\":\"LE\",\"value\":16}]},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filter\":{\"paid\":true},\"filterMap\":{\"id\":{\"op\":\"GE\",\"value\":10}},\"filterList\":[{\"field\":\"id\",\"op\":\"LE\",\"value\":16}]},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-stats-filter-layered"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.data.mode").value("SCALAR"))
@@ -799,9 +848,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-ignore-blank\",\"filter\":{\"orderNo\":\"\"},\"filterMap\":{\"status\":{\"op\":\"EQ\",\"value\":\"   \"},\"id\":{\"op\":\"GE\",\"value\":10}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filter\":{\"orderNo\":\"\"},\"filterMap\":{\"status\":{\"op\":\"EQ\",\"value\":\"   \"},\"id\":{\"op\":\"GE\",\"value\":10}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-stats-ignore-blank"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.data.mode").value("SCALAR"))
@@ -816,10 +865,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-structured-filter-reject\",\"filter\":{\"orderNo\":{\"op\":\"LIKE\",\"value\":\"%ORD%\"}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filter\":{\"orderNo\":{\"op\":\"LIKE\",\"value\":\"%ORD%\"}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-stats-structured-filter-reject"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -833,10 +882,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-object-filter-reject\",\"filter\":{\"orderNo\":{\"keyword\":\"ORD\"}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filter\":{\"orderNo\":{\"keyword\":\"ORD\"}}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-stats-object-filter-reject"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -850,9 +899,9 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-default-like\",\"filter\":{\"orderNo\":\"ORD-1\"}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{\"filter\":{\"orderNo\":\"ORD-1\"}},\"stats\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requestId").value("req-stats-default-like"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.data.mode").value("SCALAR"))
@@ -867,10 +916,10 @@ class BasicCrudControllerMvcTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/stats")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-stats-payload-legacy\"},\"payload\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
+                    .content("{\"options\":{},\"payload\":{\"metrics\":[{\"agg\":\"COUNT\",\"field\":\"id\",\"alias\":\"orderCount\"}]}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.requestId").value("req-stats-payload-legacy"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operationDomain").value("STATS"))
                 .andExpect(jsonPath("$.operation").value("QUERY"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -889,18 +938,64 @@ class BasicCrudControllerMvcTest {
         });
     }
 
+    @Test
+    void request_id_cannot_be_supplied_in_options() {
+        contextRunner.run(context -> buildMockMvc(context)
+            .perform(post("/api/ent-crud/TestOrderEntity/page")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"options\":{\"requestId\":\"client-id\"}}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.requestId").isNotEmpty())
+            .andExpect(jsonPath("$.error.reason").value("UNSUPPORTED_OPTION")));
+    }
+
     private MockMvc buildMockMvc(AssertableApplicationContext context) {
         ObjectMapper objectMapper = context.getBean(ObjectMapper.class);
         return MockMvcBuilders.standaloneSetup(
                 context.getBean(EntCrudQueryController.class),
                 context.getBean(EntCrudCommandController.class),
-                context.getBean(EntCrudStatsController.class)
+                context.getBean(EntCrudStatsController.class),
+                new CompositeController(context.getBean(EntCrudQueryFacade.class))
             )
             .setControllerAdvice(
                 context.getBean(CrudHttpExceptionTranslator.class),
+                context.getBean(CrudResponseContextAdvice.class),
                 context.getBean(CrudResponseDateFormatAdvice.class)
             )
             .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+            .addFilters(new com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter())
             .build();
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class CompositeController {
+        private final EntCrudQueryFacade facade;
+
+        CompositeController(EntCrudQueryFacade facade) {
+            this.facade = facade;
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/test/composite")
+        CrudResponse<?> query() {
+            CrudResponse<?> page = facade.page("TestOrderEntity", null, new CrudReadHttpRequest(), CrudInvocationContext.empty());
+            facade.list("TestOrderEntity", null, new CrudReadHttpRequest(), CrudInvocationContext.empty());
+            return page;
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/test/caught/{scenario}")
+        CrudResponse<?> caught(@org.springframework.web.bind.annotation.PathVariable("scenario") String scenario) {
+            CrudReadHttpRequest request = new CrudReadHttpRequest();
+            boolean invalidOption = "invalid-option".equals(scenario);
+            if (invalidOption) request.getOptions().setRawNullFieldMode("INVALID");
+            try {
+                facade.list(invalidOption ? "TestOrderEntity" : "MissingEntity", null, request, CrudInvocationContext.empty());
+            } catch (CrudException ignored) {
+            }
+            if (scenario.startsWith("after-page")) {
+                facade.page("TestOrderEntity", null, new CrudReadHttpRequest(), CrudInvocationContext.empty());
+            }
+            return "after-page-error".equals(scenario)
+                ? CrudResponse.failure("BUSINESS_ERROR", "业务处理失败") : CrudResponse.success("ok");
+        }
     }
 }

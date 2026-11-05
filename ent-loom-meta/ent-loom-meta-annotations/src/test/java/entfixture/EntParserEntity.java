@@ -43,7 +43,7 @@
 //    private Long id;
 //
 //    @EntField
-//    @EntRelation(role = RefIdRole.GENERIC, targetService = "userService", targetEntity = "user")
+//    @EntRelation(role = RefIdRole.GENERIC, targetService = "userService", value = EntParserEntity.class)
 //    private Long ownerId;
 //
 //    @EntField

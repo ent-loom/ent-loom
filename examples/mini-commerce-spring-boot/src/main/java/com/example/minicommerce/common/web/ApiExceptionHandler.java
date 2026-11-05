@@ -3,10 +3,8 @@ package com.example.minicommerce.common.web;
 import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.starter.web.error.CrudHttpErrorMapper;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.example.minicommerce.MiniCommerceApplication;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.core.Ordered;
@@ -27,15 +25,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /** 应用接口统一错误响应；业务异常优先交给框架契约，接口特例由局部处理器覆盖。 */
 @RestControllerAdvice(basePackageClasses = MiniCommerceApplication.class)
 @Order(Ordered.LOWEST_PRECEDENCE)
-@RequiredArgsConstructor
 @Slf4j
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
-    private final CrudResponseBuilder responseBuilder;
-
     @ExceptionHandler(CrudException.class)
     ResponseEntity<CrudResponse<Void>> frameworkError(CrudException error) {
         var mapped = CrudHttpErrorMapper.map(error);
-        return ResponseEntity.status(mapped.getStatus()).body(responseBuilder.failure(mapped.getError()));
+        return ResponseEntity.status(mapped.getStatus()).body(CrudResponse.failure(mapped.getError()));
     }
 
     @Override
@@ -44,14 +39,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         String message = error.getBindingResult().getAllErrors().stream()
             .map(DefaultMessageSourceResolvable::getDefaultMessage).filter(StringUtils::hasText)
             .distinct().sorted().collect(Collectors.joining("；"));
-        return handleExceptionInternal(error, responseBuilder.failure("VALIDATION_ERROR",
+        return handleExceptionInternal(error, CrudResponse.failure("VALIDATION_ERROR",
             StringUtils.hasText(message) ? message : "请求参数不合法"), headers, status, request);
     }
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException error,
         HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        return handleExceptionInternal(error, responseBuilder.failure("VALIDATION_ERROR",
+        return handleExceptionInternal(error, CrudResponse.failure("VALIDATION_ERROR",
             "请求体不能为空，且须为符合接口约定的 JSON"), headers, status, request);
     }
 
@@ -72,7 +67,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 case 415 -> "请求内容类型不支持";
                 default -> status.is5xxServerError() ? "服务暂时不可用，请稍后重试" : "请求未能完成";
             };
-            body = responseBuilder.failure(code, message);
+            body = CrudResponse.failure(code, message);
         }
         return super.handleExceptionInternal(error, body, headers, status, request);
     }
@@ -85,6 +80,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         }
         log.error("业务接口发生未预期异常", error);
         return ResponseEntity.internalServerError()
-            .body(responseBuilder.failure("INTERNAL_ERROR", "服务暂时不可用，请稍后重试"));
+            .body(CrudResponse.failure("INTERNAL_ERROR", "服务暂时不可用，请稍后重试"));
     }
 }

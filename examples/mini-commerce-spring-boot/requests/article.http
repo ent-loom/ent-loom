@@ -1,0 +1,59 @@
+@baseUrl = http://localhost:8082
+@merchantA = demo-merchant-a
+@merchantB = demo-merchant-b
+
+### 自定义 Controller 创建文章：扁平载荷，无需 payload 包装，商家归属由内核填充
+POST {{baseUrl}}/api/merchant/articles
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"title":"本店营业公告","content":"本周正常营业，欢迎光临。"}
+
+> {% client.global.set("articleId", response.body.data.id); %}
+
+### 自定义分页：列表固定投影 id/title，不携带正文，按本人范围计数
+POST {{baseUrl}}/api/merchant/articles/page
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"page":1,"limit":10}
+
+### 自定义详情：内核按主键与可信商家范围查询
+GET {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantA}}
+
+### 另一商家无法读取这篇文章：404
+GET {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantB}}
+
+### 类型化 UpdatePatch：路由提供目标 ID，未提交的正文保持不变
+PUT {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"title":"本店营业公告（更新）"}
+
+### 另一商家不能修改：409，内核将可信归属加入最终 UPDATE
+PUT {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantB}}
+Content-Type: application/json
+
+{"title":"越权修改"}
+
+### 空标题由实体 @NotBlank 校验拒绝：400
+PUT {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"title":" "}
+
+### 自定义接口可用，但通用文章 HTTP 已关闭：404
+POST {{baseUrl}}/api/ent-crud/merchantArticle/list
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{}
+
+### 删除文章：内核执行归属约束、事务及审计
+DELETE {{baseUrl}}/api/merchant/articles/{{articleId}}
+Authorization: Bearer {{merchantA}}

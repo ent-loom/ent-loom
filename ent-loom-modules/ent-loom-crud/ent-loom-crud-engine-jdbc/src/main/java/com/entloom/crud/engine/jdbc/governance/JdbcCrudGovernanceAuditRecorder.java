@@ -3,6 +3,7 @@ package com.entloom.crud.engine.jdbc.governance;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.access.AuthorizationRequest;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
 import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.authorization.AuthorizationResult;
@@ -110,9 +111,10 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
     }
 
     private String toAuthorizationJson(CrudGovernanceAuditEvent event) {
+        AuthorizationRequest request = event.getAuthorizationRequest();
         AuthorizationResult result = event.getAuthorizationResult();
         VisitorContext visitor = event.getVisitor();
-        if (result == null && visitor == null) {
+        if (request == null && result == null && visitor == null) {
             return null;
         }
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
@@ -127,14 +129,18 @@ public class JdbcCrudGovernanceAuditRecorder implements CrudGovernanceAuditRecor
             });
             payload.put("visitor", visitorPayload);
         }
+        if (request != null) {
+            Map<String, Object> invocation = new LinkedHashMap<String, Object>();
+            invocation.put("invocationId", request.getInvocationId());
+            invocation.put("resource", request.getOperation().getResourceCode());
+            invocation.put("operation", request.getOperation().getOperationCode());
+            invocation.put("targetId", request.getTargetId());
+            payload.put("request", invocation);
+        }
         if (result != null) {
             Map<String, Object> authorization = new LinkedHashMap<String, Object>();
             authorization.put("decision", result.getDecision() == null ? null : result.getDecision().name());
             authorization.put("kind", result.getKind().name());
-            authorization.put("invocationId", result.getRequest().getInvocationId());
-            authorization.put("resource", result.getRequest().getOperation().getResourceCode());
-            authorization.put("operation", result.getRequest().getOperation().getOperationCode());
-            authorization.put("targetId", result.getRequest().getTargetId());
             authorization.put("scope", toAuthorizationScope(result.getScope()));
             authorization.put("fields", result.getFields().snapshot());
             payload.put("authorization", authorization);

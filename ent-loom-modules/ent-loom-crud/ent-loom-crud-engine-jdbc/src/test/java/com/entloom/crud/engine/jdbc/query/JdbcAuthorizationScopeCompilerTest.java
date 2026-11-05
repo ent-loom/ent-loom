@@ -1,6 +1,7 @@
 package com.entloom.crud.engine.jdbc.query;
 
 import com.entloom.crud.api.enums.QueryOperation;
+import com.entloom.crud.api.model.PageRequest;
 import com.entloom.crud.core.capability.query.CompiledQuery;
 import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,6 +81,41 @@ class JdbcAuthorizationScopeCompilerTest {
             assertEquals(Arrays.asList(1L, 3L), ids(connection, query));
             assertEquals(2L, count(connection, query));
         }
+    }
+
+    @Test
+    void 静态SQL的OR分支不能绕过治理范围和逻辑删除且读取与计数一致() throws Exception {
+        AuthorizationScope scope = AuthorizationScope.sqlWhere("school_id = 1 OR school_id IN (2, 3)");
+        try (Connection connection = database()) {
+            for (QueryOperation operation : Arrays.asList(QueryOperation.LIST, QueryOperation.PAGE,
+                    QueryOperation.FIND_ONE, QueryOperation.DETAIL)) {
+                QuerySpec<OrderTestEntity> spec = QuerySpec.<OrderTestEntity>builder()
+                    .rootType(OrderTestEntity.class).resultType(OrderTestEntity.class)
+                    .op(operation).page(new PageRequest(1, 10)).limit(10).selectFields(Collections.singletonList("id")).build();
+                QueryPlan plan = new QueryPlan(spec, orderMeta, RelationGraph.empty(), QueryStrategy.ROOT_FIRST,
+                    operation, CrudDataScope.scoped(Map.<String, Object>of("tenantId", "A")), spec.getFilters());
+                CompiledQuery query = compiler.compileAuthorized(plan, scope);
+                assertTrue(query.getDataSql().contains("(school_id = 1 OR school_id IN (2, 3))"));
+                assertEquals(2L, count(connection, query));
+                for (Long id : ids(connection, query)) assertTrue(Arrays.asList(1L, 3L).contains(id));
+                if (operation == QueryOperation.LIST) assertEquals(Arrays.asList(1L, 3L), ids(connection, query));
+            }
+        }
+    }
+
+    @Test
+    void 静态SQL保留原文并可与结构化范围收窄但不能用于写入() throws Exception {
+        AuthorizationScope scope = AuthorizationScope.intersect(
+            AuthorizationScope.equal("tenantId", "A"),
+            AuthorizationScope.sqlWhere("school_id IN (1, 2) AND tenant_id = 'A'"));
+        try (Connection connection = database()) {
+            CompiledQuery query = compiler.compileAuthorized(plan(), scope);
+            assertEquals(Arrays.asList(1L, 3L), ids(connection, query));
+            assertEquals(2L, count(connection, query));
+        }
+        assertThrows(DataScopeDeniedException.class, () -> new JdbcAuthorizationScopeCompiler().compile(
+            scope, orderMeta, StandardJdbcDialect.GENERIC));
+        assertThrows(IllegalArgumentException.class, () -> AuthorizationScope.sqlWhere("  "));
     }
 
     @Test

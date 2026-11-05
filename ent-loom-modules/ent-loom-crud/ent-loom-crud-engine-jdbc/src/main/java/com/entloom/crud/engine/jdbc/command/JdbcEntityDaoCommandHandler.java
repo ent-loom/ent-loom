@@ -3,6 +3,7 @@ package com.entloom.crud.engine.jdbc.command;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.api.model.EntityWriteResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.command.handler.CrudCommandHandler;
 import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
@@ -470,6 +471,7 @@ public final class JdbcEntityDaoCommandHandler<P, R> implements CrudCommandHandl
         if (spec.getResultType() == Void.class) {
             return null;
         }
+        if (spec.getResultType() == EntityWriteResult.class) return (R) new EntityWriteResult<Object>(rows, id);
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("rows", rows);
         if (id != null) {

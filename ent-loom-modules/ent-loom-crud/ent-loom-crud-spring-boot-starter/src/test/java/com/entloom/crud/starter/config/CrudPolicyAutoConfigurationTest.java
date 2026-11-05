@@ -19,6 +19,11 @@ import com.entloom.crud.core.capability.dao.EntityType;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
+import com.entloom.crud.core.governance.execution.BusinessQueryExecutor;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditEvent;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditOutcome;
+import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.fact.RelationFactResolver;
@@ -52,6 +57,8 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrudPolicyAutoConfigurationTest {
@@ -106,6 +113,17 @@ class CrudPolicyAutoConfigurationTest {
             .run(context -> assertEquals(AccessDecision.ALLOW, context.getBean(BusinessAuthorizationService.class)
                 .authorize(new AuthorizationRequest(VisitorContext.anonymous("base", null, null),
                     new BusinessOperation("invoice", "view"), "invoice-1")).getDecision()));
+
+        var events = new java.util.ArrayList<CrudGovernanceAuditEvent>();
+        configured.withBean(CrudGovernanceAuditRecorder.class, () -> events::add).run(context -> {
+            assertEquals(1, context.getBeansOfType(BusinessQueryExecutor.class).size());
+            assertThrows(PermissionDeniedException.class, () -> context.getBean(BusinessQueryExecutor.class).execute(
+                new AuthorizationRequest(VisitorContext.anonymous("base", null, null),
+                    new BusinessOperation("invoice", "view"), null),
+                result -> fail("拒绝时不能准备查询"), plan -> fail("拒绝时不能执行查询")));
+            assertEquals(1, events.size());
+            assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED, events.get(0).getOutcome());
+        });
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.example.minicommerce.order.service;
+package com.example.minicommerce.order.service.command;
 
 import com.entloom.crud.api.access.AuthorizationRequest;
 import com.entloom.crud.api.access.BusinessOperation;
@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
-class CommerceOrderServiceTest {
+class CommerceOrderCommandServiceTest {
     @Test
     void 拒绝其他实体资源和操作() {
         var access = mock(AuthorizedActionContext.class);
@@ -20,7 +20,7 @@ class CommerceOrderServiceTest {
         when(access.authorization()).thenReturn(result);
         when(result.getRequest()).thenReturn(request);
         when(request.getOperation()).thenReturn(new BusinessOperation("commerceOrder", "cancel"));
-        var service = new CommerceOrderService(null, null, null, null);
+        var service = new CommerceOrderCommandService(null, null, null, null);
         assertThrows(PermissionDeniedException.class, () -> service.place(access, null));
         when(request.getOperation()).thenReturn(new BusinessOperation("other", "cancel"));
         assertThrows(PermissionDeniedException.class, () -> service.cancel(access, 1L));

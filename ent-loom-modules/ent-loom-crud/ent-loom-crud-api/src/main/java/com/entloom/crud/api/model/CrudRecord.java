@@ -13,7 +13,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 通用 CRUD 记录模型。
+ * 动态字段投影记录，供通用 HTTP、统计、导出及低阶执行使用。
+ * 普通 Java 业务查询优先使用实体，固定投影使用明确 DTO。
  */
 public class CrudRecord {
     private final Map<String, Object> values;

@@ -25,7 +25,11 @@ class CrudGrantPoliciesTest {
         assertArrayEquals(new String[] {"id", "name"}, declarations[0].fields()[0].value());
         assertArrayEquals(new String[] {"id"}, declarations[1].fields()[0].value());
         assertArrayEquals(new String[] {"view"}, declarations[1].actions());
-        assertFalse(declarations[1].inheritFields());
+        assertEquals("active = true", declarations[1].where());
+        patch.setWhere("active = true AND status IN ('ON_SALE', 'PRE_SALE')");
+        assertEquals(patch.getWhere(), CrudGrantPolicies.resolve(entities(), properties).get(Product.class)[1].where());
+        patch.setWhere("");
+        assertEquals("", CrudGrantPolicies.resolve(entities(), properties).get(Product.class)[1].where());
         patch.setActions(List.of());
         assertEquals(0, CrudGrantPolicies.resolve(entities(), properties).get(Product.class)[1].actions().length);
     }
@@ -47,6 +51,8 @@ class CrudGrantPoliciesTest {
         var grant = new CrudGrantPolicies.Grant();
         grant.setIdentities(List.of("public", "customer"));
         grant.setActions(List.of("view"));
+        grant.setScope(com.entloom.crud.annotations.EntCrudGrantScope.ALL);
+        grant.setWhere("active = true");
         grant.setFields(List.of("id", "name"));
         var policy = new CrudGrantPolicies.Policy();
         policy.setGrants(List.of(grant));

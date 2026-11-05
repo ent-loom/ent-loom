@@ -2,7 +2,7 @@ package com.entloom.crud.engine.jdbc.security;
 
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.SortTarget;
-import com.entloom.crud.api.model.CrudRecord;
+import com.entloom.crud.core.capability.command.patch.DefaultCommandPayloadBinder;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.exception.ValidationException;
@@ -19,8 +19,8 @@ import com.entloom.crud.core.runtime.spec.FilterableSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.util.ClassUtils;
 
 /**
  * SQL 标识符白名单校验器。
@@ -96,6 +96,14 @@ public class SqlIdentifierAllowlistValidator {
      */
     public void validateCommandSpec(CommandSpec<?> spec) {
         EntityMeta rootMeta = metaRegistry.getEntityMeta(spec.getRootType());
+        if (spec.getIdType() != null) {
+            EntityFieldMeta id = rootMeta == null ? null : rootMeta.resolveFieldMeta(rootMeta.getIdField());
+            if (id == null || id.getJavaType() == null
+                || ClassUtils.resolvePrimitiveIfNecessary(id.getJavaType())
+                    != ClassUtils.resolvePrimitiveIfNecessary(spec.getIdType())) {
+                throw new ValidationException("EntityType 主键类型与元数据不一致: " + spec.getRootType().getName());
+            }
+        }
         RelationGraph relationGraph = metaRegistry.getRelationGraph(spec.getRootType());
         if (isExplicitBatchOperation(spec.getOp())) {
             validateBatchPayload(rootMeta, relationGraph, spec.getPayload());
@@ -140,7 +148,7 @@ public class SqlIdentifierAllowlistValidator {
             WriteCommand<?> command = (WriteCommand<?>) payload;
             Map<String, Object> mapPayload = convertPayloadToMap(command.getValues());
             if (command.getValues() != null && mapPayload == null) {
-                throw new ValidationException("写入字段值必须是 Map 或 CrudRecord");
+                throw new ValidationException("写入字段值必须是实体、DTO、UpdatePatch 或字段映射");
             }
             if (mapPayload != null) {
                 validatePayloadFields(rootMeta, mapPayload, false);
@@ -155,7 +163,7 @@ public class SqlIdentifierAllowlistValidator {
         }
         Map<String, Object> mapPayload = convertPayloadToMap(payload);
         if (payload != null && mapPayload == null) {
-            throw new ValidationException("命令载荷必须是 Map、CrudRecord 或 WriteCommand");
+            throw new ValidationException("命令载荷必须是实体、DTO、UpdatePatch 或字段映射");
         }
         if (mapPayload != null) {
             validatePayloadFields(rootMeta, mapPayload, false);
@@ -178,17 +186,7 @@ public class SqlIdentifierAllowlistValidator {
     }
 
     private Map<String, Object> convertPayloadToMap(Object payload) {
-        if (payload instanceof CrudRecord) {
-            return ((CrudRecord) payload).asMap();
-        }
-        if (!(payload instanceof Map<?, ?>)) {
-            return null;
-        }
-        LinkedHashMap<String, Object> result = new LinkedHashMap<String, Object>();
-        for (Map.Entry<?, ?> entry : ((Map<?, ?>) payload).entrySet()) {
-            result.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-        return result;
+        return payload == null ? null : new DefaultCommandPayloadBinder().bindFieldMap(payload, null);
     }
 
     /**

@@ -34,16 +34,23 @@ public class Student {
     private Integer age;
 
     @EntField("班级")
-    @EntRelation(targetEntity = "class", targetField = "id")
+    @EntRelation(SchoolClass.class)
     private Long classId;
+}
+
+@EntEntity(value = "班级", entity = "class")
+class SchoolClass {
+    private Long id;
 }
 ```
 
 `entity` 可省略，默认使用类简单名的小驼峰形式：`Student → student`、`OrderItem → orderItem`、`URLValue → urlValue`。显式指定的标识优先；若需保持标识不随类重命名变化，请显式填写 `entity`。实体标识与数据库表名分别推断，表名仍由 `table` 覆盖。
 
-`class` 是目标实体标识；`sourceField` 省略时取当前字段名 `classId`。此处只声明关系，实际使用时还需定义目标班级实体，并按消费组件要求注册。声明关系本身不会执行 JOIN 或加载班级数据。
+`value` 指定目标实体类，例如 `@EntRelation(SchoolClass.class)`；同时指定其他参数时使用 `@EntRelation(value = SchoolClass.class, targetField = "code")`，目标类须实际具有该字段。框架复用目标类的 `@EntEntity` 解析实体标识与所属服务，因此本例的目标标识是 `class`。`sourceField` 省略时取当前字段名 `classId`。类引用不会自动注册目标实体，实际使用时仍须按消费组件要求注册。声明关系本身不会执行 JOIN 或加载班级数据。
 
-外键关系优先声明在 ID 属性上。若同时存在 `customerId` 和 `Customer customer`，在 `customerId` 上声明 `@EntRelation(targetEntity = "customer")` 即可；CRUD 按名称与目标类型绑定 `customer`，无需重复关系注解。只有 ID 时关系仍成立；集合属性可结合泛型与唯一反向多对一关系自动补全映射，歧义时才显式配置。映射不触发加载或授权。完整边界见 [Meta 优先指南](Meta优先指南.md)。
+无本地实体类的关系使用显式标识，例如 `@EntRelation(targetEntity = "product", targetService = "catalog-service")`。`value` 与 `targetEntity` 互斥，同时声明即报错；类引用的 `targetService` 默认来自目标实体的 `service`，未声明时复用应用级默认服务。显式指定服务时必须与已解析的目标服务一致。类引用的目标须声明 `@EntEntity`；实体注册、关联字段和导航类型等校验继续由消费组件负责。
+
+外键关系优先声明在 ID 属性上。若同时存在 `customerId` 和 `Customer customer`，在 `customerId` 上声明 `@EntRelation(Customer.class)` 即可；CRUD 按名称与目标类型绑定 `customer`，无需重复关系注解。只有 ID 时关系仍成立；集合属性可结合泛型与唯一反向多对一关系自动补全映射，歧义时才显式配置。映射不触发加载或授权。完整边界见 [Meta 优先指南](Meta优先指南.md)。
 
 ## Meta 与组件的分工
 

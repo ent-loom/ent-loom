@@ -10,6 +10,7 @@ import com.entloom.crud.starter.web.controller.EntCrudImportController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
 import com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -46,7 +47,7 @@ class CrudHttpContractSnapshotTest {
             MvcResult result = buildMockMvc(context)
                 .perform(post("/api/ent-crud/TestOrderEntity/create")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-snapshot-success\"},\"payload\":{\"id\":1001,\"orderNo\":\"ORD-SNAPSHOT\",\"deleted\":0}}"))
+                    .content("{\"options\":{},\"payload\":{\"id\":1001,\"orderNo\":\"ORD-SNAPSHOT\",\"deleted\":0}}"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -61,7 +62,7 @@ class CrudHttpContractSnapshotTest {
             MvcResult result = buildMockMvc(context)
                 .perform(post("/api/ent-crud/TestOrderEntity/page")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"page\":1,\"limit\":2,\"requestId\":\"req-snapshot-failure\",\"resultMode\":\"DTO\"}}"))
+                    .content("{\"options\":{\"page\":1,\"limit\":2,\"resultMode\":\"DTO\"}}"))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -92,6 +93,14 @@ class CrudHttpContractSnapshotTest {
             Assertions.assertNotNull(input, "缺少 JSON snapshot: " + resource);
             String expectedJson = new String(input.readAllBytes(), StandardCharsets.UTF_8);
             JsonNode expected = objectMapper.readTree(expectedJson);
+            String requestId = actual.path("requestId").asText();
+            Assertions.assertFalse(requestId.isBlank());
+            ((com.fasterxml.jackson.databind.node.ObjectNode) actual).put("requestId", expected.path("requestId").asText());
+            if (actual.hasNonNull("error")) {
+                Assertions.assertEquals(requestId, actual.path("error").path("requestId").asText());
+                ((com.fasterxml.jackson.databind.node.ObjectNode) actual.path("error"))
+                    .put("requestId", expected.path("error").path("requestId").asText());
+            }
             Assertions.assertEquals(expected, actual, "JSON snapshot 不一致: " + resource);
         }
     }
@@ -105,8 +114,9 @@ class CrudHttpContractSnapshotTest {
                 context.getBean(EntCrudImportController.class),
                 context.getBean(EntCrudExportController.class)
             )
-            .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class))
+            .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class), context.getBean(CrudResponseContextAdvice.class))
             .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+            .addFilters(new com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter())
             .build();
     }
 }

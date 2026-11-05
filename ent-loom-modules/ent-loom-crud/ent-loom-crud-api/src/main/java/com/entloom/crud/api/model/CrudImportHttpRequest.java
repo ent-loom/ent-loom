@@ -17,7 +17,6 @@ import lombok.Setter;
 @Setter
 public class CrudImportHttpRequest {
     private List<String> entityCodes = new ArrayList<String>();
-    private String requestId;
     private String format = "excel-xlsx";
     private String mode = "UPSERT";
     private String sourceFileId;

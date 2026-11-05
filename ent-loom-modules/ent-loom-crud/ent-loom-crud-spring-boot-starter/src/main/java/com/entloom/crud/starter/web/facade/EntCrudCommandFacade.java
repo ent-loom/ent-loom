@@ -14,7 +14,7 @@ import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.starter.web.assembler.CrudCommandSpecAssembler;
 import com.entloom.crud.starter.web.dto.CrudCommandHttpRequest;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContext;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,7 +25,6 @@ public class EntCrudCommandFacade {
     private final CommandGateway commandGateway;
     private final CrudSubjectResolver subjectResolver;
     private final CrudCommandSpecAssembler commandSpecAssembler;
-    private final CrudResponseBuilder crudResponseBuilder;
 
     public CrudResponse<?> create(String entity, String scene, CrudCommandHttpRequest request, CrudInvocationContext context) {
         return action(CommandOperation.CREATE, entity, scene, request, context);
@@ -65,8 +64,9 @@ public class EntCrudCommandFacade {
 
     private CrudResponse<?> action(CommandOperation op, String entity, String scene, CrudCommandHttpRequest request, CrudInvocationContext context) {
         CrudCommandHttpRequest actualRequest = request == null ? new CrudCommandHttpRequest() : request;
-        crudResponseBuilder.bind(commandSpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(op));
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(op);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
             SubjectContext subject = AccessContextScope.isAuthorizationRequired() ? null : subjectResolver.resolveOrThrow();
             CommandSpec<Object> spec = commandSpecAssembler.assemble(
                 entity,
@@ -76,12 +76,13 @@ public class EntCrudCommandFacade {
                 subject
             );
             return adapt(commandGateway.action(spec));
-        });
+        }));
     }
 
     private <T> T withContext(CrudInvocationContext context, java.util.function.Supplier<T> supplier) {
         CrudInvocationContext actualContext = context == null ? CrudInvocationContext.empty() : context;
-        return CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier);
+        return CrudHttpRequestContext.trackOperationFailure(
+            () -> CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier));
     }
 
     @SuppressWarnings("unchecked")
@@ -96,7 +97,7 @@ public class EntCrudCommandFacade {
             if (data instanceof java.util.Map<?, ?>) {
                 data = CrudRecord.copyOf((java.util.Map<String, Object>) data);
             }
-            return crudResponseBuilder.respond(
+            return CrudResponse.of(
                 commandResult.isSuccess(),
                 commandResult.getCode() == null ? "OK" : commandResult.getCode(),
                 commandResult.getMessage() == null ? "OK" : commandResult.getMessage(),
@@ -105,8 +106,8 @@ public class EntCrudCommandFacade {
             );
         }
         if (result instanceof java.util.Map<?, ?>) {
-            return crudResponseBuilder.success(CrudRecord.copyOf((java.util.Map<String, Object>) result));
+            return CrudResponse.success(CrudRecord.copyOf((java.util.Map<String, Object>) result));
         }
-        return crudResponseBuilder.success(result);
+        return CrudResponse.success(result);
     }
 }

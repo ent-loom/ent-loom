@@ -7,6 +7,7 @@ import com.entloom.crud.api.access.AuthenticationMode;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CrudRecord;
+import com.entloom.crud.api.model.CrudResponse;
 import com.entloom.crud.api.model.PageRequest;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
@@ -32,6 +33,7 @@ import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.config.CrudPolicyAutoConfiguration;
 import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
 import com.entloom.crud.starter.support.TestOrderEntity;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +71,36 @@ class AccessAuthorizedQueryIntegrationTest {
         .withConfiguration(AutoConfigurations.of(CrudAutoConfiguration.class,
             CrudPolicyAutoConfiguration.class, CrudAccessWebAutoConfiguration.class))
         .withUserConfiguration(StarterJdbcTestSupportConfiguration.class, ProjectConfiguration.class);
+
+    @Test
+    void 业务控制器的静态响应由自动配置补充请求标识() {
+        runner.run(context -> mvc(context.getSourceApplicationContext()).perform(get("/authorized/response"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value("ok"))
+            .andExpect(jsonPath("$.requestId").isNotEmpty()));
+    }
+
+    @Test
+    void 自定义响应增强同时作用于MVC和认证过滤器() {
+        runner.withBean(CrudResponseEnhancer.class, () -> new CrudResponseEnhancer() {
+            @Override
+            public <T> CrudResponse<T> enhance(CrudResponse<T> response) {
+                super.enhance(response);
+                response.getMeta().put("source", "custom");
+                return response;
+            }
+        }).run(context -> {
+            MockMvc mvc = mvc(context.getSourceApplicationContext());
+            mvc.perform(get("/authorized/response"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
+                .andExpect(jsonPath("$.meta.source").value("custom"));
+            mvc.perform(get("/authorized/response").header("Authorization", "Bearer invalid"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
+                .andExpect(jsonPath("$.meta.source").value("custom"));
+        });
+    }
 
     @Test
     void mvc_gateway_should_apply_scope_projection_and_count_and_record_real_success() {
@@ -131,6 +163,7 @@ class AccessAuthorizedQueryIntegrationTest {
 
     private static MockMvc mvc(org.springframework.web.context.WebApplicationContext context) {
         return MockMvcBuilders.webAppContextSetup(context)
+            .addFilters(context.getBean("crudHttpRequestContextFilter", FilterRegistrationBean.class).getFilter())
             .addFilters(context.getBean("crudAccessAuthenticationFilter", FilterRegistrationBean.class).getFilter()).build();
     }
 
@@ -146,7 +179,9 @@ class AccessAuthorizedQueryIntegrationTest {
         @Bean State state() { return new State(); }
         @Bean CrudGovernanceAuditRecorder audit(State state) { return state.events::add; }
         @Bean CrudHttpAuthenticationSource authentication() {
-            return request -> new HttpAccessAuthentication(credentials(), "trusted-entry", "request-1", "trace-1");
+            return request -> new HttpAccessAuthentication(
+                "Bearer invalid".equals(request.getHeader("Authorization"))
+                    ? CredentialAuthentication.invalid() : credentials(), "trusted-entry");
         }
         @Bean EntityPolicyTemplate template() {
             return new EntityPolicyTemplate("order-read", "Project#orderRead", Collections.singletonList(
@@ -193,6 +228,7 @@ class AccessAuthorizedQueryIntegrationTest {
             return QuerySpec.<CrudRecord>builder().rootType(TestOrderEntity.class).resultType(CrudRecord.class).build();
         }
         @GetMapping("/authorized/list") List<CrudRecord> list() { return gateway.list(query()); }
+        @GetMapping("/authorized/response") CrudResponse<String> response() { return CrudResponse.success("ok"); }
         @GetMapping("/authorized/page") PageResult<CrudRecord> page() {
             return gateway.page(query().toBuilder().page(new PageRequest(1, 1)).build());
         }

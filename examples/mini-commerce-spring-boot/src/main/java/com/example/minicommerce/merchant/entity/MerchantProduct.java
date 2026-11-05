@@ -19,8 +19,7 @@ import lombok.Setter;
 /** 商家自己的可售商品；商品名称、价格和状态均由商家独立维护。 */
 @EntEntity("商家商品")
 @EntCrudGrant(identities = "merchant", actions = {"view", "create", "update", "delete", "batch-update"})
-@EntCrudGrant(identities = {"public", "customer"}, actions = "view", scope = EntCrudGrantScope.EQUAL,
-    scopeField = "active", scopeValue = "true", inheritFields = false,
+@EntCrudGrant(identities = {"public", "customer"}, actions = "view", scope = EntCrudGrantScope.ALL, where = "active = true",
     fields = @EntCrudGrant.Fields({"id", "merchantId", "name", "price"}))
 @EntCrudEntity(
     addActions = "batch-update",
@@ -40,7 +39,7 @@ public class MerchantProduct {
     private Long id;
 
     @EntField("商家 ID")
-    @EntRelation(targetEntity = "merchant")
+    @EntRelation(Merchant.class)
     private Long merchantId;
 
     @EntField("商品名称")

@@ -26,6 +26,7 @@ public final class MetaDescriptorProperties {
     public static final String SOURCE_FIELD = "sourceField";
     public static final String TARGET_SERVICE = "targetService";
     public static final String TARGET_ENTITY = "targetEntity";
+    public static final String TARGET_CLASS = "targetClass";
     public static final String TARGET_FIELD = "targetField";
     public static final String CARDINALITY = "cardinality";
     public static final String OWNER_SIDE = "ownerSide";

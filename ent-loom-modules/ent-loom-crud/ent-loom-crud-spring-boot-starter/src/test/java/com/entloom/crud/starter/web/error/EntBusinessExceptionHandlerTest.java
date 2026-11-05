@@ -2,7 +2,9 @@ package com.entloom.crud.starter.web.error;
 
 import com.entloom.crud.starter.web.controller.EntCrudCommandController;
 import com.entloom.crud.starter.web.facade.EntCrudCommandFacade;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -48,15 +50,17 @@ class EntBusinessExceptionHandlerTest {
     private void assertResponse(RuntimeException error, int expectedStatus, String expectedCode) throws Exception {
         EntCrudCommandFacade facade = mock(EntCrudCommandFacade.class);
         when(facade.action(any(), any(), any(), any())).thenThrow(error);
-        CrudResponseBuilder responseBuilder = new CrudResponseBuilder();
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new EntCrudCommandController(facade))
-            .setControllerAdvice(new CrudHttpExceptionTranslator(responseBuilder),
-                new EntBusinessExceptionHandler(responseBuilder))
+            .setControllerAdvice(new CrudHttpExceptionTranslator(), new EntBusinessExceptionHandler(),
+                new CrudResponseContextAdvice(new CrudResponseEnhancer()))
+            .addFilters(new CrudHttpRequestContextFilter())
             .build();
 
         mvc.perform(post("/api/ent-crud/order/action/place")
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().is(expectedStatus))
-            .andExpect(jsonPath("$.code").value(expectedCode));
+            .andExpect(jsonPath("$.code").value(expectedCode))
+            .andExpect(jsonPath("$.requestId").isNotEmpty())
+            .andExpect(jsonPath("$.error.requestId").value(org.hamcrest.Matchers.notNullValue()));
     }
 }

@@ -134,6 +134,36 @@ class MerchantProductUpdateIntegrationTest {
     }
 
     @Test
+    void 仅用实体声明完成商品创建校验归属填充和版本初始化() throws Exception {
+        String created = mvc.perform(post("/api/ent-crud/merchantProduct/create")
+                .header("Authorization", "Bearer demo-merchant-a").header("X-Merchant-Id", "2001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"name\":\"新商品\",\"price\":18.5,\"active\":true}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.rows").value(1))
+            .andExpect(jsonPath("$.data.id").isNumber()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) com.jayway.jsonpath.JsonPath.read(created, "$.data.id")).longValue();
+        assertRow(id, "18.500000", 0L, 1001L);
+        mvc.perform(post("/api/ent-crud/merchantProduct/update").header("Authorization", "Bearer demo-merchant-a")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":" + id + ",\"active\":false,\"version\":0}}"))
+            .andExpect(status().isOk());
+        assertRow(id, "18.500000", 1L, 1001L);
+        mvc.perform(post("/api/ent-crud/merchantProduct/detail").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":" + id + "}"))
+            .andExpect(status().isNotFound());
+        for (String payload : new String[] {
+            "{\"name\":\"非法价格\",\"price\":0,\"active\":true}",
+            "{\"name\":\"缺少价格\",\"active\":true}",
+            "{\"name\":\"小数超限\",\"price\":1.1234567,\"active\":true}"
+        }) {
+            mvc.perform(post("/api/ent-crud/merchantProduct/create").header("Authorization", "Bearer demo-merchant-a")
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":" + payload + "}"))
+                .andExpect(status().isBadRequest());
+        }
+        assertEquals(4, jdbc.queryForObject("select count(*) from merchant_product", Integer.class));
+    }
+
+    @Test
     void 两条商品改价后分别递增版本且归属不变() throws Exception {
         update("""
             {"items":[{"id":101,"price":11.5,"version":0},{"id":102,"price":22,"version":0}]}

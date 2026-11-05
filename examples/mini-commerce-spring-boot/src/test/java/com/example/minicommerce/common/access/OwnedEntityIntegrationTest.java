@@ -8,7 +8,6 @@ import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.enums.AccessDecision;
-import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.exception.PermissionDeniedException;
@@ -21,7 +20,7 @@ import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.CommerceOrder;
 import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
-import com.example.minicommerce.merchant.entity.MerchantWxConfig;
+import com.example.minicommerce.merchant.entity.MerchantWxSetting;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,19 +101,18 @@ class OwnedEntityIntegrationTest {
     void 会员等级按用户与商家分别限制读取范围() {
         var customerA = visitor("customer", "customer-user-a", "301", "consumer");
         var customerB = visitor("customer", "customer-user-b", "302", "consumer");
-        assertEquals(List.of(301L), list(CustomerLevel.class, customerA).stream().map(row -> row.longValue("customerId")).toList());
-        assertEquals(List.of(302L), list(CustomerLevel.class, customerB).stream().map(row -> row.longValue("customerId")).toList());
+        assertEquals(List.of(301L), list(CustomerLevel.class, customerA).stream().map(CustomerLevel::getCustomerId).toList());
+        assertEquals(List.of(302L), list(CustomerLevel.class, customerB).stream().map(CustomerLevel::getCustomerId).toList());
         assertEquals(List.of(1001L), list(CustomerLevel.class,
             visitor("merchant", "merchant-user-a", "1001", "merchant")).stream()
-            .map(row -> row.longValue("merchantId")).toList());
+            .map(CustomerLevel::getMerchantId).toList());
     }
 
     @Test
-    void 内部文章与微信配置不向商家和客户开放独立授权查询() {
+    void 内部微信设置不向商家和客户开放独立授权查询() {
         var merchantA = visitor("merchant", "merchant-user-a", "1001", "merchant");
         var customerA = visitor("customer", "customer-user-a", "301", "consumer");
-        for (Class<?> type : List.of(MerchantArticle.class,
-                MerchantWxConfig.class)) {
+        for (Class<?> type : List.of(MerchantWxSetting.class)) {
             assertThrows(PermissionDeniedException.class, () -> list(type, merchantA));
             assertThrows(PermissionDeniedException.class, () -> list(type, customerA));
             String resource = entityMetaRegistry.getEntityMeta(type).getResourceDescriptor().getResourceCode();
@@ -124,7 +122,7 @@ class OwnedEntityIntegrationTest {
                         new AuthorizationRequest(deniedVisitor, new BusinessOperation(resource, action), null)));
                 }
             }
-            // 验证授权结果，无需为内部微信配置额外创建测试表。
+            // 验证授权结果，无需为内部微信设置额外创建测试表。
             var admin = visitor("super-admin", "platform-admin", "1", "consumer");
             for (String action : List.of("view", "create", "update", "delete")) {
                 assertEquals(AccessDecision.ALLOW, authorization.authorize(new AuthorizationRequest(
@@ -224,8 +222,8 @@ class OwnedEntityIntegrationTest {
         return VisitorContext.authenticated(subject, businessIdentityRegistry.resolve(subject, code, identityId), entry, null, null);
     }
 
-    private List<CrudRecord> list(Class<?> entity, VisitorContext visitor) {
-        return authorizedQueryExecutor.list(visitor, QuerySpec.<CrudRecord>builder().rootType(entity).resultType(CrudRecord.class)
+    private <T> List<T> list(Class<T> entity, VisitorContext visitor) {
+        return authorizedQueryExecutor.list(visitor, QuerySpec.builder(entity)
             .op(QueryOperation.LIST).limit(20).build());
     }
 }

@@ -3,10 +3,9 @@ package com.example.minicommerce.order.entity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.crud.annotations.EntCrudEntity;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
+import com.example.minicommerce.merchant.entity.MerchantProduct;
 import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,16 +21,15 @@ import lombok.Setter;
 public class CommerceOrderItem {
     /** 明细主键，由数据库自增生成。 */
     @EntField("明细 ID")
-    @TableId(type = IdType.AUTO)
     private Long id;
 
     /** 由下单 Handler 保存订单后显式填充。 */
     @EntField("订单 ID")
-    @EntRelation(targetEntity = "commerceOrder")
+    @EntRelation(CommerceOrder.class)
     private Long orderId;
 
     @EntField("商家商品 ID")
-    @EntRelation(targetEntity = "merchantProduct")
+    @EntRelation(MerchantProduct.class)
     private Long merchantProductId;
 
     /** 下单时的商品名称快照，不随商家商品变化。 */

@@ -54,7 +54,7 @@ import java.util.Collections;
 /**
  * 普通根实体 LIST/PAGE/FIND_ONE/DETAIL 的按次授权执行入口，调用方显式传入可信访问者。
  * 授权结果只在本次调用内消费；不接受外部结果，也不经过可替换的旧路由和查询组件。
- * 输出仅支持 CrudRecord，可按父资源 EXPAND 授权加载本地一级关系；实体/DTO、场景及时间简写仍拒绝。
+ * 普通业务返回实体或 DTO，动态投影显式使用 CrudRecord / Map；支持父资源授权的本地一级关系。
  */
 public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecutor {
     private final QueryDefaultSortResolver defaultSortResolver;
@@ -65,6 +65,7 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     private final JdbcQueryExecutor executor;
     private final CrudGovernanceAuditRecorder audit;
     private final JdbcAuthorizedRelationReader relations;
+    private final JdbcTypedProjection projection;
     private final QuerySpecValidator validator = new QuerySpecValidator();
     private final RootFirstQueryPlanner planner = new RootFirstQueryPlanner();
 
@@ -79,29 +80,34 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         this.executor = new JdbcQueryExecutor(Objects.requireNonNull(sqlExecutor, "SQL 执行器不能为空"), entities);
         this.audit = Objects.requireNonNull(audit, "治理审计记录器不能为空");
         this.relations = new JdbcAuthorizedRelationReader(entities, sqlGuard, compiler, executor);
+        this.projection = new JdbcTypedProjection(entities);
     }
 
     @Override
-    public List<CrudRecord> list(VisitorContext visitor, QuerySpec<?> spec) {
+    public <R> List<R> list(VisitorContext visitor, QuerySpec<R> spec) {
         return execute(visitor, spec, QueryOperation.LIST, (query, invocation) ->
-            project(executor.executeList(query, CrudRecord.class), invocation));
+            project(executor.executeList(query, CrudRecord.class), invocation, spec.getResultType()));
     }
 
     @Override
-    public PageResult<CrudRecord> page(VisitorContext visitor, QuerySpec<?> spec) {
+    public <R> PageResult<R> page(VisitorContext visitor, QuerySpec<R> spec) {
         return execute(visitor, spec, QueryOperation.PAGE, (query, invocation) -> {
             PageResult<CrudRecord> result = executor.executePage(query, CrudRecord.class);
-            result.setItems(project(result.getItems(), invocation));
-            return result;
+            List<R> items = project(result.getItems(), invocation, spec.getResultType());
+            PageResult<R> page = result.isTotalKnown()
+                ? new PageResult<>(items, result.getTotal(), result.getPage(), result.getLimit())
+                : PageResult.withoutTotal(items, result.getPage(), result.getLimit(), Boolean.TRUE.equals(result.getHasNext()));
+            page.setHasNext(result.getHasNext());
+            return page;
         });
     }
 
     @Override
-    public CrudRecord findOne(VisitorContext visitor, QuerySpec<?> spec) {
+    public <R> R findOne(VisitorContext visitor, QuerySpec<R> spec) {
         try {
             return execute(visitor, spec, QueryOperation.FIND_ONE, (query, invocation) -> {
                 CrudRecord row = executor.executeFindOne(query, CrudRecord.class);
-                return row == null ? null : project(Collections.singletonList(row), invocation).get(0);
+                return row == null ? null : project(Collections.singletonList(row), invocation, spec.getResultType()).get(0);
             });
         } catch (TargetInaccessibleException inaccessible) {
             return null;
@@ -109,9 +115,9 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     }
 
     @Override
-    public CrudRecord detail(VisitorContext visitor, QuerySpec<?> spec) {
+    public <R> R detail(VisitorContext visitor, QuerySpec<R> spec) {
         return execute(visitor, spec, QueryOperation.DETAIL, (query, invocation) ->
-            project(Collections.singletonList(executor.executeOne(query, CrudRecord.class)), invocation).get(0));
+            project(Collections.singletonList(executor.executeOne(query, CrudRecord.class)), invocation, spec.getResultType()).get(0));
     }
 
     private <T> T execute(VisitorContext visitor, QuerySpec<?> source, QueryOperation operation,
@@ -186,6 +192,7 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         }
         invocation.returned = selected;
         invocation.relations = relations.prepare(meta, effective.getExpandRelations(), result.getFields());
+        projection.validate(spec.getResultType(), meta, selected, invocation.relations);
         LinkedHashSet<String> fetched = new LinkedHashSet<String>(selected);
         for (JdbcAuthorizedRelationReader.Projection relation : invocation.relations) fetched.add(relation.edge.getFromField());
         effective = effective.toBuilder().selectFields(new ArrayList<String>(fetched))
@@ -215,7 +222,8 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         AccessSubject auditSubject = visitor == null ? null : AccessContextScope.currentAdmission()
             .filter(admission -> admission.getVisitorContext() == visitor)
             .flatMap(AccessAdmission::getAuthenticatedSubject).orElse(visitor.getSubject().orElse(null));
-        CrudGovernanceAuditEvent event = CrudGovernanceAuditEvent.forBusinessQuery(visitor, auditSubject, invocation.result, action,
+        CrudGovernanceAuditEvent event = CrudGovernanceAuditEvent.forBusinessQuery(visitor, auditSubject,
+            invocation.result == null ? null : invocation.result.getRequest(), invocation.result, action,
             outcome, reason, (System.nanoTime() - started) / 1_000_000L,
             outcome == CrudGovernanceAuditOutcome.SUCCESS ? null : invocation.stage,
             resource == null ? null : resource + "." + operation.name());
@@ -241,13 +249,13 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
             && spec.getPage().getLimit() > 100) {
             throw new ValidationException("受授权分页每页最多 100 条");
         }
-        if (spec.getResultType() != CrudRecord.class || (spec.getScene() != null && !spec.getScene().trim().isEmpty())
+        if ((spec.getScene() != null && !spec.getScene().trim().isEmpty())
             || spec.getAccessDecision() != AccessDecision.ALLOW
             || spec.getEntityClasses().size() > 1
             || spec.getExistsRelationFilter() != null || spec.getTime() != null || spec.getGrantedScope() != null
             || QueryStrategyResolver.resolveEffectiveStrategy(spec.getHandlerDefaultStrategy(), spec.getStrategy(),
                 QueryStrategy.ROOT_FIRST) != QueryStrategy.ROOT_FIRST) {
-            throw new PermissionDeniedException("受授权 JDBC 查询仅支持普通根实体 CrudRecord 查询");
+            throw new PermissionDeniedException("受授权 JDBC 查询仅支持普通根实体查询");
         }
         // 不把调用方可写的旧主体传给编译与执行阶段。
         return validator.validateStructure(spec.toBuilder().op(operation).subject(null).build());
@@ -296,6 +304,9 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
             requireField(meta, fields, AuthorizationFields.Use.SORT, sort.getField());
         }
         List<String> selected = spec.getSelectFields();
+        if (selected.isEmpty() && !JdbcTypedProjection.dynamic(spec.getResultType())) {
+            selected.addAll(projection.fields(spec.getResultType(), meta));
+        }
         if (selected.isEmpty()) {
             for (String field : meta.getAllowedFields()) {
                 if (!meta.resolveFieldMeta(field).isRelation() && fields.allows(AuthorizationFields.Use.RETURN, field)) {
@@ -322,9 +333,13 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     }
 
     /** 按投影白名单构建输出，并适配 JDBC 驱动的列别名大小写；不暴露额外列。 */
-    private List<CrudRecord> project(List<CrudRecord> rows, Invocation invocation) {
-        return invocation.relations.isEmpty() ? project(rows, invocation.returned)
+    private <R> List<R> project(List<CrudRecord> rows, Invocation invocation, Class<R> type) {
+        List<CrudRecord> records = invocation.relations.isEmpty() ? project(rows, invocation.returned)
             : relations.expand(rows, invocation.returned, invocation.relations);
+        EntityMeta meta = entities.getEntityMeta(invocation.spec.getRootType());
+        List<R> result = new ArrayList<>(records.size());
+        for (CrudRecord row : records) result.add(projection.map(row, type, meta, invocation.relations));
+        return result;
     }
 
     static List<CrudRecord> project(List<CrudRecord> rows, List<String> selected) {

@@ -100,7 +100,6 @@ class ConfiguredExampleAccountsTest {
             request.addHeader("Authorization", "Bearer merchant-a");
             HttpAccessAuthentication authentication = source.authenticate(request);
             assertThat(authentication.getAccessEntry()).isEqualTo("merchant");
-            assertThat(authentication.getRequestId()).isNotBlank();
         });
     }
 
@@ -172,7 +171,7 @@ class ConfiguredExampleAccountsTest {
 
     @Test
     void 自定义认证来源优先且演示关闭时不自动注册() {
-        CrudHttpAuthenticationSource custom = request -> new HttpAccessAuthentication(CredentialAuthentication.absent(), "custom", null, null);
+        CrudHttpAuthenticationSource custom = request -> new HttpAccessAuthentication(CredentialAuthentication.absent(), "custom");
         runner.withBean(CrudHttpAuthenticationSource.class, () -> custom).run(context ->
             assertThat(context.getBean(CrudHttpAuthenticationSource.class)).isSameAs(custom));
         runner.withPropertyValues(PREFIX + "enabled=false").run(context -> {

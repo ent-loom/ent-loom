@@ -3,6 +3,7 @@ package com.entloom.crud.starter.web;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.QueryOperation;
 import com.entloom.crud.api.model.CrudImportHttpRequest;
+import com.entloom.crud.api.model.CrudExportHttpRequest;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.importing.ImportSpec;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionPolicy;
@@ -76,6 +77,19 @@ class SubjectContextPropagationTest {
     }
 
     @Test
+    void import_and_export_cannot_supply_request_identifiers() {
+        CrudImportExportSpecAssembler assembler = new CrudImportExportSpecAssembler(requestSupport());
+        CrudImportHttpRequest importRequest = new CrudImportHttpRequest();
+        importRequest.addExtraField("requestId", "client-id");
+        assertThatThrownBy(() -> assembler.assembleImport("TestOrderEntity", null, importRequest, null))
+            .hasMessageContaining("请求标识由服务端提供");
+        CrudExportHttpRequest exportRequest = new CrudExportHttpRequest();
+        exportRequest.addExtraField("traceId", "client-id");
+        assertThatThrownBy(() -> assembler.assembleExport("TestOrderEntity", null, exportRequest, null))
+            .hasMessageContaining("请求标识由服务端提供");
+    }
+
+    @Test
     void command_spec_should_keep_full_subject_context() {
         CrudCommandSpecAssembler assembler = new CrudCommandSpecAssembler(
             requestSupport(),
@@ -134,11 +148,10 @@ class SubjectContextPropagationTest {
             new ObjectMapper()
         );
         CrudCommandHttpRequest request = new ObjectMapper().readValue(
-            "{\"options\":{\"requestId\":\"req-cmd-1\",\"idempotencyKey\":\"idem-1\",\"expectedVersion\":12,\"dryRun\":true,\"clientTag\":\"web\"}}",
+            "{\"options\":{\"idempotencyKey\":\"idem-1\",\"expectedVersion\":12,\"dryRun\":true,\"clientTag\":\"web\"}}",
             CrudCommandHttpRequest.class
         );
 
-        assertThat(request.getOptions().getRequestId()).isEqualTo("req-cmd-1");
         assertThat(request.getOptions().getIdempotencyKey()).isEqualTo("idem-1");
         assertThat(request.getOptions().getExpectedVersion()).isEqualTo(12L);
         assertThat(request.getOptions().isDryRunEnabled()).isTrue();

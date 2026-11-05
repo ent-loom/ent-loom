@@ -57,6 +57,10 @@ public final class EntRelationEdgeResolver {
                     continue;
                 }
                 Class<?> rootType = entityResolver.resolveEntityClass(relation.targetEntity());
+                if (relation.targetClass() != null && relation.targetClass() != rootType) {
+                    throw new IllegalStateException("关系目标类与已注册实体不一致: "
+                        + childType.getName() + "#" + relation.relationField());
+                }
                 String rootIdField = entityResolver.resolveIdField(rootType);
                 if (rootType == null || isBlank(rootIdField)) {
                     continue;

@@ -23,8 +23,7 @@ public final class CrudGrantPolicies {
         private List<String> actions;
         private EntCrudGrantScope scope;
         private String scopeField;
-        private String scopeValue;
-        private Boolean inheritFields;
+        private String where;
         private List<String> fields;
     }
 
@@ -73,8 +72,7 @@ public final class CrudGrantPolicies {
         merged.actions = patch.actions == null ? base.actions : patch.actions;
         merged.scope = patch.scope == null ? base.scope : patch.scope;
         merged.scopeField = patch.scopeField == null ? base.scopeField : patch.scopeField;
-        merged.scopeValue = patch.scopeValue == null ? base.scopeValue : patch.scopeValue;
-        merged.inheritFields = patch.inheritFields == null ? base.inheritFields : patch.inheritFields;
+        merged.where = patch.where == null ? base.where : patch.where;
         merged.fields = patch.fields == null ? base.fields : patch.fields;
         return merged;
     }
@@ -93,8 +91,7 @@ public final class CrudGrantPolicies {
             public String[] actions() { return grant.actions.toArray(String[]::new); }
             public EntCrudGrantScope scope() { return grant.scope == null ? EntCrudGrantScope.DEFAULT : grant.scope; }
             public String scopeField() { return grant.scopeField == null ? "" : grant.scopeField; }
-            public String scopeValue() { return grant.scopeValue == null ? "" : grant.scopeValue; }
-            public boolean inheritFields() { return grant.inheritFields == null ? grant.fields == null : grant.inheritFields; }
+            public String where() { return grant.where == null ? "" : grant.where; }
             public EntCrudGrant.Fields[] fields() { return fields; }
             public Class<? extends Annotation> annotationType() { return EntCrudGrant.class; }
         };

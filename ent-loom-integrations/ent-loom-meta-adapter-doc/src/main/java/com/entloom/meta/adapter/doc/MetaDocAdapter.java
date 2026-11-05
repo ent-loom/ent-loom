@@ -314,7 +314,8 @@ public class MetaDocAdapter {
                 }
                 DocEntityModel targetModel = resolveTargetModel(relation.targetEntity().value());
                 Class<?> targetClass = targetModel == null ? resolveTargetClass(relation.targetEntity().value()) : targetModel.entityClass();
-                if (targetClass == null) {
+                if (targetClass == null || relation.targetClass().value() != null
+                    && !registeredEntityClasses.containsValue(relation.targetClass().value())) {
                     diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND)
                         .entity(model.resourceCode().value())
                         .entityClass(model.entityClass())
@@ -325,6 +326,9 @@ public class MetaDocAdapter {
                         .message("DOC adapter 解析不到已注册关系目标实体: " + relation.targetEntity().value())
                         .build());
                     continue;
+                }
+                if (relation.targetClass().value() != null) {
+                    targetClass = relation.targetClass().value();
                 }
                 if (!hasField(targetClass, relation.targetField().value())) {
                     diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.RELATION_TARGET_FIELD_NOT_FOUND)
@@ -367,7 +371,8 @@ public class MetaDocAdapter {
         if (relation == null || relation.targetField().explicit() || !"id".equals(relation.targetField().value())) {
             return relation;
         }
-        Class<?> targetClass = resolveTargetClass(relation.targetEntity().value());
+        Class<?> targetClass = relation.targetClass().value() == null
+            ? resolveTargetClass(relation.targetEntity().value()) : relation.targetClass().value();
         if (targetClass == null) {
             return relation;
         }
@@ -379,6 +384,7 @@ public class MetaDocAdapter {
             relation.relationField(),
             relation.targetService(),
             relation.targetEntity(),
+            relation.targetClass(),
             relation.sourceField(),
             SourcedValue.inferred(idField.trim()),
             relation.cardinality(),

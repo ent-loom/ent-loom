@@ -1,18 +1,17 @@
 package com.entloom.crud.core.capability.query.engine;
 
 import com.entloom.crud.api.access.VisitorContext;
-import com.entloom.crud.api.model.CrudRecord;
 import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import java.util.List;
 
-/** 按次授权、受约束执行与审计的查询入口；支持 CrudRecord 与显式授权的一级关联，其他形状必须拒绝。 */
+/** 按次授权的类型化查询入口；普通业务使用实体或 DTO，动态投影显式选择记录类型。 */
 public interface AuthorizedQueryExecutor {
-    List<CrudRecord> list(VisitorContext visitor, QuerySpec<?> spec);
+    <R> List<R> list(VisitorContext visitor, QuerySpec<R> spec);
 
-    PageResult<CrudRecord> page(VisitorContext visitor, QuerySpec<?> spec);
+    <R> PageResult<R> page(VisitorContext visitor, QuerySpec<R> spec);
 
-    CrudRecord findOne(VisitorContext visitor, QuerySpec<?> spec);
+    <R> R findOne(VisitorContext visitor, QuerySpec<R> spec);
 
-    CrudRecord detail(VisitorContext visitor, QuerySpec<?> spec);
+    <R> R detail(VisitorContext visitor, QuerySpec<R> spec);
 }

@@ -10,6 +10,7 @@ import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationProvider;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
+import com.entloom.crud.core.governance.execution.BusinessQueryExecutor;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.authorization.CrudGrantDefaults;
 import com.entloom.crud.core.governance.authorization.CrudGrantRegistry;
@@ -186,6 +187,14 @@ public class CrudPolicyAutoConfiguration {
         BusinessPermissionEvaluator evaluator = (visitor, operation, rule, target) -> grants.governs(operation.getResourceCode())
             ? grants.evaluate(visitor, operation, rule, target) : programmatic.evaluate(visitor, operation, rule, target);
         return new BusinessAuthorizationService(operations, policies, evaluator, facts.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnBean({BusinessAuthorizationService.class, CrudGovernanceAuditRecorder.class})
+    @ConditionalOnMissingBean
+    public BusinessQueryExecutor businessQueryExecutor(BusinessAuthorizationService authorization,
+                                                       CrudGovernanceAuditRecorder audit) {
+        return new BusinessQueryExecutor(authorization, audit);
     }
 
     @Bean

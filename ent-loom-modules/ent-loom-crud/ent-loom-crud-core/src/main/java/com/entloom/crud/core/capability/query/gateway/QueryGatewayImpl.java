@@ -42,10 +42,9 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> PageResult<R> page(QuerySpec<R> spec) {
         if (executionPipeline.requiresBusinessAuthorization(spec)) {
-            return (PageResult<R>) (PageResult<?>) requireAuthorizedQueries().page(
+            return requireAuthorizedQueries().page(
                 AccessContextScope.currentVisitor().orElse(null), spec);
         }
         return executionPipeline.execute(
@@ -60,10 +59,9 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> List<R> list(QuerySpec<R> spec) {
         if (executionPipeline.requiresBusinessAuthorization(spec)) {
-            return (List<R>) (List<?>) requireAuthorizedQueries().list(
+            return requireAuthorizedQueries().list(
                 AccessContextScope.currentVisitor().orElse(null), spec);
         }
         return executionPipeline.execute(
@@ -78,10 +76,9 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> R findOne(QuerySpec<R> spec) {
         if (executionPipeline.requiresBusinessAuthorization(spec)) {
-            return (R) requireAuthorizedQueries().findOne(
+            return requireAuthorizedQueries().findOne(
                 AccessContextScope.currentVisitor().orElse(null), spec);
         }
         return executionPipeline.execute(
@@ -96,10 +93,9 @@ public class QueryGatewayImpl implements QueryGateway {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <R> R detail(QuerySpec<R> spec) {
         if (executionPipeline.requiresBusinessAuthorization(spec)) {
-            return (R) requireAuthorizedQueries().detail(
+            return requireAuthorizedQueries().detail(
                 AccessContextScope.currentVisitor().orElse(null), spec);
         }
         return executionPipeline.execute(

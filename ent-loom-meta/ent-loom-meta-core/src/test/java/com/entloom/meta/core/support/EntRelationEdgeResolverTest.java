@@ -14,6 +14,20 @@ import org.junit.jupiter.api.Test;
 class EntRelationEdgeResolverTest {
 
     @Test
+    void 类引用不能解析为同标识的其他目标类() {
+        EntRelationEdgeResolver resolver = new EntRelationEdgeResolver(new ReflectiveEntMetaParser());
+        FixtureEntityResolver conflictingResolver = new FixtureEntityResolver() {
+            @Override
+            public Class<?> resolveEntityClass(String code) {
+                return LegacyParentEntity.class;
+            }
+        };
+
+        Assertions.assertThrows(IllegalStateException.class, () -> resolver.resolve(
+            Arrays.<Class<?>>asList(ParentEntity.class, ChildEntity.class), conflictingResolver));
+    }
+
+    @Test
     void shouldResolveRelationEdgesFromEntRelation() {
         EntRelationEdgeResolver resolver = new EntRelationEdgeResolver(new ReflectiveEntMetaParser());
 
@@ -56,7 +70,7 @@ class EntRelationEdgeResolverTest {
     @EntEntity(entity = "ChildEntity")
     private static class ChildEntity {
         private Long id;
-        @EntRelation(targetEntity = "ParentEntity")
+        @EntRelation(ParentEntity.class)
         private Long parentId;
     }
 
@@ -69,7 +83,7 @@ class EntRelationEdgeResolverTest {
     @EntEntity(entity = "LegacyChildEntity")
     private static class LegacyChildEntity {
         private Long id;
-        @EntRelation(targetEntity = "LegacyParentEntity")
+        @EntRelation(LegacyParentEntity.class)
         private Long parentId;
     }
 

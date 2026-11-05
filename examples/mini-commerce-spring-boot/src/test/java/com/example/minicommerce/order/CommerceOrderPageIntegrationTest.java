@@ -131,7 +131,14 @@ class CommerceOrderPageIntegrationTest {
         assertEquals(1, item.size());
         assertEquals(501, item.get("id").asLong());
         assertStatus(post("list", token, "{\"entityCodes\":[\"commerceOrder\",\"commerceOrderItem\"]}"), 404);
-        assertStatus(post("detail", token, "{\"id\":501,\"options\":{\"resultMode\":\"ENTITY\"}}"), 403);
+        JsonNode entity = data(post("detail", token,
+            "{\"id\":501,\"options\":{\"resultMode\":\"ENTITY\"}}")).get("item");
+        assertEquals(301, entity.get("customerId").asLong());
+        assertEquals(1001, entity.get("merchantId").asLong());
+        assertFalse(entity.hasNonNull("customer"));
+        assertFalse(entity.hasNonNull("orderItemList"));
+        assertStatus(post("detail", token,
+            "{\"id\":501,\"options\":{\"resultMode\":\"ENTITY\",\"selectFields\":[\"id\"]}}"), 403);
         assertStatus(post("page/custom", token, "{}"), 403);
         assertStatus(post("page", token, "{\"options\":{\"selectFields\":[\"customer.email\"]}}"), 403);
     }

@@ -55,7 +55,7 @@ public class DocRuntimeModelOverrideApplier {
             DocFieldOverride field = override.fields().get(relation.relationField());
             if (field == null) { relations.add(relation); continue; }
             relations.add(new com.entloom.doc.core.model.DocRelationModel(relation.relationField(), relation.targetService(),
-                relation.targetEntity(), relation.sourceField(), relation.targetField(), relation.cardinality(), relation.ownerSide(),
+                relation.targetEntity(), relation.targetClass(), relation.sourceField(), relation.targetField(), relation.cardinality(), relation.ownerSide(),
                 relation.resolutionStatus(), stringOverride("targetEntityLabel", model, relation.relationField(), diagnostics,
                     relation.targetEntityLabel(), field.targetEntityLabel()),
                 stringOverride("relationRemark", model, relation.relationField(), diagnostics, relation.relationRemark(), field.relationRemark()),

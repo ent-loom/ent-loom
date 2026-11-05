@@ -12,7 +12,7 @@ import lombok.Setter;
 @EntEntity("商家")
 @EntCrudGrant(identities = "merchant", actions = {"view", "create", "update", "delete"}, scopeField = "id")
 @EntCrudGrant(identities = {"public", "customer"}, actions = "view", scope = EntCrudGrantScope.ALL,
-    inheritFields = false, fields = @EntCrudGrant.Fields({"id", "name"}))
+    fields = @EntCrudGrant.Fields({"id", "name"}))
 @EntCrudEntity
 @Getter
 @Setter

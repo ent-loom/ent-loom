@@ -145,6 +145,7 @@ public class DocNativeAnnotationParser {
                 field.getName(),
                 stringExplicitOrUnknown(fieldDoc.targetService()),
                 stringExplicitOrUnknown(fieldDoc.targetEntity()),
+                SourcedValue.unknown(null),
                 sourceInferred ? SourcedValue.inferred(field.getName()) : SourcedValue.nativeExplicit(fieldDoc.sourceField()),
                 "id".equals(fieldDoc.targetField()) ? SourcedValue.unknown("id") : SourcedValue.nativeExplicit(fieldDoc.targetField()),
                 cardinality == RelationCardinality.MANY_TO_ONE

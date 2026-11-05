@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
 import static com.entloom.crud.annotations.EntCrudFieldUse.FILTER;
 import static com.entloom.crud.annotations.EntCrudFieldUse.RETURN;
 import static com.entloom.crud.annotations.EntCrudGrantScope.ALL;
-import static com.entloom.crud.annotations.EntCrudGrantScope.EQUAL;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CrudGrantRegistryTest {
@@ -54,14 +53,24 @@ class CrudGrantRegistryTest {
     }
 
     @Test
-    void 匿名固定条件与字段用途分别生效且显式空用途保持关闭() {
+    void 匿名SQL条件与字段用途分别生效且未指定用途沿用上限() {
         var result = authorize(service(PublicProduct.class), VisitorContext.anonymous("test", null, null), "view");
-        assertEquals("active", result.getScope().getField());
-        assertEquals(List.of(true), result.getScope().getValues());
+        assertEquals(AuthorizationScope.Kind.SQL_WHERE, result.getScope().getKind());
+        assertEquals("active = true", result.getScope().getSqlWhere());
         assertTrue(result.getFields().allows(AuthorizationFields.Use.RETURN, "id"));
-        for (var use : AuthorizationFields.Use.values()) {
-            if (use != AuthorizationFields.Use.RETURN) assertFalse(result.getFields().allows(use, "id"));
-        }
+        assertFalse(result.getFields().allows(AuthorizationFields.Use.RETURN, "customerId"));
+        assertTrue(result.getFields().allows(AuthorizationFields.Use.FILTER, "customerId"));
+    }
+
+    @Test
+    void 全量基础范围支持公开查看且SQL默认保留身份归属() {
+        var declared = authorize(service(CustomerVisible.class), visitor(), "view");
+        assertEquals(AuthorizationScope.Kind.SQL_WHERE, declared.getScope().getKind());
+        var owned = authorize(service(OwnedVisible.class), visitor(), "view").getScope();
+        assertEquals(AuthorizationScope.Kind.AND, owned.getKind());
+        assertEquals("customerId", owned.getChildren().get(0).getField());
+        assertEquals(List.of(7L), owned.getChildren().get(0).getValues());
+        assertEquals("active = true", owned.getChildren().get(1).getSqlWhere());
     }
 
     @Test
@@ -95,7 +104,7 @@ class CrudGrantRegistryTest {
         var service = service(PublicProduct.class, List.of(extension));
         var request = new AuthorizationRequest(VisitorContext.anonymous("test", null, null), new BusinessOperation("sample", "view"), "target");
         var result = service.authorize(request);
-        assertEquals(AuthorizationScope.Kind.EQUAL, result.getScope().getKind());
+        assertEquals(AuthorizationScope.Kind.SQL_WHERE, result.getScope().getKind());
         assertFalse(result.getFields().allows(AuthorizationFields.Use.RETURN, "customerId"));
         allowed.set(false);
         assertEquals(AccessDecision.DENY, service.authorize(request).getDecision());
@@ -168,8 +177,8 @@ class CrudGrantRegistryTest {
     @Test
     void 启动拒绝重复未知身份超限操作字段以及不合法范围() {
         for (Class<?> type : List.of(Duplicate.class, UnknownIdentity.class, BadAction.class, BadField.class,
-            MissingOwner.class, BadBoolean.class, PublicDefault.class, ConflictingPolicy.class, DuplicateUse.class,
-            BadExclusion.class, BothFieldModes.class, InvalidAll.class, OutsideCeiling.class,
+            MissingOwner.class, BlankWhere.class, WriteWhere.class, MixedWhere.class, DeniedWhere.class, PublicDefault.class, ConflictingPolicy.class, DuplicateUse.class,
+            BothFieldModes.class, InvalidAll.class, OutsideCeiling.class,
             MixedAllUses.class, EmptyUses.class, DuplicateAll.class, UnknownAllField.class, OverlappingUses.class)) {
             assertThrows(ValidationException.class, () -> registry(type, DEFAULTS, List.of()), type.getSimpleName());
         }
@@ -229,8 +238,7 @@ class CrudGrantRegistryTest {
         public String getIdentityId() { return id; }
     }
 
-    @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", inheritFields = false,
-        fields = @EntCrudGrant.Fields(value = {"id", "customerId"})) static class AllWhitelist {}
+    @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", fields = @EntCrudGrant.Fields(value = {"id", "customerId"})) static class AllWhitelist {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view")
     static class FieldRestricted { @EntCrudFieldAccess(exclude = com.entloom.crud.annotations.EntCrudFieldUse.ALL) Boolean active; }
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view",
@@ -261,9 +269,11 @@ class CrudGrantRegistryTest {
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = {})
     @EntCrudGrant(identities = "customer", actions = "view") static class MixedDenial {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view") static class Owned {}
+    @EntCrudEntity @EntCrudGrant(identities = {"public", "customer"}, actions = "view", scope = ALL, where = "active = true") static class CustomerVisible {}
+    @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", where = "active = true") static class OwnedVisible {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", scopeField = "id") static class Self {}
-    @EntCrudEntity @EntCrudGrant(identities = "public", actions = "view", scope = EQUAL, scopeField = "active", scopeValue = "true",
-        inheritFields = false, fields = @EntCrudGrant.Fields(use = RETURN, value = "id")) static class PublicProduct {}
+    @EntCrudEntity @EntCrudGrant(identities = "public", actions = "view", scope = ALL, where = "active = true",
+        fields = @EntCrudGrant.Fields(use = RETURN, value = "id")) static class PublicProduct {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view",
         fields = @EntCrudGrant.Fields(use = FILTER, exclude = "customerId")) static class Excluded {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view")
@@ -273,13 +283,14 @@ class CrudGrantRegistryTest {
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view",
         fields = @EntCrudGrant.Fields(use = RETURN, value = "unknown")) static class BadField {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", scopeField = "missing") static class MissingOwner {}
-    @EntCrudEntity @EntCrudGrant(identities = "public", actions = "view", scope = EQUAL, scopeField = "active", scopeValue = "yes") static class BadBoolean {}
+    @EntCrudEntity @EntCrudGrant(identities = "public", actions = "view", where = "  ") static class BlankWhere {}
+    @EntCrudEntity(actions = "update") @EntCrudGrant(identities = "customer", actions = "update", where = "active = true") static class WriteWhere {}
+    @EntCrudEntity(actions = {"view", "update"}) @EntCrudGrant(identities = "customer", actions = {"view", "update"}, where = "active = true") static class MixedWhere {}
+    @EntCrudEntity @EntCrudGrant(identities = "customer", actions = {}, where = "active = true") static class DeniedWhere {}
     @EntCrudEntity @EntCrudGrant(identities = "public", actions = "view") static class PublicDefault {}
     @EntCrudEntity(policy = "old") @EntCrudGrant(identities = "customer", actions = "view") static class ConflictingPolicy {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", fields = {
         @EntCrudGrant.Fields(use = RETURN), @EntCrudGrant.Fields(use = RETURN)}) static class DuplicateUse {}
-    @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", inheritFields = false,
-        fields = @EntCrudGrant.Fields(use = FILTER, exclude = "id")) static class BadExclusion {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view",
         fields = @EntCrudGrant.Fields(use = FILTER, value = "id", exclude = "customerId")) static class BothFieldModes {}
     @EntCrudEntity @EntCrudGrant(identities = "customer", actions = "view", scope = ALL, scopeField = "id") static class InvalidAll {}

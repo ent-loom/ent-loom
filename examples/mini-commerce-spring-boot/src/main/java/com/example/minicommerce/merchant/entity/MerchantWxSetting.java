@@ -8,17 +8,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@EntEntity("商户微信配置")
+@EntEntity("商户微信设置")
 @EntCrudEntity(httpExposed = false)
 @Getter
 @Setter
 @NoArgsConstructor
-public class MerchantWxConfig {
-    @EntField("配置 ID")
+public class MerchantWxSetting {
+    @EntField("设置 ID")
     private Long id;
 
     @EntField("所属商户 ID")
-    @EntRelation(targetEntity = "merchant")
+    @EntRelation(Merchant.class)
     private Long merchantId;
 
     @EntField("公众号appId")

@@ -24,7 +24,7 @@ import com.entloom.crud.core.capability.stats.StatsSpec;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
 import com.entloom.crud.starter.web.assembler.CrudStatsSpecAssembler;
 import com.entloom.crud.starter.web.dto.CrudStatsHttpRequest;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContext;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
@@ -36,13 +36,13 @@ public class EntCrudStatsFacade {
     private final StatsGateway statsGateway;
     private final CrudSubjectResolver subjectResolver;
     private final CrudStatsSpecAssembler crudStatsSpecAssembler;
-    private final CrudResponseBuilder crudResponseBuilder;
     private final CrudSchemaAssembler crudSchemaAssembler;
 
     public CrudResponse<CrudStatsData> stats(String entity, String scene, CrudStatsHttpRequest request, CrudInvocationContext context) {
         CrudStatsHttpRequest actualRequest = request == null ? new CrudStatsHttpRequest() : request;
-        crudResponseBuilder.bind(crudStatsSpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(StatsOperation.QUERY));
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(StatsOperation.QUERY);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
             StatsSpec spec = crudStatsSpecAssembler.assembleStats(
                 entity,
                 scene,
@@ -53,13 +53,14 @@ public class EntCrudStatsFacade {
                 throw new CrudException(CrudErrorCode.VALIDATION_ERROR, "stats 请求必须提供 stats");
             }
             CrudStatsData data = toStatsData(statsGateway.stats(spec));
-            return crudResponseBuilder.success("OK", "OK", data, crudSchemaAssembler.statsMeta(spec, data));
-        });
+            return CrudResponse.success("OK", "OK", data, crudSchemaAssembler.statsMeta(spec, data));
+        }));
     }
 
     private <T> T withContext(CrudInvocationContext context, java.util.function.Supplier<T> supplier) {
         CrudInvocationContext actualContext = context == null ? CrudInvocationContext.empty() : context;
-        return CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier);
+        return CrudHttpRequestContext.trackOperationFailure(
+            () -> CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier));
     }
 
     private CrudStatsData toStatsData(StatsResult source) {

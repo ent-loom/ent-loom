@@ -17,7 +17,7 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
             return;
         }
         log.info(
-            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} accessEntry={} portal={} capability={} policyMatched={} policyRejectionReason={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={} identityCode={} identityId={} invocationId={} authorizationScope={} authorizationFields={}",
+            "crud_governance_audit outcome={} allowed={} success={} decision={} reason={} stage={} routeKey={} requestId={} traceId={} resource={} operationDomain={} operation={} action={} scene={} accessEntry={} portal={} capability={} policyMatched={} policyRejectionReason={} subjectId={} tenantId={} orgId={} grantedScope={} governanceScope={} costMs={} identityCode={} identityId={} invocationId={} targetId={} authorizationScope={} authorizationFields={}",
             event.getOutcome(),
             event.isAllowed(),
             event.isSuccess(),
@@ -47,7 +47,8 @@ public class LoggingCrudGovernanceAuditRecorder implements CrudGovernanceAuditRe
                 .map(identity -> identity.getIdentityCode()).orElse(null),
             event.getVisitor() == null ? null : event.getVisitor().getIdentity()
                 .map(identity -> identity.getIdentityId()).orElse(null),
-            event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getRequest().getInvocationId(),
+            event.getAuthorizationRequest() == null ? null : event.getAuthorizationRequest().getInvocationId(),
+            event.getAuthorizationRequest() == null ? null : event.getAuthorizationRequest().getTargetId(),
             event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getScope().getKind(),
             event.getAuthorizationResult() == null ? null : event.getAuthorizationResult().getFields().snapshot()
         );

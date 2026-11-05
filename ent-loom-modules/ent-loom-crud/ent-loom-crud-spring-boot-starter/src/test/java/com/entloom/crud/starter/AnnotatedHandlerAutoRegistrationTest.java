@@ -90,10 +90,10 @@ class AnnotatedHandlerAutoRegistrationTest {
 
             mockMvc.perform(post("/api/ent-crud/TestOrderEntity/action/order.place")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"req-action-http\"},\"payload\":{\"orderNo\":\"ORD-HTTP\"}}"))
+                    .content("{\"options\":{},\"payload\":{\"orderNo\":\"ORD-HTTP\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.requestId").value("req-action-http"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
                 .andExpect(jsonPath("$.operation").value("ACTION"))
                 .andExpect(jsonPath("$.data.scene").value("order.place"))
                 .andExpect(jsonPath("$.data.handledBy").value("place-order-action"))
@@ -179,8 +179,10 @@ class AnnotatedHandlerAutoRegistrationTest {
                 context.getBean(com.entloom.crud.starter.web.controller.EntCrudCommandController.class),
                 context.getBean(com.entloom.crud.starter.web.controller.EntCrudStatsController.class)
             )
-            .setControllerAdvice(context.getBean(com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator.class))
+            .setControllerAdvice(context.getBean(com.entloom.crud.starter.web.error.CrudHttpExceptionTranslator.class),
+                context.getBean(com.entloom.crud.starter.web.support.CrudResponseContextAdvice.class))
             .setMessageConverters(new MappingJackson2HttpMessageConverter())
+            .addFilters(new com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter())
             .build();
     }
 

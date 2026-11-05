@@ -254,6 +254,11 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
         if (payload == null) {
             return result;
         }
+        if (payload instanceof UpdatePatch<?>) {
+            UpdatePatch<?> patch = (UpdatePatch<?>) payload;
+            for (String field : patch.getPresentFields()) result.put(field, patch.get(field));
+            return result;
+        }
         if (payload instanceof CrudRecord) {
             result.putAll(((CrudRecord) payload).asMap());
             return result;
@@ -265,6 +270,13 @@ public class DefaultCommandPayloadBinder implements CommandPayloadBinder, Defaul
                 }
             }
             return result;
+        }
+        if (payload.getClass().isArray() || payload instanceof Collection<?> || payload instanceof CharSequence
+            || payload instanceof Number || payload instanceof Boolean || payload instanceof Enum<?>) {
+            throw new ValidationException("命令载荷必须是实体、DTO、UpdatePatch 或字段映射");
+        }
+        if (EntityProperties.fields(payload.getClass()).isEmpty()) {
+            throw new ValidationException("命令载荷必须包含实体或 DTO 属性");
         }
         for (Field field : EntityProperties.fields(payload.getClass())) {
             try {

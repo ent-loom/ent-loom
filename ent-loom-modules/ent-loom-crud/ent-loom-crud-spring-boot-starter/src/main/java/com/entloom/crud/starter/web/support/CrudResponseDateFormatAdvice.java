@@ -1,9 +1,11 @@
 package com.entloom.crud.starter.web.support;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -46,7 +48,15 @@ public class CrudResponseDateFormatAdvice implements ResponseBodyAdvice<Object> 
         if (!isCrudRequest(request) || !isJsonResponse(selectedContentType)) {
             return body;
         }
-        return dateFormatter.format(body, CrudResponseNullFieldModeContext.current());
+        JsonView annotation = returnType == null ? null : returnType.getMethodAnnotation(JsonView.class);
+        Class<?> view = annotation != null && annotation.value().length == 1 ? annotation.value()[0] : null;
+        if (body instanceof MappingJacksonValue) {
+            MappingJacksonValue wrapper = (MappingJacksonValue) body;
+            wrapper.setValue(dateFormatter.format(wrapper.getValue(), CrudResponseNullFieldModeContext.current(),
+                view == null ? wrapper.getSerializationView() : view, wrapper.getFilters()));
+            return wrapper;
+        }
+        return dateFormatter.format(body, CrudResponseNullFieldModeContext.current(), view, null);
     }
 
     private boolean isCrudRequest(ServerHttpRequest request) {

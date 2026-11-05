@@ -88,10 +88,6 @@ public class CrudCommandSpecAssembler {
         return spec;
     }
 
-    public String resolveRequestId(CrudCommandHttpRequest request) {
-        return requestSupport.resolveRequestId(request.getOptions().getRequestId());
-    }
-
     private Object normalizeWritePayload(
         CommandOperation routeOp,
         Object rawPayload,

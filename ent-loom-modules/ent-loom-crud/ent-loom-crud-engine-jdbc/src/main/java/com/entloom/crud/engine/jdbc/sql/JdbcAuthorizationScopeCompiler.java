@@ -48,8 +48,11 @@ public final class JdbcAuthorizationScopeCompiler {
                 return "1=1";
             case NONE:
                 return "1=0";
+            case SQL_WHERE:
+                if (alias == null) throw new DataScopeDeniedException("SQL 查看条件不能用于写入操作");
+                return "(" + scope.getSqlWhere() + ")";
             case EQUAL:
-                    String equalColumn = column(scope, meta, alias, dialect);
+                String equalColumn = column(scope, meta, alias, dialect);
                 args.add(scope.getValues().get(0));
                 return equalColumn + " = ?";
             case IN:

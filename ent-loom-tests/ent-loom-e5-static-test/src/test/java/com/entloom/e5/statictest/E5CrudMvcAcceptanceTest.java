@@ -65,15 +65,15 @@ class E5CrudMvcAcceptanceTest {
         contextRunner.run(context -> {
             MockMvc mockMvc = buildMockMvc(context);
 
-            assertSuccessfulOperation(mockMvc, "create", createRequest(), "e5-create-1", "CREATE",
+            assertSuccessfulOperation(mockMvc, "create", createRequest(), "CREATE",
                 jsonPath("$.data.id").value(501));
-            assertSuccessfulOperation(mockMvc, "detail", detailRequest("e5-detail-1"), "e5-detail-1", "DETAIL",
+            assertSuccessfulOperation(mockMvc, "detail", detailRequest(), "DETAIL",
                 jsonPath("$.data.item.display_name").value("张三"));
-            assertSuccessfulOperation(mockMvc, "update", updateRequest(), "e5-update-1", "UPDATE",
+            assertSuccessfulOperation(mockMvc, "update", updateRequest(), "UPDATE",
                 jsonPath("$.data.rows").value(1));
-            assertSuccessfulOperation(mockMvc, "detail", detailRequest("e5-detail-2"), "e5-detail-2", "DETAIL",
+            assertSuccessfulOperation(mockMvc, "detail", detailRequest(), "DETAIL",
                 jsonPath("$.data.item.display_name").value("张三（更新）"));
-            assertSuccessfulOperation(mockMvc, "delete", deleteRequest(), "e5-delete-1", "DELETE",
+            assertSuccessfulOperation(mockMvc, "delete", deleteRequest(), "DELETE",
                 jsonPath("$.data.rows").value(1));
         });
     }
@@ -85,7 +85,7 @@ class E5CrudMvcAcceptanceTest {
             MockMvc mockMvc = buildMockMvc(context);
             mockMvc.perform(post("/api/ent-crud/customer_profile/action/profile.activate")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"options\":{\"requestId\":\"e5-action-http\"},\"payload\":{\"profileId\":501}}"))
+                    .content("{\"options\":{},\"payload\":{\"profileId\":501}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.profileId").value(501))
@@ -123,7 +123,6 @@ class E5CrudMvcAcceptanceTest {
     private static void assertSuccessfulOperation(MockMvc mockMvc,
                                                   String resourceOperation,
                                                   String requestBody,
-                                                  String requestId,
                                                   String operation,
                                                   ResultMatcher resultMatcher) throws Exception {
         mockMvc.perform(post("/api/ent-crud/customer_profile/" + resourceOperation)
@@ -131,28 +130,27 @@ class E5CrudMvcAcceptanceTest {
                 .content(requestBody))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.requestId").value(requestId))
+            .andExpect(jsonPath("$.requestId").isNotEmpty())
             .andExpect(jsonPath("$.operation").value(operation))
             .andExpect(resultMatcher);
     }
 
     private static String createRequest() {
-        return "{\"options\":{\"requestId\":\"e5-create-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三\","
+        return "{\"options\":{},\"payload\":{\"id\":501,\"displayName\":\"张三\","
             + "\"creditLimit\":1000.00,\"registeredAt\":\"2026-08-25T10:30:00\","
             + "\"avatarUrl\":\"https://example.test/avatar.png\"}}";
     }
 
-    private static String detailRequest(String requestId) {
-        return "{\"id\":501,\"options\":{\"requestId\":\""
-            + requestId + "\"}}";
+    private static String detailRequest() {
+        return "{\"id\":501}";
     }
 
     private static String updateRequest() {
-        return "{\"options\":{\"requestId\":\"e5-update-1\"},\"payload\":{\"id\":501,\"displayName\":\"张三（更新）\"}}";
+        return "{\"options\":{},\"payload\":{\"id\":501,\"displayName\":\"张三（更新）\"}}";
     }
 
     private static String deleteRequest() {
-        return "{\"options\":{\"requestId\":\"e5-delete-1\"},\"payload\":{\"id\":501}}";
+        return "{\"options\":{},\"payload\":{\"id\":501}}";
     }
 
     private MockMvc buildMockMvc(AssertableApplicationContext context) {
@@ -161,8 +159,10 @@ class E5CrudMvcAcceptanceTest {
                 context.getBean(EntCrudQueryController.class),
                 context.getBean(EntCrudCommandController.class)
             )
-            .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class))
+            .setControllerAdvice(context.getBean(CrudHttpExceptionTranslator.class),
+                context.getBean(com.entloom.crud.starter.web.support.CrudResponseContextAdvice.class))
             .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+            .addFilters(new com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter())
             .build();
     }
 

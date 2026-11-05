@@ -70,20 +70,22 @@ public class Student {
 
 ```java
 @EntField("客户 ID")
-@EntRelation(targetEntity = "customer")
+@EntRelation(Customer.class)
 private Long customerId;
 
 @EntField("客户")
 private Customer customer;
 ```
 
-`targetEntity` 显式指定已注册的目标实体标识；`sourceField` 为空时取被注解字段名，`targetField` 默认 `id`，关系基数默认多对一。
+`value` 显式引用目标实体类，目标须声明 `@EntEntity`，其实体标识和所属服务复用统一解析规则。`sourceField` 为空时取被注解字段名，`targetField` 默认 `id`，关系基数默认多对一。内部描述符以 `targetEntity`、`targetService` 表达关系身份，同时保留可选 `targetClass`，防止同标识的其他类替代实际引用目标。从类引用解析出的目标标识和目标类保留显式声明来源，复用的目标服务记录为推断来源。类引用只解析目标身份，不递归扫描关联实体，也不自动注册目标实体；CRUD、DOC 校验实际目标类的注册资格，组件显式覆盖目标标识时同步清除原类引用。
+
+无本地实体类的关系显式使用 `@EntRelation(targetEntity = "customer", targetService = "customer-service")`。类引用 `value` 与字符串标识 `targetEntity` 互斥，同时填写即使指向同一实体也报错；目标类缺少 `@EntEntity`，或显式 `targetService` 与目标类解析出的服务不一致时，产生 ERROR，默认拒绝启动。
 
 CRUD 将 `customerId` 上的关系按 `Id` 后缀约定绑定到 `customer` 单对象导航属性，并校验其类型必须与目标实体一致；该规则由 CRUD Core 提供，CRUD-only 使用 `@EntCrudField` 声明外键时同样适用。绑定结果通过 `INFERRED_VALUE_USED` 诊断保留规则来源；同名属性类型不符产生 `RELATION_NAVIGATION_TYPE_MISMATCH` ERROR，默认拒绝启动。
 
 没有 `customer` 属性时，关系仍以 `customerId` 为关系字段存在；不会按类型搜索其他不同名属性，也不会仅因对象属性存在就创建关系。`customerId` 保留数据库列映射，`customer` 不映射当前表列。该绑定只生成关系元数据，不自动加载或开启级联操作。
 
-非标准命名可以在导航属性上显式声明映射，例如 `@EntRelation(targetEntity = "customer", sourceField = "customerId") private Customer buyer;`；此时不再在 ID 属性上重复声明同一关系。
+非标准命名可以在导航属性上显式声明映射，例如 `@EntRelation(value = Customer.class, sourceField = "customerId") private Customer buyer;`；此时不再在 ID 属性上重复声明同一关系。
 
 集合关系可以复用子实体已声明的唯一反向引用，无需重复声明目标、外键和基数：
 
@@ -92,7 +94,7 @@ CRUD 将 `customerId` 上的关系按 `Id` 后缀约定绑定到 `customer` 单�
 private List<OrderItem> orderItemList;
 
 // OrderItem 上的外键关系事实。
-@EntRelation(targetEntity = "order")
+@EntRelation(Order.class)
 private Long orderId;
 ```
 
@@ -104,7 +106,7 @@ CRUD 根据 `List<OrderItem>` 与唯一反向多对一引用补全 `Order.id →
 
 ```java
 @EntField("客户 ID")
-@EntRelation(targetEntity = "customer")
+@EntRelation(Customer.class)
 @EntCrudField(joinType = JoinType.INNER)
 private Long customerId;
 ```

@@ -587,6 +587,7 @@ final class JdbcAuthorizedEntityDao<T, ID> implements EntityDao<T, ID> {
         audit.record(CrudGovernanceAuditEvent.forBusinessQuery(
             authorization.getVisitor(),
             subject,
+            authorization.getResult().getRequest(),
             authorization.getResult(),
             action,
             outcome,

@@ -22,6 +22,8 @@ public final class AuthorizationScope {
         EQUAL,
         /** 字段集合。 */
         IN,
+        /** 开发者声明的静态 SQL 查看条件，仅由 JDBC 读取链路执行。 */
+        SQL_WHERE,
         /** 条件交集。 */
         AND,
         /** 条件并集。 */
@@ -37,8 +39,15 @@ public final class AuthorizationScope {
     private final String field;
     private final List<Object> values;
     private final List<AuthorizationScope> children;
+    private final String sqlWhere;
 
     private AuthorizationScope(Kind kind, String field, List<Object> values, List<AuthorizationScope> children) {
+        this(kind, field, values, children, null);
+    }
+
+    private AuthorizationScope(Kind kind, String field, List<Object> values, List<AuthorizationScope> children,
+                               String sqlWhere) {
+        this.sqlWhere = sqlWhere;
         this.kind = kind;
         this.field = field;
         this.values = values;
@@ -47,6 +56,12 @@ public final class AuthorizationScope {
 
     public static AuthorizationScope all() { return ALL; }
     public static AuthorizationScope none() { return NONE; }
+
+    /** 仅接收开发者维护的固定 SQL 条件，不解析 SQL，也不接受动态参数。 */
+    public static AuthorizationScope sqlWhere(String sql) {
+        if (sql == null || sql.trim().isEmpty()) throw new IllegalArgumentException("SQL 查看条件不能为空");
+        return new AuthorizationScope(Kind.SQL_WHERE, null, Collections.emptyList(), Collections.emptyList(), sql);
+    }
 
     public static AuthorizationScope equal(String field, Object value) {
         return new AuthorizationScope(Kind.EQUAL, requireField(field),
@@ -78,6 +93,8 @@ public final class AuthorizationScope {
         if (right == ALL) return left;
         return and(Arrays.asList(left, right));
     }
+
+    public String getSqlWhere() { return sqlWhere; }
 
     public Kind getKind() { return kind; }
     public String getField() { return field; }

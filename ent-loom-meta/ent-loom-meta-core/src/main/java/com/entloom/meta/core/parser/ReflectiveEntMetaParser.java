@@ -137,7 +137,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             EntRelation relation = findAnnotation(field, EntRelation.class);
             fields.add(toFieldDescriptor(entityClass, field, entField, diagnostics));
             if (relation != null) {
-                relations.add(toRelationDescriptor(field, relation));
+                relations.add(toRelationDescriptor(entityClass, entityName, field, relation, diagnostics));
             }
         }
 
@@ -146,10 +146,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         collectRelationDiagnostics(entityClass, entityName, relations, javaFieldNames, diagnostics);
         collectIndexDiagnostics(entityClass, entityName, indexes, javaFieldNames, diagnostics);
 
-        String service = emptyToNull(entity.service());
-        if (service == null) {
-            service = defaults.service();
-        }
+        String service = resolveService(entity);
         EntEntityDescriptor descriptor = new DefaultEntEntityDescriptor(
             entityClass,
             entityName,
@@ -402,30 +399,91 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         }
     }
 
-    private EntRelationDescriptor toRelationDescriptor(Field field, EntRelation relation) {
+    private EntRelationDescriptor toRelationDescriptor(
+        Class<?> entityClass,
+        String entityName,
+        Field field,
+        EntRelation relation,
+        MetaDiagnosticCollector diagnostics
+    ) {
         String sourceField = relation.sourceField();
         boolean sourceFieldInferred = isBlank(sourceField);
         if (sourceFieldInferred) {
             sourceField = field.getName();
         }
         String targetEntity = emptyToNull(relation.targetEntity());
+        SourcedValue<String> targetService = stringSource(emptyToNull(relation.targetService()));
+        boolean invalidTarget = false;
+        if (relation.value() != Void.class) {
+            if (targetEntity != null) {
+                invalidTarget = true;
+                addRelationTargetDiagnostic(entityClass, entityName, field, diagnostics,
+                    MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, MetaDescriptorProperties.TARGET_ENTITY,
+                    "关系 value 与 targetEntity 不能同时声明");
+            } else {
+                EntEntity target = relation.value().getAnnotation(EntEntity.class);
+                if (target == null) {
+                    invalidTarget = true;
+                    addRelationTargetDiagnostic(entityClass, entityName, field, diagnostics,
+                        MetaDiagnosticCode.RELATION_TARGET_CLASS_INVALID, MetaDescriptorProperties.TARGET_ENTITY,
+                        "关系目标类缺少 @EntEntity 注解: " + relation.value().getName());
+                } else {
+                    // 仅解析目标身份，避免双向或自引用关系递归解析整个实体图。
+                    targetEntity = resolveEntityName(relation.value(), target);
+                    String service = resolveService(target);
+                    if (targetService.value() == null) {
+                        targetService = service == null ? SourcedValue.<String>unknown(null) : SourcedValue.inferred(service);
+                    } else if (service != null && !service.equals(targetService.value())) {
+                        invalidTarget = true;
+                        addRelationTargetDiagnostic(entityClass, entityName, field, diagnostics,
+                            MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT, MetaDescriptorProperties.TARGET_SERVICE,
+                            "关系 targetService 与目标实体所属服务不一致: " + service);
+                    }
+                }
+            }
+        }
         String targetField = isBlank(relation.targetField()) ? "id" : relation.targetField();
         RelationCardinality cardinality = relation.cardinality();
         RelationOwnerSide ownerSide = ownerSide(cardinality);
-        RelationResolutionStatus resolutionStatus = isBlank(targetEntity)
+        RelationResolutionStatus resolutionStatus = invalidTarget || isBlank(targetEntity)
             ? RelationResolutionStatus.INVALID
             : RelationResolutionStatus.PARTIALLY_RESOLVED;
         return new DefaultEntRelationDescriptor(
             sourceField,
-            emptyToNull(relation.targetService()),
+            targetService.value(),
             targetEntity,
             targetField,
             cardinality,
             ownerSide,
             resolutionStatus,
             sourceFieldInferred,
-            relationSources(field, relation, sourceField, targetField, cardinality, ownerSide, resolutionStatus, sourceFieldInferred)
+            relationSources(field, relation, sourceField, stringSource(targetEntity), targetService,
+                targetField, cardinality, ownerSide, resolutionStatus, sourceFieldInferred)
         );
+    }
+
+    private String resolveService(EntEntity entity) {
+        String service = emptyToNull(entity.service());
+        return service == null ? defaults.service() : service;
+    }
+
+    private void addRelationTargetDiagnostic(
+        Class<?> entityClass,
+        String entityName,
+        Field field,
+        MetaDiagnosticCollector diagnostics,
+        MetaDiagnosticCode code,
+        String property,
+        String message
+    ) {
+        diagnostics.add(MetaDiagnostic.error(code)
+            .entity(entityName)
+            .entityClass(entityClass)
+            .field(field.getName())
+            .property(property)
+            .location(entityClass.getName() + "#" + field.getName())
+            .message(message)
+            .build());
     }
 
     private List<EntIndexDescriptor> indexes(Class<?> entityClass) {
@@ -609,7 +667,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
                     .field(relation.sourceField())
                     .property(MetaDescriptorProperties.TARGET_ENTITY)
                     .location(entityClass.getName() + "#" + relation.sourceField())
-                    .message("关系 targetEntity 不能为空: " + relation.sourceField())
+                    .message("关系必须声明目标实体类 value 或目标实体标识 targetEntity: " + relation.sourceField())
                     .build());
             }
             SourcedValue<?> sourceFieldSource = relation.sourcedValue(MetaDescriptorProperties.SOURCE_FIELD);
@@ -992,6 +1050,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         Field field,
         EntRelation relation,
         String resolvedSourceField,
+        SourcedValue<String> targetEntity,
+        SourcedValue<String> targetService,
         String targetField,
         RelationCardinality cardinality,
         RelationOwnerSide ownerSide,
@@ -1004,8 +1064,10 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             MetaDescriptorProperties.SOURCE_FIELD,
             isBlank(relation.sourceField()) ? SourcedValue.inferred(field.getName()) : SourcedValue.metaExplicit(resolvedSourceField)
         );
-        sources.put(MetaDescriptorProperties.TARGET_SERVICE, stringSource(emptyToNull(relation.targetService())));
-        sources.put(MetaDescriptorProperties.TARGET_ENTITY, stringSource(emptyToNull(relation.targetEntity())));
+        sources.put(MetaDescriptorProperties.TARGET_SERVICE, targetService);
+        sources.put(MetaDescriptorProperties.TARGET_ENTITY, targetEntity);
+        sources.put(MetaDescriptorProperties.TARGET_CLASS, relation.value() == Void.class
+            ? SourcedValue.unknown(null) : SourcedValue.metaExplicit(relation.value()));
         sources.put(
             MetaDescriptorProperties.TARGET_FIELD,
             "id".equals(targetField) ? SourcedValue.unknown(targetField) : SourcedValue.metaExplicit(targetField)

@@ -70,6 +70,12 @@ public final class CrudGrantRegistry {
             Set<String> explicitIdentities = new LinkedHashSet<String>();
             Set<String> deniedIdentities = new LinkedHashSet<String>();
             for (EntCrudGrant declaration : declarations) {
+                String where = declaration.where();
+                require(where.isEmpty() || !where.trim().isEmpty(), meta, "where 不能仅包含空白");
+                if (!where.isEmpty()) {
+                    require(declaration.actions().length == 1 && "view".equals(declaration.actions()[0]), meta,
+                        "where 仅支持 view 操作");
+                }
                 require(declaration.identities().length > 0, meta, "身份不能为空");
                 for (String identity : unique(declaration.identities(), meta, "身份")) {
                     if (!"public".equals(identity)) requireIdentity(identity, identities);
@@ -146,6 +152,7 @@ public final class CrudGrantRegistry {
             if (identity == null) return BusinessPermissionDecision.deny();
             scope = AuthorizationScope.equal(grant.ownerField, scalar(identity.getIdentityId(), grant.ownerType, grant.entity));
         }
+        if (!grant.where.isEmpty()) scope = AuthorizationScope.intersect(scope, AuthorizationScope.sqlWhere(grant.where));
         BusinessPermissionDecision declared = BusinessPermissionDecision.allow(scope, grant.fields);
         EntityGrantCustomizer extension = customizers.get(operation.getResourceCode());
         if (extension == null) return declared;
@@ -161,14 +168,10 @@ public final class CrudGrantRegistry {
         AuthorizationScope scope = null;
         String field = declaration.scopeField();
         if (declaration.scope() == EntCrudGrantScope.ALL) {
-            require(field.isEmpty() && declaration.scopeValue().isEmpty(), meta, "全量范围不能声明字段或固定值");
+            require(field.isEmpty(), meta, "全量基础范围不能声明归属字段");
             scope = AuthorizationScope.all();
-        } else if (declaration.scope() == EntCrudGrantScope.EQUAL) {
-            EntityFieldMeta metadata = requireScopeField(meta, field);
-            scope = AuthorizationScope.equal(field, scalar(declaration.scopeValue(), metadata.getJavaType(), meta));
         } else {
-            require(!"public".equals(identity), meta, "匿名授权必须显式声明 ALL 或 EQUAL 范围");
-            require(declaration.scopeValue().isEmpty(), meta, "默认归属不能声明固定值");
+            require(!"public".equals(identity), meta, "匿名授权必须显式声明 ALL 范围");
             if (field.isEmpty() && defaults.getWildcardIdentities().contains(identity)) scope = AuthorizationScope.all();
             else {
                 if (field.isEmpty()) field = defaults.getOwnerFields().get(identity);
@@ -176,7 +179,7 @@ public final class CrudGrantRegistry {
             }
         }
         return new Grant(meta, scope, field, scope == null ? meta.resolveFieldMeta(field).getJavaType() : null,
-            compileFields(meta, declaration, limit));
+            compileFields(meta, declaration, limit), declaration.where());
     }
 
     private static AuthorizationFields compileFields(EntityMeta meta, EntCrudGrant declaration, AuthorizationFields limit) {
@@ -185,7 +188,7 @@ public final class CrudGrantRegistry {
         Set<AuthorizationFields.Use> explicitUses = new LinkedHashSet<AuthorizationFields.Use>();
         boolean seenAll = false;
         for (AuthorizationFields.Use use : AuthorizationFields.Use.values()) {
-            fields.put(use, declaration.inheritFields() ? projection(limit, use) : Collections.<String>emptySet());
+            fields.put(use, projection(limit, use));
         }
         for (EntCrudGrant.Fields restriction : declaration.fields()) {
             require(restriction.use().length > 0, meta, "字段用途不能为空");
@@ -199,7 +202,6 @@ public final class CrudGrantRegistry {
             }
             require(restriction.value().length == 0 || restriction.exclude().length == 0, meta, "字段白名单和排除不能同时声明");
             boolean excluding = restriction.exclude().length > 0;
-            require(!excluding || declaration.inheritFields(), meta, "排除字段要求继承实体字段上限");
             Set<String> names = unique(excluding ? restriction.exclude() : restriction.value(), meta, "授权字段");
             if (all) {
                 for (String name : names) {
@@ -279,9 +281,9 @@ public final class CrudGrantRegistry {
             if (type == BigInteger.class) return new BigInteger(value);
             if (type == java.util.UUID.class) return java.util.UUID.fromString(value);
         } catch (IllegalArgumentException failure) {
-            throw new ValidationException("固定授权值与字段类型不匹配: " + meta.getEntityType().getName() + "/" + type.getName() + "/" + value);
+            throw new ValidationException("身份归属值与字段类型不匹配: " + meta.getEntityType().getName() + "/" + type.getName() + "/" + value);
         }
-        throw new ValidationException("固定授权条件不支持字段类型: " + type.getName());
+        throw new ValidationException("身份归属不支持字段类型: " + type.getName());
     }
 
     private static Set<String> unique(String[] values, EntityMeta meta, String label) {
@@ -307,7 +309,13 @@ public final class CrudGrantRegistry {
         private final String ownerField;
         private final Class<?> ownerType;
         private final AuthorizationFields fields;
+        private final String where;
         private Grant(EntityMeta entity, AuthorizationScope scope, String ownerField, Class<?> ownerType, AuthorizationFields fields) {
+            this(entity, scope, ownerField, ownerType, fields, "");
+        }
+        private Grant(EntityMeta entity, AuthorizationScope scope, String ownerField, Class<?> ownerType,
+                      AuthorizationFields fields, String where) {
+            this.where = where;
             this.entity = entity;
             this.scope = scope;
             this.ownerField = ownerField;

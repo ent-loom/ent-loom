@@ -73,6 +73,16 @@ public class QuerySpec<R> extends BaseSpec implements FilterableSpec, OperationK
         return new Builder<R>();
     }
 
+    /** 以实体类型创建查询，根实体和结果类型保持一致。 */
+    public static <T> Builder<T> builder(Class<T> entityType) {
+        return new Builder<T>().rootType(entityType).resultType(entityType);
+    }
+
+    /** 以明确 DTO 创建实体投影，字段由结果类型与授权共同约束。 */
+    public static <R> Builder<R> builder(Class<?> entityType, Class<R> resultType) {
+        return new Builder<R>().rootType(entityType).resultType(resultType);
+    }
+
     public Builder<R> toBuilder() {
         return new Builder<R>().from(this);
     }

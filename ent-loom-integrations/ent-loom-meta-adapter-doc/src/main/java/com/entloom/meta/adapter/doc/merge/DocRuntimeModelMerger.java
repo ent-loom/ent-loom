@@ -202,6 +202,9 @@ public class DocRuntimeModelMerger {
                 choose(DocRuntimeProperties.TARGET_ENTITY, entityClass, outputField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.targetEntity(),
                     metaRelation == null ? null : stringMeta(metaRelation.targetEntity())),
+                (nativeRelation != null && nativeRelation.targetEntity().explicit()) || metaRelation == null
+                    ? SourcedValue.<Class<?>>unknown(null)
+                    : relationValue(metaRelation.targetClass(), metaRelation, MetaDescriptorProperties.TARGET_CLASS),
                 choose(DocRuntimeProperties.SOURCE_FIELD, entityClass, outputField, diagnostics,
                     nativeRelation == null ? null : nativeRelation.sourceField(),
                     metaRelation == null ? null : sourceValue(metaRelation.sourceField(), metaRelation.sourceFieldInferred()),

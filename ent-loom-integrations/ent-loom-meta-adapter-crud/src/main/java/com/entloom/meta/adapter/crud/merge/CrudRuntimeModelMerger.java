@@ -359,7 +359,13 @@ public class CrudRuntimeModelMerger {
             if (metaRelation == null && nativeRelation == null) {
                 continue;
             }
-            SourcedValue<Class<?>> targetClass = nativeRelation == null ? null : nativeRelation.targetClass();
+            SourcedValue<Class<?>> targetClass = nativeRelation != null && nativeRelation.targetEntity().explicit()
+                && !nativeRelation.targetClass().explicit()
+                ? SourcedValue.<Class<?>>unknown(null)
+                : resolveProperty(CrudRuntimeProperties.TARGET_CLASS, entityClass, relationField, diagnostics,
+                    nativeRelation == null ? null : nativeRelation.targetClass(),
+                    metaRelation == null ? null : relationValue(metaRelation.targetClass(), metaRelation,
+                        MetaDescriptorProperties.TARGET_CLASS));
             SourcedValue<RelationCardinality> cardinality = resolveProperty(CrudRuntimeProperties.CARDINALITY, entityClass, relationField, diagnostics,
                 nativeRelation == null ? null : nativeRelation.cardinality(),
                 metaRelation == null ? null : relationValue(metaRelation.cardinality(), metaRelation, CrudRuntimeProperties.CARDINALITY),

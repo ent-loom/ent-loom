@@ -142,7 +142,7 @@ Windows PowerShell：
 
 ## 验证请求
 
-请求文件见 [`requests/customer-profile.http`](requests/customer-profile.http)。框架 HTTP Controller 使用 `POST`，详情查询通过 `options.filterMap.id` 定位刚创建的记录：
+请求文件见 [`requests/customer-profile.http`](requests/customer-profile.http)。框架 HTTP Controller 使用 `POST`，详情查询通过顶层 `id` 定位刚创建的记录：
 
 ```powershell
 Invoke-RestMethod -Method Get `
@@ -154,14 +154,14 @@ $create = Invoke-RestMethod -Method Post `
   -Uri http://localhost:8080/api/ent-crud/customer_profile/create `
   -Headers @{ Authorization = "Bearer demo-profile-admin" } `
   -ContentType application/json `
-  -Body '{"options":{"requestId":"customer-profile-create-1"},"payload":{"id":1000000000001,"displayName":"Ada Lovelace","email":"ada@example.com"}}'
+  -Body '{"payload":{"id":1000000000001,"displayName":"Ada Lovelace","email":"ada@example.com"}}'
 
 $id = $create.data.id
 Invoke-RestMethod -Method Post `
   -Uri http://localhost:8080/api/ent-crud/customer_profile/detail `
   -Headers @{ Authorization = "Bearer demo-profile-admin" } `
   -ContentType application/json `
-  -Body (ConvertTo-Json @{ id = $id; options = @{ requestId = "customer-profile-detail-1" } } -Depth 8)
+  -Body (ConvertTo-Json @{ id = $id } -Depth 8)
 ```
 
 框架源码构建验证时，先在 **ent-loom 仓库根目录**安装到隔离仓库，再进入示例目录执行脚本。macOS/Linux：

@@ -3,6 +3,7 @@ package com.entloom.crud.engine.jdbc.command;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.api.model.EntityWriteResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.runtime.context.DefaultExecutionContext;
 import com.entloom.crud.core.exception.DataScopeDeniedException;
@@ -433,6 +434,7 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         if (spec.getResultType() == Void.class) {
             return null;
         }
+        if (spec.getResultType() == EntityWriteResult.class) return (R) new EntityWriteResult<Object>(rows, null);
         Map<String, Object> data = new java.util.LinkedHashMap<String, Object>();
         data.put("rows", rows);
         if (CommandResult.class.isAssignableFrom(spec.getResultType())) {
@@ -452,6 +454,7 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         if (spec.getResultType() == Void.class) {
             return null;
         }
+        if (spec.getResultType() == EntityWriteResult.class) return (R) new EntityWriteResult<Object>(1, id);
         Map<String, Object> data = new java.util.LinkedHashMap<String, Object>();
         data.put("rows", 1);
         if (id != null) {
@@ -471,6 +474,7 @@ public class JdbcCrudCommandHandler<P, R> implements CrudCommandHandler<P, R> {
         if (spec.getResultType() == Void.class) {
             return null;
         }
+        if (spec.getResultType() == EntityWriteResult.class) return (R) new EntityWriteResult<Object>(rows, id);
         Map<String, Object> data = new java.util.LinkedHashMap<String, Object>();
         data.put("operation", actualOperation.name());
         data.put("rows", rows);

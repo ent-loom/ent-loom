@@ -38,6 +38,22 @@ import org.junit.jupiter.api.Test;
 
 class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
     @Test
+    void 类型化命令在普通执行链也须先核对主键类型() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("id", 1009L);
+        payload.put("orderNo", "不能落库");
+        payload.put("isDeleted", 0);
+        var spec = commandSpec(CommandOperation.CREATE, "wrong-id-type", payload)
+            .toBuilder().idType(Integer.class).build();
+        ValidationException error = Assertions.assertThrows(ValidationException.class,
+            () -> commandGateway.action(spec));
+        Assertions.assertTrue(error.getMessage().contains("主键类型与元数据不一致"));
+        Assertions.assertEquals(0, countById(1009L));
+        commandGateway.action(spec.toBuilder().idType(long.class).build());
+        Assertions.assertEquals(1, countById(1009L));
+    }
+
+    @Test
     void order_root_metadata_should_mark_scope_fields_and_exclude_items_relation() {
         com.entloom.crud.core.runtime.meta.EntityMeta meta = metaRegistry.getEntityMeta(OrderTestEntity.class);
 
@@ -255,18 +271,15 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
     }
 
     @Test
-    void create_with_pojo_payload_should_be_rejected() {
+    void create_with_typed_dto_should_bind_entity_fields() {
         OrderPayload payload = new OrderPayload();
         payload.id = 1005L;
         payload.orderNo = "ORD-1005";
         payload.isDeleted = 0;
 
-        ValidationException ex = Assertions.assertThrows(
-            ValidationException.class,
-            () -> commandGateway.action(commandSpec(CommandOperation.CREATE, "c-5", payload))
-        );
-
-        Assertions.assertTrue(ex.getMessage().contains("命令载荷必须是 Map、CrudRecord 或 WriteCommand"));
+        commandGateway.action(commandSpec(CommandOperation.CREATE, "c-5", payload));
+        Assertions.assertEquals("ORD-1005", jdbcTemplate.queryForObject(
+            "select order_no from t_order where id=?", String.class, 1005L));
     }
 
     @Test

@@ -18,6 +18,7 @@ import com.entloom.crud.core.governance.admission.AccessContextScope;
 import com.entloom.crud.core.governance.admission.CredentialAuthentication;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.starter.config.CrudAccessWebAutoConfiguration;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.DispatcherType;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
@@ -66,6 +68,26 @@ class AccessWebAdmissionTest {
         .withUserConfiguration(MvcConfiguration.class, AuthenticationConfiguration.class);
 
     @Test
+    void 认证过滤器直接返回的错误包含一致的请求和链路标识() {
+        runner.run(context -> {
+            MDC.put("traceId", "authentication-trace");
+            try {
+                var result = mvc(context.getSourceApplicationContext())
+                    .perform(get("/access/required").header("Authorization", "Bearer expired"))
+                    .andExpect(status().isForbidden()).andReturn();
+                var body = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+                assertThat(body.path("requestId").asText()).isNotBlank();
+                assertThat(body.path("error").path("requestId").asText()).isEqualTo(body.path("requestId").asText());
+                assertThat(body.path("traceId").asText()).isEqualTo("authentication-trace");
+                assertThat(body.path("error").path("traceId").asText()).isEqualTo("authentication-trace");
+                assertThat(context.getBean(Calls.class).controllerCalls.get()).isZero();
+            } finally {
+                MDC.remove("traceId");
+            }
+        });
+    }
+
+    @Test
     void http_should_enforce_full_credential_matrix_independent_of_context_parameter() {
         runner.run(context -> {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
@@ -91,7 +113,8 @@ class AccessWebAdmissionTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"subjectId\":\"actor-forged\",\"identityId\":\"merchant-forged\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("actor-1|merchant-1|merchant|trusted-entry|request-1|trace-1"));
+                .andExpect(content().string(org.hamcrest.Matchers.matchesPattern(
+                    "actor-1\\|merchant-1\\|merchant\\|trusted-entry\\|[0-9a-f-]{36}\\|null")));
             assertThat(context.getBean(Calls.class).authenticationCalls.get()).isEqualTo(1);
             assertThat(AccessWebRequestContext.find(context.getBean(Calls.class).request.get())).isNull();
         });
@@ -430,6 +453,7 @@ class AccessWebAdmissionTest {
 
     private static MockMvc mvc(org.springframework.web.context.WebApplicationContext context) {
         var builder = MockMvcBuilders.webAppContextSetup(context);
+        builder.addFilters(context.getBean("crudHttpRequestContextFilter", FilterRegistrationBean.class).getFilter());
         if (context.containsBean("crudAccessAuthenticationFilter")) {
             FilterRegistrationBean<?> registration = context.getBean("crudAccessAuthenticationFilter", FilterRegistrationBean.class);
             builder.addFilters(registration.getFilter());
@@ -503,7 +527,7 @@ class AccessWebAdmissionTest {
                 }
                 String entry = credential != null && credential.endsWith("other-entry") ? "other-entry"
                     : credential != null && credential.startsWith("Bearer service") ? "internal-entry" : "trusted-entry";
-                return new HttpAccessAuthentication(authentication, entry, "request-1", "trace-1");
+                return new HttpAccessAuthentication(authentication, entry);
             };
         }
     }

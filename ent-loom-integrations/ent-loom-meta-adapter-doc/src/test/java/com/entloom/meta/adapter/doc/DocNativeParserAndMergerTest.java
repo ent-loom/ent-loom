@@ -23,6 +23,26 @@ import org.junit.jupiter.api.Test;
 class DocNativeParserAndMergerTest {
 
     @Test
+    void 原生显式目标标识覆盖类引用时同步清除原目标类() {
+        DocEntityModel nativeModel = new DocNativeAnnotationParser(new SimpleDocMetaResolver(), null)
+            .parseWithDiagnostics(TargetOverrideOrder.class).value();
+        DocEntityModel merged = new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger().merge(
+            TargetOverrideOrder.class, new com.entloom.meta.core.parser.ReflectiveEntMetaParser().parse(TargetOverrideOrder.class),
+            nativeModel, com.entloom.meta.contract.value.SourcedValue.inferred("targetOverrideOrder")).value();
+
+        Assertions.assertEquals("doc_customer", merged.relations().get(0).targetEntity().value());
+        Assertions.assertNull(merged.relations().get(0).targetClass().value());
+    }
+
+    @EntEntity
+    private static class TargetOverrideOrder {
+        Long id;
+        @EntRelation(MergeCustomer.class)
+        @EntDocField(targetEntity = "doc_customer")
+        Long customerId;
+    }
+
+    @Test
     void native_parser_should_keep_doc_annotation_defaults_non_explicit() {
         DocEntityModel model = new DocNativeAnnotationParser(new SimpleDocMetaResolver(), null)
             .parseWithDiagnostics(NativeOrder.class)
@@ -150,7 +170,7 @@ class DocNativeParserAndMergerTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "merge_customer", targetField = "idCode")
+        @EntRelation(value = MergeCustomer.class, targetField = "idCode")
         @EntDocField(targetField = "customerCode")
         private Long customerId;
     }

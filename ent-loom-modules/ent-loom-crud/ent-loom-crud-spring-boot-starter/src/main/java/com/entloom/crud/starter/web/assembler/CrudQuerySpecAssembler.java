@@ -218,10 +218,6 @@ public class CrudQuerySpecAssembler {
         return (Class<Object>) (Class<?>) selected;
     }
 
-    public String resolveRequestId(CrudReadHttpRequest request) {
-        return requestSupport.resolveRequestId(request.getOptions().getRequestId());
-    }
-
     private Class<?> resolvePreferredResultType(CrudReadHttpRequest request) {
         if (request == null || request.getOptions() == null) {
             return resolveTypeByMode(defaultResultMode, "ent.loom.crud.controller.default-read-result-mode");

@@ -21,6 +21,29 @@ import org.junit.jupiter.api.Test;
 class MetaCrudAdapterRelationDirectionTest {
 
     @Test
+    void 类引用仍要求目标实体显式注册() {
+        MetaDiagnosticException exception = Assertions.assertThrows(MetaDiagnosticException.class,
+            () -> new MetaCrudAdapter(Arrays.<Class<?>>asList(DirectionOrder.class)));
+
+        Assertions.assertTrue(exception.diagnostics().stream().anyMatch(diagnostic ->
+            diagnostic.code() == MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND));
+    }
+
+    @Test
+    void 同标识的其他实体不能替代类引用目标() {
+        MetaDiagnosticException exception = Assertions.assertThrows(MetaDiagnosticException.class,
+            () -> new MetaCrudAdapter(Arrays.<Class<?>>asList(DirectionOrder.class, CustomerAlias.class)));
+
+        Assertions.assertTrue(exception.diagnostics().stream().anyMatch(diagnostic ->
+            diagnostic.code() == MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND));
+    }
+
+    @EntEntity(entity = "direction_customer")
+    private static class CustomerAlias {
+        Long id;
+    }
+
+    @Test
     void 唯一反向引用补全集合映射且不改变Meta关系事实() {
         for (List<Class<?>> types : Arrays.asList(Arrays.<Class<?>>asList(SimpleParent.class, SimpleChild.class),
             Arrays.<Class<?>>asList(SimpleChild.class, SimpleParent.class))) {
@@ -178,7 +201,7 @@ class MetaCrudAdapterRelationDirectionTest {
     @EntEntity
     private static class SimpleChild {
         Long id;
-        @EntRelation(targetEntity = "simpleParent")
+        @EntRelation(SimpleParent.class)
         Long parentId;
     }
 
@@ -191,9 +214,9 @@ class MetaCrudAdapterRelationDirectionTest {
     @EntEntity
     private static class MultiChild {
         Long id;
-        @EntRelation(targetEntity = "multiParent")
+        @EntRelation(MultiParent.class)
         Long primaryId;
-        @EntRelation(targetEntity = "multiParent")
+        @EntRelation(MultiParent.class)
         Long secondaryId;
     }
 
@@ -203,7 +226,7 @@ class MetaCrudAdapterRelationDirectionTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long customerId;
     }
 
@@ -216,7 +239,7 @@ class MetaCrudAdapterRelationDirectionTest {
     private static class NavigatedOrderBase {
         private Long id;
 
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long customerId;
 
         private DirectionCustomer customer;
@@ -230,10 +253,10 @@ class MetaCrudAdapterRelationDirectionTest {
     private static final class TwoCustomerOrder {
         private Long id;
 
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long buyerId;
 
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long sellerId;
 
         private DirectionCustomer buyer;
@@ -245,7 +268,7 @@ class MetaCrudAdapterRelationDirectionTest {
     private static final class UnmatchedOrder {
         private Long id;
 
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long customerId;
 
         private DirectionCustomer buyer;
@@ -257,7 +280,7 @@ class MetaCrudAdapterRelationDirectionTest {
         private Long id;
         private Long customerId;
 
-        @EntRelation(targetEntity = "direction_customer", sourceField = "customerId")
+        @EntRelation(value = DirectionCustomer.class, sourceField = "customerId")
         private DirectionCustomer buyer;
     }
 
@@ -265,7 +288,7 @@ class MetaCrudAdapterRelationDirectionTest {
     private static final class WrongNavigationOrder {
         private Long id;
 
-        @EntRelation(targetEntity = "direction_customer")
+        @EntRelation(DirectionCustomer.class)
         private Long customerId;
 
         private DirectionTag customer;
@@ -277,7 +300,7 @@ class MetaCrudAdapterRelationDirectionTest {
         private Long id;
 
         @EntRelation(
-            targetEntity = "direction_order_line",
+            value = DirectionOrderLine.class,
             targetField = "customerId",
             cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY
         )
@@ -299,7 +322,7 @@ class MetaCrudAdapterRelationDirectionTest {
         private Long id;
 
         @EntRelation(
-            targetEntity = "direction_tag",
+            value = DirectionTag.class,
             cardinality = com.entloom.meta.enums.RelationCardinality.MANY_TO_MANY
         )
         private List<DirectionTag> tags;

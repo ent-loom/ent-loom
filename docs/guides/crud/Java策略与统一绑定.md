@@ -15,8 +15,7 @@ class Order { /* 实体字段 */ }
 ```java
 @EntCrudEntity(actions = {"view", "update"})
 @EntCrudGrant(identities = "merchant", actions = {"view", "update"})
-@EntCrudGrant(identities = "public", actions = "view", scope = EntCrudGrantScope.EQUAL,
-    scopeField = "active", scopeValue = "true", inheritFields = false,
+@EntCrudGrant(identities = "public", actions = "view", scope = EntCrudGrantScope.ALL, where = "active = true",
     fields = @EntCrudGrant.Fields(use = EntCrudFieldUse.RETURN, value = {"id", "name"}))
 class Product { /* 实体字段 */ }
 ```
@@ -38,9 +37,11 @@ ent:
 - `grant-defaults.wildcard-identities` 是全局 `*` 身份集合：对使用声明式授权的 CRUD 实体，自动展开实体 `actions`，包括自定义动作，范围为全量、字段受实体上限约束；无需逐实体重复声明管理员。
 - 实体上只要显式声明同一身份，就整体替换该身份的全局默认，不补回其他操作。`actions = {}` 显式禁止访问；例如订单声明管理员仅能 `view/cancel`，不继承下单资格。
 - 只有 `@EntCrudEntity`、未绑定 Java 模板的实体也可使用全局授权；没有 CRUD 声明的实体不自动纳入，通用 HTTP 的关闭标记保持有效。显式选择 Java 模板的实体继续由其模板声明资格，不混入声明式默认。
-- `ALL` 显式全量；`EQUAL` 是固定字段等值，启动时检查字段并转换布尔、整数、十进制、字符串或 UUID。匿名分支 `public` 必须显式选择 ALL/EQUAL，不借用登录身份权限。
-- `inheritFields = true` 沿用实体上限；`fields` 缺省对全部用途统一收窄，显式 `use` 可选择一个或多个用途；显式空 `value` 关闭选中的用途，`exclude` 从继承集合中排除字段。
-- `inheritFields = false` 关闭所有未声明的字段用途，适合公开摘要。RETURN 不隐式开放 FILTER、SORT；各用途独立声明。
+- `ALL` 显式全量基础范围；匿名分支 `public` 必须显式声明 ALL，不借用登录身份权限。
+- `where` 是开发者维护的静态 SQL 行条件，仅支持 `actions = "view"`；使用当前实体表的数据库列名，不写 WHERE 关键字或表别名，不拼接外部输入、不支持动态参数。框架不解析或转换 SQL，SQL 正确性由项目集成测试验证。
+- `where` 始终收窄基础范围，默认与身份归属取交集；匿名与顾客跨归属查看公开商品时，显式声明 `scope = ALL`。租户等强制治理条件、动态扩展的收窄条件始终取交集。
+- JDBC 统一将 `where` 整体加括号，用于列表、详情、计数等受授权读取；写入执行链拒绝 SQL 查看条件。
+- 不声明 `fields` 时沿用实体字段上限；白名单仅开放列出字段，`exclude` 从实体允许集合中排除。`use` 缺省对全部用途统一收窄，显式 `use` 仅影响选中的用途，未选用途沿用实体上限；显式空 `value` 关闭选中用途。
 - EXPAND 仅支持 `关系.字段` 投影，不能授权完整关联对象。
 - 未注册身份、未知范围字段、字段越界、超出动作上限、重复身份/动作或重复的用途专属声明均启动失败。同一实体不能混用授权注解与模板/程序化绑定。
 
@@ -68,7 +69,7 @@ EntityPolicyTemplate orderRead() {
 
 实体选择 Java 模板后，不再额外注册同一实体的 `EntityPolicyBinding`；纯 Java 绑定也可使用实体注解声明字段与动作上限，两处字段上限取交集。超出实体动作上限、策略重名或绑定冲突均启动失败。
 
-未使用实体注解的内部 Java 接入仍可显式登记业务操作、映射及策略绑定。MVC 直接调用同一个 `BusinessAuthorizationService`；使用原始 Mapper 时业务必须实际落实授权范围、字段与审计，不能只做一次允许检查。
+未使用实体注解的内部 Java 接入仍可显式登记业务操作、映射及策略绑定。MVC 原始查询通过 [BusinessQueryExecutor](MVC业务查询治理.md) 复用同一个 `BusinessAuthorizationService`，由框架统一处理授权拒绝、执行阶段和审计。业务准备查询参数并声明字段用途，原始 Mapper 必须实际落实授权范围与投影，不能只做一次允许检查。
 
 `public` 表示不要求特定业务身份分支，HTTP 是否要求凭证仍由可信准入合同决定；它不代表绕过认证。身份相关业务应使用已注册身份分支，关系事实只取自可信身份。
 
@@ -96,7 +97,7 @@ EntityPolicyTemplate orderRead() {
 结构关系只在字段上声明一次：
 
 ```java
-@EntRelation(targetEntity = "merchant")
+@EntRelation(Merchant.class)
 private Long sellerRef;
 ```
 
@@ -173,6 +174,6 @@ class Invoice { }
 @EntCrudGrant.Fields(use = FILTER, exclude = "totalAmount") // 特定用途例外
 ```
 
-`use` 缺省为 `EntCrudFieldUse.ALL`。统一白名单分别与每个用途的实体上限取交集，不会让主键可写，也不会开放完整关联对象。只有显式选中的字段规则影响权限；没有声明 `fields` 时继续沿用 `inheritFields`。
+`use` 缺省为 `EntCrudFieldUse.ALL`。统一白名单分别与每个用途的实体上限取交集，不会让主键可写，也不会开放完整关联对象。只有显式选中的字段规则影响权限；没有声明 `fields` 时沿用实体字段上限。
 
 一条 ALL 规则可与用途专属规则共同声明，两者按交集收窄，与声明顺序无关，专属规则不能重新放开已被统一规则排除的字段。ALL 不能与其他用途混写；空用途数组、重复 ALL 或重叠的专属用途声明均启动报错。固定用途仍严格校验字段是否在该用途上限内；ALL 按各用途分别取交集。

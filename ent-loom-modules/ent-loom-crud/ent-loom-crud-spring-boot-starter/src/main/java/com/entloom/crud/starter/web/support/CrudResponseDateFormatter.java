@@ -4,7 +4,9 @@ import com.entloom.crud.api.enums.CrudNullFieldMode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.ser.FilterProvider;
 import java.text.SimpleDateFormat;
 import java.util.Iterator;
 import java.util.Map;
@@ -37,6 +39,10 @@ public class CrudResponseDateFormatter {
     }
 
     public Object format(Object body, CrudNullFieldMode nullFieldMode) {
+        return format(body, nullFieldMode, null, null);
+    }
+
+    Object format(Object body, CrudNullFieldMode nullFieldMode, Class<?> view, FilterProvider filters) {
         if (body == null || body instanceof CharSequence || body instanceof byte[]) {
             return body;
         }
@@ -44,7 +50,10 @@ public class CrudResponseDateFormatter {
             ObjectMapper formatterMapper = nullFieldMode == CrudNullFieldMode.OMIT
                 ? objectMapper
                 : includeNullObjectMapper;
-            JsonNode root = formatterMapper.readTree(formatterMapper.writeValueAsBytes(body));
+            ObjectWriter writer = formatterMapper.writer();
+            if (view != null) writer = writer.withView(view);
+            if (filters != null) writer = writer.with(filters);
+            JsonNode root = formatterMapper.readTree(writer.writeValueAsBytes(body));
             if (nullFieldMode == CrudNullFieldMode.OMIT) {
                 omitRecordNullFields(root);
             }

@@ -19,7 +19,7 @@ public class CustomerBankCard {
     private Long id;
 
     @EntField("所属顾客 ID")
-    @EntRelation(targetEntity = "customer")
+    @EntRelation(Customer.class)
     private Long customerId;
 
     @EntField("银行名称")

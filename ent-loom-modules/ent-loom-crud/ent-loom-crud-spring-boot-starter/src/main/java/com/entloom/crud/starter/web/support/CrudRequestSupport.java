@@ -56,14 +56,6 @@ public class CrudRequestSupport {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    public String resolveRequestId(String requestId) {
-        if (requestId == null) {
-            return null;
-        }
-        String normalized = requestId.trim();
-        return normalized.isEmpty() ? null : normalized;
-    }
-
     public Class<?> resolveViewTypeOrThrow(String viewType) {
         return exposedViewTypeRegistry.resolveOrThrow(viewType);
     }

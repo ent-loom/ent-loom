@@ -23,6 +23,23 @@ import org.junit.jupiter.api.Test;
 class MetaDocAdapterP0AcceptanceTest {
 
     @Test
+    void 类引用须注册实际目标且不能由同标识的其他类替代() {
+        for (List<Class<?>> types : Arrays.asList(Arrays.<Class<?>>asList(MetaOnlyOrder.class),
+            Arrays.<Class<?>>asList(MetaOnlyOrder.class, CustomerAlias.class))) {
+            MetaDiagnosticException exception = Assertions.assertThrows(MetaDiagnosticException.class,
+                () -> new MetaDocAdapter(new SimpleDocMetaResolver(), types));
+
+            Assertions.assertTrue(exception.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code() == MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND));
+        }
+    }
+
+    @EntEntity(entity = "meta_only_customer")
+    private static class CustomerAlias {
+        Long id;
+    }
+
+    @Test
     void p0_doc_acceptance_should_cover_meta_only_doc_only_override_relations_and_indexes() {
         MetaDocAdapter adapter = new MetaDocAdapter(
             new SimpleDocMetaResolver(), declaredIndexes(),
@@ -201,7 +218,7 @@ class MetaDocAdapterP0AcceptanceTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "meta_only_customer")
+        @EntRelation(MetaOnlyCustomer.class)
         private Long customerId;
     }
 
@@ -225,7 +242,7 @@ class MetaDocAdapterP0AcceptanceTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "override_customer", targetField = "idCode")
+        @EntRelation(value = OverrideCustomer.class, targetField = "idCode")
         @EntDocField(name = "客户编号", targetField = "customerCode", targetEntityLabel = "客户")
         private Long customerId;
     }

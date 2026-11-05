@@ -19,7 +19,7 @@ import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.starter.web.assembler.CrudQuerySpecAssembler;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
 import com.entloom.crud.starter.web.dto.CrudReadHttpRequest;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContext;
 import com.entloom.crud.starter.web.support.CrudResponseNullFieldModeContext;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -32,61 +32,65 @@ public class EntCrudQueryFacade {
     private final QueryGateway queryGateway;
     private final CrudSubjectResolver subjectResolver;
     private final CrudQuerySpecAssembler querySpecAssembler;
-    private final CrudResponseBuilder crudResponseBuilder;
     private final CrudSchemaAssembler crudSchemaAssembler;
     private final CrudNullFieldMode defaultNullFieldMode;
 
     public CrudResponse<?> page(String entity, String scene, CrudReadHttpRequest request, CrudInvocationContext context) {
         CrudReadHttpRequest actualRequest = request == null ? new CrudReadHttpRequest() : request;
-        crudResponseBuilder.bind(querySpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(QueryOperation.PAGE));
-        bindNullFieldMode(actualRequest);
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(QueryOperation.PAGE);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
+            bindNullFieldMode(actualRequest);
             QuerySpec<Object> spec = assemble(QueryOperation.PAGE, entity, scene, actualRequest);
             PageResult<Object> result = queryGateway.page(spec);
-            return crudResponseBuilder.success("OK", "OK", toPageData(result, spec), crudSchemaAssembler.queryMeta(spec));
-        });
+            return CrudResponse.success("OK", "OK", toPageData(result, spec), crudSchemaAssembler.queryMeta(spec));
+        }));
     }
 
     public CrudResponse<?> list(String entity, String scene, CrudReadHttpRequest request, CrudInvocationContext context) {
         CrudReadHttpRequest actualRequest = request == null ? new CrudReadHttpRequest() : request;
-        crudResponseBuilder.bind(querySpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(QueryOperation.LIST));
-        bindNullFieldMode(actualRequest);
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(QueryOperation.LIST);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
+            bindNullFieldMode(actualRequest);
             QuerySpec<Object> spec = assemble(QueryOperation.LIST, entity, scene, actualRequest);
             List<Object> result = queryGateway.list(spec);
             CrudListData<Object> data = new CrudListData<Object>();
             data.setItems(adaptItems(result, spec));
-            return crudResponseBuilder.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
-        });
+            return CrudResponse.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
+        }));
     }
 
     public CrudResponse<?> findOne(String entity, String scene, CrudReadHttpRequest request, CrudInvocationContext context) {
         CrudReadHttpRequest actualRequest = request == null ? new CrudReadHttpRequest() : request;
-        crudResponseBuilder.bind(querySpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(QueryOperation.FIND_ONE));
-        bindNullFieldMode(actualRequest);
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(QueryOperation.FIND_ONE);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
+            bindNullFieldMode(actualRequest);
             QuerySpec<Object> spec = assemble(QueryOperation.FIND_ONE, entity, scene, actualRequest);
             CrudItemData<Object> data = new CrudItemData<Object>();
             data.setItem(adaptItem(queryGateway.findOne(spec), spec));
-            return crudResponseBuilder.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
-        });
+            return CrudResponse.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
+        }));
     }
 
     public CrudResponse<?> detail(String entity, String scene, CrudReadHttpRequest request, CrudInvocationContext context) {
         CrudReadHttpRequest actualRequest = request == null ? new CrudReadHttpRequest() : request;
-        crudResponseBuilder.bind(querySpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(QueryOperation.DETAIL));
-        bindNullFieldMode(actualRequest);
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(QueryOperation.DETAIL);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
+            bindNullFieldMode(actualRequest);
             QuerySpec<Object> spec = assemble(QueryOperation.DETAIL, entity, scene, actualRequest);
             CrudItemData<Object> data = new CrudItemData<Object>();
             data.setItem(adaptItem(queryGateway.detail(spec), spec));
-            return crudResponseBuilder.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
-        });
+            return CrudResponse.success("OK", "OK", data, crudSchemaAssembler.queryMeta(spec));
+        }));
     }
 
     private <T> T withContext(CrudInvocationContext context, java.util.function.Supplier<T> supplier) {
         CrudInvocationContext actualContext = context == null ? CrudInvocationContext.empty() : context;
-        return CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier);
+        return CrudHttpRequestContext.trackOperationFailure(
+            () -> CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier));
     }
 
     private void bindNullFieldMode(CrudReadHttpRequest request) {

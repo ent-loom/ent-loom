@@ -240,7 +240,7 @@ class MetaCrudAdapterP0AcceptanceTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "meta_only_customer")
+        @EntRelation(MetaOnlyCustomer.class)
         private Long customerId;
     }
 
@@ -270,7 +270,7 @@ class MetaCrudAdapterP0AcceptanceTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "override_customer", targetField = "idCode")
+        @EntRelation(value = OverrideCustomer.class, targetField = "idCode")
         @EntCrudField(targetClass = OverrideCustomer.class, targetField = "customerCode")
         private Long customerId;
     }
@@ -292,7 +292,7 @@ class MetaCrudAdapterP0AcceptanceTest {
         private Long id;
 
         @EntField
-        @EntRelation(targetEntity = "broken_customer", targetField = "missingCode")
+        @EntRelation(value = BrokenCustomer.class, targetField = "missingCode")
         private Long customerId;
     }
 

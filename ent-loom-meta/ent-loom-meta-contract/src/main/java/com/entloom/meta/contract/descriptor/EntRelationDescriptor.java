@@ -29,6 +29,9 @@ public interface EntRelationDescriptor extends SourcedDescriptor {
      */
     String targetEntity();
 
+    /** 本地目标实体类；字符串标识声明时为空。 */
+    Class<?> targetClass();
+
     /**
      * 目标实体字段名。
      */

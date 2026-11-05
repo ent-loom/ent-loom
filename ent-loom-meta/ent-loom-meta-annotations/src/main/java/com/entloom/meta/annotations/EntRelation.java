@@ -20,19 +20,25 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 public @interface EntRelation {
     /**
+     * 本地目标实体类，例如 {@code @EntRelation(Customer.class)}；须声明 {@link EntEntity}。
+     * 与 {@link #targetEntity()} 互斥。
+     */
+    Class<?> value() default Void.class;
+
+    /**
+     * 无本地实体类时使用的目标实体标识，与 {@link #value()} 互斥。
+     */
+    String targetEntity() default "";
+
+    /**
      * 引用字段角色。
      */
     RefIdRole role() default RefIdRole.UNSET;
 
     /**
-     * 目标实体所属服务。
+     * 目标实体所属服务；类引用默认复用目标实体的服务，不允许声明不一致的服务。
      */
     String targetService() default "";
-
-    /**
-     * 目标实体名。
-     */
-    String targetEntity() default "";
 
     /**
      * 来源字段名，空字符串表示使用被注解字段名。

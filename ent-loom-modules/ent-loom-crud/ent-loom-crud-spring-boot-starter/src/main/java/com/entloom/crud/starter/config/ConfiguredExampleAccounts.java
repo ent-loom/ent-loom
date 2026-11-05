@@ -9,7 +9,6 @@ import com.entloom.crud.starter.web.access.HttpAccessAuthentication;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.http.server.PathContainer;
 import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
@@ -53,8 +52,7 @@ public final class ConfiguredExampleAccounts {
             }
             entry = route.getValue();
         }
-        return new HttpAccessAuthentication(authentication, entry == null ? defaultEntry : entry,
-            UUID.randomUUID().toString(), null);
+        return new HttpAccessAuthentication(authentication, entry == null ? defaultEntry : entry);
     }
 
     private void compileAccount(CrudExampleProperties.Account source, Map<String, BusinessIdentityDefinition> identities) {

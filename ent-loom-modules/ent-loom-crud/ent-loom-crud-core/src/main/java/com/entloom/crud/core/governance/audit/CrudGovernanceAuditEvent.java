@@ -2,6 +2,7 @@ package com.entloom.crud.core.governance.audit;
 
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.access.VisitorContext;
+import com.entloom.crud.api.access.AuthorizationRequest;
 import com.entloom.crud.api.access.AccessSubject;
 import com.entloom.crud.core.governance.authorization.AuthorizationResult;
 import com.entloom.crud.api.enums.CrudErrorStage;
@@ -17,6 +18,8 @@ import lombok.Getter;
 public class CrudGovernanceAuditEvent {
     /** 业务授权的有效访问者；旧治理事件为空。 */
     private final VisitorContext visitor;
+    /** 原始业务授权请求；即使授权未返回结果，也保留调用和目标信息。 */
+    private final AuthorizationRequest authorizationRequest;
     /** 本次业务授权结果；未签发结果的拒绝事件为空，不伪装为旧 Map 范围。 */
     private final AuthorizationResult authorizationResult;
     /** 请求主体。 */
@@ -72,16 +75,18 @@ public class CrudGovernanceAuditEvent {
         String traceId
     ) {
         this(subject, action, accessDecision, grantedScope, governanceScope, outcome, reason,
-            costMs, stage, routeKey, requestId, traceId, null, null);
+            costMs, stage, routeKey, requestId, traceId, null, null, null);
     }
 
     private CrudGovernanceAuditEvent(
         SubjectContext subject, CrudResourceAction action, AccessDecision accessDecision,
         CrudDataScope grantedScope, CrudDataScope governanceScope, CrudGovernanceAuditOutcome outcome,
         CrudGovernanceAuditReasonCode reason, long costMs, CrudErrorStage stage, String routeKey,
-        String requestId, String traceId, VisitorContext visitor, AuthorizationResult authorizationResult
+        String requestId, String traceId, VisitorContext visitor, AuthorizationRequest authorizationRequest,
+        AuthorizationResult authorizationResult
     ) {
         this.visitor = visitor;
+        this.authorizationRequest = authorizationRequest;
         this.authorizationResult = authorizationResult;
         this.subject = subject;
         this.action = action;
@@ -156,11 +161,12 @@ public class CrudGovernanceAuditEvent {
 
     /** 业务查询复用现有审计记录器，保留真实范围和字段结果，不转换为旧 Map。 */
     public static CrudGovernanceAuditEvent forBusinessQuery(
-        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationResult result, CrudResourceAction action,
+        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationRequest request,
+        AuthorizationResult result, CrudResourceAction action,
         CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
         long costMs, CrudErrorStage stage, String routeKey
     ) {
-        return forBusiness(visitor, authenticatedSubject, result, action, outcome, reason, costMs, stage, routeKey);
+        return forBusiness(visitor, authenticatedSubject, request, result, action, outcome, reason, costMs, stage, routeKey);
     }
 
     /** 业务命令复用同一审计结构，保留本次授权请求及目标绑定。 */
@@ -169,11 +175,13 @@ public class CrudGovernanceAuditEvent {
         CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
         long costMs, CrudErrorStage stage, String routeKey
     ) {
-        return forBusiness(visitor, authenticatedSubject, result, action, outcome, reason, costMs, stage, routeKey);
+        return forBusiness(visitor, authenticatedSubject, result == null ? null : result.getRequest(),
+            result, action, outcome, reason, costMs, stage, routeKey);
     }
 
     private static CrudGovernanceAuditEvent forBusiness(
-        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationResult result, CrudResourceAction action,
+        VisitorContext visitor, AccessSubject authenticatedSubject, AuthorizationRequest request,
+        AuthorizationResult result, CrudResourceAction action,
         CrudGovernanceAuditOutcome outcome, CrudGovernanceAuditReasonCode reason,
         long costMs, CrudErrorStage stage, String routeKey
     ) {
@@ -183,10 +191,11 @@ public class CrudGovernanceAuditEvent {
             subject.setSubjectId(authenticatedSubject.getSubjectId());
         }
         return new CrudGovernanceAuditEvent(subject, action,
-            outcome == CrudGovernanceAuditOutcome.GOVERNANCE_DENIED ? AccessDecision.DENY : AccessDecision.ALLOW,
+            outcome == CrudGovernanceAuditOutcome.GOVERNANCE_DENIED || outcome == CrudGovernanceAuditOutcome.GOVERNANCE_FAILED
+                ? AccessDecision.DENY : AccessDecision.ALLOW,
             null, null, outcome, reason, costMs, stage, routeKey,
             visitor == null ? null : visitor.getRequestId(), visitor == null ? null : visitor.getTraceId(),
-            visitor, result);
+            visitor, request, result);
     }
 
     public String getReasonCode() {

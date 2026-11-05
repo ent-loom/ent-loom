@@ -11,9 +11,6 @@ Authorization: Bearer demo-profile-admin
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-profile-create-1"
-  },
   "payload": {
     "id": {{customerId}},
     "displayName": "Ada Lovelace",
@@ -27,8 +24,5 @@ Authorization: Bearer demo-profile-admin
 Content-Type: application/json
 
 {
-  "id": {{customerId}},
-  "options": {
-    "requestId": "customer-profile-detail-1"
-  }
+  "id": {{customerId}}
 }

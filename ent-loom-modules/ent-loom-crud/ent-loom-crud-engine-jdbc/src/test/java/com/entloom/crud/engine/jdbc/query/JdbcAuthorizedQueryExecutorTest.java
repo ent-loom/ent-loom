@@ -172,6 +172,79 @@ class JdbcAuthorizedQueryExecutorTest {
             AuthorizationScope.and(Arrays.asList(AuthorizationScope.equal("schoolId", 2L), AuthorizationScope.equal("tenantId", "B")))));
     }
 
+    record OrderSummary(Long id, String orderNo) { }
+    record ItemSummary(String skuCode) { }
+    record OrderWithItems(String orderNo, List<ItemSummary> items) { }
+    record ItemWithQuantity(String skuCode, Integer quantity) { }
+    record OrderWithExtraItemFields(String orderNo, List<ItemWithQuantity> items) { }
+    record OrderWithWrongCardinality(String orderNo, ItemSummary items) { }
+
+    @Test
+    void 类型化查询自动推导DTO字段并保留分页与单条语义() {
+        QuerySpec<OrderSummary> spec = QuerySpec.builder(OrderTestEntity.class, OrderSummary.class)
+            .sorts(Collections.singletonList(new QuerySort("id", SortDirection.ASC))).build();
+        List<OrderSummary> rows = executor.list(visitor, spec);
+        assertEquals(Arrays.asList(1L, 4L), rows.stream().map(OrderSummary::id).toList());
+        assertEquals("one", rows.get(0).orderNo());
+        PageResult<OrderSummary> page = executor.page(visitor, spec.toBuilder().page(new PageRequest(1, 1)).build());
+        assertEquals(2L, page.getTotal());
+        assertEquals(1L, page.getItems().get(0).id());
+        var target = spec.toBuilder().sorts(Collections.emptyList()).filters(Collections.singletonList(
+            new QueryFilter("id", FilterOperator.EQ, 1L))).build();
+        assertEquals("one", executor.detail(visitor, target).orderNo());
+        assertEquals("one", executor.findOne(visitor, target).orderNo());
+        assertNull(executor.findOne(visitor, target.toBuilder().filters(Collections.singletonList(
+            new QueryFilter("id", FilterOperator.EQ, 999L))).build()));
+        PageResult<OrderSummary> withoutCount = executor.page(visitor,
+            spec.toBuilder().page(new PageRequest(1, 1)).countMode(PageCountMode.NONE).build());
+        assertNull(withoutCount.getTotal());
+        assertTrue(withoutCount.getHasNext());
+    }
+
+    @Test
+    void 普通实体查询要求完整字段权限且不允许不完整实体投影() {
+        var spec = QuerySpec.builder(OrderTestEntity.class).build();
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor, spec));
+        assertTrue(executedSql.isEmpty());
+        fields = fields("id", "orderNo", "schoolId", "tenantId", "isDeleted");
+        List<OrderTestEntity> rows = executor.list(visitor, spec);
+        assertEquals(2, rows.size());
+        assertEquals("A", rows.stream().filter(row -> row.getId().equals(1L)).findFirst().orElseThrow().getTenantId());
+        assertNull(rows.get(0).getItems());
+        executedSql.clear();
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            spec.toBuilder().selectFields(Arrays.asList("id", "orderNo")).build()));
+        assertTrue(executedSql.isEmpty());
+    }
+
+    @Test
+    void DTO与关联DTO所需字段必须在任何SQL之前完整授权() {
+        fields = fields("id");
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            QuerySpec.builder(OrderTestEntity.class, OrderSummary.class).build()));
+        Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<>(AuthorizationFields.Use.class);
+        uses.put(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"));
+        uses.put(AuthorizationFields.Use.SORT, Collections.singletonList("id"));
+        uses.put(AuthorizationFields.Use.EXPAND, Collections.singletonList("items.skuCode"));
+        fields = AuthorizationFields.of(uses);
+        var spec = QuerySpec.builder(OrderTestEntity.class, OrderWithItems.class)
+            .expandRelations(Collections.singletonList("items")).build();
+        assertTrue(executedSql.isEmpty());
+        List<OrderWithItems> rows = executor.list(visitor, spec);
+        assertEquals("visible-c", rows.stream().filter(row -> "four".equals(row.orderNo())).findFirst().orElseThrow().items().get(0).skuCode());
+        executedSql.clear();
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            QuerySpec.builder(OrderTestEntity.class).expandRelations(Collections.singletonList("items")).build()));
+        assertTrue(executedSql.isEmpty());
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            QuerySpec.builder(OrderTestEntity.class, OrderWithExtraItemFields.class)
+                .expandRelations(Collections.singletonList("items")).build()));
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            QuerySpec.builder(OrderTestEntity.class, OrderWithWrongCardinality.class)
+                .expandRelations(Collections.singletonList("items")).build()));
+        assertTrue(executedSql.isEmpty());
+    }
+
     @Test
     void 目标拒绝与未命中一致且不执行SQL() {
         targetInaccessible = true;
@@ -251,6 +324,23 @@ class JdbcAuthorizedQueryExecutorTest {
             targetQuery(1L).toBuilder().expandRelations(Collections.singletonList("items")).build()));
         assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, audit.get(0).getOutcome());
         assertFalse(audit.stream().anyMatch(CrudGovernanceAuditEvent::isSuccess));
+    }
+
+    @Test
+    void 静态SQL范围贯穿列表分页计数与单条读取且保留字段投影和逻辑删除() {
+        scope = AuthorizationScope.sqlWhere("school_id = 1 AND tenant_id = 'A' OR school_id = 2 AND tenant_id IN ('B')");
+        assertEquals(Arrays.asList(1L, 4L), ids(executor.list(visitor, query())));
+        PageResult<CrudRecord> page = executor.page(visitor,
+            query().toBuilder().page(new PageRequest(1, 10)).build());
+        assertEquals(2L, page.getTotal());
+        assertEquals(Arrays.asList(1L, 4L), ids(page.getItems()));
+        assertEquals(Long.valueOf(1L), executor.detail(visitor, targetQuery(1L)).longValue("id"));
+        assertEquals(Long.valueOf(4L), executor.findOne(visitor, targetQuery(4L)).longValue("id"));
+        assertNull(executor.findOne(visitor, targetQuery(2L)));
+        assertNull(executor.findOne(visitor, targetQuery(5L)));
+        assertThrows(com.entloom.crud.core.exception.NotFoundException.class,
+            () -> executor.detail(visitor, targetQuery(2L)));
+        for (CrudRecord row : page.getItems()) assertEquals(new java.util.HashSet<>(Arrays.asList("id", "orderNo")), row.keys());
     }
 
     @Test

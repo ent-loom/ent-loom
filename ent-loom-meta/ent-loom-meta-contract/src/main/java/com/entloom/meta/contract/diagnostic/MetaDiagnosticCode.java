@@ -9,6 +9,8 @@ public enum MetaDiagnosticCode {
     MISSING_ENTITY_ANNOTATION,
     INDEX_FIELD_NOT_FOUND,
     RELATION_TARGET_ENTITY_NOT_FOUND,
+    /** 关系目标类未声明实体元数据。 */
+    RELATION_TARGET_CLASS_INVALID,
     RELATION_SOURCE_FIELD_NOT_FOUND,
     RELATION_TARGET_FIELD_NOT_FOUND,
     /** 外键同名导航属性的类型与关系目标不一致。 */

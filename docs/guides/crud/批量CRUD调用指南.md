@@ -14,16 +14,13 @@ description: 使用公开 CRUD HTTP 接口完成批量创建、更新、删除�
 
 ## CREATE_BATCH：批量创建
 
-批量创建使用 `POST /{entity}/createBatch`，每条记录放在 `payload.items[]` 中。每批请求使用一个 `requestId`，响应中的 `data.items[]` 按输入顺序返回每条结果。
+批量创建使用 `POST /{entity}/createBatch`，每条记录放在 `payload.items[]` 中。响应中的 `data.items[]` 按输入顺序返回每条结果。
 
 ```http
 POST http://localhost:8080/api/ent-crud/customer_profile/createBatch
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-create-batch-1"
-  },
   "payload": {
     "items": [
       {
@@ -52,9 +49,6 @@ POST http://localhost:8080/api/ent-crud/customer_profile/updateBatch
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-update-batch-1"
-  },
   "payload": {
     "items": [
       {
@@ -85,9 +79,6 @@ POST http://localhost:8080/api/ent-crud/customer_profile/saveOrUpdateBatch
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-save-or-update-batch-1"
-  },
   "payload": {
     "items": [
       {
@@ -115,9 +106,6 @@ POST http://localhost:8080/api/ent-crud/customer_profile/deleteBatch
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-delete-batch-1"
-  },
   "payload": {
     "ids": [
       1000000000002,

@@ -10,8 +10,6 @@ import com.entloom.crud.starter.web.controller.EntCrudExportController;
 import com.entloom.crud.starter.web.controller.EntCrudImportController;
 import com.entloom.crud.starter.web.controller.EntCrudQueryController;
 import com.entloom.crud.starter.web.controller.EntCrudStatsController;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -31,11 +29,9 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
         EntCrudExportController.class
     }
 )
-@RequiredArgsConstructor
 public class CrudHttpExceptionTranslator {
     /** 日志记录器。 */
     private static final Logger log = LoggerFactory.getLogger(CrudHttpExceptionTranslator.class);
-    private final CrudResponseBuilder crudResponseBuilder;
 
     /**
      * 统一异常映射。
@@ -77,7 +73,7 @@ public class CrudHttpExceptionTranslator {
     }
 
     private ResponseEntity<CrudResponse<Void>> toResponse(CrudHttpErrorDescriptor descriptor) {
-        CrudResponse<Void> body = crudResponseBuilder.failure(descriptor.getError());
+        CrudResponse<Void> body = CrudResponse.failure(descriptor.getError());
         return ResponseEntity.status(descriptor.getStatus()).body(body);
     }
 }

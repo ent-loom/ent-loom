@@ -10,7 +10,9 @@ import com.entloom.crud.starter.web.access.AccessAuthenticationFilter;
 import com.entloom.crud.starter.web.access.AccessContextArgumentResolver;
 import com.entloom.crud.starter.web.access.AccessHttpErrorWriter;
 import com.entloom.crud.starter.web.access.CrudHttpAuthenticationSource;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter;
+import com.entloom.crud.starter.web.support.CrudHttpRequestAttributeContributor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,8 +56,8 @@ public class CrudAccessWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AccessHttpErrorWriter accessHttpErrorWriter(@Qualifier("crudObjectMapper") ObjectProvider<ObjectMapper> mapper,
-        ObjectProvider<CrudResponseBuilder> responseBuilder) {
-        return new AccessHttpErrorWriter(mapper.getIfAvailable(ObjectMapper::new), responseBuilder.getIfAvailable(CrudResponseBuilder::new));
+        ObjectProvider<CrudResponseEnhancer> responseEnhancer) {
+        return new AccessHttpErrorWriter(mapper.getIfAvailable(ObjectMapper::new), responseEnhancer.getIfAvailable(CrudResponseEnhancer::new));
     }
 
     @Bean
@@ -84,6 +86,23 @@ public class CrudAccessWebAutoConfiguration {
                 resolvers.add(resolver);
             }
         };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudHttpRequestAttributeContributor crudHttpRequestAttributeContributor() {
+        return new CrudHttpRequestAttributeContributor();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "crudHttpRequestContextFilter")
+    public FilterRegistrationBean<CrudHttpRequestContextFilter> crudHttpRequestContextFilter() {
+        FilterRegistrationBean<CrudHttpRequestContextFilter> registration = new FilterRegistrationBean<>(new CrudHttpRequestContextFilter());
+        registration.setName("crudHttpRequestContextFilter");
+        registration.setOrder(Ordered.LOWEST_PRECEDENCE - 101);
+        registration.setDispatcherTypes(EnumSet.allOf(DispatcherType.class));
+        registration.setAsyncSupported(true);
+        return registration;
     }
 
     @Bean

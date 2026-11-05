@@ -22,7 +22,6 @@ Content-Type: application/json
 
 {
   "options": {
-    "requestId": "customer-page-1",
     "page": 1,
     "limit": 20,
     "countMode": "EXACT",
@@ -58,9 +57,6 @@ POST http://localhost:8080/api/ent-crud/customer_profile/update
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-update-1"
-  },
   "payload": {
     "id": 1000000000001,
     "displayName": "Ada Byron Lovelace"
@@ -72,15 +68,14 @@ Content-Type: application/json
 
 ## DETAIL：确认更新结果
 
-详情使用 `POST /{entity}/detail`，在顶层提供唯一主键 `id`，并保留唯一的 `requestId`。
+详情使用 `POST /{entity}/detail`，在顶层提供唯一主键 `id`。
 
 ```http
 POST http://localhost:8080/api/ent-crud/customer_profile/detail
 Content-Type: application/json
 
 {
-  "id": 1000000000001,
-  "options": {"requestId": "customer-detail-after-update-1"}
+  "id": 1000000000001
 }
 ```
 
@@ -88,16 +83,13 @@ Content-Type: application/json
 
 ## DELETE：按主键删除
 
-删除使用 `POST /{entity}/delete`，请求只需要提供目标主键和请求标识。
+删除使用 `POST /{entity}/delete`，请求只需要提供目标主键。
 
 ```http
 POST http://localhost:8080/api/ent-crud/customer_profile/delete
 Content-Type: application/json
 
 {
-  "options": {
-    "requestId": "customer-delete-1"
-  },
   "payload": {
     "id": 1000000000001
   }

@@ -15,7 +15,7 @@ import com.entloom.crud.core.runtime.context.CrudInvocationContext;
 import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
 import com.entloom.crud.starter.web.assembler.CrudImportExportResponseAssembler;
 import com.entloom.crud.starter.web.assembler.CrudImportExportSpecAssembler;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContext;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -28,54 +28,56 @@ public class EntCrudImportFacade {
     private final CrudSubjectResolver subjectResolver;
     private final CrudImportExportSpecAssembler specAssembler;
     private final CrudImportExportResponseAssembler responseAssembler;
-    private final CrudResponseBuilder responseBuilder;
 
     public CrudResponse<CrudImportData> validate(String entity, String scene, CrudImportHttpRequest request, CrudInvocationContext context) {
         CrudImportHttpRequest actual = request == null ? new CrudImportHttpRequest() : request;
-        responseBuilder.bind(specAssembler.resolveRequestId(actual), CrudOperationKey.of(ImportOperation.VALIDATE));
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(ImportOperation.VALIDATE);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
             ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
-            return responseBuilder.success(responseAssembler.importData(importGateway.validate(spec)));
-        });
+            return CrudResponse.success(responseAssembler.importData(importGateway.validate(spec)));
+        }));
     }
 
     public CrudResponse<CrudImportData> submit(String entity, String scene, CrudImportHttpRequest request, CrudInvocationContext context) {
         CrudImportHttpRequest actual = request == null ? new CrudImportHttpRequest() : request;
-        responseBuilder.bind(specAssembler.resolveRequestId(actual), CrudOperationKey.of(ImportOperation.SUBMIT));
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(ImportOperation.SUBMIT);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
             ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
-            return responseBuilder.success(responseAssembler.importData(importGateway.submit(spec)));
-        });
+            return CrudResponse.success(responseAssembler.importData(importGateway.submit(spec)));
+        }));
     }
 
     public CrudResponse<CrudTaskData> status(String entity, String scene, String taskId, CrudImportHttpRequest request, CrudInvocationContext context) {
         CrudImportHttpRequest actual = request == null ? new CrudImportHttpRequest() : request;
         bindTaskId(actual, taskId);
-        responseBuilder.bind(specAssembler.resolveRequestId(actual), CrudOperationKey.of(ImportOperation.STATUS));
-        return withContext(context, () -> {
+        CrudOperationKey operation = CrudOperationKey.of(ImportOperation.STATUS);
+        CrudHttpRequestContext.bindOperation(operation);
+        return CrudHttpRequestContext.completeOperation(operation, withContext(context, () -> {
             ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
-            return responseBuilder.success(responseAssembler.taskData(importGateway.status(spec)));
-        });
+            return CrudResponse.success(responseAssembler.taskData(importGateway.status(spec)));
+        }));
     }
 
     public FileDownload downloadError(String entity, String scene, String taskId, CrudImportHttpRequest request, CrudInvocationContext context) {
         CrudImportHttpRequest actual = request == null ? new CrudImportHttpRequest() : request;
         bindTaskId(actual, taskId);
-        responseBuilder.bind(specAssembler.resolveRequestId(actual), CrudOperationKey.of(ImportOperation.DOWNLOAD_ERROR));
-        try {
-            return withContext(context, () -> {
-                ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
-                FileRef file = importGateway.downloadError(spec);
-                return new FileDownload(file, () -> fileService.openStream(file));
-            });
-        } finally {
-            responseBuilder.clear();
-        }
+        CrudOperationKey operation = CrudOperationKey.of(ImportOperation.DOWNLOAD_ERROR);
+        CrudHttpRequestContext.bindOperation(operation);
+        FileDownload result = withContext(context, () -> {
+            ImportSpec spec = specAssembler.assembleImport(entity, scene, actual, subjectResolver.resolveOrThrow());
+            FileRef file = importGateway.downloadError(spec);
+            return new FileDownload(file, () -> fileService.openStream(file));
+        });
+        CrudHttpRequestContext.completeOperation(operation);
+        return result;
     }
 
     private <T> T withContext(CrudInvocationContext context, java.util.function.Supplier<T> supplier) {
         CrudInvocationContext actualContext = context == null ? CrudInvocationContext.empty() : context;
-        return CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier);
+        return CrudHttpRequestContext.trackOperationFailure(
+            () -> CrudRequestContextHolder.withAttributes(actualContext.getAttributes(), supplier));
     }
 
     private void bindTaskId(CrudImportHttpRequest request, String pathTaskId) {

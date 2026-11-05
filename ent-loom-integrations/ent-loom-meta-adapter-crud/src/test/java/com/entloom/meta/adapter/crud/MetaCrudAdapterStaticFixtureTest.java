@@ -111,11 +111,11 @@ class MetaCrudAdapterStaticFixtureTest {
         private String orderNo;
 
         @EntField
-        @EntRelation(targetEntity = "customer")
+        @EntRelation(Customer.class)
         @EntCrudField(targetClass = Customer.class, joinType = JoinType.INNER)
         private Long customerId;
 
-        @EntRelation(targetEntity = "order_item", targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)
+        @EntRelation(value = OrderItem.class, targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)
         @EntCrudField(targetClass = OrderItem.class, targetField = "orderId", cardinality = RelationCardinality.ONE_TO_MANY)
         private List<OrderItem> items;
     }

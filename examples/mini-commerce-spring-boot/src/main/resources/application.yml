@@ -15,6 +15,12 @@ spring:
 server:
   port: ${APP_PORT:8082}
 
+mybatis-plus:
+  global-config:
+    db-config:
+      # 与 Ent Loom 的 DATABASE 主键策略保持一致，id 字段无需逐个声明 @TableId。
+      id-type: auto
+
 ent:
   loom:
     # CRUD、DDL 与文档共用实体元数据。

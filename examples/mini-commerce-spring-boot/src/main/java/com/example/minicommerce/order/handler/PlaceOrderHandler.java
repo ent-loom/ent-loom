@@ -9,7 +9,7 @@ import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
 import com.example.minicommerce.order.entity.CommerceOrder;
-import com.example.minicommerce.order.service.CommerceOrderService;
+import com.example.minicommerce.order.service.command.CommerceOrderCommandService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,11 +18,11 @@ import org.springframework.stereotype.Component;
 @EntCrudCommandAction(entityClass = CommerceOrder.class, scene = CommerceOrder.CREATE, name = "下单",
     capability = "place-order", accessEntries = "commerce")
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    private final CommerceOrderService commerceOrderService;
+    private final CommerceOrderCommandService commerceOrderCommandService;
 
     @Override
     public CommandResult<PlaceOrderResult> handle(CommandSpec<PlaceOrderCommand> spec,
         SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
-        return CommandResult.success(commerceOrderService.place(AuthorizedActionContext.require(spec), spec.getPayload()));
+        return CommandResult.success(commerceOrderCommandService.place(AuthorizedActionContext.require(spec), spec.getPayload()));
     }
 }

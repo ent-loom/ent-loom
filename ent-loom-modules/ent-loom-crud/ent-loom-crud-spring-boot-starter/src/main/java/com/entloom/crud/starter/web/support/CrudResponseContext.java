@@ -6,18 +6,15 @@ import com.entloom.crud.api.enums.CrudOperationKey;
  * 当前请求的响应上下文。
  */
 final class CrudResponseContext {
-    private final String requestId;
     private final CrudOperationKey operationKey;
     private final String capability;
+    private final CrudResponseContext previous;
+    private volatile boolean failed;
 
-    CrudResponseContext(String requestId, CrudOperationKey operationKey, String capability) {
-        this.requestId = requestId;
+    CrudResponseContext(CrudOperationKey operationKey, String capability, CrudResponseContext previous) {
         this.operationKey = operationKey;
         this.capability = capability;
-    }
-
-    String getRequestId() {
-        return requestId;
+        this.previous = previous;
     }
 
     CrudOperationKey getOperationKey() {
@@ -26,5 +23,17 @@ final class CrudResponseContext {
 
     String getCapability() {
         return capability;
+    }
+
+    CrudResponseContext getPrevious() {
+        return previous;
+    }
+
+    boolean isFailed() {
+        return failed;
+    }
+
+    void markFailed() {
+        failed = true;
     }
 }

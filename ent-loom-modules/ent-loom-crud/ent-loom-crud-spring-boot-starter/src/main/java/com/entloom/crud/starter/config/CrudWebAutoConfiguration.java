@@ -36,13 +36,17 @@ import com.entloom.crud.starter.web.registry.ExposedViewTypeRegistry;
 import com.entloom.crud.starter.web.support.CrudResponseDateFormatAdvice;
 import com.entloom.crud.starter.web.support.CrudResponseDateFormatter;
 import com.entloom.crud.starter.web.support.CrudRequestSupport;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
 import com.entloom.crud.starter.web.time.BuiltinCrudTimePresetResolver;
 import com.entloom.crud.starter.web.time.CrudTimeFilterResolver;
 import com.entloom.crud.starter.web.time.CrudTimePresetResolver;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.Module;
+import com.entloom.crud.core.capability.command.patch.UpdatePatch;
+import com.entloom.crud.starter.web.patch.UpdatePatchDeserializer;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.util.StdDateFormat;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -78,6 +82,14 @@ public class CrudWebAutoConfiguration {
     private static final String IMPORT_EXPORT_ENABLED_EXPRESSION =
         "${" + IMPORT_ENABLED_PROPERTY + ":false} or ${" + EXPORT_ENABLED_PROPERTY + ":false}";
 
+    /** 同时用于业务 ObjectMapper 和 CRUD ObjectMapper，不要求开启通用 Controller。 */
+    @Bean
+    public Module crudUpdatePatchModule(ObjectProvider<EntityMetaRegistry> entities) {
+        SimpleModule module = new SimpleModule("ent-loom-update-patch");
+        module.addDeserializer(UpdatePatch.class, new UpdatePatchDeserializer(entities::getObject));
+        return module;
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public ExposedEntityRegistry exposedEntityRegistry(EntityMetaRegistry entityMetaRegistry, CrudEntityDeclarations declarations) {
@@ -106,7 +118,8 @@ public class CrudWebAutoConfiguration {
     @ConditionalOnMissingBean(name = "crudObjectMapper")
     public ObjectMapper crudObjectMapper(
         CrudProperties properties,
-        @Qualifier("objectMapper") ObjectProvider<ObjectMapper> businessObjectMapperProvider
+        @Qualifier("objectMapper") ObjectProvider<ObjectMapper> businessObjectMapperProvider,
+        ObjectProvider<Module> modules
     ) {
         ObjectMapper baseMapper = businessObjectMapperProvider.getIfAvailable();
         ObjectMapper objectMapper = baseMapper == null ? new ObjectMapper() : baseMapper.copy();
@@ -128,6 +141,7 @@ public class CrudWebAutoConfiguration {
         }
         SimpleModule dateCompatModule = new SimpleModule();
         dateCompatModule.addDeserializer(java.util.Date.class, new CrudDateCompatDeserializer(mapperTimeZone, defaultZoneId));
+        objectMapper.registerModules(modules.orderedStream().toList());
         objectMapper.registerModule(dateCompatModule);
         return objectMapper;
     }
@@ -170,19 +184,25 @@ public class CrudWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public CrudHttpExceptionTranslator crudHttpExceptionTranslator() {
-        return new CrudHttpExceptionTranslator(crudResponseBuilder());
+        return new CrudHttpExceptionTranslator();
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public EntBusinessExceptionHandler entBusinessExceptionHandler(CrudResponseBuilder responseBuilder) {
-        return new EntBusinessExceptionHandler(responseBuilder);
+    public EntBusinessExceptionHandler entBusinessExceptionHandler() {
+        return new EntBusinessExceptionHandler();
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public CrudResponseBuilder crudResponseBuilder() {
-        return new CrudResponseBuilder();
+    public CrudResponseEnhancer crudResponseEnhancer() {
+        return new CrudResponseEnhancer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CrudResponseContextAdvice crudResponseContextAdvice(CrudResponseEnhancer enhancer) {
+        return new CrudResponseContextAdvice(enhancer);
     }
 
     @Bean
@@ -303,7 +323,6 @@ public class CrudWebAutoConfiguration {
             QueryGateway queryGateway,
             CrudSubjectResolver crudSubjectResolver,
             CrudQuerySpecAssembler querySpecAssembler,
-            CrudResponseBuilder crudResponseBuilder,
             CrudSchemaAssembler crudSchemaAssembler,
             CrudProperties properties
     ) {
@@ -311,7 +330,6 @@ public class CrudWebAutoConfiguration {
             queryGateway,
             crudSubjectResolver,
             querySpecAssembler,
-            crudResponseBuilder,
             crudSchemaAssembler,
             properties.getController().getDefaultNullFieldMode()
         );
@@ -324,10 +342,9 @@ public class CrudWebAutoConfiguration {
             StatsGateway statsGateway,
             CrudSubjectResolver crudSubjectResolver,
             CrudStatsSpecAssembler crudStatsSpecAssembler,
-            CrudResponseBuilder crudResponseBuilder,
             CrudSchemaAssembler crudSchemaAssembler
     ) {
-        return new EntCrudStatsFacade(statsGateway, crudSubjectResolver, crudStatsSpecAssembler, crudResponseBuilder, crudSchemaAssembler);
+        return new EntCrudStatsFacade(statsGateway, crudSubjectResolver, crudStatsSpecAssembler, crudSchemaAssembler);
     }
 
     @Bean
@@ -337,10 +354,9 @@ public class CrudWebAutoConfiguration {
     public EntCrudCommandFacade entCrudCommandFacade(
             CommandGateway commandGateway,
             CrudSubjectResolver crudSubjectResolver,
-            CrudCommandSpecAssembler commandSpecAssembler,
-            CrudResponseBuilder crudResponseBuilder
+            CrudCommandSpecAssembler commandSpecAssembler
     ) {
-        return new EntCrudCommandFacade(commandGateway, crudSubjectResolver, commandSpecAssembler, crudResponseBuilder);
+        return new EntCrudCommandFacade(commandGateway, crudSubjectResolver, commandSpecAssembler);
     }
 
     @Bean
@@ -352,16 +368,14 @@ public class CrudWebAutoConfiguration {
             FileService fileService,
             CrudSubjectResolver crudSubjectResolver,
             CrudImportExportSpecAssembler specAssembler,
-            CrudImportExportResponseAssembler responseAssembler,
-            CrudResponseBuilder crudResponseBuilder
+            CrudImportExportResponseAssembler responseAssembler
     ) {
         return new EntCrudExportFacade(
             exportGateway,
             fileService,
             crudSubjectResolver,
             specAssembler,
-            responseAssembler,
-            crudResponseBuilder
+            responseAssembler
         );
     }
 
@@ -374,16 +388,14 @@ public class CrudWebAutoConfiguration {
             FileService fileService,
             CrudSubjectResolver crudSubjectResolver,
             CrudImportExportSpecAssembler specAssembler,
-            CrudImportExportResponseAssembler responseAssembler,
-            CrudResponseBuilder crudResponseBuilder
+            CrudImportExportResponseAssembler responseAssembler
     ) {
         return new EntCrudImportFacade(
             importGateway,
             fileService,
             crudSubjectResolver,
             specAssembler,
-            responseAssembler,
-            crudResponseBuilder
+            responseAssembler
         );
     }
 

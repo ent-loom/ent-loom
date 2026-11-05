@@ -2,7 +2,9 @@ package com.example.minicommerce.common.web;
 
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.starter.web.error.EntBusinessExceptionHandler;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudHttpRequestContextFilter;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.order.enums.CommerceOrderError;
 import jakarta.validation.Valid;
@@ -35,9 +37,10 @@ class ApiExceptionHandlerTest {
 
     @BeforeEach
     void prepare() {
-        var responses = new CrudResponseBuilder();
         mvc = MockMvcBuilders.standaloneSetup(new TestController())
-            .setControllerAdvice(new ApiExceptionHandler(responses), new EntBusinessExceptionHandler(responses))
+            .setControllerAdvice(new ApiExceptionHandler(), new EntBusinessExceptionHandler(),
+                new CrudResponseContextAdvice(new CrudResponseEnhancer()))
+            .addFilters(new CrudHttpRequestContextFilter())
             .build();
     }
 

@@ -17,8 +17,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CrudCommandOptions {
-    /** 请求标识。 */
-    private String requestId;
     /** 幂等键。 */
     private String idempotencyKey;
     /** 期望版本。 */

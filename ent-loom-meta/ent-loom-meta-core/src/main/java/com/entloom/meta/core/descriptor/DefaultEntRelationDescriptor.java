@@ -1,6 +1,7 @@
 package com.entloom.meta.core.descriptor;
 
 import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
+import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.enums.RelationOwnerSide;
 import com.entloom.meta.contract.enums.RelationResolutionStatus;
@@ -99,6 +100,12 @@ public final class DefaultEntRelationDescriptor implements EntRelationDescriptor
     @Override
     public String targetEntity() {
         return targetEntity;
+    }
+
+    @Override
+    public Class<?> targetClass() {
+        SourcedValue<?> value = sourcedValue(MetaDescriptorProperties.TARGET_CLASS);
+        return value == null ? null : (Class<?>) value.value();
     }
 
     @Override

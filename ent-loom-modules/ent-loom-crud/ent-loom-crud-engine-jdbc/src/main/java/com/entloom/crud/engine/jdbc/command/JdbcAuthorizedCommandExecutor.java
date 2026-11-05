@@ -7,6 +7,9 @@ import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudErrorStage;
 import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.api.model.EntityWriteResult;
+import com.entloom.crud.api.model.CrudRecord;
+import com.entloom.crud.core.capability.command.patch.UpdatePatch;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
 import com.entloom.crud.core.capability.command.engine.AuthorizedBatchUpdateExecutor;
@@ -251,6 +254,13 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             commandVersion = command.getExpectedVersion();
             valuesPayload = command.getValues();
         }
+        if (valuesPayload instanceof UpdatePatch<?> && ((UpdatePatch<?>) valuesPayload).getEntityType() != meta.getEntityType()) {
+            throw new ValidationException("局部更新的实体类型不匹配");
+        }
+        if (spec.getOp() == CommandOperation.UPDATE && !(valuesPayload instanceof Map<?, ?>)
+            && !(valuesPayload instanceof CrudRecord) && !(valuesPayload instanceof UpdatePatch<?>)) {
+            throw new ValidationException("局部更新请使用 UpdatePatch，不能从不完整实体推断提交字段");
+        }
         Map<String, Object> values = payloadMapper.toMap(valuesPayload);
         Object valueId = values.get(meta.getIdField());
         if (id != null && valueId != null && !sameValue(id, valueId)) {
@@ -320,6 +330,14 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             payload = command.getValues();
         }
         Map<String, Object> values = new LinkedHashMap<>(payloadMapper.toMap(payload));
+        if (meta.getEntityType().isInstance(payload)) {
+            // 创建实体的框架管理属性允许保持未初始化；显式非空值仍进入权限与归属校验。
+            values.entrySet().removeIf(entry -> {
+                EntityFieldMeta field = meta.resolveFieldMeta(entry.getKey());
+                return entry.getValue() == null && field != null && (field.isScopeField() || field.isRelation()
+                    || field.isImmutable() || "version".equals(entry.getKey()) || entry.getKey().equals(meta.getLogicDeleteField()));
+            });
+        }
         Object valueId = values.remove(meta.getIdField());
         if (id != null && valueId != null && !sameValue(id, valueId)) {
             throw new ValidationException("CREATE 主键与载荷不一致");
@@ -538,6 +556,7 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
     @SuppressWarnings("unchecked")
     private <R> R result(CommandSpec<?> spec, int rows, Object createdId) {
         if (spec.getResultType() == Void.class) return null;
+        if (spec.getResultType() == EntityWriteResult.class) return (R) new EntityWriteResult<Object>(rows, createdId);
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("rows", rows);
         if (createdId != null) data.put("id", createdId);

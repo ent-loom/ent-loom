@@ -9,7 +9,7 @@ import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
 import com.example.minicommerce.merchant.entity.Merchant;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.merchant.entity.MerchantWxConfig;
+import com.example.minicommerce.merchant.entity.MerchantWxSetting;
 import com.example.minicommerce.order.entity.CommerceOrder;
 import com.example.minicommerce.order.entity.CommerceOrderItem;
 import com.jayway.jsonpath.JsonPath;
@@ -66,11 +66,13 @@ class EntityContractIntegrationTest {
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
         assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, CommerceOrder.class, CommerceOrderItem.class,
-                Merchant.class, MerchantProduct.class, MerchantArticle.class, MerchantWxConfig.class),
+                Merchant.class, MerchantProduct.class, MerchantArticle.class, MerchantWxSetting.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(MerchantProduct.class, exposedEntityRegistry.resolveOrThrow("merchantProduct"));
         assertEquals(CustomerLevel.class, exposedEntityRegistry.resolveOrThrow("customerLevel"));
         assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantArticle"));
+        assertEquals("merchant_wx_setting", entityMetaRegistry.getEntityMeta(MerchantWxSetting.class).getTable());
+        assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantWxSetting"));
         assertEquals(Customer.class, exposedEntityRegistry.resolveOrThrow("customer"));
         assertEquals(CommerceOrder.class, exposedEntityRegistry.resolveOrThrow("commerceOrder"));
         assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantOrder"));
@@ -181,7 +183,7 @@ class EntityContractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
                 org.hamcrest.Matchers.containsInAnyOrder("customerBankCard", "customer", "customerLevel", "commerceOrder", "commerceOrderItem",
-                    "merchant", "merchantProduct", "merchantArticle", "merchantWxConfig")))
+                    "merchant", "merchantProduct", "merchantArticle", "merchantWxSetting")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'merchantProduct')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "merchantId", "name", "price", "active", "version")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'commerceOrder')].fields[*].property",

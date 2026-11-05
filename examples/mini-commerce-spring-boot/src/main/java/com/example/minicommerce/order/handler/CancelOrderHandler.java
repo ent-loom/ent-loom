@@ -8,7 +8,7 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.order.dto.CancelOrderCommand;
 import com.example.minicommerce.order.entity.CommerceOrder;
-import com.example.minicommerce.order.service.CommerceOrderService;
+import com.example.minicommerce.order.service.command.CommerceOrderCommandService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,11 +17,11 @@ import org.springframework.stereotype.Component;
 @EntCrudCommandAction(entityClass = CommerceOrder.class, scene = CommerceOrder.CANCEL, name = "取消订单",
     capability = "cancel-order", accessEntries = "commerce")
 public class CancelOrderHandler implements CommandActionSceneHandler<CancelOrderCommand, Long> {
-    private final CommerceOrderService commerceOrderService;
+    private final CommerceOrderCommandService commerceOrderCommandService;
 
     @Override
     public CommandResult<Long> handle(CommandSpec<CancelOrderCommand> spec,
         SceneDelegate<CommandSpec<CancelOrderCommand>, CommandResult<Long>> delegate) {
-        return CommandResult.success(commerceOrderService.cancel(AuthorizedActionContext.require(spec), spec.getPayload().orderId()));
+        return CommandResult.success(commerceOrderCommandService.cancel(AuthorizedActionContext.require(spec), spec.getPayload().orderId()));
     }
 }

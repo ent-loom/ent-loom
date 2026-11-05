@@ -1,5 +1,6 @@
 package com.entloom.crud.core.governance.authorization;
 
+import com.entloom.crud.core.exception.PermissionDeniedException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -80,6 +81,18 @@ public final class AuthorizationFields {
     public boolean allows(Use use, String field) {
         Set<String> fields = allowed.get(Objects.requireNonNull(use, "字段用途不能为空"));
         return fields != null && fields.contains(field);
+    }
+
+    /** 校验查询或写入实际使用的字段；调用方声明用途，框架统一拒绝未授权字段。 */
+    public void requireAllowed(Use use, String... fields) {
+        Objects.requireNonNull(use, "字段用途不能为空");
+        Objects.requireNonNull(fields, "待校验字段不能为空");
+        for (String field : fields) {
+            Objects.requireNonNull(field, "字段名称不能为空");
+            if (!allows(use, field)) {
+                throw new PermissionDeniedException("字段用途未授权: " + use + " / " + field);
+            }
+        }
     }
 
     public AuthorizationFields intersect(AuthorizationFields limit) {

@@ -26,7 +26,8 @@ import com.entloom.crud.starter.web.facade.EntCrudCommandFacade;
 import com.entloom.crud.starter.web.facade.EntCrudQueryFacade;
 import com.entloom.crud.starter.web.facade.EntCrudStatsFacade;
 import com.entloom.crud.starter.web.support.CrudRequestSupport;
-import com.entloom.crud.starter.web.support.CrudResponseBuilder;
+import com.entloom.crud.starter.web.support.CrudResponseEnhancer;
+import com.entloom.crud.starter.web.support.CrudResponseContextAdvice;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
 import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
 import com.entloom.crud.starter.config.module.JdbcInsertScopeDatabaseStartupValidator;
@@ -212,7 +213,8 @@ class CrudStarterConfigurationContractTest {
             )
             .run(context -> {
                 assertThat(context).hasSingleBean(CrudProperties.class);
-                assertThat(context).hasSingleBean(CrudResponseBuilder.class);
+                assertThat(context).hasSingleBean(CrudResponseEnhancer.class);
+                assertThat(context).hasSingleBean(CrudResponseContextAdvice.class);
                 assertThat(context).hasSingleBean(CrudHttpExceptionTranslator.class);
                 assertThat(context).hasSingleBean(CrudRequestSupport.class);
                 assertThat(context).hasSingleBean(CrudSchemaAssembler.class);
@@ -256,11 +258,11 @@ class CrudStarterConfigurationContractTest {
     }
 
     @Test
-    void business_response_builder_should_override_default_bean() {
-        CrudResponseBuilder businessResponseBuilder = new CrudResponseBuilder();
+    void business_response_enhancer_should_override_default_bean() {
+        CrudResponseEnhancer businessResponseEnhancer = new CrudResponseEnhancer();
         contextRunner
-            .withBean(CrudResponseBuilder.class, () -> businessResponseBuilder)
-            .run(context -> assertThat(context.getBean(CrudResponseBuilder.class)).isSameAs(businessResponseBuilder));
+            .withBean(CrudResponseEnhancer.class, () -> businessResponseEnhancer)
+            .run(context -> assertThat(context.getBean(CrudResponseEnhancer.class)).isSameAs(businessResponseEnhancer));
     }
 
     @Test

@@ -1,8 +1,6 @@
 package com.example.minicommerce.order.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.annotations.EntCrudGrant;
 import com.entloom.crud.annotations.EntCrudGrantScope;
@@ -10,6 +8,7 @@ import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
+import com.example.minicommerce.merchant.entity.Merchant;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.enums.CommerceOrderStatus;
 import java.math.BigDecimal;
@@ -20,7 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * 每笔订单属于一个客户和一个商家；跨商家下单由订单服务在同一事务内拆分。
+ * 每笔订单属于一个客户和一个商家；跨商家下单由订单命令服务在同一事务内拆分。
  *
  * <p>标准读取复用客户、商家策略；下单与取消均经过统一身份授权。</p>
  */
@@ -42,15 +41,14 @@ public class CommerceOrder {
 
     /** 订单主键，由数据库自增生成。 */
     @EntField("订单 ID")
-    @TableId(type = IdType.AUTO)
     private Long id;
 
     @EntField("客户 ID")
-    @EntRelation(targetEntity = "customer")
+    @EntRelation(Customer.class)
     private Long customerId;
 
     @EntField("商家 ID")
-    @EntRelation(targetEntity = "merchant")
+    @EntRelation(Merchant.class)
     private Long merchantId;
 
     /** 订单生命周期状态，参见 {@link CommerceOrderStatus}。 */
