@@ -34,7 +34,7 @@ class MerchantProductUpdateIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
-    @SpyBean CrudGovernanceAuditRecorder audit;
+    @SpyBean CrudGovernanceAuditRecorder auditRecorder;
 
     @BeforeEach
     void prepare() {
@@ -42,7 +42,7 @@ class MerchantProductUpdateIntegrationTest {
         jdbc.update("insert into merchant_product(id, merchant_id, name, price, active, version) values "
             + "(101, 1001, '商家商品一', 10, true, 0), (102, 1001, '商家商品二', 20, true, 0), "
             + "(201, 2001, '商家商品一', 30, true, 0)");
-        clearInvocations(audit);
+        clearInvocations(auditRecorder);
     }
 
     @Test
@@ -240,7 +240,7 @@ class MerchantProductUpdateIntegrationTest {
             }
         });
         assertRow(101, "10.000000", 0L, 1001L);
-        assertTrue(mockingDetails(audit).getInvocations().stream()
+        assertTrue(mockingDetails(auditRecorder).getInvocations().stream()
             .filter(invocation -> invocation.getMethod().getName().equals("record"))
             .map(invocation -> (CrudGovernanceAuditEvent) invocation.getArgument(0))
             .noneMatch(event -> event.getOutcome() == CrudGovernanceAuditOutcome.SUCCESS));

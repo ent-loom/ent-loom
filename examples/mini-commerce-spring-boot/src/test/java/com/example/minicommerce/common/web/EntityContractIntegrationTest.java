@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class EntityContractIntegrationTest {
-    @Autowired ExposedEntityRegistry exposedEntities;
+    @Autowired ExposedEntityRegistry exposedEntityRegistry;
     @Autowired EntityMetaRegistry entityMetaRegistry;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -68,19 +68,19 @@ class EntityContractIntegrationTest {
         assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, Order.class, OrderItem.class,
                 Merchant.class, MerchantProduct.class, MerchantArticle.class, MerchantWxConfig.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
-        assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
-        assertEquals(CustomerLevel.class, exposedEntities.resolveOrThrow("customerLevel"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantArticle"));
-        assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
-        assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
-        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantOrder"));
-        assertEquals(Merchant.class, exposedEntities.resolveOrThrow("merchant"));
+        assertEquals(MerchantProduct.class, exposedEntityRegistry.resolveOrThrow("merchantProduct"));
+        assertEquals(CustomerLevel.class, exposedEntityRegistry.resolveOrThrow("customerLevel"));
+        assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantArticle"));
+        assertEquals(Customer.class, exposedEntityRegistry.resolveOrThrow("customer"));
+        assertEquals(Order.class, exposedEntityRegistry.resolveOrThrow("order"));
+        assertThrows(CrudException.class, () -> exposedEntityRegistry.resolveOrThrow("merchantOrder"));
+        assertEquals(Merchant.class, exposedEntityRegistry.resolveOrThrow("merchant"));
         assertThrows(
             CrudException.class,
-            () -> exposedEntities.resolveOrThrow("orderItem"));
+            () -> exposedEntityRegistry.resolveOrThrow("orderItem"));
         assertThrows(
             CrudException.class,
-            () -> exposedEntities.resolveOrThrow(OrderItem.class.getName()));
+            () -> exposedEntityRegistry.resolveOrThrow(OrderItem.class.getName()));
     }
 
     @Test

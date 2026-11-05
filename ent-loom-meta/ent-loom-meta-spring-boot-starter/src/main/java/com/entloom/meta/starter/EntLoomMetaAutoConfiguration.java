@@ -48,7 +48,6 @@ import org.springframework.core.annotation.Order;
  * Auto-configuration for Meta driven CRUD/DOC adapter assembly.
  */
 @Configuration
-@org.springframework.context.annotation.Import(com.entloom.declaration.EntityDeclarationConfiguration.class)
 @ConditionalOnClass(ReflectiveEntMetaParser.class)
 @ConditionalOnProperty(prefix = "ent.loom.meta", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(EntLoomMetaProperties.class)
@@ -110,19 +109,6 @@ public class EntLoomMetaAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "ent.loom.meta.doc", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public org.springframework.beans.factory.SmartInitializingSingleton docEntityDeclarationGuard(
-            com.entloom.meta.adapter.doc.DocEntityDeclarations declarations) {
-        return declarations::validateConsumed;
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "ent.loom.meta.doc", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public com.entloom.meta.adapter.doc.DocEntityDeclarations docEntityDeclarations(com.entloom.declaration.EntityDeclarations declarations) {
-        return new com.entloom.meta.adapter.doc.DocEntityDeclarations(declarations);
-    }
-
-    @Bean
     @Conditional(EntitySourcesPresentCondition.class)
     @ConditionalOnClass(MetaDocAdapter.class)
     @ConditionalOnProperty(prefix = "ent.loom.meta.doc", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -135,29 +121,20 @@ public class EntLoomMetaAutoConfiguration {
         DocEntityMetaResolver entityMetaResolver,
         ObjectProvider<DocOverrideProvider> overrideProvider,
         ObjectProvider<com.entloom.doc.core.spi.DocIndexProvider> indexProvider,
-        ObjectProvider<CrudInputContract> inputContractProvider,
-        com.entloom.meta.adapter.doc.DocEntityDeclarations declarations
+        ObjectProvider<CrudInputContract> inputContractProvider
     ) {
-        List<DocOverrideProvider> customProviders = overrideProvider.orderedStream().filter(provider -> provider != declarations).collect(java.util.stream.Collectors.toList());
+        List<DocOverrideProvider> customProviders = overrideProvider.orderedStream().collect(java.util.stream.Collectors.toList());
         if (customProviders.size() > 1) throw new IllegalArgumentException("文档覆盖提供器重复，请保留一个程序化入口");
-        DocOverrideProvider custom = customProviders.isEmpty() ? DocOverrideProvider.noop() : customProviders.get(0);
-        DocOverrideProvider provider = (type, resource) -> {
-            var file = declarations.overrideFor(type, resource);
-            var java = custom.overrideFor(type, resource);
-            if (file != null && java != null) throw new IllegalArgumentException("文档声明重复: " + resource);
-            return file != null ? file : java;
-        };
-        MetaDocAdapter adapter = new MetaDocAdapter(
+        DocOverrideProvider provider = customProviders.isEmpty() ? DocOverrideProvider.noop() : customProviders.get(0);
+        return new MetaDocAdapter(
             entityMetaResolver,
             indexProvider.getIfAvailable(com.entloom.doc.core.spi.DocIndexProvider::noop),
             resolveEntityClasses(properties, resourceLoader, beanFactory),
             parser,
             new DocRuntimeModelMerger(inputContractProvider.getIfAvailable()),
-            provider == null ? DocOverrideProvider.noop() : provider,
+            provider,
             diagnosticPolicy(properties)
         );
-        declarations.validateResources(adapter.models().stream().map(model -> model.resourceCode().value()).collect(java.util.stream.Collectors.toSet()));
-        return adapter;
     }
 
     static MetaDiagnosticPolicy diagnosticPolicy(EntLoomMetaProperties properties) {

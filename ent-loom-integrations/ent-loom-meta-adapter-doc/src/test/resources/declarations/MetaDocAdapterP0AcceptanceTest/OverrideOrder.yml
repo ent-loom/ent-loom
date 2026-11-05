@@ -1,4 +1,0 @@
-doc:
-  fields:
-    customerId:
-      target-entity-label: 客户

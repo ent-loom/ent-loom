@@ -15,7 +15,6 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>ent-loom-ddl-declarations</module>
         <module>ent-loom-ddl-api</module>
         <module>ent-loom-ddl-annotations</module>
         <module>ent-loom-ddl-core</module>

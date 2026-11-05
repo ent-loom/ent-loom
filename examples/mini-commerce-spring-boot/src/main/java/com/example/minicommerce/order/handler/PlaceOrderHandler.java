@@ -1,154 +1,28 @@
 package com.example.minicommerce.order.handler;
 
-import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.annotations.EntCrudCommandAction;
+import com.entloom.crud.api.model.CommandResult;
+import com.entloom.crud.core.capability.command.engine.AuthorizedActionContext;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
-import com.entloom.crud.core.capability.dao.EntityDao;
-import com.entloom.crud.core.capability.dao.EntityDaoFactory;
-import com.entloom.crud.core.capability.dao.EntityType;
-import com.entloom.crud.core.capability.dao.RowConstraint;
-import com.entloom.crud.core.capability.command.engine.AuthorizedActionContext;
-import com.entloom.crud.core.capability.command.engine.RelatedDaoAccess;
-import static com.entloom.crud.core.capability.command.engine.RelatedDaoAccess.Operation.*;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
-import com.example.minicommerce.common.exception.BusinessException;
-import com.example.minicommerce.customer.entity.Customer;
-import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
-import com.example.minicommerce.order.dto.PlaceOrderItem;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
 import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.order.entity.OrderItem;
-import com.example.minicommerce.order.enums.OrderError;
-import com.example.minicommerce.order.enums.OrderStatus;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.example.minicommerce.order.service.OrderApplicationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-/** 客户结算场景：校验商家商品，并在同一事务内按商家创建销售订单。 */
 @Component
 @RequiredArgsConstructor
-@EntCrudCommandAction(
-    entityClass = Order.class,
-    scene = Order.CREATE
-)
+@EntCrudCommandAction(entityClass = Order.class, scene = Order.CREATE, name = "下单",
+    capability = "place-order", accessEntries = "commerce")
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    private final EntityDaoFactory daoFactory;
+    private final OrderApplicationService orderApplicationService;
 
     @Override
-    public List<RelatedDaoAccess> relatedAccess() {
-        return List.of(new RelatedDaoAccess(Customer.class, READ, "id"),
-            new RelatedDaoAccess(MerchantProduct.class, READ, "id"),
-            new RelatedDaoAccess(OrderItem.class, CREATE, "orderId"));
-    }
-
-    @Override
-    @Transactional
     public CommandResult<PlaceOrderResult> handle(CommandSpec<PlaceOrderCommand> spec,
         SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
-        PlaceOrderCommand command = spec.getPayload();
-        validateCommand(command);
-        var access = AuthorizedActionContext.require(spec);
-        Long customerId = Long.valueOf(access.visitor().requireIdentity("customer").getIdentityId());
-        EntityDao<Order, Long> orderDao = access.dao(daoFactory,
-            EntityType.of(Order.class, Long.class));
-        var customerDao = access.dao(daoFactory, EntityType.of(Customer.class, Long.class),
-            RowConstraint.eq("id", customerId));
-        Customer customer = customerDao.findById(customerId)
-            .orElseThrow(() -> new BusinessException(OrderError.CUSTOMER_NOT_FOUND));
-        Set<Long> merchantProductIds = collectMerchantProductIds(command.items());
-        var merchantProductDao = access.dao(daoFactory, EntityType.of(MerchantProduct.class, Long.class),
-            RowConstraint.in("id", merchantProductIds));
-        Map<Long, MerchantProduct> merchantProductMap = merchantProductDao.findAllByIdAsMap(merchantProductIds);
-        Map<Long, List<OrderItem>> itemsByMerchant = new LinkedHashMap<>();
-        for (PlaceOrderItem requestItem : command.items()) {
-            MerchantProduct product = merchantProductMap.get(requestItem.merchantProductId());
-            OrderItem item = createOrderItem(requestItem, product);
-            itemsByMerchant.computeIfAbsent(product.getMerchantId(), ignored -> new ArrayList<>()).add(item);
-        }
-
-        LocalDateTime createdAt = LocalDateTime.now();
-        List<Long> orderIds = new ArrayList<>();
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        for (Map.Entry<Long, List<OrderItem>> entry : itemsByMerchant.entrySet()) {
-            Order order = new Order();
-            order.setCustomerId(customer.getId());
-            order.setMerchantId(entry.getKey());
-            order.setStatus(OrderStatus.CREATED);
-            order.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
-            order.setCreatedAt(createdAt);
-            Long orderId = orderDao.insert(order);
-            orderIds.add(orderId);
-            totalAmount = totalAmount.add(order.getTotalAmount());
-            for (OrderItem item : entry.getValue()) {
-                item.setOrderId(orderId);
-            }
-            access.dao(daoFactory, EntityType.of(OrderItem.class, Long.class),
-                RowConstraint.eq("orderId", orderId)).insertAll(entry.getValue());
-        }
-        return CommandResult.success(new PlaceOrderResult(orderIds, totalAmount));
-    }
-
-    private void validateCommand(PlaceOrderCommand command) {
-        if (command == null) {
-            throw new BusinessException(OrderError.REQUEST_REQUIRED);
-        }
-        if (command.items() == null || command.items().isEmpty()) {
-            throw new BusinessException(OrderError.ITEMS_REQUIRED);
-        }
-        for (PlaceOrderItem item : command.items()) {
-            if (item == null) {
-                throw new BusinessException(OrderError.ITEM_REQUIRED);
-            }
-            if (item.merchantProductId() == null) {
-                throw new BusinessException(OrderError.MERCHANT_PRODUCT_REQUIRED);
-            }
-            if (item.quantity() == null) {
-                throw new BusinessException(OrderError.QUANTITY_REQUIRED);
-            }
-            if (item.quantity() <= 0) {
-                throw new BusinessException(OrderError.QUANTITY_INVALID);
-            }
-        }
-    }
-
-    private Set<Long> collectMerchantProductIds(List<PlaceOrderItem> requestItems) {
-        Set<Long> merchantProductIds = new LinkedHashSet<>();
-        for (PlaceOrderItem requestItem : requestItems) {
-            if (!merchantProductIds.add(requestItem.merchantProductId())) {
-                throw new BusinessException(OrderError.DUPLICATE_MERCHANT_PRODUCT);
-            }
-        }
-        return merchantProductIds;
-    }
-
-    private OrderItem createOrderItem(PlaceOrderItem requestItem, MerchantProduct product) {
-        if (product == null) {
-            throw new BusinessException(OrderError.MERCHANT_PRODUCT_NOT_FOUND);
-        }
-        if (!Boolean.TRUE.equals(product.getActive())) {
-            throw new BusinessException(OrderError.MERCHANT_PRODUCT_INACTIVE);
-        }
-        if (product.getPrice() == null || product.getPrice().signum() <= 0) {
-            throw new BusinessException(OrderError.MERCHANT_PRODUCT_PRICE_INVALID);
-        }
-        BigDecimal lineAmount = product.getPrice().multiply(BigDecimal.valueOf(requestItem.quantity()));
-        OrderItem item = new OrderItem();
-        item.setMerchantProductId(product.getId());
-        item.setProductName(product.getName());
-        item.setUnitPrice(product.getPrice());
-        item.setQuantity(requestItem.quantity());
-        item.setLineAmount(lineAmount);
-        return item;
+        return CommandResult.success(orderApplicationService.place(AuthorizedActionContext.require(spec), spec.getPayload()));
     }
 }

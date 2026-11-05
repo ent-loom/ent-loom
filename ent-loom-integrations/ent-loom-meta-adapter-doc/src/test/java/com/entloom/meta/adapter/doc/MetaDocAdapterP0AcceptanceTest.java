@@ -26,7 +26,7 @@ class MetaDocAdapterP0AcceptanceTest {
     void p0_doc_acceptance_should_cover_meta_only_doc_only_override_relations_and_indexes() {
         MetaDocAdapter adapter = new MetaDocAdapter(
             new SimpleDocMetaResolver(), declaredIndexes(),
-            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class, DocOnlyOrder.class, OverrideOrder.class, OverrideCustomer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(), DocDeclarationFixtures.provider("MetaDocAdapterP0AcceptanceTest"), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast()
+            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class, DocOnlyOrder.class, OverrideOrder.class, OverrideCustomer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast()
         );
 
         Map<String, Object> metaDoc = adapter.buildOne(MetaOnlyOrder.class);
@@ -226,7 +226,7 @@ class MetaDocAdapterP0AcceptanceTest {
 
         @EntField
         @EntRelation(targetEntity = "override_customer", targetField = "idCode")
-        @EntDocField(name = "客户编号", targetField = "customerCode")
+        @EntDocField(name = "客户编号", targetField = "customerCode", targetEntityLabel = "客户")
         private Long customerId;
     }
 

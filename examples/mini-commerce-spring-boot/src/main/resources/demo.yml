@@ -1,6 +1,6 @@
 # 演示认证与环境设置：由 application.yml 显式导入，无需额外启用 Profile。
 # 本文件提供静态凭证、身份归属和服务端入口，不声明实体操作、数据范围或字段权限。
-# identity.code 关联 application.yml 的 access.identities，并选择 ent/entities 中的同名身份授权分支。
+# identity.code 关联 CommerceAccessConfiguration 的身份定义，并选择实体注解中的同名授权分支。
 # 正式应用应接入可信认证与身份归属来源，复用全局策略及实体授权声明。
 ent:
   loom:

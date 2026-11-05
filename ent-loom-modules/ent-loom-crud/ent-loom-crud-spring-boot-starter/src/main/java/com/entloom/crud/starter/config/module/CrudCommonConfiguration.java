@@ -112,12 +112,14 @@ public class CrudCommonConfiguration {
     /** 启动期统一收集实体动作注解与业务 Scene Policy，校验后冻结。 */
     @Bean
     @ConditionalOnMissingBean
-    public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, ObjectProvider<ScenePolicy[]> policiesProvider, CrudEntityDeclarations declarations) {
+    public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, ObjectProvider<ScenePolicy[]> policiesProvider, CrudEntityDeclarations declarations,
+            org.springframework.beans.factory.ListableBeanFactory beans) {
         ScenePolicy[] policies = policiesProvider.getIfAvailable();
         declarations.validate(entities);
-        List<ScenePolicy> all = new ArrayList<>(declarations.scenes());
+        List<ScenePolicy> all = new ArrayList<>();
+        all.addAll(com.entloom.crud.starter.config.CrudActionPolicies.collect(beans, entities));
         if (policies != null) all.addAll(java.util.Arrays.asList(policies));
-        return ScenePolicyRegistry.create(entities, all, declarations.actions(), declarations.allowedOperations());
+        return ScenePolicyRegistry.create(entities, all, declarations.actions(), java.util.Collections.emptyMap());
     }
 
     @Bean

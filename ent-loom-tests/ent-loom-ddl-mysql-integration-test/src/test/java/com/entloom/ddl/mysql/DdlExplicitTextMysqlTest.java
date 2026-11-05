@@ -58,8 +58,7 @@ class DdlExplicitTextMysqlTest {
             MetadataLoadRequest request = new MetadataLoadRequest(Collections.emptyList(), Collections.singletonList(NativeText.class));
             List<DdlEntityMetadata> models = Arrays.asList(
                     new AnnotationMetadataLoader().load(request).get(0),
-                    new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults(),
-                        new com.entloom.declaration.EntityDeclarations()).load(request).get(0),
+                    new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults()).load(request).get(0),
                     new MetaDdlAdapter(Collections.singletonList(NativeText.class)).models().get(0));
             for (int index = 0; index < models.size(); index++) {
                 DdlEntityMetadata original = models.get(index);

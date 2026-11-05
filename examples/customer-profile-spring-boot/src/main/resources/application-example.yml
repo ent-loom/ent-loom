@@ -19,17 +19,6 @@ ent:
         http:
           enabled: true
     crud:
-      access:
-        identities:
-          operator:
-            id-type: LONG
-        policies:
-          profile-management:
-            actions: [view, create, update, delete]
-            access:
-              operator:
-                actions: [view, create, update, delete]
-                scope: all
       example:
         enabled: true
         accounts:

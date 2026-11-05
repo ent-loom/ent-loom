@@ -198,6 +198,6 @@ docker compose down -v
 
 ## 治理默认装配与定制
 
-实体的访问方式及创建必填、更新禁改字段集中在 `src/main/resources/ent/entities/customer_profile.yml`；全局配置只保留能力开关、演示主体和共享治理规则。创建、更新和读取统一通过 `policy: profile-management` 授权，见 [Java 策略与统一绑定](../../docs/guides/crud/Java策略与统一绑定.md)。
+实体访问方式及创建必填、更新禁改字段声明在 `CustomerProfile` 的 CRUD 注解中；共享身份与策略在 `ProfileAccessConfiguration` 中声明。应用配置保留能力开关和演示环境设置。创建、更新和读取统一通过 `profile-management` 策略授权，见 [Java 策略与统一绑定](../../docs/guides/crud/Java策略与统一绑定.md)。
 
-`application-example.yml` 显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。开启通用 Controller 后，已注册实体默认开放；特殊实体用 实体文件 `crud.http-exposed: false` 关闭；文档通过 `doc.contract.exposure` 独立声明主体、实体与字段白名单，无需额外配置类。未限定展示范围时，文档默认复用 Meta 全量实体与非隐藏字段。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。
+`application-example.yml` 显式开启 `ent.loom.crud.example.enabled`，由 Starter 提供独立的演示主体和数据范围默认实现。开启通用 Controller 后，仅发布声明 `@EntCrudEntity` 且未设置 `httpExposed = false` 的实体；文档通过 `doc.contract.exposure` 独立声明主体、实体与字段白名单。未限定展示范围时，文档默认复用 Meta 全量实体与非隐藏字段。自定义同类型 Bean 可分别覆盖主体、数据范围、注册表或文档策略。详见[默认装配与定制](../../docs/guides/默认装配与定制.md)。

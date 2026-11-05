@@ -4,6 +4,8 @@
 
 使用 JDK 21、Maven Wrapper 与 MySQL 8.0.16+，复用现有集成测试；下单进入实际业务事务，分页使用真实 HTTP。
 
+业务订单与商品摘要使用 MyBatis-Plus；标准 CRUD 仍由 ent-loom 受授权执行器处理。验收同时覆盖两条路径的权限与事务边界。
+
 | 验收项 | 检查内容 |
 | --- | --- |
 | 自动建表 | 按实体生成 `order`、`order_item` 和 `merchant_product` 等表 |

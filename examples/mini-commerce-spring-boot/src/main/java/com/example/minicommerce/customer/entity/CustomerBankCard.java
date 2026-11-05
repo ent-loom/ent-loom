@@ -1,6 +1,9 @@
 package com.example.minicommerce.customer.entity;
 
 import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.annotations.EntCrudAccess;
+import com.entloom.crud.annotations.EntCrudAccessField;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 import lombok.Getter;
@@ -9,6 +12,9 @@ import lombok.Setter;
 
 /** 平台用户的银行卡绑定信息；完整卡号由支付机构保管。 */
 @EntEntity("顾客银行卡")
+@EntCrudEntity()
+@EntCrudAccess(identity = "merchant", actionsSpecified = true, actions = {})
+@EntCrudAccess(identity = "customer", fields = {@EntCrudAccessField(use = "WRITE", mode = "INCLUDE", fields = {"bankName", "cardLastFour", "bindingToken"})})
 @Getter
 @Setter
 @NoArgsConstructor

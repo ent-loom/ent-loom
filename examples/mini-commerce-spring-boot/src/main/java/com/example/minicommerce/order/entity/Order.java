@@ -1,6 +1,15 @@
 package com.example.minicommerce.order.entity;
 
 import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.annotations.EntCrudAccess;
+import com.entloom.crud.annotations.EntCrudAccessField;
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 import com.example.minicommerce.customer.entity.Customer;
@@ -19,6 +28,14 @@ import lombok.Setter;
  * <p>标准读取复用客户、商家策略；下单与取消均经过统一身份授权。</p>
  */
 @EntEntity("订单")
+@EntDdlEntity
+@EntDdlIndex(name = "idx_order_customer", fields = {"customerId"})
+@EntDdlIndex(name = "idx_order_merchant", fields = {"merchantId"})
+@EntCrudEntity(policy = "workflow", actions = {"view", "create", "cancel"}, operations = {"create="})
+@EntCrudAccess(identity = "customer", addActions = {"create", "cancel"}, fields = {@EntCrudAccessField(use = "FILTER", mode = "EXCLUDE", fields = {"customerId", "totalAmount"})})
+@EntCrudAccess(identity = "merchant", addActions = {"cancel"}, fields = {@EntCrudAccessField(use = "FILTER", mode = "EXCLUDE", fields = {"merchantId", "totalAmount"})})
+@EntCrudAccess(identity = "super-admin", removeActions = {"create"})
+@TableName("`order`")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,6 +47,7 @@ public class Order {
 
     /** 订单主键，由数据库自增生成。 */
     @EntField("订单 ID")
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @EntField("客户 ID")
@@ -55,8 +73,10 @@ public class Order {
     // 结构属性：不映射当前表列，仅在显式展开时由 CRUD 填充。
 
     @EntField("客户")
+    @TableField(exist = false)
     private Customer customer;
 
     @EntField("订单明细")
+    @TableField(exist = false)
     private List<OrderItem> orderItemList;
 }

@@ -13,9 +13,14 @@ import java.lang.annotation.Target;
 public @interface EntDocEntity {
 
     /** 实体名称 */
-    String name();
+    String name() default "";
 
     /** 实体描述 */
     String description() default "";
+
+    String group() default "";
+    String remark() default "";
+    com.entloom.base.common.OptionalBoolean hidden() default com.entloom.base.common.OptionalBoolean.UNSET;
+    String[] visibleFor() default {};
 
 }

@@ -1,3 +1,0 @@
-# 内部实体，不发布通用 HTTP。
-crud:
-  http-exposed: false

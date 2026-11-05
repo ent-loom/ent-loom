@@ -59,9 +59,8 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 @Configuration
 public class StarterJdbcTestSupportConfiguration {
     @Bean
-    public com.entloom.declaration.EntityDeclarations testEntityDeclarations() {
-        return new com.entloom.declaration.EntityDeclarations(
-            new org.springframework.core.io.ClassPathResource("declarations/TestOrderEntity.yml"));
+    public com.entloom.crud.starter.config.CrudEntityDeclarations testEntityDeclarations() {
+        return new com.entloom.crud.starter.config.CrudEntityDeclarations(List.of(TestOrderEntity.class));
     }
 
     @Bean

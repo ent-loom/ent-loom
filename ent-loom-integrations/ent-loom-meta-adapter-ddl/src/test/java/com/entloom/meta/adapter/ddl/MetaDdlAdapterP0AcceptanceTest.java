@@ -234,20 +234,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
     private MetaDdlAdapter adapter(java.util.Collection<Class<?>> classes, com.entloom.meta.core.parser.EntMetaParser parser,
             com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy policy) {
-        java.util.List<org.springframework.core.io.Resource> resources = new java.util.ArrayList<>();
-        if (classes != null) for (Class<?> type : new java.util.LinkedHashSet<>(classes)) {
-            var source = new org.springframework.core.io.ClassPathResource("declarations/MetaDdlAdapterP0AcceptanceTest/" + type.getSimpleName() + ".yml");
-            if (source.exists()) {
-                var annotation = type.getAnnotation(com.entloom.meta.annotations.EntEntity.class);
-                String resource = annotation == null ? type.getSimpleName() : annotation.entity().isEmpty()
-                    ? java.beans.Introspector.decapitalize(type.getSimpleName()) : annotation.entity();
-                try { resources.add(new org.springframework.core.io.ByteArrayResource(source.getInputStream().readAllBytes()) {
-                    @Override public String getFilename() { return resource + ".yml"; }
-                }); } catch (java.io.IOException exception) { throw new IllegalStateException(exception); }
-            }
-        }
-        return new MetaDdlAdapter(classes, parser, policy, new com.entloom.ddl.api.DdlGenerationDefaults(),
-            new com.entloom.declaration.EntityDeclarations(resources.toArray(new org.springframework.core.io.Resource[0])));
+        return new MetaDdlAdapter(classes, parser, policy, new com.entloom.ddl.api.DdlGenerationDefaults());
     }
 
     @EntEntity(entity = "input_hint_account")
@@ -293,7 +280,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntEntity(entity = "account-resource")
-
+    @com.entloom.ddl.annotations.EntDdlIndex(name = "uk_meta_account_display_name", fields = "displayName", unique = true)
     private static final class MetaOnlyAccount {
         @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.AUTO)
@@ -320,7 +307,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity(table = "native_account", schema = "account_schema", comment = "Native account", size = DdlTableSize.MEDIUM)
-
+    @com.entloom.ddl.annotations.EntDdlIndex(name = "uk_native_account_code", fields = "code", unique = true)
     private static final class DdlOnlyAccount {
         @EntDdlField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.AUTO_INCREMENT)
@@ -346,7 +333,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity(table = "meta_only_account")
-
+    @com.entloom.ddl.annotations.EntDdlIndex(name = "uk_meta_account_display_name", fields = "displayName", unique = true)
     private static final class EquivalentDdlAccount {
         @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.NONE)
@@ -367,7 +354,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity
-
+    @com.entloom.ddl.annotations.EntDdlIndex(name = "idx_unsupported_payload", fields = "payload")
     private static final class UnsupportedDdlProperties {
         private Long id;
 

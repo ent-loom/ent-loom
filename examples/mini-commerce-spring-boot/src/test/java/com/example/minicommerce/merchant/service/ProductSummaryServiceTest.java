@@ -25,10 +25,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ProductSummaryServiceTest {
-    private final BusinessAuthorizationService authorization = mock(BusinessAuthorizationService.class);
-    private final ProductSummaryMapper mapper = mock(ProductSummaryMapper.class);
-    private final CrudGovernanceAuditRecorder audit = mock(CrudGovernanceAuditRecorder.class);
-    private final ProductSummaryService service = new ProductSummaryService(authorization, mapper, audit);
+    private final BusinessAuthorizationService businessAuthorizationService = mock(BusinessAuthorizationService.class);
+    private final MerchantProductService merchantProductService = mock(MerchantProductService.class);
+    private final CrudGovernanceAuditRecorder auditRecorder = mock(CrudGovernanceAuditRecorder.class);
+    private final ProductSummaryService productSummaryService = new ProductSummaryService(
+        businessAuthorizationService, merchantProductService, auditRecorder);
     private final VisitorContext visitor = VisitorContext.authenticated(
         new AccessSubject("merchant-user-a", AccessSubjectType.HUMAN),
         new BusinessIdentityDefinition("merchant", "merchantId", BusinessIdentityIdType.LONG).snapshot("1001"),
@@ -38,7 +39,7 @@ class ProductSummaryServiceTest {
 
     @BeforeEach
     void authorize() {
-        when(authorization.authorize(any())).thenReturn(result);
+        when(businessAuthorizationService.authorize(any())).thenReturn(result);
         when(result.getDecision()).thenReturn(AccessDecision.ALLOW);
         when(result.getFields()).thenReturn(fields(List.of("id", "name", "price"), List.of("active"), List.of("id")));
     }
@@ -46,13 +47,13 @@ class ProductSummaryServiceTest {
     @Test
     void 每次授权且空范围不访问数据库() {
         when(result.getScope()).thenReturn(AuthorizationScope.none());
-        assertEquals(0, service.page(visitor, query).total());
-        assertEquals(0, service.page(visitor, query).total());
-        verify(authorization, times(2)).authorize(any());
+        assertEquals(0, productSummaryService.page(visitor, query).total());
+        assertEquals(0, productSummaryService.page(visitor, query).total());
+        verify(businessAuthorizationService, times(2)).authorize(any());
         verify(result, times(2)).requireApplicable(any());
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(merchantProductService);
         var events = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(2)).record(events.capture());
+        verify(auditRecorder, times(2)).record(events.capture());
         assertEquals(CrudGovernanceAuditOutcome.SUCCESS, events.getValue().getOutcome());
     }
 
@@ -60,12 +61,12 @@ class ProductSummaryServiceTest {
     void 全量和商家范围使用明确分支() {
         when(result.getScope()).thenReturn(AuthorizationScope.all(), AuthorizationScope.equal("merchantId", "1001"));
         var page = new ProductSummaryService.Page(List.of(), 1, 20, 0);
-        when(mapper.pageAll(true, 1, 20)).thenReturn(page);
-        when(mapper.pageMerchant(1001, true, 1, 20)).thenReturn(page);
-        service.page(visitor, query);
-        service.page(visitor, query);
-        verify(mapper).pageAll(true, 1, 20);
-        verify(mapper).pageMerchant(1001, true, 1, 20);
+        when(merchantProductService.pageAll(true, 1, 20)).thenReturn(page);
+        when(merchantProductService.pageMerchant(1001, true, 1, 20)).thenReturn(page);
+        productSummaryService.page(visitor, query);
+        productSummaryService.page(visitor, query);
+        verify(merchantProductService).pageAll(true, 1, 20);
+        verify(merchantProductService).pageMerchant(1001, true, 1, 20);
     }
 
     @Test
@@ -73,20 +74,20 @@ class ProductSummaryServiceTest {
         for (AuthorizationScope scope : List.of(AuthorizationScope.equal("customerId", 301),
                 AuthorizationScope.equal("merchantId", 2001), AuthorizationScope.in("merchantId", List.of(1001)))) {
             when(result.getScope()).thenReturn(scope);
-            assertThrows(PermissionDeniedException.class, () -> service.page(visitor, query));
+            assertThrows(PermissionDeniedException.class, () -> productSummaryService.page(visitor, query));
         }
         when(result.getScope()).thenReturn(AuthorizationScope.all());
         for (AuthorizationFields fields : List.of(fields(List.of("id", "name"), List.of("active"), List.of("id")),
                 fields(List.of("id", "name", "price"), List.of(), List.of("id")),
                 fields(List.of("id", "name", "price"), List.of("active"), List.of()))) {
             when(result.getFields()).thenReturn(fields);
-            assertThrows(PermissionDeniedException.class, () -> service.page(visitor, query));
+            assertThrows(PermissionDeniedException.class, () -> productSummaryService.page(visitor, query));
         }
         when(result.getDecision()).thenReturn(AccessDecision.DENY);
-        assertThrows(PermissionDeniedException.class, () -> service.page(visitor, query));
-        verifyNoInteractions(mapper);
+        assertThrows(PermissionDeniedException.class, () -> productSummaryService.page(visitor, query));
+        verifyNoInteractions(merchantProductService);
         var events = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(7)).record(events.capture());
+        verify(auditRecorder, times(7)).record(events.capture());
         events.getAllValues().forEach(event -> assertEquals(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED, event.getOutcome()));
     }
 

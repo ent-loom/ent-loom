@@ -23,6 +23,15 @@ public @interface EntDocField {
     /** 字段描述 */
     String description() default "";
 
+    String example() default "";
+    String[] examples() default {};
+    String group() default "";
+    String remark() default "";
+    com.entloom.base.common.OptionalBoolean hidden() default com.entloom.base.common.OptionalBoolean.UNSET;
+    String[] visibleFor() default {};
+    String targetEntityLabel() default "";
+    String relationRemark() default "";
+
     /** 最大长度（-1 表示未知或不限制） */
     int maxLength() default -1;
 

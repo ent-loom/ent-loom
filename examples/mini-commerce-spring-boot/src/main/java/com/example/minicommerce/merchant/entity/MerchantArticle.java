@@ -2,6 +2,7 @@ package com.example.minicommerce.merchant.entity;
 
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.EntEntity;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 import lombok.Getter;
@@ -9,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @EntEntity("商户文章")
+@EntCrudEntity(httpExposed = false)
 @Getter
 @Setter
 @NoArgsConstructor

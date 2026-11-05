@@ -73,20 +73,21 @@ docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_
 - **下单**：[PlaceOrderHandler](src/main/java/com/example/minicommerce/order/handler/PlaceOrderHandler.java)，入口 `POST /api/ent-crud/order/action/create`。客户只提交商品 ID 和数量；客户归属来自可信身份，商家归属来自商品。同商家合并、跨商家拆单，订单和明细在同一事务内保存。
 - **取消**：`POST /api/ent-crud/order/action/cancel`，客户与商家只能取消所属且状态为 `CREATED` 的订单。
 - **查询**：订单及商家商品等实体直接复用 `list/page/findOne/detail`，无需业务 Controller 或查询 Service。普通筛选放在 `options`，详情使用顶层 `id`；分页返回 `data.items/data.page`。
-- **商品摘要**：`POST /api/merchant/products/page` 接受 `{"page":1,"limit":20,"active":true}`，返回 `id/name/price` DTO。商家与管理员每次重新授权同一 `merchantProduct/view`；商家范围来自授权结果，列表与总数使用相同范围和筛选。直接使用 JDBC 的业务 Mapper 负责落实固定投影、参数化条件和范围，无法表达的授权范围在 SQL 前拒绝。
+- **商品摘要**：`POST /api/merchant/products/page` 接受 `{"page":1,"limit":20,"active":true}`，返回 `id/name/price` DTO。商家与管理员每次重新授权同一 `merchantProduct/view`；商家范围来自授权结果，列表与总数复用 Mapper XML 中的范围和筛选。业务代码负责落实字段与范围，无法表达的授权范围在 SQL 前拒绝。
 - **关联详情**：订单查询默认只读当前表，显式传入 `expandRelations: ["customer", "orderItemList"]` 才读取客户与明细；成交快照不重新读取当前商品。
 
-业务 Handler 通过 `AuthorizedActionContext` 获取可信身份，并创建受授权范围约束的 `EntityDao`，无需空 DAO 接口。数据隔离、字段限制和错误响应见 [访问控制](docs/access-control.md)。
+业务 Handler 通过 `AuthorizedActionContext` 获取可信授权，订单编排服务组合 MyBatis-Plus 单实体服务并落实范围、状态与事务。原始 Mapper 不自动继承框架的数据权限；数据隔离、字段限制和错误响应见 [访问控制](docs/access-control.md)。
 
 ## 配置入口
 
 | 位置 | 职责 |
 | --- | --- |
-| [application.yml](src/main/resources/application.yml) | 数据源、元数据、共享访问策略、DDL 与实体文档 |
+| [application.yml](src/main/resources/application.yml) | 数据源、元数据扫描、DDL 与实体文档运行配置 |
+| [CommerceAccessConfiguration](src/main/java/com/example/minicommerce/CommerceAccessConfiguration.java) | 共享身份、归属关系和访问策略 |
 | [demo.yml](src/main/resources/demo.yml) | 演示账号、可信身份绑定、入口路由与审计 |
-| [ent/entities](src/main/resources/ent/entities) | 各实体的权限差异、字段、动作、输入契约与索引 |
+| 实体 Java 类与 Handler | 实体元数据、权限差异、字段边界、动作和输入契约 |
 
-Java 保留字段、关系事实和业务处理，YAML 集中声明实体能力。例如 `Order` 使用 `workflow` 并增加下单与取消，`MerchantProduct` 继承 `maintainable` 并增加批量更新。
+实体注解声明能力和字段边界，Handler 声明业务动作。例如 `Order` 使用 `workflow` 并增加下单与取消，`MerchantProduct` 继承 `maintainable` 并增加批量更新。
 
 文章正文通过 `@EntField(value = "正文", kind = EntFieldKind.CONTENT)` 表达业务语义，未声明业务上限时推导为 TEXT；格式与容量仍需业务约束。
 

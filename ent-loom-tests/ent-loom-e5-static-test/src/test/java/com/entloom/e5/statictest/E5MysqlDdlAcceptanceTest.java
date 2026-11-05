@@ -51,30 +51,18 @@ class E5MysqlDdlAcceptanceTest {
                 "ent.loom.ddl.create-database-if-missing", true,
                 "ent.loom.ddl.mode", DdlExecutionMode.CREATE_TABLE.name(),
                 "ent.loom.ddl.entity-class-names[0]", CustomerProfile.class.getName())));
-        // Meta 实体按业务资源码 customer_profile 消费共享 YAML，不能改用原生类名键。
         context.registerBean(com.entloom.ddl.api.MetadataLoader.class, () -> {
             com.entloom.meta.adapter.ddl.MetaDdlAdapter adapter = new com.entloom.meta.adapter.ddl.MetaDdlAdapter(
                 java.util.Collections.singletonList(CustomerProfile.class),
                 new com.entloom.meta.core.parser.ReflectiveEntMetaParser(),
                 com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(),
-                new com.entloom.ddl.api.DdlGenerationDefaults(),
-                context.getBean(com.entloom.declaration.EntityDeclarations.class));
+                new com.entloom.ddl.api.DdlGenerationDefaults());
             return new com.entloom.ddl.api.MetadataLoader() {
                 public java.util.List<com.entloom.ddl.api.DdlEntityMetadata> load(com.entloom.ddl.api.MetadataLoadRequest request) {
                     return adapter.models();
                 }
-                public void validateDeclarations(com.entloom.ddl.api.MetadataLoadRequest request) {
-                    adapter.validateDeclarations();
-                }
             };
         });
-        // 共享实体 YAML 同时包含 CRUD / DOC；注册真实声明消费者，保留组件校验。
-        context.registerBean(com.entloom.crud.starter.config.CrudEntityDeclarations.class,
-            () -> new com.entloom.crud.starter.config.CrudEntityDeclarations(
-                context.getBean(com.entloom.declaration.EntityDeclarations.class)));
-        context.registerBean(com.entloom.meta.adapter.doc.DocEntityDeclarations.class,
-            () -> new com.entloom.meta.adapter.doc.DocEntityDeclarations(
-                context.getBean(com.entloom.declaration.EntityDeclarations.class)));
         context.register(EntDdlAutoConfiguration.class);
         Throwable primaryFailure = null;
         try {

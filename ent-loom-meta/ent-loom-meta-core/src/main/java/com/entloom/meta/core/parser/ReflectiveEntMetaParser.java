@@ -429,7 +429,7 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
     }
 
     private List<EntIndexDescriptor> indexes(Class<?> entityClass) {
-        // 索引由 DDL 实体文件编译；基础 Meta 解析不再声明组件索引。
+        // 索引由 DDL 注解编译；基础 Meta 解析不声明组件索引。
         return java.util.Collections.emptyList();
     }
 

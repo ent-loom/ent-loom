@@ -28,6 +28,22 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class MetaDocAdapterStaticFixtureTest {
+    @Test
+    void 注解隐藏字段不进入文档投影() {
+        MetaDocAdapter adapter = new MetaDocAdapter(new SimpleDocMetaResolver(),
+            java.util.Collections.<Class<?>>singletonList(HiddenFields.class));
+        Map<String, Object> document = adapter.buildOne(HiddenFields.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> fields = (List<Map<String, Object>>) document.get("fields");
+        Assertions.assertFalse(containsBy(fields, "property", "secret"));
+    }
+
+    @EntEntity
+    private static class HiddenFields {
+        Long id;
+        @EntDocField(hidden = com.entloom.base.common.OptionalBoolean.TRUE)
+        String secret;
+    }
 
     @Test
     void 动态文档解析应复用携带应用默认服务的解析器() {
@@ -52,7 +68,7 @@ class MetaDocAdapterStaticFixtureTest {
     void order_static_fixture_should_output_entity_fields_relations_indexes_and_final_map_only_at_boundary() {
         MetaDocAdapter adapter = new MetaDocAdapter(
             new SimpleDocMetaResolver(), declaredIndexes(),
-            Arrays.<Class<?>>asList(Order.class, OrderItem.class, Customer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new DocRuntimeModelMerger(), DocDeclarationFixtures.provider("MetaDocAdapterStaticFixtureTest"), DefaultMetaDiagnosticPolicy.failFast()
+            Arrays.<Class<?>>asList(Order.class, OrderItem.class, Customer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new DocRuntimeModelMerger(), DefaultMetaDiagnosticPolicy.failFast()
         );
 
         Map<String, Object> doc = adapter.buildOne(Order.class);
@@ -178,12 +194,12 @@ class MetaDocAdapterStaticFixtureTest {
         private Long id;
 
         @EntField(value = "订单号")
-        @EntDocField(name = "订单号文档覆盖")
+        @EntDocField(name = "订单号文档覆盖", example = "SO-001")
         private String orderNo;
 
         @EntField
         @EntRelation(targetEntity = "customer")
-        @EntDocField
+        @EntDocField(targetEntityLabel = "客户", relationRemark = "订单归属客户")
         private Long customerId;
 
         @EntRelation(targetEntity = "order_item", targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)

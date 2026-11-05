@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 文档复用已编译的 DDL 索引，避免展示链重新解释实体文件。 */
+/** 文档复用已编译的 DDL 索引。 */
 final class DeclaredDdlDocIndexProvider implements DocIndexProvider {
     private final MetadataLoader loader;
     private volatile List<DdlEntityMetadata> models;

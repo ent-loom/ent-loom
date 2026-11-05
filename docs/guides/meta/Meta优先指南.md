@@ -58,7 +58,7 @@ public class Student {
 }
 ```
 
-`EntField` 只表达实体字段事实。CRUD 创建输入要求和更新禁改字段配置在 实体文件的 `crud.contracts`，Doc/UI 使用运行时合并后的 `inputRequired` 作为输入提示；复杂业务校验仍由 Service / Handler 负责。
+`EntField` 只表达实体字段事实。CRUD 创建输入要求和更新禁改字段由 `@EntCrudEntity` 声明，Doc/UI 使用运行时合并后的 `inputRequired` 作为输入提示；复杂业务校验仍由 Service / Handler 负责。
 
 当前创建和更新输入边界已接入默认 CRUD、DAO 命令和强类型 Handler。类型映射、执行边界及配置示例见 [CRUD 外部输入契约与统一校验](../../evolution/decisions/core/实体必填约束与统一校验.md)。
 

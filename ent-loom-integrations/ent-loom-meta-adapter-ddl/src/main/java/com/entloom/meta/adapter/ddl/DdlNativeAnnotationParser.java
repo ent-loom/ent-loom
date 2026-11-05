@@ -4,6 +4,7 @@ import com.entloom.base.util.reflect.EntityProperties;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.enums.DdlTableSize;
 import com.entloom.ddl.enums.GenerationStrategy;
@@ -42,6 +43,18 @@ final class DdlNativeAnnotationParser {
             fields.put(field.getName(), toField(entityClass, field, diagnostics));
         }
         List<DdlNativeIndexModel> indexes = new ArrayList<DdlNativeIndexModel>();
+        for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
+            List<String> indexFields = new ArrayList<String>();
+            for (String field : index.fields()) {
+                indexFields.add(field);
+            }
+            indexes.add(new DdlNativeIndexModel(
+                nativeValue(blankAsNull(index.name())),
+                indexFields,
+                nativeValue(Boolean.valueOf(index.unique())),
+                blankAsNull(index.expression())
+            ));
+        }
         return new DdlNativeEntityModel(
             entity == null || blankAsNull(entity.table()) == null
                 ? SourcedValue.inferred(entity != null && entity.namingStrategy() == NamingStrategy.AS_IS

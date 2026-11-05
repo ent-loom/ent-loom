@@ -30,12 +30,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RequiredArgsConstructor
 @Slf4j
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
-    private final CrudResponseBuilder responses;
+    private final CrudResponseBuilder responseBuilder;
 
     @ExceptionHandler(CrudException.class)
     ResponseEntity<CrudResponse<Void>> frameworkError(CrudException error) {
         var mapped = CrudHttpErrorMapper.map(error);
-        return ResponseEntity.status(mapped.getStatus()).body(responses.failure(mapped.getError()));
+        return ResponseEntity.status(mapped.getStatus()).body(responseBuilder.failure(mapped.getError()));
     }
 
     @Override
@@ -44,14 +44,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         String message = error.getBindingResult().getAllErrors().stream()
             .map(DefaultMessageSourceResolvable::getDefaultMessage).filter(StringUtils::hasText)
             .distinct().sorted().collect(Collectors.joining("；"));
-        return handleExceptionInternal(error, responses.failure("VALIDATION_ERROR",
+        return handleExceptionInternal(error, responseBuilder.failure("VALIDATION_ERROR",
             StringUtils.hasText(message) ? message : "请求参数不合法"), headers, status, request);
     }
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException error,
         HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        return handleExceptionInternal(error, responses.failure("VALIDATION_ERROR",
+        return handleExceptionInternal(error, responseBuilder.failure("VALIDATION_ERROR",
             "请求体不能为空，且须为符合接口约定的 JSON"), headers, status, request);
     }
 
@@ -72,7 +72,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 case 415 -> "请求内容类型不支持";
                 default -> status.is5xxServerError() ? "服务暂时不可用，请稍后重试" : "请求未能完成";
             };
-            body = responses.failure(code, message);
+            body = responseBuilder.failure(code, message);
         }
         return super.handleExceptionInternal(error, body, headers, status, request);
     }
@@ -85,6 +85,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         }
         log.error("业务接口发生未预期异常", error);
         return ResponseEntity.internalServerError()
-            .body(responses.failure("INTERNAL_ERROR", "服务暂时不可用，请稍后重试"));
+            .body(responseBuilder.failure("INTERNAL_ERROR", "服务暂时不可用，请稍后重试"));
     }
 }

@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProductSummaryIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @SpyBean CrudGovernanceAuditRecorder audit;
+    @SpyBean CrudGovernanceAuditRecorder auditRecorder;
 
     @BeforeEach
     void seed() {
@@ -39,7 +39,7 @@ class ProductSummaryIntegrationTest {
         jdbc.update("insert into merchant_product(id, merchant_id, name, price, active, version) values "
             + "(101,1001,'甲',10,true,0),(102,1001,'乙',20,false,0),"
             + "(103,1001,'丙',30,true,0),(201,2001,'丁',40,true,0)");
-        clearInvocations(audit);
+        clearInvocations(auditRecorder);
     }
 
     @Test
@@ -58,7 +58,7 @@ class ProductSummaryIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
             .andExpect(jsonPath("$.data.items[0].id").value(201));
         var events = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(2)).record(events.capture());
+        verify(auditRecorder, times(2)).record(events.capture());
         assertEquals(CrudGovernanceAuditOutcome.SUCCESS, events.getAllValues().get(0).getOutcome());
         assertEquals("merchantProduct", events.getAllValues().get(0).getAction().getResource());
         assertEquals("view", events.getAllValues().get(0).getAction().getAction());

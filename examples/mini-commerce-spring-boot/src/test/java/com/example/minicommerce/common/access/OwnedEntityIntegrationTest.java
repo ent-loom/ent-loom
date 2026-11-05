@@ -48,9 +48,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class OwnedEntityIntegrationTest {
     @Autowired JdbcTemplate jdbc;
-    @Autowired AuthorizedQueryExecutor queries;
-    @Autowired BusinessIdentityRegistry identities;
-    @Autowired EntityMetaRegistry entities;
+    @Autowired AuthorizedQueryExecutor authorizedQueryExecutor;
+    @Autowired BusinessIdentityRegistry businessIdentityRegistry;
+    @Autowired EntityMetaRegistry entityMetaRegistry;
     @Autowired MockMvc mvc;
 
     @BeforeEach
@@ -71,22 +71,22 @@ class OwnedEntityIntegrationTest {
 
     @Test
     void 关系字段缺省推导保护订单多重归属并进入实际Patch() {
-        var address = entities.getEntityMeta(CustomerLevel.class);
+        var address = entityMetaRegistry.getEntityMeta(CustomerLevel.class);
         assertTrue(address.resolveFieldMeta("customerId").isScopeField());
         assertTrue(address.resolveFieldMeta("merchantId").isScopeField());
         assertFalse(address.resolveFieldMeta("merchantId").isWritable());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
-        assertTrue(entities.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
-        assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
-        assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("merchantId").isScopeField());
-        assertFalse(entities.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
-        assertFalse(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
+        assertTrue(entityMetaRegistry.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
+        assertTrue(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
+        assertTrue(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("merchantId").isScopeField());
+        assertFalse(entityMetaRegistry.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
+        assertFalse(entityMetaRegistry.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
         for (Class<?> type : List.of(CustomerLevel.class, Order.class)) {
-            var meta = entities.getEntityMeta(type);
+            var meta = entityMetaRegistry.getEntityMeta(type);
             var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L), type, meta);
             assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, meta));
         }
-        var order = entities.getEntityMeta(Order.class);
+        var order = entityMetaRegistry.getEntityMeta(Order.class);
         var merchantPatch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "merchantId", 2001L),
             Order.class, order);
         assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(merchantPatch, order));
@@ -199,11 +199,11 @@ class OwnedEntityIntegrationTest {
 
     private VisitorContext visitor(String code, String subjectId, String identityId, String entry) {
         var subject = new AccessSubject(subjectId, AccessSubjectType.HUMAN);
-        return VisitorContext.authenticated(subject, identities.resolve(subject, code, identityId), entry, null, null);
+        return VisitorContext.authenticated(subject, businessIdentityRegistry.resolve(subject, code, identityId), entry, null, null);
     }
 
     private List<CrudRecord> list(Class<?> entity, VisitorContext visitor) {
-        return queries.list(visitor, QuerySpec.<CrudRecord>builder().rootType(entity).resultType(CrudRecord.class)
+        return authorizedQueryExecutor.list(visitor, QuerySpec.<CrudRecord>builder().rootType(entity).resultType(CrudRecord.class)
             .op(QueryOperation.LIST).limit(20).build());
     }
 }

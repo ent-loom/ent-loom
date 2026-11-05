@@ -20,12 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 @EntAccess(accessEntries = "merchant")
 @RequiredArgsConstructor
 public class ProductSummaryController {
-    private final ProductSummaryService products;
-    private final CrudResponseBuilder responses;
+    private final ProductSummaryService productSummaryService;
+    private final CrudResponseBuilder responseBuilder;
 
     @PostMapping("/page")
     public CrudResponse<Page> page(VisitorContext visitor, @Valid @RequestBody Query query) {
-        CrudResponse<Page> response = responses.success(products.page(visitor, query));
+        CrudResponse<Page> response = responseBuilder.success(productSummaryService.page(visitor, query));
         response.setRequestId(visitor.getRequestId());
         response.setTraceId(visitor.getTraceId());
         return response;

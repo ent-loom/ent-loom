@@ -302,7 +302,22 @@ final class DdlRuntimeModelMerger {
         List<IndexCandidate> nativeIndexes = new ArrayList<IndexCandidate>();
         if (nativeModel != null) {
             for (DdlNativeIndexModel index : nativeModel.indexes()) {
-                nativeIndexes.add(new IndexCandidate(index.name(), index.fields(), index.unique(), index.expression(), false));
+                List<String> columns = new ArrayList<String>();
+                boolean valid = true;
+                for (String field : index.fields()) {
+                    String column = columnsByField.get(field);
+                    if (column == null) {
+                        diagnostics.add(MetaDiagnostic.error(MetaDiagnosticCode.NON_PERSISTENT_FIELD)
+                            .entityClass(entityClass).property(MetaDescriptorProperties.FIELDS)
+                            .location(entityClass.getName() + "#" + field)
+                            .message("索引引用不存在或不持久化的 Java 属性: " + field).build());
+                        valid = false;
+                    } else {
+                        columns.add(column);
+                    }
+                }
+                if (valid) nativeIndexes.add(new IndexCandidate(index.name(), columns, index.unique(),
+                    index.expression() == null ? "" : index.expression(), false));
             }
         }
 

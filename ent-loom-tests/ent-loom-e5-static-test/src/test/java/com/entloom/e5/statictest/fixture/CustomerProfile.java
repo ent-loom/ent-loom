@@ -30,8 +30,9 @@ import java.time.LocalDateTime;
 )
 
 @EntDdlEntity(table = "customer_profile", comment = "客户档案")
-
+@com.entloom.ddl.annotations.EntDdlIndex(name = "uk_customer_profile_display_name", fields = "displayName", unique = true)
 @EntCrudEntity(
+    httpExposed = false,
     name = "customer_profile",
     table = "customer_profile",
     idPolicy = CrudIdPolicy.EXPLICIT,

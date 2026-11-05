@@ -18,31 +18,29 @@ import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.declaration.EntityDeclarations;
-import java.nio.charset.StandardCharsets;
+import com.entloom.crud.annotations.EntCrudEntity;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.core.io.ByteArrayResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** policy 对 YAML 与 Java 使用相同绑定入口；不为 Java 策略创建另一种访问模式。 */
+/** 实体注解选择 Java 策略，授权仍走统一执行链。 */
 class EntityPolicySelectionTest {
     private static final BusinessOperation VIEW = new BusinessOperation("order", "view");
 
-    private ApplicationContextRunner runner(String declaration) {
+    private ApplicationContextRunner runner(Class<?> declaration) {
         return new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(CrudPolicyAutoConfiguration.class))
             .withBean(EntityMetaRegistry.class, () -> CrudPolicyAutoConfigurationTest.metas(Order.class))
-            .withBean(EntityDeclarations.class, () -> files(declaration))
+            .withBean(CrudEntityDeclarations.class, () -> new CrudEntityDeclarations(List.of(declaration)))
             .withPropertyValues("ent.loom.crud.controller.enabled=true");
     }
 
-    private ApplicationContextRunner javaPolicy(String declaration) {
+    private ApplicationContextRunner javaPolicy(Class<?> declaration) {
         return runner(declaration)
             .withBean(EntityPolicyTemplate.class, () -> new EntityPolicyTemplate("order-read", "Project#orderRead",
                 List.of(new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(), List.of()))))
@@ -53,7 +51,7 @@ class EntityPolicySelectionTest {
 
     @Test
     void 实体policy选择Java只读策略且写入不会退回旧治理() {
-        javaPolicy("crud: {access: {policy: order-read}}")
+        javaPolicy(ReadOrder.class)
             .withBean(BusinessPermissionEvaluator.class, () -> (visitor, operation, rule, target) ->
                 BusinessPermissionDecision.allow(AuthorizationScope.equal("ownerId", "owner-1"),
                     AuthorizationFields.of(Map.of(AuthorizationFields.Use.RETURN, List.of("id")))))
@@ -73,22 +71,22 @@ class EntityPolicySelectionTest {
                     .hasMessageContaining("映射");
                 assertThat(context.getBean(EntityPolicyRegistry.class)
                     .requireDeclaration(VIEW, PolicyIdentityBranch.publicBranch()).getBindingSource())
-                    .contains("order.yml", "crud.access.policy");
+                    .contains("@EntCrudEntity(order)", "access.policy");
             });
     }
 
     @Test
-    void 未注册策略启动失败并定位实体文件() {
-        runner("crud: {access: {policy: missing-read}}").run(context -> {
+    void 未注册策略启动失败并定位实体注解() {
+        runner(MissingPolicyOrder.class).run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasStackTraceContaining("模板未注册: missing-read")
-                .hasStackTraceContaining("order.yml").hasStackTraceContaining("crud.access.policy");
+                .hasStackTraceContaining("@EntCrudEntity(order)").hasStackTraceContaining("access.policy");
         });
     }
 
     @Test
     void Yaml与Java同名策略拒绝覆盖并报告双方来源() {
-        javaPolicy("crud: {access: {policy: order-read}}")
+        javaPolicy(ReadOrder.class)
             .withPropertyValues("ent.loom.crud.access.policies.order-read.actions[0]=view")
             .run(context -> {
                 assertThat(context).hasFailed();
@@ -100,7 +98,7 @@ class EntityPolicySelectionTest {
 
     @Test
     void Java策略重名同样拒绝覆盖() {
-        javaPolicy("crud: {access: {policy: order-read}}")
+        javaPolicy(ReadOrder.class)
             .withBean("anotherOrderRead", EntityPolicyTemplate.class, () -> new EntityPolicyTemplate(
                 "order-read", "AnotherProject#orderRead", List.of(
                     new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(), List.of()))))
@@ -113,7 +111,7 @@ class EntityPolicySelectionTest {
 
     @Test
     void 关闭通用Http的内部实体无需选择访问方式() {
-        runner("crud: {http-exposed: false}").run(context -> assertThat(context).hasNotFailed());
+        runner(InternalOrder.class).run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
@@ -121,20 +119,23 @@ class EntityPolicySelectionTest {
         new ApplicationContextRunner()
             .withUserConfiguration(CrudEntityDeclarationConfiguration.class)
             .withBean(EntityMetaRegistry.class, () -> CrudPolicyAutoConfigurationTest.metas(Order.class))
-            .withBean(EntityDeclarations.class, () -> files("crud: {access: {policy: order-read}}"))
+            .withBean(CrudEntityDeclarations.class, () -> new CrudEntityDeclarations(List.of(ReadOrder.class)))
             .withPropertyValues("ent.loom.crud.controller.enabled=true")
             .run(context -> {
                 assertThat(context).hasFailed();
                 assertThat(context.getStartupFailure()).hasMessageContaining("HTTP 实体策略未编译")
-                    .hasMessageContaining("order-read").hasMessageContaining("order.yml");
+                    .hasMessageContaining("order-read").hasMessageContaining("@EntCrudEntity(order)");
             });
     }
 
-    private EntityDeclarations files(String content) {
-        return new EntityDeclarations(new ByteArrayResource(content.getBytes(StandardCharsets.UTF_8), "ent/entities/order.yml") {
-            @Override public String getFilename() { return "order.yml"; }
-        });
-    }
+    @EntCrudEntity(name = "order", policy = "order-read")
+    private static class ReadOrder { }
+
+    @EntCrudEntity(name = "order", policy = "missing-read")
+    private static class MissingPolicyOrder { }
+
+    @EntCrudEntity(name = "order", httpExposed = false)
+    private static class InternalOrder { }
 
     private static class Order { }
 }

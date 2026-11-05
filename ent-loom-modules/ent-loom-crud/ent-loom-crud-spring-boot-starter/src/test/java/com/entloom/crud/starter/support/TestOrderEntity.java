@@ -12,6 +12,7 @@ import lombok.Setter;
  * 仅用于测试的示例实体。
  */
 @EntCrudEntity(
+    httpExposed = false,
     table = "test_order",
     idField = "id",
     idPolicy = CrudIdPolicy.EXPLICIT,

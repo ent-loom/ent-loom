@@ -1,6 +1,11 @@
 package com.example.minicommerce.order.entity;
 
 import com.entloom.meta.annotations.EntEntity;
+import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlIndex;
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 import java.math.BigDecimal;
@@ -8,14 +13,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 订单明细由下单 Handler 经 EntityDao 保存，商家归属通过所属订单确定。 */
+/** 订单明细由下单事务保存，商家归属通过所属订单确定。 */
 @EntEntity("订单明细")
+@EntDdlEntity
+@EntDdlIndex(name = "idx_order_item_order", fields = {"orderId"})
+@EntCrudEntity(httpExposed = false)
 @Getter
 @Setter
 @NoArgsConstructor
 public class OrderItem {
     /** 明细主键，由数据库自增生成。 */
     @EntField("明细 ID")
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /** 由下单 Handler 保存订单后显式填充。 */

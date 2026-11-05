@@ -91,11 +91,13 @@ public class CrudPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(EntityMetaRegistry.class)
     public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, CrudEntityDeclarations declarations,
-        ObjectProvider<com.entloom.crud.core.governance.policy.ScenePolicy> policies) {
+        ObjectProvider<com.entloom.crud.core.governance.policy.ScenePolicy> policies,
+        org.springframework.beans.factory.ListableBeanFactory beans) {
         declarations.validate(entities);
-        var all = new ArrayList<>(declarations.scenes());
+        var all = new ArrayList<com.entloom.crud.core.governance.policy.ScenePolicy>();
+        all.addAll(CrudActionPolicies.collect(beans, entities));
         policies.orderedStream().forEach(all::add);
-        return ScenePolicyRegistry.create(entities, all, declarations.actions(), declarations.allowedOperations());
+        return ScenePolicyRegistry.create(entities, all, declarations.actions(), java.util.Collections.emptyMap());
     }
 
     @Bean
@@ -109,7 +111,7 @@ public class CrudPolicyAutoConfiguration {
     public ConfiguredAccessPolicies configuredAccessPolicies(CrudAccessProperties properties,
         EntityMetaRegistry entities, BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions,
         CrudEntityDeclarations declarations, ObjectProvider<EntityPolicyTemplate> templates,
-        ObjectProvider<EntityPolicyBinding> javaBindings) {
+        ObjectProvider<EntityPolicyBinding> javaBindings, ScenePolicyRegistry scenes) {
         // 在生成操作目录前检查所有来源，重名始终报告策略冲突，不受 Bean 装配顺序影响。
         var sources = new LinkedHashMap<String, String>();
         properties.getPolicies().keySet().forEach(code -> sources.put(code, "ent.loom.crud.access.policies." + code));
@@ -121,7 +123,7 @@ public class CrudPolicyAutoConfiguration {
             }
         });
         return new ConfiguredAccessPolicies(properties, entities, identities, definitions, declarations,
-            javaBindings.orderedStream().map(EntityPolicyBinding::getEntityType).collect(Collectors.toSet()));
+            javaBindings.orderedStream().map(EntityPolicyBinding::getEntityType).collect(Collectors.toSet()), scenes);
     }
 
     @Bean

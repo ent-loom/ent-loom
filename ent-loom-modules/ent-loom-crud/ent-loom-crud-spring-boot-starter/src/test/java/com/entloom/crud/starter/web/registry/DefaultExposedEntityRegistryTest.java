@@ -26,7 +26,7 @@ class DefaultExposedEntityRegistryTest {
     }
 
     @Test
-    void 实体文件关闭接口及全部别名() {
+    void 实体注解关闭接口及全部别名() {
         ExposedEntityRegistry registry = new CrudWebAutoConfiguration().exposedEntityRegistry(metadata, declarations());
         assertThatThrownBy(() -> registry.resolveOrThrow("internal")).isInstanceOf(CrudException.class);
         assertThatThrownBy(() -> registry.resolveOrThrow(Internal.class.getName())).isInstanceOf(CrudException.class);
@@ -35,19 +35,13 @@ class DefaultExposedEntityRegistryTest {
     }
 
     private com.entloom.crud.starter.config.CrudEntityDeclarations declarations() {
-        return new com.entloom.crud.starter.config.CrudEntityDeclarations(new com.entloom.declaration.EntityDeclarations(
-            new org.springframework.core.io.ByteArrayResource("crud: {}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
-                @Override public String getFilename() { return "customer.yml"; }
-            },
-            new org.springframework.core.io.ByteArrayResource("crud: {http-exposed: false}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
-                @Override public String getFilename() { return "internal.yml"; }
-            }));
+        return new com.entloom.crud.starter.config.CrudEntityDeclarations(Arrays.<Class<?>>asList(Customer.class, Internal.class));
     }
 
     @EntCrudEntity(name = "customer", table = "customer")
     static class Customer { Long id; }
     @EntCrudEntity(name = "product", table = "product")
     static class Product { Long id; }
-    @EntCrudEntity(name = "internal", table = "internal")
+    @EntCrudEntity(name = "internal", table = "internal", httpExposed = false)
     static class Internal { Long id; }
 }

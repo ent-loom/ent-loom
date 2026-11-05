@@ -26,10 +26,8 @@ import org.springframework.core.io.ResourceLoader;
 public class EntLoomMetaDdlAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(com.entloom.doc.core.spi.DocIndexProvider.class)
-    public com.entloom.doc.core.spi.DocIndexProvider declaredDdlDocIndexProvider(MetadataLoader loader,
-            com.entloom.declaration.EntityDeclarations declarations) {
-        boolean declared = declarations.entities().values().stream().anyMatch(root -> root.members().containsKey("ddl"));
-        return declared ? new DeclaredDdlDocIndexProvider(loader) : com.entloom.doc.core.spi.DocIndexProvider.noop();
+    public com.entloom.doc.core.spi.DocIndexProvider declaredDdlDocIndexProvider(MetadataLoader loader) {
+        return new DeclaredDdlDocIndexProvider(loader);
     }
 
     @Bean
@@ -40,8 +38,7 @@ public class EntLoomMetaDdlAutoConfiguration {
         EntMetaParser parser,
         ResourceLoader resourceLoader,
         BeanFactory beanFactory,
-        ObjectProvider<EntityMetaRegistry> registryProvider,
-        com.entloom.declaration.EntityDeclarations declarations
+        ObjectProvider<EntityMetaRegistry> registryProvider
     ) {
         return new MetaDdlMetadataLoader(
             EntLoomMetaAutoConfiguration.resolveEntityClasses(properties, resourceLoader, beanFactory),
@@ -49,7 +46,7 @@ public class EntLoomMetaDdlAutoConfiguration {
             parser,
             new DdlGenerationDefaults(ddlProperties.getDefaults().getGenerationStrategy()),
             EntLoomMetaAutoConfiguration.diagnosticPolicy(properties),
-            registryProvider, declarations
+            registryProvider
         );
     }
 }

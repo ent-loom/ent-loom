@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.minicommerce.merchant.mapper.MerchantProductMapper">
+    <resultMap id="summary" type="com.example.minicommerce.merchant.service.ProductSummaryService$Summary">
+        <constructor>
+            <arg column="id" javaType="java.lang.Long"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="price" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <sql id="summaryConditions">
+        <where>
+            <if test="merchantId != null">AND merchant_id = #{merchantId}</if>
+            <if test="active != null">AND active = #{active}</if>
+        </where>
+    </sql>
+    <select id="countSummary" resultType="long">
+        SELECT COUNT(*) FROM merchant_product
+        <include refid="summaryConditions"/>
+    </select>
+    <select id="selectSummary" resultMap="summary">
+        SELECT id, name, price FROM merchant_product
+        <include refid="summaryConditions"/>
+        ORDER BY id ASC LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>

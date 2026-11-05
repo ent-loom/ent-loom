@@ -1,7 +1,0 @@
-ddl:
-  indexes:
-    - name: uk_order_no
-      fields: [orderNumber]
-      unique: true
-    - name: idx_amount
-      fields: [amount]

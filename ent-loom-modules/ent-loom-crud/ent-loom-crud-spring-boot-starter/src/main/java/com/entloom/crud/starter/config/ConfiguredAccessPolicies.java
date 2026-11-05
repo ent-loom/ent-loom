@@ -71,13 +71,15 @@ public final class ConfiguredAccessPolicies {
 
     public ConfiguredAccessPolicies(CrudAccessProperties config, EntityMetaRegistry entities,
         BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions, CrudEntityDeclarations entityFiles,
-        Set<Class<?>> javaBoundEntities) {
+        Set<Class<?>> javaBoundEntities, com.entloom.crud.core.governance.policy.ScenePolicyRegistry scenes) {
         entityFiles.validate(entities);
         require(!identities.snapshot().containsKey(PUBLIC_BRANCH), "public 为公共分支保留名称，不能注册为身份");
         require(config.getDefaults().getActions() == null, SOURCE + ".defaults 不支持 actions，请在策略中声明");
         require(!config.getRelations().containsKey(ALL_SCOPE), SOURCE + ".relations: all 为全量范围保留名称");
         Set<String> knownActions = new LinkedHashSet<>(STANDARD_ACTIONS);
-        entityFiles.actions().values().forEach(knownActions::addAll);
+        scenes.snapshot().keySet().stream()
+            .filter(key -> CrudOperationKey.of(CommandOperation.ACTION).equals(key.getOperationKey()))
+            .forEach(key -> knownActions.add(key.getScene()));
         validateLayer(config.getDefaults(), identities, knownActions, SOURCE + ".defaults");
         validateScopes(config.getDefaults(), config, SOURCE + ".defaults");
         config.getPolicies().forEach((code, policy) -> {
@@ -206,7 +208,7 @@ public final class ConfiguredAccessPolicies {
                 BusinessOperation operation = new BusinessOperation(resource, action.getKey());
                 operations.add(new BusinessOperationDeclaration(operation, entitySource));
                 for (String shape : action.getValue()) mappings.add(new CrudOperationMapping(operationKey(shape, entitySource), null, operation, entitySource));
-                if (entityFiles.actions().getOrDefault(resource, Set.of()).contains(action.getKey())) {
+                if (scenes.declaresAction(resource, action.getKey())) {
                     require(action.getValue().isEmpty(), entitySource + ": 动作不能同时绑定业务 Handler 与通用 CRUD: " + action.getKey());
                     mappings.add(new CrudOperationMapping(CrudOperationKey.of(CommandOperation.ACTION), action.getKey(), operation, entitySource));
                 } else require(!action.getValue().isEmpty(), entitySource + ": 缺失业务 Handler 声明或执行入口: " + action.getKey());

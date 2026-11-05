@@ -26,57 +26,6 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # 全局授权约定：身份定义、归属关系与公共策略；实体差异在 ent/entities/*.yml 声明。
-      # demo.yml 提供可信身份，授权按 identity.code 选择同名身份分支。
-      access:
-        # ID 字段默认采用“身份码 + Id”。
-        identities:
-          customer:
-            id-type: LONG
-          merchant:
-            id-type: LONG
-          # 仅由可信认证来源授予超级管理员身份。
-          super-admin:
-            id-field: superAdminId
-            id-type: LONG
-        # 已有关系字段默认推导为归属字段并保护写入；策略范围采用同名身份关系。
-        relations:
-          merchant:
-            field: merchantId
-          customer:
-            field: customerId
-        default-policy: maintainable
-        defaults:
-          access:
-            super-admin:
-              actions: ["*"]
-              scope: all
-            merchant:
-              scope: merchant
-            customer:
-              scope: customer
-        policies:
-          maintainable:
-            actions: [view, create, update, delete]
-            access:
-              merchant:
-                actions: [view, create, update, delete]
-              customer:
-                actions: [view, create, update, delete]
-          workflow:
-            actions: [view]
-            access:
-              customer:
-                actions: [view]
-              merchant:
-                actions: [view]
-          record:
-            actions: [view]
-            access:
-              customer:
-                actions: [view]
-              merchant:
-                actions: [view]
       # 通用 HTTP 仅发布有 CRUD 声明且未关闭的实体；默认策略不自动发布内部实体。
       controller:
         enabled: true

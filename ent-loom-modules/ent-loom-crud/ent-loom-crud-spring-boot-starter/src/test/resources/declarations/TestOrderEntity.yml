@@ -1,3 +1,0 @@
-# 引擎隔离夹具：路由由测试手动注册，不参与自动 HTTP 暴露。
-crud:
-  http-exposed: false

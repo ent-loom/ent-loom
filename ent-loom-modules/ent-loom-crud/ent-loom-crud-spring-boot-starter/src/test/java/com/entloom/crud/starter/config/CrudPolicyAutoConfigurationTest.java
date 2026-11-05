@@ -39,6 +39,8 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.meta.RelationGraph;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
+import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.annotations.EntCrudAccess;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -57,10 +59,12 @@ class CrudPolicyAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(CrudPolicyAutoConfiguration.class))
         .withBean(BusinessIdentityRegistration.class, this::teacherRegistration)
-        .withBean(com.entloom.declaration.EntityDeclarations.class, () -> DeclarationTestFiles.load("CrudPolicyAutoConfigurationTest", "", null))
-        .withInitializer(context -> ((org.springframework.context.support.GenericApplicationContext) context).registerBean("testEntityFiles", com.entloom.declaration.EntityDeclarations.class,
-            () -> DeclarationTestFiles.load("CrudPolicyAutoConfigurationTest", "", context.getBeanProvider(EntityMetaRegistry.class).getIfAvailable()),
-            definition -> definition.setPrimary(true)));
+        .withInitializer(context -> ((org.springframework.context.support.GenericApplicationContext) context).registerBean("testEntityDeclarations", CrudEntityDeclarations.class,
+            () -> {
+                EntityMetaRegistry registry = context.getBeanProvider(EntityMetaRegistry.class).getIfAvailable();
+                return new CrudEntityDeclarations(registry == null ? Collections.emptyList()
+                    : registry.getEntityMetas().stream().map(EntityMeta::getEntityType).toList());
+            }));
 
     @Test
     void registers_one_business_authorization_service_and_denies_without_permission_evaluator() {
@@ -166,13 +170,13 @@ class CrudPolicyAutoConfigurationTest {
                 assertEquals("ownerId", registry.requireDeclaration(AnnotatedOrder.class,
                     new BusinessOperation("order", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getRelationFields().get("owner"));
-                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.access.policy]", registry.requireDeclaration(
+                assertEquals("@EntCrudEntity(order).access.policy", registry.requireDeclaration(
                     AnnotatedOrder.class, new BusinessOperation("order", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
                 assertEquals("Project#invoiceBinding", registry.requireDeclaration(JavaOrder.class,
                     new BusinessOperation("invoice", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getBindingSource());
-                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/classified.yml] [实体=classified, 路径=crud.access.policy]", registry.requireDeclaration(
+                assertEquals("@EntCrudEntity(classified).access.policy", registry.requireDeclaration(
                     ClassifiedOrder.class, new BusinessOperation("classified", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
             });
@@ -194,7 +198,7 @@ class CrudPolicyAutoConfigurationTest {
                     cause = cause.getCause();
                     message += " " + cause.getMessage();
                 }
-                assertTrue(message.contains("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.access.policy]"), message);
+                assertTrue(message.contains("@EntCrudEntity(order).access.policy"), message);
                 assertTrue(message.contains("Project#override"), message);
             });
     }
@@ -212,7 +216,7 @@ class CrudPolicyAutoConfigurationTest {
     }
 
     @Test
-    void duplicate_relation_role_in_file_fails_at_startup() {
+    void duplicate_relation_role_in_annotation_fails_at_startup() {
         runner.withBean(EntityMetaRegistry.class, () -> metas(DuplicateRelations.class))
             .run(context -> {
                 assertNotNull(context.getStartupFailure());
@@ -220,13 +224,12 @@ class CrudPolicyAutoConfigurationTest {
                 while (cause.getCause() != null) {
                     cause = cause.getCause();
                 }
-                assertTrue(cause.getMessage().contains("duplicate key"));
-                org.assertj.core.api.Assertions.assertThat(context.getStartupFailure()).hasStackTraceContaining("实体=order");
+                assertTrue(cause.getMessage().contains("重复关系角色"));
             });
     }
 
     @Test
-    void duplicate_policy_in_file_fails_at_startup() {
+    void duplicate_identity_in_annotation_fails_at_startup() {
         runner.withBean(EntityMetaRegistry.class, () -> metas(ConflictingOrder.class))
             .run(context -> {
                 assertNotNull(context.getStartupFailure());
@@ -234,8 +237,7 @@ class CrudPolicyAutoConfigurationTest {
                 while (cause.getCause() != null) {
                     cause = cause.getCause();
                 }
-                assertTrue(cause.getMessage().contains("duplicate key"));
-                org.assertj.core.api.Assertions.assertThat(context.getStartupFailure()).hasStackTraceContaining("实体=order");
+                assertTrue(cause.getMessage().contains("重复身份分支"));
             });
     }
 
@@ -303,6 +305,7 @@ class CrudPolicyAutoConfigurationTest {
         };
     }
 
+    @EntCrudEntity(name = "order", policy = "record", relations = "owner=ownerId")
     private static final class AnnotatedOrder {
     }
 
@@ -312,12 +315,17 @@ class CrudPolicyAutoConfigurationTest {
     private interface OrderPolicyGroup {
     }
 
+    @EntCrudEntity(name = "classified", policy = "record", relations = "owner=ownerId")
     private static final class ClassifiedOrder implements OrderPolicyGroup {
     }
 
+    @EntCrudEntity(name = "order", policy = "record")
+    @EntCrudAccess(identity = "teacher")
+    @EntCrudAccess(identity = "teacher")
     private static final class ConflictingOrder implements OrderPolicyGroup {
     }
 
+    @EntCrudEntity(name = "order", relations = {"owner=ownerId", "owner=id"})
     private static final class DuplicateRelations {
     }
 

@@ -30,7 +30,6 @@ import com.entloom.crud.core.governance.policy.CrudOperationMapping;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
-import com.entloom.declaration.EntityDeclarations;
 import com.entloom.crud.starter.config.CrudAccessWebAutoConfiguration;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.config.CrudPolicyAutoConfiguration;
@@ -161,12 +160,10 @@ class AccessAuthorizedQueryIntegrationTest {
         }
         @Bean
         @Primary
-        EntityDeclarations entityDeclarations(EntityMetaRegistry entities) {
-            String resource = entities.getEntityMeta(TestOrderEntity.class).getResourceDescriptor().getResourceCode();
-            return new EntityDeclarations(new ByteArrayResource(
-                "crud:\n  access:\n    policy: order-read\n".getBytes(StandardCharsets.UTF_8), "ent/entities/" + resource + ".yml") {
-                @Override public String getFilename() { return resource + ".yml"; }
-            });
+        com.entloom.crud.starter.config.CrudEntityDeclarations entityDeclarations() {
+            var declarations = new com.entloom.crud.starter.config.CrudEntityDeclarations(List.of(TestOrderEntity.class));
+            declarations.options().get("TestOrderEntity").setPolicy("order-read");
+            return declarations;
         }
         @Bean CrudOperationMapping listMapping(EntityMetaRegistry entities) {
             return new CrudOperationMapping(CrudOperationKey.of(QueryOperation.LIST), null, operation(entities), "Project#list");

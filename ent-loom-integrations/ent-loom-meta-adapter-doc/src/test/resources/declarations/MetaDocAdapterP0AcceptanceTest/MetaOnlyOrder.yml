@@ -1,4 +1,0 @@
-ddl:
-  indexes:
-    - name: idx_meta_order_customer
-      fields: [customerId]

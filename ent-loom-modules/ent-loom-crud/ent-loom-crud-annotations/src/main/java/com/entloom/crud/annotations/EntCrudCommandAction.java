@@ -11,6 +11,17 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface EntCrudCommandAction {
+    /** 动作中文名称，供文档和诊断使用。 */
+    String name() default "";
+
+    /** 动作所需能力码。 */
+    String capability() default "";
+
+    /** 允许的可信入口；空数组表示不限制。 */
+    String[] accessEntries() default {};
+
+    /** 允许的 portal；空数组表示不限制。 */
+    String[] portals() default {};
     /**
      * 目标实体类型。
      *

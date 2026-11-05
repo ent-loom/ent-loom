@@ -4,6 +4,7 @@ import com.entloom.base.util.reflect.EntityProperties;
 
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
+import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.annotations.EntDdlField;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
@@ -28,7 +29,6 @@ import java.util.Map;
  * Spring 侧注解元数据加载器。
  */
 public final class SpringAnnotationMetadataLoader implements MetadataLoader {
-    private final com.entloom.ddl.declaration.DdlEntityDeclarations declarations;
     private final SpringPackageEntityClassResolver classResolver;
     private final DdlGenerationDefaults defaults;
 
@@ -36,32 +36,17 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
         this(classResolver, new DdlGenerationDefaults());
     }
     public SpringAnnotationMetadataLoader(SpringPackageEntityClassResolver classResolver, DdlGenerationDefaults defaults) {
-        this(classResolver, defaults, com.entloom.declaration.EntityDeclarations.classpath());
-    }
-    public SpringAnnotationMetadataLoader(SpringPackageEntityClassResolver classResolver, DdlGenerationDefaults defaults,
-        com.entloom.declaration.EntityDeclarations declarations) {
         this.classResolver = classResolver;
         this.defaults = defaults == null ? new DdlGenerationDefaults() : defaults;
-        this.declarations = new com.entloom.ddl.declaration.DdlEntityDeclarations(declarations);
     }
 
     @Override
     public List<DdlEntityMetadata> load(MetadataLoadRequest request) {
-        return load(request, false);
-    }
-
-    @Override
-    public void validateDeclarations(MetadataLoadRequest request) {
-        load(request, true);
-    }
-
-    private List<DdlEntityMetadata> load(MetadataLoadRequest request, boolean validateAll) {
         if (request == null) {
             return new ArrayList<DdlEntityMetadata>();
         }
         List<Class<?>> allClasses = discoverClasses(request);
 
-        java.util.Set<String> resources = new java.util.LinkedHashSet<>();
         List<DdlEntityMetadata> entities = new ArrayList<DdlEntityMetadata>();
         for (Class<?> candidate : allClasses) {
             if (candidate == null) {
@@ -71,10 +56,8 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
             if (entityAnn == null) {
                 continue;
             }
-            resources.add(candidate.getSimpleName());
-            entities.add(declarations.apply(candidate.getSimpleName(), buildEntity(candidate, entityAnn)));
+            entities.add(buildEntity(candidate, entityAnn));
         }
-        if (validateAll) declarations.validateResources(resources);
         return entities;
     }
 
@@ -108,7 +91,16 @@ public final class SpringAnnotationMetadataLoader implements MetadataLoader {
                 ? toTableName(entityClass.getSimpleName(), entityAnn.namingStrategy())
                 : entityAnn.table().trim();
         List<DdlFieldMetadata> fields = resolveFields(entityClass);
-        List<DdlIndexMetadata> indexes = java.util.Collections.emptyList();
+        List<DdlIndexMetadata> indexes = new ArrayList<DdlIndexMetadata>();
+        for (EntDdlIndex index : entityClass.getAnnotationsByType(EntDdlIndex.class)) {
+            List<String> columns = new ArrayList<String>();
+            for (String property : index.fields()) {
+                DdlFieldMetadata matched = fields.stream().filter(field -> field.persisted() && field.fieldName().equals(property)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("索引引用不存在或不持久化的 Java 属性: " + entityClass.getName() + "#" + property));
+                columns.add(matched.columnName());
+            }
+            indexes.add(new DdlIndexMetadata(index.name(), columns, index.unique(), index.expression()));
+        }
         DdlTableSize size = toApiTableSize(entityAnn.size());
         return new DdlEntityMetadata(entityClass.getName(),
                 entityAnn.schema(),

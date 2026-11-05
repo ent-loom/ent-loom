@@ -33,10 +33,11 @@ class OrderAccessTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
-    @SpyBean CrudGovernanceAuditRecorder audit;
+    @SpyBean CrudGovernanceAuditRecorder auditRecorder;
+    @SpyBean com.example.minicommerce.order.service.OrderService orderService;
 
     @AfterEach
-    void resetAudit() { reset(audit); }
+    void resetAudit() { reset(auditRecorder); }
 
     @BeforeEach
     void prepare() {
@@ -53,13 +54,13 @@ class OrderAccessTest {
     void 外层事务回滚时不能提前记录动作成功() {
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
             cancelSuccessfully();
-            verify(audit, never()).record(any());
+            verify(auditRecorder, never()).record(any());
             assertEquals("CANCELLED", jdbc.queryForObject("select status from `order` where id=1", String.class));
             transaction.setRollbackOnly();
         });
         assertEquals("CREATED", jdbc.queryForObject("select status from `order` where id=1", String.class));
         var event = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(1)).record(event.capture());
+        verify(auditRecorder, times(1)).record(event.capture());
         assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, event.getValue().getOutcome());
         assertEquals("customer-user-a", event.getValue().getSubject().getSubjectId());
     }
@@ -73,11 +74,11 @@ class OrderAccessTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"orderId\":1}}"))
                     .andExpect(status().isBadRequest());
             } catch (Exception failure) { throw new AssertionError(failure); }
-            verify(audit, never()).record(any());
+            verify(auditRecorder, never()).record(any());
             transaction.setRollbackOnly();
         });
         var event = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(1)).record(event.capture());
+        verify(auditRecorder, times(1)).record(event.capture());
         assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, event.getValue().getOutcome());
     }
 
@@ -85,20 +86,20 @@ class OrderAccessTest {
     void 外层事务提交后才记录动作成功() {
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
             cancelSuccessfully();
-            verify(audit, never()).record(any());
+            verify(auditRecorder, never()).record(any());
         });
         var event = ArgumentCaptor.forClass(CrudGovernanceAuditEvent.class);
-        verify(audit, times(1)).record(event.capture());
+        verify(auditRecorder, times(1)).record(event.capture());
         assertEquals(CrudGovernanceAuditOutcome.SUCCESS, event.getValue().getOutcome());
         assertEquals("CANCELLED", jdbc.queryForObject("select status from `order` where id=1", String.class));
     }
 
     @Test
     void 提交后审计异常不改变业务成功也不重复记录失败() {
-        doThrow(new IllegalStateException("模拟审计存储异常")).when(audit).record(any());
+        doThrow(new IllegalStateException("模拟审计存储异常")).when(auditRecorder).record(any());
         cancelSuccessfully();
         assertEquals("CANCELLED", jdbc.queryForObject("select status from `order` where id=1", String.class));
-        verify(audit, times(1)).record(any());
+        verify(auditRecorder, times(1)).record(any());
     }
 
     private void cancelSuccessfully() {
@@ -152,6 +153,15 @@ class OrderAccessTest {
                     .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"orderId\":1}}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("ORDER_NOT_CANCELLABLE"));
         }
+    }
+
+    @Test
+    void 取消时并发状态变化造成写入未命中() throws Exception {
+        doReturn(false).when(orderService).update(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        mvc.perform(post("/api/ent-crud/order/action/cancel").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"payload\":{\"orderId\":1}}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("WRITE_CONFLICT"));
+        assertEquals("CREATED", jdbc.queryForObject("select status from `order` where id=1", String.class));
     }
 
     @Test

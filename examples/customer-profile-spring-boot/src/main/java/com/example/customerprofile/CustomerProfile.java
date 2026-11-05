@@ -1,6 +1,8 @@
 package com.example.customerprofile;
 
 import com.entloom.crud.annotations.EntCrudEntity;
+import com.entloom.crud.annotations.EntCrudAccess;
+import com.entloom.crud.annotations.EntCrudAccessField;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 
@@ -15,8 +17,12 @@ import com.entloom.meta.annotations.EntField;
 @EntCrudEntity(
     name = "customer_profile",
     table = "customer_profile",
-    ownerService = "customer-profile"
+    ownerService = "customer-profile",
+    policy = "profile-management",
+    requiredCreateFields = {"displayName", "email"},
+    forbiddenUpdateFields = "id"
 )
+@EntCrudAccess(identity = "operator", fields = @EntCrudAccessField(use = "WRITE", mode = "ALL"))
 public class CustomerProfile {
     @EntField("ID")
     private Long id;

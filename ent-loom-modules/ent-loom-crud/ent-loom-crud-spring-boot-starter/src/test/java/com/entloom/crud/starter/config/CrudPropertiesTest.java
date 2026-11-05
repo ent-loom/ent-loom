@@ -19,6 +19,15 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 class CrudPropertiesTest {
+    @Test
+    void 访问策略同时使用配置和JavaBean时拒绝() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+            .withUserConfiguration(CrudPropertiesConfiguration.class)
+            .withBean(CrudAccessProperties.class, CrudAccessProperties::new)
+            .withPropertyValues("ent.loom.crud.access.identities.operator.id-type=LONG")
+            .run(context -> org.assertj.core.api.Assertions.assertThat(context).hasFailed()
+                .getFailure().hasMessageContaining("不能同时使用应用配置和 CrudAccessProperties Bean"));
+    }
     @ParameterizedTest
     @ValueSource(strings = {"defaults.id-policy", "sql-log.mode", "sql-log.output",
         "controller.default-read-result-mode", "controller.default-null-field-mode",
@@ -207,14 +216,13 @@ class CrudPropertiesTest {
     }
 
     @Test
-    void 实体输入契约由独立文件解析() {
-        var resource = new org.springframework.core.io.ByteArrayResource(
-            "crud: {contracts: {create: {input-required-fields: [displayName, email]}, update: {forbidden-fields: [id]}}}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
-            @Override public String getFilename() { return "customer.yml"; }
-        };
-        var declarations = new CrudEntityDeclarations(new com.entloom.declaration.EntityDeclarations(resource));
+    void 实体输入契约由注解解析() {
+        var declarations = new CrudEntityDeclarations(java.util.List.of(CustomerContract.class));
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("displayName", "email"), declarations.required().get("customer"));
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("id"), declarations.forbidden().get("customer"));
     }
+
+    @com.entloom.crud.annotations.EntCrudEntity(name = "customer", requiredCreateFields = {"displayName", "email"}, forbiddenUpdateFields = "id")
+    private static class CustomerContract { }
 
 }

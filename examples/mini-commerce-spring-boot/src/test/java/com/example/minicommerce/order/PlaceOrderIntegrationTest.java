@@ -38,7 +38,7 @@ class PlaceOrderIntegrationTest {
     @Autowired EntityDao<Order, Long> orderDao;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
-    @Autowired EntityMetaRegistry metas;
+    @Autowired EntityMetaRegistry entityMetaRegistry;
 
     @BeforeEach
     void seed() {
@@ -102,7 +102,7 @@ class PlaceOrderIntegrationTest {
         var binder = new DefaultCommandPayloadBinder();
         for (String field : List.of("customerId", "merchantId")) {
             var patch = binder.bindUpdatePatch(Map.of("id", orderId, field, 999L),
-                Order.class, metas.getEntityMeta(Order.class));
+                Order.class, entityMetaRegistry.getEntityMeta(Order.class));
             assertThrows(ValidationException.class, () -> orderDao.updateById(orderId, patch));
         }
         Order order = orderDao.findById(orderId).orElseThrow();

@@ -30,9 +30,9 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ProductSummaryService {
     private static final BusinessOperation VIEW = new BusinessOperation("merchantProduct", "view");
-    private final BusinessAuthorizationService authorization;
-    private final ProductSummaryMapper mapper;
-    private final CrudGovernanceAuditRecorder audit;
+    private final BusinessAuthorizationService businessAuthorizationService;
+    private final MerchantProductService merchantProductService;
+    private final CrudGovernanceAuditRecorder auditRecorder;
 
     public Page page(VisitorContext visitor, Query query) {
         long started = System.nanoTime();
@@ -40,7 +40,7 @@ public class ProductSummaryService {
         CrudGovernanceAuditOutcome outcome = CrudGovernanceAuditOutcome.GOVERNANCE_DENIED;
         try {
             var request = new AuthorizationRequest(visitor, VIEW, null);
-            result = authorization.authorize(request);
+            result = businessAuthorizationService.authorize(request);
             if (result.getDecision() != AccessDecision.ALLOW) throw new PermissionDeniedException("商品查询未授权");
             result.requireApplicable(request);
             for (String field : List.of("id", "name", "price")) requireField(result, AuthorizationFields.Use.RETURN, field);
@@ -57,13 +57,13 @@ public class ProductSummaryService {
             }
             outcome = CrudGovernanceAuditOutcome.EXECUTION_FAILED;
             Page page = scope.getKind() == AuthorizationScope.Kind.NONE ? new Page(List.of(), query.page(), query.limit(), 0)
-                : merchantId == null ? mapper.pageAll(query.active(), query.page(), query.limit())
-                : mapper.pageMerchant(merchantId, query.active(), query.page(), query.limit());
+                : merchantId == null ? merchantProductService.pageAll(query.active(), query.page(), query.limit())
+                : merchantProductService.pageMerchant(merchantId, query.active(), query.page(), query.limit());
             outcome = CrudGovernanceAuditOutcome.SUCCESS;
             return page;
         } finally {
             try {
-                audit.record(CrudGovernanceAuditEvent.forBusinessQuery(visitor, visitor.getSubject().orElse(null), result,
+                auditRecorder.record(CrudGovernanceAuditEvent.forBusinessQuery(visitor, visitor.getSubject().orElse(null), result,
                     new CrudResourceAction("merchantProduct", "view", null), outcome,
                     outcome == CrudGovernanceAuditOutcome.SUCCESS ? CrudGovernanceAuditReasonCode.NONE
                         : outcome == CrudGovernanceAuditOutcome.EXECUTION_FAILED ? CrudGovernanceAuditReasonCode.EXECUTION_FAILED

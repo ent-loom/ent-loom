@@ -1,3 +1,0 @@
-ddl:
-  indexes:
-    - fields: [items]

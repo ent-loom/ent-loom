@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.adapter.ResourceCatalogAdapter;
+import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
@@ -24,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证真实 YAML 绑定和标准 adapter 冻结链，覆盖没有策略消费者的实体。 */
+/** 验证应用关系配置、实体注解和标准 adapter 冻结链。 */
 class ConfiguredOwnershipTest {
     private static final String YAML = """
         ent.loom.crud.access:
@@ -38,16 +39,11 @@ class ConfiguredOwnershipTest {
               field: customerId
             merchant:
               field: merchantId
-          entities:
-            reference:
-              ownership: []
-            sale:
-              ownership: [merchant]
         """;
 
     @Test
     void 缺省空列表和显式列表在没有策略时仍独立冻结() {
-        runner(YAML).run(context -> {
+        runner(YAML, Sale.class).run(context -> {
             assertThat(context).hasNotFailed();
             var config = context.getBean(CrudAccessProperties.class);
             assertThat(context.getBean(CrudEntityDeclarations.class).options()).doesNotContainKey("order");
@@ -70,9 +66,8 @@ class ConfiguredOwnershipTest {
 
     @Test
     void 实体关系映射不依赖策略且缺省采用关系名Id() {
-        String yaml = YAML.replace("field: customerId", "identity-field: customerId")
-            .replace("ownership: [merchant]", "relations:\n        customer: merchantId\n      ownership: [customer]");
-        runner(yaml).run(context -> {
+        String yaml = YAML.replace("field: customerId", "identity-field: customerId");
+        runner(yaml, SaleMapped.class).run(context -> {
             assertThat(context).hasNotFailed();
             var sale = context.getBean(EntityMetaRegistry.class).getEntityMeta(Sale.class);
             assertThat(sale.resolveFieldMeta("customerId").isScopeField()).isFalse();
@@ -82,29 +77,23 @@ class ConfiguredOwnershipTest {
 
     @Test
     void 非策略实体的类型错误未知关系未知字段重复归属均启动失败() {
-        for (String yaml : List.of(
-            YAML.replace("ownership: [merchant]", "ownership: [unknown]"),
-            YAML.replace("ownership: [merchant]", "ownership: [merchant, merchant]"),
-            YAML.replace("ownership: [merchant]", "ownership: [' ']"),
-            YAML.replace("ownership: [merchant]", "ownership: [merchant]\n      relations:\n        merchant: missingId"),
-            YAML.replace("sale:", "unknown:"),
-            YAML.replace("id-type: long", "id-type: string"))) {
-            runner(yaml).run(context -> assertThat(context).hasFailed());
+        for (Class<?> entity : List.of(SaleUnknown.class, SaleDuplicate.class, SaleBlank.class,
+                SaleMissing.class, UnknownResource.class)) {
+            runner(YAML, entity).run(context -> assertThat(context).hasFailed());
         }
+        runner(YAML.replace("id-type: long", "id-type: string"), Sale.class)
+            .run(context -> assertThat(context).hasFailed());
     }
 
     @Test
     void 旧配置直接拒绝不提供兼容入口() {
-        for (String yaml : List.of(
-            YAML + "  defaults:\n    scope-fields: [customerId]\n",
-            YAML.replace("ownership: []", "exclude-scope-fields: [customerId]"))) {
-            runner(yaml).run(context -> assertThat(context).hasFailed());
-        }
+        runner(YAML + "  defaults:\n    scope-fields: [customerId]\n", Sale.class)
+            .run(context -> assertThat(context).hasFailed());
     }
 
-    private ApplicationContextRunner runner(String yaml) {
+    private ApplicationContextRunner runner(String yaml, Class<?> saleDeclaration) {
         return new ApplicationContextRunner().withUserConfiguration(OwnershipConfiguration.class)
-            .withBean(CrudEntityDeclarations.class, () -> new CrudEntityDeclarations(DeclarationTestFiles.load("ConfiguredOwnershipTest", yaml, null)))
+            .withBean(CrudEntityDeclarations.class, () -> new CrudEntityDeclarations(List.of(Reference.class, saleDeclaration)))
             .withBean(ResourceCatalogAdapter.class, () -> {
                 var adapter = mock(ResourceCatalogAdapter.class);
                 when(adapter.runtimeModel()).thenReturn(CrudRuntimeModel.from(List.of(
@@ -113,7 +102,7 @@ class ConfiguredOwnershipTest {
                 return adapter;
             }).withInitializer(context -> {
                 try {
-                    new YamlPropertySourceLoader().load("归属配置", new ByteArrayResource(DeclarationTestFiles.properties(yaml).getBytes(StandardCharsets.UTF_8)))
+                    new YamlPropertySourceLoader().load("归属配置", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
                         .forEach(source -> context.getEnvironment().getPropertySources().addFirst(source));
                 } catch (java.io.IOException exception) {
                     throw new IllegalStateException(exception);
@@ -144,7 +133,22 @@ class ConfiguredOwnershipTest {
     }
 
     static class Order { }
+    @EntCrudEntity(name = "reference", ownershipSpecified = true)
     static class Reference { }
+    @EntCrudEntity(name = "sale", ownership = "merchant")
     static class Sale { }
     static class Undeclared { }
+
+    @EntCrudEntity(name = "sale", ownership = "customer", relations = "customer=merchantId")
+    static class SaleMapped { }
+    @EntCrudEntity(name = "sale", ownership = "unknown")
+    static class SaleUnknown { }
+    @EntCrudEntity(name = "sale", ownership = {"merchant", "merchant"})
+    static class SaleDuplicate { }
+    @EntCrudEntity(name = "sale", ownership = " ")
+    static class SaleBlank { }
+    @EntCrudEntity(name = "sale", ownership = "merchant", relations = "merchant=missingId")
+    static class SaleMissing { }
+    @EntCrudEntity(name = "unknown", ownership = "merchant")
+    static class UnknownResource { }
 }

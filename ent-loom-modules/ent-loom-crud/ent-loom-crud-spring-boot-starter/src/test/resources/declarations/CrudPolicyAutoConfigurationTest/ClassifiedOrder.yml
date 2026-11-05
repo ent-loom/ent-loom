@@ -1,5 +1,0 @@
-crud:
-  access:
-    policy: record
-  relations:
-    owner: ownerId

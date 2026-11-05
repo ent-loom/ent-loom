@@ -44,6 +44,7 @@ public class MetaDocAdapter {
     private final DocNativeAnnotationParser nativeParser;
     private final DocRuntimeModelMerger merger;
     private final DocRuntimeModelOverrideApplier overrideApplier;
+    private final DocRuntimeModelOverrideApplier annotationOverrides = new DocRuntimeModelOverrideApplier(new AnnotationDocOverrides());
     private final EntMetaParser parser;
     private final EntityDocumentationProjector documentationProjector = new EntityDocumentationProjector();
     private final MetaDiagnosticCollector diagnostics = new MetaDiagnosticCollector();
@@ -202,7 +203,8 @@ public class MetaDocAdapter {
             MetaDiagnosticResult<DocEntityModel> merged = merger.merge(entityClass, metaDescriptor, nativeResult.value(), inferredTable);
             diagnostics.addAll(merged.diagnostics());
             if (merged.value() != null) {
-                mergedModels.add(overrideApplier.apply(withResolvedColumns(merged.value()), diagnostics));
+                DocEntityModel annotated = annotationOverrides.apply(withResolvedColumns(merged.value()), diagnostics);
+                mergedModels.add(overrideApplier.apply(annotated, diagnostics));
             }
         }
         return mergedModels;

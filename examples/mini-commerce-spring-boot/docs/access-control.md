@@ -6,9 +6,9 @@
 
 访问链路：`Bearer Token → 可信主体与业务身份 → 实体动作授权 → 数据范围与字段限制`。
 
-- [application.yml](../src/main/resources/application.yml)：定义身份结构、归属关系、共享策略和管理员缺省授权。
+- [CommerceAccessConfiguration](../src/main/java/com/example/minicommerce/CommerceAccessConfiguration.java)：定义身份结构、归属关系、共享策略和管理员缺省授权。
 - [demo.yml](../src/main/resources/demo.yml)：核验演示 Token，绑定服务端身份与归属，配置入口路由；入口本身不授予实体权限。
-- [ent/entities](../src/main/resources/ent/entities)：选择策略，声明实体的动作、授权、字段和输入契约差异。
+- 实体类和 Handler 注解：选择策略，声明实体的动作、授权、字段和输入契约差异。
 
 例如 `demo-merchant-a` 绑定 `merchant / 1001`，授权使用实体策略的 `merchant` 分支。请求体和 Header 不能切换归属；身份结构定义本身不证明账号归属。正式接入时替换演示认证与归属来源，复用策略和实体声明。
 
@@ -29,13 +29,13 @@
 
 查询条件与可信归属范围取交集，数据、计数和关联投影遵守同一范围；商品分页只允许 `active` 作为普通筛选，`merchantId` 等归属字段由授权范围注入，身份或必要范围缺失时拒绝，不退化为全量查询。
 
-公共商品只返回 `id/merchantId/name/price`，关闭关联展开。公共浏览可不带凭证；无效凭证拒绝，登录身份不借用公共权限。商家可读取本人全部商品，客户身份未获商品读取授权。
+公共商品只返回 `id/merchantId/name/price`，关闭关联展开。公共浏览可不带凭证；无效凭证拒绝，登录身份不借用公共权限。商家可读取本人全部商品，客户身份未获商品读取授权。实体边界来自 `MerchantProduct` 的 Java 注解。
 
-订单默认只查值字段；显式请求 `expandRelations` 才展开客户与明细。当前客户、商家未配置 `EXPAND`，按声明式策略缺省开放候选关联普通字段，包含客户邮箱；需要固定投影时启用 `order.yml` 中的 INCLUDE 白名单。关联范围归父订单，不授予目标实体独立访问权限。每个关系单次展开累计最多 1000 条，超限失败。框架规则见 [受授权关联读取](../../../docs/guides/crud/受授权关联读取.md)。
+订单默认只查值字段；显式请求 `expandRelations` 才展开客户与明细。关联范围归父订单，不授予目标实体独立访问权限。每个关系单次展开累计最多 1000 条，超限失败。框架规则见 [受授权关联读取](../../../docs/guides/crud/受授权关联读取.md)。
 
 商品可修改 `name/price/active`，主键、归属、版本等字段受保护。单条更新与批量更新独立授权；`POST /api/ent-crud/merchantProduct/updateBatch` 逐项校验归属、字段和版本，整批成功或回滚。
 
-商品实体的静态字段上限在 `ent/entities/merchantProduct.yml` 中声明：返回允许商品摘要字段，筛选只允许 `active`，稳定排序只允许主键 `id`，写入只允许 `name/price/active`；身份策略只能继续收窄。
+商品实体的静态字段上限在 `MerchantProduct` 的 `@EntCrudEntity` 与 `@EntCrudAccess` 中声明：返回允许商品摘要字段，筛选只允许 `active`，稳定排序只允许主键 `id`，写入只允许 `name/price/active`；身份策略只能继续收窄。
 
 ## 下单与取消
 
@@ -44,7 +44,7 @@
 | 下单 | `POST /api/ent-crud/order/action/create`；客户 Token，载荷只提供 `items`；`customerId` 来自可信身份，`merchantId` 来自商品；跨商家拆单在同一事务中完成 |
 | 取消 | `POST /api/ent-crud/order/action/cancel`；载荷 `{"payload":{"orderId":1}}`；客户与商家只能取消所属且状态为 `CREATED` 的订单，归属和原状态同时进入 UPDATE，重复取消拒绝 |
 
-订单关闭通用创建映射，未开放通用更新和删除，不能绕过业务动作。Handler 复用统一授权、事务和审计；根实体自动叠加授权范围，关联 DAO 仅允许 `relatedAccess()` 声明的实体、操作和范围字段。下单据此读取客户、商品并新增明细。
+订单关闭通用创建映射，未开放通用更新和删除，不能绕过业务动作。Handler 获取本次授权，订单编排服务在事务中组合 MyBatis-Plus 单实体服务：客户 ID 来自可信身份，商品 ID 来自本次订单，创建逐笔校验订单归属；取消查询和更新均绑定授权范围，更新同时绑定原状态。仅支持全量或客户、商家等值范围，其他范围执行前拒绝。原始 Mapper 由业务负责落实范围与事务，框架不会自动替其施加这些约束。
 
 动作审计等待最终事务提交或回滚，只记录一次结果；审计存储异常不改变已提交业务结果。
 

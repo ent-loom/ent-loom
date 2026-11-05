@@ -28,7 +28,7 @@ class SpringAnnotationMetadataLoaderTest {
 
     @Test
     void 应保留显式文本类型物理长度与声明来源() {
-        DdlEntityMetadata model = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).load(new MetadataLoadRequest(
+        DdlEntityMetadata model = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults()).load(new MetadataLoadRequest(
                 Collections.<String>emptyList(), Collections.<Class<?>>singletonList(TextEntity.class))).get(0);
         DdlFieldMetadata field = model.fields().get(0);
         assertEquals(com.entloom.ddl.enums.SqlType.VARCHAR, field.sqlType());
@@ -47,7 +47,7 @@ class SpringAnnotationMetadataLoaderTest {
     @Test
     @DisplayName("Spring 加载器对包装类型 id 使用非空主键")
     void shouldMakeInferredIdNonNullable() {
-        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).load(
+        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults()).load(
                 new MetadataLoadRequest(Collections.<String>emptyList(),
                         Collections.<Class<?>>singletonList(AccountEntity.class)));
 

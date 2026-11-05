@@ -1,5 +1,7 @@
 # RequiredInferenceFilter 退役说明
 
+> 下文实体文件语法为历史方案；当前输入契约通过 `@EntCrudEntity` 声明。
+
 > 状态：Superseded
 
 实体字段必填推断曾作为项目级扩展方案进行评估，但在外部输入契约重构中被移除。当前代码不再提供 `RequiredInferenceFilter`、`RequiredInferenceContribution`、`RequiredInferenceValue` 或相关元数据裁决链。

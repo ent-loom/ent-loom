@@ -1,4 +1,0 @@
-ddl:
-  indexes:
-    - expression: "lower(account_code)"
-      fields: [accountCode]

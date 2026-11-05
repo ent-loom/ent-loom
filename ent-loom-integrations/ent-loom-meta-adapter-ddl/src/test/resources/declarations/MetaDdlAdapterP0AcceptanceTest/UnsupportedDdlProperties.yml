@@ -1,4 +1,0 @@
-ddl:
-  indexes:
-    - name: idx_unsupported_payload
-      fields: [payload]

@@ -170,9 +170,8 @@ class E5CrudMvcAcceptanceTest {
     @Configuration
     static class E5CrudMvcTestConfiguration {
         @Bean
-        com.entloom.declaration.EntityDeclarations entityDeclarations() {
-            return new com.entloom.declaration.EntityDeclarations(
-                new org.springframework.core.io.ClassPathResource("declarations/customer_profile.yml"));
+        com.entloom.crud.starter.config.CrudEntityDeclarations entityDeclarations() {
+            return new com.entloom.crud.starter.config.CrudEntityDeclarations(java.util.List.of(CustomerProfile.class));
         }
 
         @Bean
