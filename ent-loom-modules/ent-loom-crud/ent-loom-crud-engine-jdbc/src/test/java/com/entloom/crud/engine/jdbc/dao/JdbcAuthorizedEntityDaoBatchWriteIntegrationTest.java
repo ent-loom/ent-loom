@@ -428,7 +428,7 @@ class JdbcAuthorizedEntityDaoBatchWriteIntegrationTest {
 
     private EntityDaoAuthorizationContext authorization(String id, String tenant, String writeField) {
         AuthorizationRequest request = new AuthorizationRequest(visitor,
-            new BusinessOperation(registry.getEntityMeta(BatchProduct.class).getResourceDescriptor().getResourceCode(), "update"), id);
+            new BusinessOperation(registry.getEntityMeta(BatchProduct.class).getResourceDescriptor().getResourceCode(), "batch-update"), id);
         AuthorizationResult result = mock(AuthorizationResult.class);
         when(result.getDecision()).thenReturn(AccessDecision.ALLOW);
         when(result.getRequest()).thenReturn(request);

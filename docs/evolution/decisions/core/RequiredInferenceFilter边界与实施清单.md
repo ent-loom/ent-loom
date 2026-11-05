@@ -9,7 +9,7 @@
 ```yaml
 # ent/entities/product.yml
 crud:
-  access: JAVA
+  policy: customer-management
   contracts:
     create:
       input-required-fields: [name, price]

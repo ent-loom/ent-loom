@@ -235,8 +235,12 @@ public class CrudNativeRuntimeModelParser {
         RelationEdge edge = new RelationEdge();
         edge.setFromEntity(entityClass);
         edge.setToEntity(targetEntity);
-        edge.setRelationField(field.getName());
-        edge.setFromField(resolveSourceField(field, relation, cardinality, idField));
+        String sourceField = resolveSourceField(field, relation, cardinality, idField);
+        com.entloom.meta.contract.diagnostic.MetaDiagnosticResult<String> navigation =
+            RelationNavigationFieldResolver.resolve(entityClass, field.getName(), sourceField, targetEntity, cardinality);
+        DefaultMetaDiagnosticPolicy.failFast().evaluate(navigation.diagnostics());
+        edge.setRelationField(navigation.value());
+        edge.setFromField(sourceField);
         edge.setToField(trimToDefault(relation.targetField(), "id"));
         edge.setScope(relation.scope());
         edge.setCardinality(cardinality);

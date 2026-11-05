@@ -15,7 +15,7 @@ import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.order.entity.Order;
-import com.example.minicommerce.customer.entity.CustomerAddress;
+import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
 import java.util.List;
 import java.util.Map;
@@ -55,12 +55,12 @@ class OwnedEntityIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbc.update("delete from customer_address");
+        jdbc.update("delete from customer_level");
         jdbc.update("delete from merchant_article");
         jdbc.update("""
-            insert into customer_address(id, customer_id, recipient, phone, address) values
-            (1, 301, '顾客甲', '13800000001', '甲的地址'),
-            (2, 302, '顾客乙', '13800000002', '乙的地址')
+            insert into customer_level(id, merchant_id, customer_id, level) values
+            (1, 1001, 301, 'STANDARD'),
+            (2, 2001, 302, 'GOLD')
             """);
         jdbc.update("""
             insert into merchant_article(id, merchant_id, title, content) values
@@ -71,15 +71,17 @@ class OwnedEntityIntegrationTest {
 
     @Test
     void 关系字段缺省推导保护订单多重归属并进入实际Patch() {
-        var address = entities.getEntityMeta(CustomerAddress.class);
+        var address = entities.getEntityMeta(CustomerLevel.class);
         assertTrue(address.resolveFieldMeta("customerId").isScopeField());
+        assertTrue(address.resolveFieldMeta("merchantId").isScopeField());
+        assertFalse(address.resolveFieldMeta("merchantId").isWritable());
         assertFalse(address.resolveFieldMeta("customerId").isWritable());
         assertTrue(entities.getEntityMeta(MerchantArticle.class).resolveFieldMeta("merchantId").isScopeField());
         assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isScopeField());
         assertTrue(entities.getEntityMeta(Order.class).resolveFieldMeta("merchantId").isScopeField());
         assertFalse(entities.getEntityMeta(Customer.class).resolveFieldMeta("id").isScopeField());
         assertFalse(entities.getEntityMeta(Order.class).resolveFieldMeta("customerId").isWritable());
-        for (Class<?> type : List.of(CustomerAddress.class, Order.class)) {
+        for (Class<?> type : List.of(CustomerLevel.class, Order.class)) {
             var meta = entities.getEntityMeta(type);
             var patch = new DefaultCommandPayloadBinder().bindUpdatePatch(Map.of("id", 1L, "customerId", 302L), type, meta);
             assertThrows(ValidationException.class, () -> NormalizedUpdatePatch.from(patch, meta));
@@ -91,13 +93,14 @@ class OwnedEntityIntegrationTest {
     }
 
     @Test
-    void 地址是实体而顾客是访问身份和归属者() {
+    void 会员等级按用户与商家分别限制读取范围() {
         var customerA = visitor("customer", "customer-user-a", "301", "consumer");
         var customerB = visitor("customer", "customer-user-b", "302", "consumer");
-        assertEquals(List.of(301L), list(CustomerAddress.class, customerA).stream().map(row -> row.longValue("customerId")).toList());
-        assertEquals(List.of(302L), list(CustomerAddress.class, customerB).stream().map(row -> row.longValue("customerId")).toList());
-        assertThrows(PermissionDeniedException.class, () -> list(CustomerAddress.class,
-            visitor("merchant", "merchant-user-a", "1001", "merchant")));
+        assertEquals(List.of(301L), list(CustomerLevel.class, customerA).stream().map(row -> row.longValue("customerId")).toList());
+        assertEquals(List.of(302L), list(CustomerLevel.class, customerB).stream().map(row -> row.longValue("customerId")).toList());
+        assertEquals(List.of(1001L), list(CustomerLevel.class,
+            visitor("merchant", "merchant-user-a", "1001", "merchant")).stream()
+            .map(row -> row.longValue("merchantId")).toList());
     }
 
     @Test
@@ -112,8 +115,10 @@ class OwnedEntityIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({
-        "customerAddress, demo-customer-a, customerId, 301, 1",
-        "customerAddress, demo-customer-b, customerId, 302, 2",
+        "customerLevel, demo-customer-a, customerId, 301, 1",
+        "customerLevel, demo-customer-b, customerId, 302, 2",
+        "customerLevel, demo-merchant-a, merchantId, 1001, 1",
+        "customerLevel, demo-merchant-b, merchantId, 2001, 2",
         "merchantArticle, demo-merchant-a, merchantId, 1001, 1",
         "merchantArticle, demo-merchant-b, merchantId, 2001, 2"
     })
@@ -134,10 +139,65 @@ class OwnedEntityIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"customerAddress, demo-merchant-a", "merchantArticle, demo-customer-a"})
+    @CsvSource({"merchantArticle, demo-customer-a"})
     void 通用入口不因实体已暴露而授予其他身份读取权限(String entity, String token) throws Exception {
         mvc.perform(post("/api/ent-crud/" + entity + "/list").header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 银行卡仅本人可维护且商家不能访问() throws Exception {
+        jdbc.update("delete from customer_bank_card");
+        String created = mvc.perform(post("/api/ent-crud/customerBankCard/create")
+                .header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"bankName\":\"演示银行\",\"cardLastFour\":\"1234\",\"bindingToken\":\"demo-binding\"}}"))
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) com.jayway.jsonpath.JsonPath.read(created, "$.data.id")).longValue();
+        assertEquals(301L, jdbc.queryForObject("select customer_id from customer_bank_card where id=?", Long.class, id));
+        String payload = "{\"payload\":{\"id\":" + id + ",\"bankName\":\"更新银行\"}}";
+        String query = "{\"options\":{\"filter\":{\"id\":" + id + "}}}";
+        for (String action : List.of("create", "detail", "update", "delete")) {
+            mvc.perform(post("/api/ent-crud/customerBankCard/" + action)
+                    .header("Authorization", "Bearer demo-merchant-a").contentType(MediaType.APPLICATION_JSON)
+                    .content(action.equals("detail") ? query : payload))
+                .andExpect(status().isForbidden());
+        }
+        mvc.perform(post("/api/ent-crud/customerBankCard/detail")
+                .header("Authorization", "Bearer demo-customer-b").contentType(MediaType.APPLICATION_JSON).content(query))
+            .andExpect(status().isNotFound());
+        mvc.perform(post("/api/ent-crud/customerBankCard/update")
+                .header("Authorization", "Bearer demo-customer-b").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().is4xxClientError());
+        mvc.perform(post("/api/ent-crud/customerBankCard/delete")
+                .header("Authorization", "Bearer demo-customer-b").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().is4xxClientError());
+        mvc.perform(post("/api/ent-crud/customerBankCard/update")
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk());
+        mvc.perform(post("/api/ent-crud/customerBankCard/detail")
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(query))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.bankName").value("更新银行"));
+        mvc.perform(post("/api/ent-crud/customerBankCard/delete")
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk());
+        assertEquals(0, jdbc.queryForObject("select count(*) from customer_bank_card", Integer.class));
+    }
+
+    @Test
+    void 用户不能自行升级而商家只能维护本店等级() throws Exception {
+        String payload = "{\"payload\":{\"id\":1,\"level\":\"GOLD\"}}";
+        mvc.perform(post("/api/ent-crud/customerLevel/update")
+                .header("Authorization", "Bearer demo-customer-a").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/api/ent-crud/customerLevel/update")
+                .header("Authorization", "Bearer demo-merchant-b").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().is4xxClientError());
+        assertEquals("STANDARD", jdbc.queryForObject("select level from customer_level where id=1", String.class));
+        mvc.perform(post("/api/ent-crud/customerLevel/update")
+                .header("Authorization", "Bearer demo-merchant-a").contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk());
+        assertEquals("GOLD", jdbc.queryForObject("select level from customer_level where id=1", String.class));
     }
 
     private VisitorContext visitor(String code, String subjectId, String identityId, String entry) {

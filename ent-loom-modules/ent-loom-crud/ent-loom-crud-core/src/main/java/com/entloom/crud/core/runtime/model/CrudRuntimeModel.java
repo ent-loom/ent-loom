@@ -4,6 +4,7 @@ import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.RelationEdge;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
+import com.entloom.crud.core.runtime.model.parser.CollectionRelationMappingResolver;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,9 +29,7 @@ public final class CrudRuntimeModel {
     ) {
         this.entities = indexEntities(entities);
         this.resourceTypes = indexResourceTypes(this.entities.values());
-        this.relations = relations == null
-            ? Collections.<CrudRuntimeRelationModel>emptyList()
-            : Collections.unmodifiableList(new ArrayList<CrudRuntimeRelationModel>(relations));
+        this.relations = Collections.unmodifiableList(CollectionRelationMappingResolver.resolve(this.entities, relations));
     }
 
     public static CrudRuntimeModel from(Collection<EntityMeta> entityMetas, Collection<RelationEdge> relationEdges) {

@@ -70,7 +70,7 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
                 throw new PermissionDeniedException("缺少 HTTP 可信认证适配器或 Filter 认证结果");
             }
             HttpAccessAuthentication authentication = state.authentication();
-            AccessAdmission admission = admissionService.admit(access == null ? AuthenticationMode.REQUIRED : access.value(),
+            AccessAdmission admission = admissionService.admit(access == null ? AuthenticationMode.OPTIONAL : access.value(),
                 authentication::getAuthentication,
                 authentication.getAccessEntry(), authentication.getRequestId(), authentication.getTraceId());
             if (access != null) {
@@ -98,9 +98,7 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
     /** 按实际框架 Handler 和已暴露的路由实体判断，不按 URL 前缀或请求体声明授予准入。 */
     private boolean requiresCrudAdmission(HttpServletRequest request, HandlerMethod method) {
         boolean query = EntCrudQueryController.class.isAssignableFrom(method.getBeanType());
-        // 业务 ACTION 继续按已声明的场景准入合同执行。
-        boolean command = EntCrudCommandController.class.isAssignableFrom(method.getBeanType())
-            && !"action".equals(method.getMethod().getName());
+        boolean command = EntCrudCommandController.class.isAssignableFrom(method.getBeanType());
         if ((!query && !command)
             || exposedEntities == null || policies == null) {
             return false;

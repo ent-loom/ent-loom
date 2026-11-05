@@ -90,6 +90,8 @@ API。模块所有权和依赖方向见 [组件边界与依赖规则](./docs/arc
 当前完整 Reactor 的默认开发、构建和验证基线为 JDK 21。推荐使用 `./mvnw test`，Wrapper 固定 Maven 3.9.12，Enforcer 校验构建 JDK 21+；`.java-version` 仅作本地版本提示。Java 8、Boot 2 和 Boot 4 属于分阶段目标兼容线，尚不代表当前全仓支持；详细边界见
 [Java 运行时与 Spring 兼容性版本线](./docs/evolution/decisions/core/Java运行时与Spring兼容性.md)。
 
+当前源码和示例使用尚未发布的 `2.0.0-SNAPSHOT`，运行独立示例前需先安装当前工作区构件。已发布的 `1.0.1` 及其标签保留为历史版本；发布新版本后再验收 Maven Central 公开消费者。
+
 ## 使用与文档
 
 - [在线文档中心](https://ent-loom.lizubin.online/)：使用指南、架构说明、领域文档与演进记录。

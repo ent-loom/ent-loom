@@ -1,4 +1,0 @@
-crud:
-  policy: owned-data
-  relations:
-    owner: ownerId

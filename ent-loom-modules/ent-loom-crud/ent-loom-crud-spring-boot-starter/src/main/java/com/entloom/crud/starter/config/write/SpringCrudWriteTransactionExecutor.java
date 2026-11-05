@@ -55,4 +55,21 @@ public final class SpringCrudWriteTransactionExecutor implements CrudWriteTransa
         }
         throw new IllegalArgumentException("不支持的写入事务策略: " + policy);
     }
+    @Override
+    public <T> T executeObserved(CrudWriteTransactionPolicy policy, CrudWriteTransactionCallback<T> callback,
+        java.util.function.Consumer<Boolean> completion) {
+        Objects.requireNonNull(completion, "事务完成通知不能为空");
+        return execute(policy, () -> {
+            if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive())
+                throw new ValidationException("最终完成通知必须绑定实际事务");
+            TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                @Override public void afterCompletion(int status) {
+                    completion.accept(status == STATUS_COMMITTED);
+                }
+            });
+            return callback.execute();
+        });
+    }
+
 }

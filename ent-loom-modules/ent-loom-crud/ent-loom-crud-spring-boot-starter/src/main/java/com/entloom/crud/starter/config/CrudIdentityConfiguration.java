@@ -4,13 +4,13 @@ import com.entloom.crud.core.governance.identity.BusinessIdentityRegistration;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 /** 策略、MVC 和演示账号共用唯一身份装配入口。 */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CrudAccessProperties.class)
+@Import(CrudPropertiesConfiguration.class)
 public class CrudIdentityConfiguration {
     @Bean
     @ConditionalOnMissingBean

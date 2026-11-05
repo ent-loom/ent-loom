@@ -1,10 +1,22 @@
 # yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
 # 商家商品：查询沿用策略缺省，批量更新必须显式开放。
 crud:
-  policy: merchant-manage
-  operations:
-    update: [UPDATE, UPDATE_BATCH]
-  fields:
+  access:
+    actions:
+      add: [batch-update]
     merchant:
-      WRITE:
-        mode: ALL
+      actions:
+        add: [batch-update]
+      fields:
+        WRITE:
+          mode: ALL
+    public:
+      actions: [view]
+      rules:
+        active: true
+      fields:
+        RETURN:
+          mode: INCLUDE
+          fields: [id, merchantId, name, price]
+        EXPAND:
+          mode: NONE

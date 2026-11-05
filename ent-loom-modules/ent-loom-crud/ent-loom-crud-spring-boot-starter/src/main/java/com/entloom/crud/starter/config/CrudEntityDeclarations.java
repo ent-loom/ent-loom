@@ -3,7 +3,7 @@ package com.entloom.crud.starter.config;
 import com.entloom.declaration.DeclarationNode;
 import com.entloom.declaration.EntityDeclarations;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
-import com.entloom.crud.core.governance.policy.EntityPolicyBinding;
+import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import java.util.LinkedHashMap;
@@ -17,9 +17,22 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
 
     @lombok.Data
     public static class EntityOptions {
+        private String policy;
+        private ActionSelection actionSelection;
+        private CrudAccessProperties.Policy access = new CrudAccessProperties.Policy();
         private List<String> ownership;
         private Map<String, List<String>> operations;
         private Map<String, String> relations = new LinkedHashMap<>();
+    }
+    /** 实体动作：列表替换，或在策略上增减；全局策略仍使用完整列表。 */
+    public record ActionSelection(List<String> replacement, List<String> add, List<String> remove) {
+        static ActionSelection parse(DeclarationNode node) {
+            if (node.isList()) return new ActionSelection(node.strings(), List.of(), List.of());
+            node.only("add", "remove");
+            var values = node.members();
+            return new ActionSelection(null, values.containsKey("add") ? values.get("add").strings() : List.of(),
+                values.containsKey("remove") ? values.get("remove").strings() : List.of());
+        }
     }
     public enum FieldMode {
         INCLUDE, // 仅包含指定字段
@@ -28,18 +41,12 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
         NONE // 关闭该用途
     }
     public record FieldPlan(FieldMode mode, List<String> fields, String source) { }
-    public enum AccessMode {
-        JAVA // 显式复用应用的 Java 治理链，不根据文件缺失隐式回退
-    }
     private final Map<String, Set<String>> actions = new LinkedHashMap<>();
     private final Map<String, Set<com.entloom.crud.api.enums.CrudOperationKey>> allowedOperations = new LinkedHashMap<>();
     private final Map<String, Boolean> httpExposure = new LinkedHashMap<>();
     private final List<com.entloom.crud.core.governance.policy.ScenePolicy> scenes = new java.util.ArrayList<>();
-    private final Map<String, AccessMode> accessModes = new LinkedHashMap<>();
     private final EntityDeclarations declarations;
     private final Map<String, EntityOptions> options = new LinkedHashMap<>();
-    private final Map<String, String> policies = new LinkedHashMap<>();
-    private final Map<String, Map<String, Map<AuthorizationFields.Use, FieldPlan>>> fields = new LinkedHashMap<>();
     private final Map<String, List<String>> required = new LinkedHashMap<>();
     private final Map<String, List<String>> forbidden = new LinkedHashMap<>();
 
@@ -48,42 +55,81 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
         declarations.entities().forEach((resource, root) -> {
             DeclarationNode crud = root.members().get("crud");
             if (crud == null) return;
-            crud.only("access", "policy", "operations", "relations", "ownership", "fields", "contracts", "actions", "allowed-operations", "http-exposed");
+            crud.only("access", "operations", "relations", "ownership", "contracts", "actions", "allowed-operations", "http-exposed");
             Map<String, DeclarationNode> nodes = crud.members();
             if (nodes.containsKey("http-exposed")) httpExposure.put(resource, nodes.get("http-exposed").bool());
             if (nodes.containsKey("actions")) parseActions(resource, nodes.get("actions"));
             if (nodes.containsKey("allowed-operations")) {
                 Set<com.entloom.crud.api.enums.CrudOperationKey> keys = new java.util.LinkedHashSet<>();
                 for (String name : nodes.get("allowed-operations").strings()) {
-                    var query = com.entloom.crud.api.enums.QueryOperation.from(name);
-                    var command = com.entloom.crud.api.enums.CommandOperation.from(name);
-                    if (query == null && (command == null || command == com.entloom.crud.api.enums.CommandOperation.ACTION)) {
-                        throw nodes.get("allowed-operations").error("未知标准操作: " + name);
+                    if (!keys.add(standardOperation(nodes.get("allowed-operations"), name))) {
+                        throw nodes.get("allowed-operations").error("重复标准操作: " + name);
                     }
-                    keys.add(query != null ? com.entloom.crud.api.enums.CrudOperationKey.of(query) : com.entloom.crud.api.enums.CrudOperationKey.of(command));
                 }
                 allowedOperations.put(resource, Set.copyOf(keys));
             }
-            if (nodes.containsKey("access")) {
-                try { accessModes.put(resource, AccessMode.valueOf(nodes.get("access").text())); }
-                catch (IllegalArgumentException exception) { throw nodes.get("access").error("未知访问模式，仅支持 JAVA；声明式授权使用 policy"); }
-                if (nodes.containsKey("policy") || nodes.containsKey("fields") || nodes.containsKey("operations")) {
-                    throw crud.error("JAVA 访问模式不得同时声明 policy、fields 或 operations");
-                }
-            }
             EntityOptions entity = new EntityOptions();
-            if (nodes.containsKey("policy")) policies.put(resource, nodes.get("policy").text());
+            if (nodes.containsKey("access")) {
+                DeclarationNode access = nodes.get("access");
+                var values = access.members();
+                if (values.containsKey("policy")) entity.setPolicy(values.get("policy").text());
+                if (values.containsKey("actions")) entity.setActionSelection(ActionSelection.parse(values.get("actions")));
+                values.forEach((identity, node) -> {
+                    if (identity.equals("policy") || identity.equals("actions")) return;
+                    node.only("actions", "scope", "rules", "fields");
+                    var attributes = node.members();
+                    var subject = new CrudAccessProperties.Subject();
+                    if (attributes.containsKey("actions")) {
+                        var actions = attributes.get("actions");
+                        if (actions.isList()) subject.setActions(actions.strings());
+                        else {
+                            actions.only("add", "remove");
+                            Map<String, Object> changes = new LinkedHashMap<>();
+                            actions.members().forEach((key, value) -> changes.put(key, value.strings()));
+                            subject.setActions(changes);
+                        }
+                    }
+                    if (attributes.containsKey("scope")) subject.setScope(attributes.get("scope").text());
+                    if (attributes.containsKey("rules")) {
+                        Map<String, Object> rules = new LinkedHashMap<>();
+                        attributes.get("rules").members().forEach((field, value) -> rules.put(field, declarationValue(value)));
+                        subject.setRules(rules);
+                    }
+                    if (attributes.containsKey("fields")) subject.setFields(parseFields(attributes.get("fields")));
+                    entity.getAccess().getAccess().put(identity, subject);
+                });
+            }
+
             if (nodes.containsKey("operations")) {
                 Map<String, List<String>> operations = new LinkedHashMap<>();
-                nodes.get("operations").members().forEach((action, node) -> operations.put(action, node.strings()));
+                nodes.get("operations").members().forEach((action, node) -> {
+                    Set<String> names = new java.util.LinkedHashSet<>();
+                    for (String code : node.strings()) {
+                        String name = standardOperation(node, code).getOperation();
+                        if (!names.add(name)) throw node.error("重复标准操作: " + code);
+                    }
+                    operations.put(action, List.copyOf(names));
+                });
                 entity.setOperations(operations);
             }
             if (nodes.containsKey("relations")) nodes.get("relations").members().forEach((role, node) -> entity.getRelations().put(role, node.text()));
             if (nodes.containsKey("ownership")) entity.setOwnership(nodes.get("ownership").strings());
-            if (nodes.containsKey("fields")) parseFields(resource, nodes.get("fields"));
             if (nodes.containsKey("contracts")) parseContracts(resource, nodes.get("contracts"));
             options.put(resource, entity);
         });
+    }
+
+    private static Object declarationValue(DeclarationNode node) {
+        if (node.isList()) return node.elements().stream().map(CrudEntityDeclarations::declarationValue).toList();
+        try {
+            return node.bool();
+        } catch (IllegalArgumentException ignored) {
+            try {
+                return node.number();
+            } catch (IllegalArgumentException ignoredInteger) {
+                return node.text();
+            }
+        }
     }
 
     private void parseActions(String resource, DeclarationNode node) {
@@ -115,29 +161,34 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
     public Map<String, Set<String>> actions() { return Map.copyOf(actions); }
     public Map<String, Set<com.entloom.crud.api.enums.CrudOperationKey>> allowedOperations() { return Map.copyOf(allowedOperations); }
     public List<com.entloom.crud.core.governance.policy.ScenePolicy> scenes() { return List.copyOf(scenes); }
-    public boolean httpExposed(String resource) { return httpExposure.getOrDefault(resource, true); }
+    public boolean httpExposed(String resource) { return httpExposure.getOrDefault(resource, options.containsKey(resource)); }
 
-    private void parseFields(String resource, DeclarationNode node) {
-        Map<String, Map<AuthorizationFields.Use, FieldPlan>> identities = new LinkedHashMap<>();
-        node.members().forEach((identity, uses) -> {
-            Map<AuthorizationFields.Use, FieldPlan> plans = new LinkedHashMap<>();
-            uses.members().forEach((use, plan) -> {
-                plan.only("mode", "fields");
-                AuthorizationFields.Use key;
-                try { key = AuthorizationFields.Use.valueOf(use); }
-                catch (IllegalArgumentException exception) { throw plan.error("未知字段用途: " + use); }
-                Map<String, DeclarationNode> attributes = plan.members();
-                FieldMode mode;
-                try { mode = attributes.containsKey("mode") ? FieldMode.valueOf(attributes.get("mode").text()) : FieldMode.EXCLUDE; }
-                catch (IllegalArgumentException exception) { throw plan.error("未知字段模式"); }
-                List<String> names = attributes.containsKey("fields") ? attributes.get("fields").strings() : List.of();
-                if (mode == FieldMode.INCLUDE && names.isEmpty()) throw plan.error("INCLUDE 的 fields 不能为空");
-                if ((mode == FieldMode.ALL || mode == FieldMode.NONE) && !names.isEmpty()) throw plan.error("ALL/NONE 不得声明 fields");
-                plans.put(key, new FieldPlan(mode, names, plan.source()));
-            });
-            identities.put(identity, Map.copyOf(plans));
+    private static Map<AuthorizationFields.Use, CrudAccessProperties.Field> parseFields(DeclarationNode node) {
+        Map<AuthorizationFields.Use, CrudAccessProperties.Field> plans = new LinkedHashMap<>();
+        node.members().forEach((use, plan) -> {
+            plan.only("mode", "fields");
+            AuthorizationFields.Use key = plan.enumValue(AuthorizationFields.Use.class, use);
+            var attributes = plan.members();
+            var field = new CrudAccessProperties.Field();
+            if (attributes.containsKey("mode")) field.setMode(attributes.get("mode").enumValue(FieldMode.class));
+            if (attributes.containsKey("fields")) field.setFields(attributes.get("fields").strings());
+            if (field.getMode() == FieldMode.INCLUDE && field.getFields().isEmpty()) throw plan.error("INCLUDE 的 fields 不能为空");
+            if ((field.getMode() == FieldMode.ALL || field.getMode() == FieldMode.NONE) && !field.getFields().isEmpty())
+                throw plan.error("ALL/NONE 不得声明 fields");
+            if (plans.putIfAbsent(key, field) != null) throw plan.error("重复字段用途: " + use);
         });
-        fields.put(resource, Map.copyOf(identities));
+        return plans;
+    }
+
+    private static com.entloom.crud.api.enums.CrudOperationKey standardOperation(DeclarationNode node, String code) {
+        String constant = code.toUpperCase(java.util.Locale.ROOT).replace('-', '_');
+        var query = com.entloom.crud.api.enums.QueryOperation.from(constant);
+        var command = com.entloom.crud.api.enums.CommandOperation.from(constant);
+        if (query == null && (command == null || command == com.entloom.crud.api.enums.CommandOperation.ACTION)) {
+            throw node.error("未知标准操作: " + code);
+        }
+        return query != null ? com.entloom.crud.api.enums.CrudOperationKey.of(query)
+            : com.entloom.crud.api.enums.CrudOperationKey.of(command);
     }
 
     private void parseContracts(String resource, DeclarationNode node) {
@@ -159,34 +210,30 @@ public final class CrudEntityDeclarations implements com.entloom.declaration.Ent
         }
         declarations.validateResources("crud", resources);
     }
-    public Map<String, EntityPolicyBinding> bindings(EntityMetaRegistry entities) {
-        validate(entities);
-        Map<String, EntityPolicyBinding> result = new LinkedHashMap<>();
-        for (EntityMeta meta : entities.getEntityMetas()) {
-            String resource = meta.getResourceDescriptor().getResourceCode();
-            if (policies.containsKey(resource)) result.put(resource, new EntityPolicyBinding(meta.getEntityType(), policies.get(resource), source(resource, "policy"), options.get(resource).getRelations()));
-        }
-        return result;
-    }
-    /** HTTP 实体必须有文件与明确访问选择，漏扫描或漏打包不能改变授权路径。 */
-    public void assertHttpAccess(EntityMetaRegistry entities) {
+    /** 已发布实体必须有实际编译的有效策略；policy 还须实际编译，不能因策略组件缺失退回旧治理。 */
+    public void assertHttpAccess(EntityMetaRegistry entities, EntityPolicyRegistry compiledPolicies) {
         validate(entities);
         for (EntityMeta meta : entities.getEntityMetas()) {
             String resource = meta.getResourceDescriptor().getResourceCode();
             if (!httpExposed(resource)) continue;
-            if (!options.containsKey(resource)) throw new IllegalArgumentException(
-                "HTTP 实体缺少声明文件: ent/entities/" + resource + ".yml [实体=" + resource + "]");
-            if (!policies.containsKey(resource) && !accessModes.containsKey(resource)) {
-                throw new IllegalArgumentException(source(resource) + ": HTTP 实体必须显式选择 policy 或 access: JAVA");
+            if (compiledPolicies == null || !compiledPolicies.containsResource(resource)) {
+                throw new IllegalArgumentException(source(resource) + ": HTTP 实体策略未编译: " + options.get(resource).getPolicy() + "，请选择 access.policy 或配置 default-policy");
             }
         }
     }
-    public String source(String resource) { return declarations.entities().get(resource).members().get("crud").source(); }
+    public String source(String resource) {
+        var root = declarations.entities().get(resource);
+        return root == null || !root.members().containsKey("crud") ? "实体 " + resource : root.members().get("crud").source();
+    }
     public String source(String resource, String property) {
-        return declarations.entities().get(resource).members().get("crud").members().get(property).source();
+        var node = declarations.entities().get(resource).members().get("crud");
+        for (String part : property.split("\\.")) {
+            if (!node.members().containsKey(part)) return node.source() + "." + property;
+            node = node.members().get(part);
+        }
+        return node.source();
     }
     public Map<String, EntityOptions> options() { return Map.copyOf(options); }
-    public Map<String, Map<AuthorizationFields.Use, FieldPlan>> fields(String resource) { return fields.getOrDefault(resource, Map.of()); }
     public Map<String, List<String>> required() { return Map.copyOf(required); }
     public Map<String, List<String>> forbidden() { return Map.copyOf(forbidden); }
 }

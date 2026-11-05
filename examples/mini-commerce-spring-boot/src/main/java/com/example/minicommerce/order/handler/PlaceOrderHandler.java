@@ -5,11 +5,16 @@ import com.entloom.crud.annotations.EntCrudCommandAction;
 import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.dao.EntityDao;
+import com.entloom.crud.core.capability.dao.EntityDaoFactory;
+import com.entloom.crud.core.capability.dao.EntityType;
+import com.entloom.crud.core.capability.dao.RowConstraint;
+import com.entloom.crud.core.capability.command.engine.AuthorizedActionContext;
+import com.entloom.crud.core.capability.command.engine.RelatedDaoAccess;
+import static com.entloom.crud.core.capability.command.engine.RelatedDaoAccess.Operation.*;
 import com.entloom.crud.core.runtime.scene.SceneDelegate;
 import com.example.minicommerce.common.exception.BusinessException;
 import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderItem;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
@@ -34,13 +39,17 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @EntCrudCommandAction(
     entityClass = Order.class,
-    scene = Order.PLACE
+    scene = Order.CREATE
 )
 public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCommand, PlaceOrderResult> {
-    private final EntityDao<Customer, Long> customerDao;
-    private final EntityDao<MerchantProduct, Long> merchantProductDao;
-    private final EntityDao<Order, Long> orderDao;
-    private final OrderItemDao orderItemDao;
+    private final EntityDaoFactory daoFactory;
+
+    @Override
+    public List<RelatedDaoAccess> relatedAccess() {
+        return List.of(new RelatedDaoAccess(Customer.class, READ, "id"),
+            new RelatedDaoAccess(MerchantProduct.class, READ, "id"),
+            new RelatedDaoAccess(OrderItem.class, CREATE, "orderId"));
+    }
 
     @Override
     @Transactional
@@ -48,9 +57,17 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         SceneDelegate<CommandSpec<PlaceOrderCommand>, CommandResult<PlaceOrderResult>> delegate) {
         PlaceOrderCommand command = spec.getPayload();
         validateCommand(command);
-        Customer customer = customerDao.findById(command.customerId())
+        var access = AuthorizedActionContext.require(spec);
+        Long customerId = Long.valueOf(access.visitor().requireIdentity("customer").getIdentityId());
+        EntityDao<Order, Long> orderDao = access.dao(daoFactory,
+            EntityType.of(Order.class, Long.class));
+        var customerDao = access.dao(daoFactory, EntityType.of(Customer.class, Long.class),
+            RowConstraint.eq("id", customerId));
+        Customer customer = customerDao.findById(customerId)
             .orElseThrow(() -> new BusinessException(OrderError.CUSTOMER_NOT_FOUND));
         Set<Long> merchantProductIds = collectMerchantProductIds(command.items());
+        var merchantProductDao = access.dao(daoFactory, EntityType.of(MerchantProduct.class, Long.class),
+            RowConstraint.in("id", merchantProductIds));
         Map<Long, MerchantProduct> merchantProductMap = merchantProductDao.findAllByIdAsMap(merchantProductIds);
         Map<Long, List<OrderItem>> itemsByMerchant = new LinkedHashMap<>();
         for (PlaceOrderItem requestItem : command.items()) {
@@ -76,7 +93,8 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
             for (OrderItem item : entry.getValue()) {
                 item.setOrderId(orderId);
             }
-            orderItemDao.insertAll(entry.getValue());
+            access.dao(daoFactory, EntityType.of(OrderItem.class, Long.class),
+                RowConstraint.eq("orderId", orderId)).insertAll(entry.getValue());
         }
         return CommandResult.success(new PlaceOrderResult(orderIds, totalAmount));
     }
@@ -84,9 +102,6 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
     private void validateCommand(PlaceOrderCommand command) {
         if (command == null) {
             throw new BusinessException(OrderError.REQUEST_REQUIRED);
-        }
-        if (command.customerId() == null) {
-            throw new BusinessException(OrderError.CUSTOMER_REQUIRED);
         }
         if (command.items() == null || command.items().isEmpty()) {
             throw new BusinessException(OrderError.ITEMS_REQUIRED);

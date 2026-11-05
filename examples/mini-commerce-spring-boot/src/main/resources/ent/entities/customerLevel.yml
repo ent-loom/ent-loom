@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
+# 商家沿用默认维护权限；用户只能查看自己的会员等级。
+crud:
+  access:
+    customer:
+      actions: [view]

@@ -50,6 +50,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
     private final JdbcDialect dialect;
     private final CrudWriteTransactionExecutor transactionExecutor;
     private final int maxBatchSize;
+    private final boolean businessAction;
 
     JdbcEntityDao(
         EntityType<T, ID> entityType,
@@ -118,6 +119,12 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         CrudWriteTransactionExecutor transactionExecutor,
         int maxBatchSize
     ) {
+        this(entityType, meta, scope, guardedSqlExecutor, predicateCompiler, dialect, transactionExecutor, maxBatchSize, false);
+    }
+
+    JdbcEntityDao(EntityType<T, ID> entityType, EntityMeta meta, RowConstraint scope, GuardedSqlExecutor guardedSqlExecutor,
+        JdbcEntityPredicateCompiler predicateCompiler, JdbcDialect dialect, CrudWriteTransactionExecutor transactionExecutor,
+        int maxBatchSize, boolean businessAction) {
         if (maxBatchSize <= 0) {
             throw new ValidationException("DAO 批量数量上限必须大于 0");
         }
@@ -129,6 +136,7 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.transactionExecutor = transactionExecutor;
         this.maxBatchSize = maxBatchSize;
+        this.businessAction = businessAction;
     }
 
     @Override
@@ -211,7 +219,8 @@ final class JdbcEntityDao<T, ID> implements EntityDao<T, ID> {
             values.put(meta.getIdField(), id);
         }
         Map<String, Object> scopedValues = new LinkedHashMap<String, Object>(
-            InsertConstraintValueBinder.bind(scope, meta, values)
+            businessAction ? InsertConstraintValueBinder.verifyBusinessScope(scope, meta, values)
+                : InsertConstraintValueBinder.bind(scope, meta, values)
         );
         applyLogicDeleteInitialValue(scopedValues);
         applyVersionInitialValue(scopedValues, entity);

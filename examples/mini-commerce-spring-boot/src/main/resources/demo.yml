@@ -1,40 +1,49 @@
-# 演示接入：由 application.yml 显式导入，无需额外启用 Profile。
-# 正式应用应替换可信认证、身份归属与主体权限来源。
+# 演示认证与环境设置：由 application.yml 显式导入，无需额外启用 Profile。
+# 本文件提供静态凭证、身份归属和服务端入口，不声明实体操作、数据范围或字段权限。
+# identity.code 关联 application.yml 的 access.identities，并选择 ent/entities 中的同名身份授权分支。
+# 正式应用应接入可信认证与身份归属来源，复用全局策略及实体授权声明。
 ent:
   loom:
     crud:
       example:
         enabled: true
-        # 账号归属由服务端核验；ID 字段复用 access.identities 的约定。
+        # 账号归属由服务端核验；身份码引用 access.identities，ID 按其类型转换。
         accounts:
+          - token: demo-platform-admin
+            subject-id: platform-admin
+            identity:
+              code: super-admin
+              id: 1
           - token: demo-customer-a
             subject-id: customer-user-a
-            customerId: 301
+            identity:
+              code: customer
+              id: 301
           - token: demo-customer-b
             subject-id: customer-user-b
-            customerId: 302
+            identity:
+              code: customer
+              id: 302
           - token: demo-merchant-a
             subject-id: merchant-user-a
-            merchantId: 1001
+            identity:
+              code: merchant
+              id: 1001
           - token: demo-merchant-b
             subject-id: merchant-user-b
-            merchantId: 2001
-        # 入口由服务端路由确定，不能由客户端切换。
+            identity:
+              code: merchant
+              id: 2001
+        # 演示入口由服务端路由确定，不能由客户端切换；入口本身不授予实体权限。
         default-access-entry: consumer
         routes:
-          "[/api/ent-crud/order/**]": commerce
-          "[/api/ent-crud/merchantProduct/**]": merchant
-          "[/api/ent-crud/merchantArticle/**]": merchant
+          - path: /api/ent-crud/order/**
+            entry: commerce
+          - path: /api/ent-crud/merchantProduct/**
+            entry: merchant
+          - path: /api/ent-crud/merchantArticle/**
+            entry: merchant
       governance:
-        # 下单场景与 order.yml 的 consumer 入口声明保持一致。
-        access-entry: consumer
-        # 通用 CRUD 使用默认演示主体 local-developer。
-        grants:
-          local-developer:
-            - customer:read
-            - customer:create
-            - customer:update
-            - order:place
         # 演示无需额外审计表。
         audit:
           persist-to-jdbc: false

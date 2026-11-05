@@ -22,7 +22,7 @@ class CrudEntityDeclarationsTest {
     void 动作按入口独立编译并规范化边界() {
         var files = declarations("""
             crud:
-              allowed-operations: [DETAIL]
+              allowed-operations: [detail]
               actions:
                 PLACE:
                   name: 下单
@@ -64,6 +64,49 @@ class CrudEntityDeclarationsTest {
                 "crud: {http-exposed: null}")) {
             assertThatThrownBy(() -> declarations(content)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("order.yml").hasMessageContaining("实体=order").hasMessageContaining("路径=crud");
+        }
+    }
+
+    @Test
+    void 大写枚举与大小写和分隔符别名编译到相同协议() {
+        for (String operation : List.of("FIND_ONE", "find_one", "find-one", "Find-One")) {
+            var files = declarations("crud: {operations: {view: [" + operation + "]}, allowed-operations: [" + operation + "]}");
+            assertThat(files.options().get("order").getOperations().get("view")).containsExactly("FIND_ONE");
+            assertThat(files.allowedOperations().get("order")).containsExactly(CrudOperationKey.of(QueryOperation.FIND_ONE));
+        }
+        for (String use : List.of("WRITE", "write", "Write")) {
+            for (String mode : List.of("INCLUDE", "include", "Include")) {
+                var files = declarations("crud: {access: {customer: {fields: {" + use + ": {mode: " + mode + ", fields: [remark]}}}}}");
+                var plan = files.options().get("order").getAccess().getAccess().get("customer").getFields().get(
+                    com.entloom.crud.core.governance.authorization.AuthorizationFields.Use.WRITE);
+                assertThat(plan.getMode()).isEqualTo(CrudEntityDeclarations.FieldMode.INCLUDE);
+                assertThat(plan.getFields()).containsExactly("remark");
+            }
+        }
+    }
+
+    @Test
+    void 归一化后重复枚举不能覆盖或静默去重() {
+        for (String content : List.of(
+                "crud: {access: {customer: {fields: {WRITE: {mode: INCLUDE, fields: [remark]}, write: {mode: ALL}}}}}",
+                "crud: {allowed-operations: [FIND_ONE, find-one]}",
+                "crud: {operations: {update: [UPDATE_BATCH, update-batch]}}")) {
+            assertThatThrownBy(() -> declarations(content)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("重复").hasMessageContaining("order.yml").hasMessageContaining("路径=crud");
+        }
+    }
+
+    @Test
+    void 宽松枚举仍拒绝未知值空值及非法字段模式组合() {
+        for (String content : List.of("crud: {policy: ''}",
+                "crud: {allowed-operations: [findOne]}", "crud: {allowed-operations: [UNKNOWN]}",
+                "crud: {access: {customer: {fields: {WRIT: {mode: ALL}}}}}",
+                "crud: {access: {customer: {fields: {WRITE: {mode: unknown}}}}}",
+                "crud: {access: {customer: {fields: {WRITE: {mode: ''}}}}}",
+                "crud: {access: {customer: {fields: {Write: {mode: Include, fields: []}}}}}",
+                "crud: {access: {customer: {fields: {Write: {mode: All, fields: [remark]}}}}}")) {
+            assertThatThrownBy(() -> declarations(content)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("order.yml").hasMessageContaining("路径=crud");
         }
     }
 

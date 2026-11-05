@@ -18,11 +18,11 @@ class DefaultExposedEntityRegistryTest {
         new CrudNativeRuntimeModelParser().parse(Arrays.<Class<?>>asList(Customer.class, Product.class, Internal.class)));
 
     @Test
-    void 已注册实体默认开放正式编码和别名() {
+    void 有Crud声明的实体开放正式编码及别名而无声明实体不发布() {
         ExposedEntityRegistry registry = new CrudWebAutoConfiguration().exposedEntityRegistry(metadata, declarations());
         assertThat(registry.resolveOrThrow("customer")).isSameAs(Customer.class);
         assertThat(registry.resolveOrThrow(Customer.class.getName())).isSameAs(Customer.class);
-        assertThat(registry.resolveOrThrow("product")).isSameAs(Product.class);
+        assertThatThrownBy(() -> registry.resolveOrThrow("product")).isInstanceOf(CrudException.class);
     }
 
     @Test
@@ -36,6 +36,9 @@ class DefaultExposedEntityRegistryTest {
 
     private com.entloom.crud.starter.config.CrudEntityDeclarations declarations() {
         return new com.entloom.crud.starter.config.CrudEntityDeclarations(new com.entloom.declaration.EntityDeclarations(
+            new org.springframework.core.io.ByteArrayResource("crud: {}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+                @Override public String getFilename() { return "customer.yml"; }
+            },
             new org.springframework.core.io.ByteArrayResource("crud: {http-exposed: false}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
                 @Override public String getFilename() { return "internal.yml"; }
             }));

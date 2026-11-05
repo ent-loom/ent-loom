@@ -4,13 +4,14 @@ import com.entloom.crud.core.governance.adapter.CrudBusinessAuthorizationAdapter
 import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
 import com.entloom.crud.core.capability.command.engine.AuthorizedBatchUpdateExecutor;
 import com.entloom.crud.core.runtime.contract.CrudInputContract;
-import com.entloom.crud.core.runtime.validation.EntityUpdateValidator;
-import com.entloom.crud.starter.command.SpringEntityUpdateValidator;
+import com.entloom.crud.core.runtime.validation.EntityWriteValidator;
+import com.entloom.crud.starter.command.SpringEntityWriteValidator;
 import com.entloom.crud.core.capability.dao.EntityDaoAuthorizationProvider;
 import com.entloom.crud.core.capability.dao.EntityDaoFactory;
 import com.entloom.crud.core.foundation.write.CrudWriteTransactionExecutor;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
+import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.fact.RelationFactResolver;
 import com.entloom.crud.core.governance.fact.RelationFactService;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
@@ -34,6 +35,7 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.query.JdbcAuthorizedQueryExecutor;
 import com.entloom.crud.engine.jdbc.command.JdbcAuthorizedCommandExecutor;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
@@ -43,13 +45,48 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 /** 汇总 YAML、Java 声明与实体注解，在启动期交由同一 Core 编译器校验。 */
 @AutoConfiguration(after = CrudAutoConfiguration.class, before = CrudAccessWebAutoConfiguration.class)
-@EnableConfigurationProperties(CrudAccessProperties.class)
-@Import({CrudIdentityConfiguration.class, CrudEntityDeclarationConfiguration.class})
+@Import({CrudPropertiesConfiguration.class, CrudIdentityConfiguration.class, CrudEntityDeclarationConfiguration.class})
 public class CrudPolicyAutoConfiguration {
+    /** 注册器完成后检查真实 Handler 与已启用执行器，避免配置声明被误当成执行能力。 */
+    @Bean
+    @ConditionalOnBean(GuardedSqlExecutor.class)
+    public org.springframework.beans.factory.SmartInitializingSingleton configuredAccessExecutionGuard(
+        ConfiguredAccessPolicies configured, EntityMetaRegistry entities,
+        ObjectProvider<com.entloom.crud.core.runtime.router.CommandRouter> routers,
+        ObjectProvider<AuthorizedCommandExecutor> commands, ObjectProvider<AuthorizedQueryExecutor> queries) {
+        return () -> {
+            for (var mapping : configured.mappings()) {
+                var operation = mapping.getOperationKey();
+                String resource = mapping.getBusinessOperation().getResourceCode();
+                if (operation.getDomain() == com.entloom.crud.api.enums.CrudOperationDomain.QUERY && queries.getIfAvailable() == null)
+                    throw new ValidationException("实体 " + resource + ": 查询动作缺少已启用执行器，来源: " + mapping.getSource());
+                if (operation.getDomain() != com.entloom.crud.api.enums.CrudOperationDomain.COMMAND) continue;
+                if (commands.getIfAvailable() == null) throw new ValidationException("实体 " + resource + ": 写入动作缺少已启用执行器，来源: " + mapping.getSource());
+                if (!"ACTION".equals(operation.getOperation())) continue;
+                var meta = entities.getEntityMetas().stream().filter(entity ->
+                    entity.getResourceDescriptor().getResourceCode().equals(resource)).findFirst().orElseThrow();
+                var router = routers.getIfAvailable();
+                if (!(router instanceof com.entloom.crud.core.runtime.router.CommandActionSceneResolver))
+                    throw new ValidationException("实体 " + resource + ": 路由器不支持业务 Handler 契约校验");
+                try {
+                    var contract = ((com.entloom.crud.core.runtime.router.CommandActionSceneResolver) router).resolveActionContract(
+                        meta.getEntityType(), List.of(meta.getEntityType()), mapping.getScene());
+                    for (var access : contract.getRelatedAccess()) {
+                        var target = entities.getEntityMeta(access.getEntityType());
+                        var field = target == null ? null : target.resolveFieldMeta(access.getScopeField());
+                        if (target == null || field == null || field.isRelation() || target.getEntityType() == meta.getEntityType())
+                            throw new ValidationException("关联 DAO 实体或范围字段无效: " + access.getEntityType().getName() + "." + access.getScopeField());
+                    }
+                } catch (RuntimeException failure) {
+                    throw new ValidationException("实体 " + resource + ": 业务 Handler 缺失或关联 DAO 声明无效: " + mapping.getScene() + "，来源: " + mapping.getSource());
+                }
+            }
+        };
+    }
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(EntityMetaRegistry.class)
@@ -62,17 +99,29 @@ public class CrudPolicyAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(EntityUpdateValidator.class)
-    public EntityUpdateValidator entityUpdateValidator(ObjectProvider<org.springframework.validation.Validator> validators) {
-        return new SpringEntityUpdateValidator(validators);
+    @ConditionalOnMissingBean(EntityWriteValidator.class)
+    public EntityWriteValidator entityWriteValidator(ObjectProvider<org.springframework.validation.Validator> validators) {
+        return new SpringEntityWriteValidator(validators);
     }
 
     @Bean
     @ConditionalOnBean(EntityMetaRegistry.class)
     public ConfiguredAccessPolicies configuredAccessPolicies(CrudAccessProperties properties,
         EntityMetaRegistry entities, BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions,
-        CrudEntityDeclarations declarations) {
-        return new ConfiguredAccessPolicies(properties, entities, identities, definitions, declarations);
+        CrudEntityDeclarations declarations, ObjectProvider<EntityPolicyTemplate> templates,
+        ObjectProvider<EntityPolicyBinding> javaBindings) {
+        // 在生成操作目录前检查所有来源，重名始终报告策略冲突，不受 Bean 装配顺序影响。
+        var sources = new LinkedHashMap<String, String>();
+        properties.getPolicies().keySet().forEach(code -> sources.put(code, "ent.loom.crud.access.policies." + code));
+        templates.orderedStream().forEach(template -> {
+            String previous = sources.putIfAbsent(template.getCode(), template.getSource());
+            if (previous != null) {
+                throw new ValidationException("策略模板重复: " + template.getCode()
+                    + "，来源: " + previous + " / " + template.getSource());
+            }
+        });
+        return new ConfiguredAccessPolicies(properties, entities, identities, definitions, declarations,
+            javaBindings.orderedStream().map(EntityPolicyBinding::getEntityType).collect(Collectors.toSet()));
     }
 
     @Bean
@@ -127,10 +176,9 @@ public class CrudPolicyAutoConfiguration {
     public CrudBusinessAuthorizationAdapter crudBusinessAuthorizationAdapter(
         EntityMetaRegistry entities,
         CrudOperationMappingRegistry mappings,
-        BusinessAuthorizationService authorization,
-        ScenePolicyRegistry scenes
+        BusinessAuthorizationService authorization
     ) {
-        return new CrudBusinessAuthorizationAdapter(entities, mappings, authorization, scenes);
+        return new CrudBusinessAuthorizationAdapter(entities, mappings, authorization);
     }
 
     /**
@@ -172,18 +220,21 @@ public class CrudPolicyAutoConfiguration {
         JdbcDialect.class, CrudGovernanceAuditRecorder.class, CrudWriteTransactionExecutor.class})
     @ConditionalOnProperty(name = "ent.loom.crud.command.enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(AuthorizedCommandExecutor.class)
-    public JdbcAuthorizedCommandExecutor jdbcAuthorizedCommandExecutor(
+    public AuthorizedCommandExecutor jdbcAuthorizedCommandExecutor(
         EntityMetaRegistry entities, CrudBusinessAuthorizationAdapter authorization,
         GuardedSqlExecutor sqlExecutor, SqlSecurityGuard sqlGuard, JdbcDialect dialect,
         CrudGovernanceAuditRecorder audit, CrudWriteTransactionExecutor transactions,
         ObjectProvider<EntityDaoFactory> daos, ObjectProvider<CrudInputContract> contracts,
-        EntityUpdateValidator validator
+        EntityWriteValidator validator, com.entloom.crud.core.runtime.router.CommandRouter router,
+        ScenePolicyRegistry scenes
     ) {
         EntityDaoFactory factory = daos.getIfAvailable();
         AuthorizedBatchUpdateExecutor batchUpdates = factory == null ? null : new AuthorizedBatchUpdateExecutor(
             entities, authorization, factory, sqlGuard, audit, contracts.getIfAvailable(CrudInputContract::empty), validator);
-        return new JdbcAuthorizedCommandExecutor(entities, authorization, sqlExecutor, sqlGuard,
-            dialect, audit, transactions, batchUpdates, validator);
+        var jdbc = new JdbcAuthorizedCommandExecutor(entities, authorization, sqlExecutor, sqlGuard,
+            dialect, audit, transactions, batchUpdates, validator, contracts.getIfAvailable(CrudInputContract::empty));
+        return new com.entloom.crud.core.capability.command.engine.AuthorizedActionCommandExecutor(
+            jdbc, authorization, router, entities, transactions, audit, scenes);
     }
 
     @Bean

@@ -19,15 +19,25 @@ ent:
         http:
           enabled: true
     crud:
-      contracts:
-        create:
-          input-required-fields:
-            customer_profile: [displayName, email]
-        update:
-          forbidden-fields:
-            customer_profile: [id]
+      access:
+        identities:
+          operator:
+            id-type: LONG
+        policies:
+          profile-management:
+            actions: [view, create, update, delete]
+            access:
+              operator:
+                actions: [view, create, update, delete]
+                scope: all
       example:
         enabled: true
+        accounts:
+          - token: demo-profile-admin
+            subject-id: local-developer
+            identity:
+              code: operator
+              id: 1
       controller:
         enabled: true
         base-path: /api/ent-crud
@@ -40,14 +50,7 @@ ent:
       export:
         enabled: false
       sql-log:
-        mode: safe
+        mode: SAFE
       governance:
-        permission-rules:
-          - resource: customer_profile
-            action: '*'
-            scene: '*'
-            decision: ALLOW
-            subject-ids:
-              - local-developer
         audit:
           persist-to-jdbc: false

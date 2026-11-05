@@ -25,9 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** 使用实际配置、认证、授权及 JDBC 事务；测试不加入外层事务。 */
 @SpringBootTest(properties = {
     "spring.config.import=",
-    "spring.datasource.url=jdbc:h2:mem:commerce-merchant;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-    "spring.datasource.driver-class-name=org.h2.Driver", "spring.datasource.username=sa",
-    "spring.datasource.password="
+    "spring.datasource.url=${COMMERCE_TEST_JDBC_URL:jdbc:h2:mem:commerce-merchant;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}",
+    "spring.datasource.username=${COMMERCE_TEST_JDBC_USER:sa}",
+    "spring.datasource.password=${COMMERCE_TEST_JDBC_PASSWORD:}"
 })
 @AutoConfigureMockMvc
 class MerchantProductUpdateIntegrationTest {
@@ -46,6 +46,29 @@ class MerchantProductUpdateIntegrationTest {
     }
 
     @Test
+    void 公共列表详情仅返回上架商品白名单且不混合登录身份() throws Exception {
+        jdbc.update("update merchant_product set active=false where id=102");
+        mvc.perform(post("/api/ent-crud/merchantProduct/list").contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.items.length()").value(2))
+            .andExpect(jsonPath("$.data.items[0].name").exists())
+            .andExpect(jsonPath("$.data.items[0].version").doesNotExist())
+            .andExpect(jsonPath("$.data.items[0].active").doesNotExist());
+        mvc.perform(post("/api/ent-crud/merchantProduct/detail").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"options\":{\"filter\":{\"id\":102}}}"))
+            .andExpect(status().isNotFound());
+        mvc.perform(post("/api/ent-crud/merchantProduct/detail").header("Authorization", "Bearer demo-merchant-a")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"options\":{\"filter\":{\"id\":102}}}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.item.active").value(false));
+        mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer demo-customer-a"))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/api/ent-crud/merchantProduct/list").header("Authorization", "Bearer invalid"))
+            .andExpect(status().isForbidden());
+        mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"payload\":{\"id\":101,\"price\":1,\"version\":0}}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void 两个商家只读取自己的商品且请求不能切换身份() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/list").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"limit\":100}}").header("Authorization", "Bearer demo-merchant-a")
@@ -59,12 +82,29 @@ class MerchantProductUpdateIntegrationTest {
     }
 
     @Test
-    void 缺失凭证或无效凭证不能访问商家接口() throws Exception {
+    void 公共查询允许无凭证但无效凭证仍拒绝() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/list").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"options\":{\"limit\":100}}")).andExpect(status().isForbidden());
+                .content("{\"options\":{\"limit\":100}}")).andExpect(status().isOk());
         mvc.perform(post("/api/ent-crud/merchantProduct/list").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"options\":{\"limit\":100}}").header("Authorization", "Bearer unknown"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 私有策略仅允许所属商家删除商品() throws Exception {
+        String body = "{\"payload\":{\"id\":201},\"options\":{\"expectedVersion\":0}}";
+        mvc.perform(post("/api/ent-crud/merchantProduct/delete").contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/ent-crud/merchantProduct/delete").header("Authorization", "Bearer demo-customer-a")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/ent-crud/merchantProduct/delete").header("Authorization", "Bearer demo-merchant-a")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isConflict());
+        assertRow(201, "30.000000", 0L, 2001L);
+        mvc.perform(post("/api/ent-crud/merchantProduct/delete").header("Authorization", "Bearer demo-merchant-b")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.rows").value(1));
+        assertEquals(0, jdbc.queryForObject("select count(*) from merchant_product where id=201", Integer.class));
+        assertRow(101, "10.000000", 0L, 1001L);
     }
 
     @Test
@@ -233,7 +273,7 @@ class MerchantProductUpdateIntegrationTest {
     @Test
     void 通用接口不能绕过商家入口修改商品() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"payload\":{\"id\":101,\"merchantId\":2001,\"price\":1}}"))
+                .content("{\"payload\":{\"id\":101,\"merchantId\":2001,\"price\":1,\"version\":0}}"))
             .andExpect(status().isForbidden());
         assertRow(101, "10.000000", 0L, 1001L);
     }
@@ -241,7 +281,7 @@ class MerchantProductUpdateIntegrationTest {
     @Test
     void 商家商品默认开放但无商家身份时拒绝通用写入() throws Exception {
         mvc.perform(post("/api/ent-crud/merchantProduct/update").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"payload\":{\"id\":101,\"name\":\"越权\"}}"))
+                .content("{\"payload\":{\"id\":101,\"name\":\"越权\",\"version\":0}}"))
             .andExpect(status().isForbidden());
     }
 

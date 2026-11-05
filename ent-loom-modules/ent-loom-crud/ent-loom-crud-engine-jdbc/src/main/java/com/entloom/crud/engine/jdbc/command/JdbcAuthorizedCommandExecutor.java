@@ -15,6 +15,12 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.command.spec.DeleteTarget;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
 import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
+import com.entloom.crud.core.capability.dao.InsertConstraintValueBinder;
+import com.entloom.crud.core.capability.dao.RowConstraint;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
+import com.entloom.crud.core.runtime.validation.RequiredFieldValidator;
+import com.entloom.crud.core.runtime.validation.CreateDefaultValueApplier;
+import com.entloom.crud.core.governance.authorization.AuthorizationScope;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.CrudExceptionContext;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
@@ -38,7 +44,7 @@ import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.spec.SpecSnapshotFactory;
-import com.entloom.crud.core.runtime.validation.EntityUpdateValidator;
+import com.entloom.crud.core.runtime.validation.EntityWriteValidator;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
@@ -53,7 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** 根实体按次授权写入入口；批量 UPDATE 复用授权 DAO 执行。 */
+/** 根实体按次授权 CREATE/UPDATE/DELETE；批量 UPDATE 复用授权 DAO 执行。 */
 public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExecutor {
     private final EntityMetaRegistry entities;
     private final CrudBusinessAuthorizationAdapter authorization;
@@ -63,7 +69,8 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
     private final CrudGovernanceAuditRecorder audit;
     private final CrudWriteTransactionExecutor transactions;
     private final AuthorizedBatchUpdateExecutor batchUpdates;
-    private final EntityUpdateValidator validator;
+    private final EntityWriteValidator validator;
+    private final CrudInputContract contracts;
     private final JdbcAuthorizationScopeCompiler scopes = new JdbcAuthorizationScopeCompiler();
     private final CommandPayloadMapper payloadMapper = new CommandPayloadMapper();
 
@@ -76,14 +83,15 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         CrudGovernanceAuditRecorder audit,
         CrudWriteTransactionExecutor transactions
     ) {
-        this(entities, authorization, sqlExecutor, sqlGuard, dialect, audit, transactions, null, (meta, values) -> {});
+        this(entities, authorization, sqlExecutor, sqlGuard, dialect, audit, transactions, null,
+            (meta, values) -> {}, CrudInputContract.empty());
     }
 
     public JdbcAuthorizedCommandExecutor(
         EntityMetaRegistry entities, CrudBusinessAuthorizationAdapter authorization,
         GuardedSqlExecutor sqlExecutor, SqlSecurityGuard sqlGuard, JdbcDialect dialect,
         CrudGovernanceAuditRecorder audit, CrudWriteTransactionExecutor transactions,
-        AuthorizedBatchUpdateExecutor batchUpdates, EntityUpdateValidator validator
+        AuthorizedBatchUpdateExecutor batchUpdates, EntityWriteValidator validator, CrudInputContract contracts
     ) {
         this.entities = Objects.requireNonNull(entities, "实体元数据注册表不能为空");
         this.authorization = Objects.requireNonNull(authorization, "CRUD 业务授权适配器不能为空");
@@ -93,7 +101,8 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         this.audit = Objects.requireNonNull(audit, "治理审计记录器不能为空");
         this.transactions = transactions;
         this.batchUpdates = batchUpdates;
-        this.validator = Objects.requireNonNull(validator, "更新校验器不能为空");
+        this.validator = Objects.requireNonNull(validator, "写入校验器不能为空");
+        this.contracts = Objects.requireNonNull(contracts, "输入契约不能为空");
     }
 
     /** 仅供不需要事务能力探测的构造场景使用；执行时仍会拒绝缺失事务执行器。 */
@@ -123,18 +132,27 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             CommandSpec<P> spec = prepare(source);
             invocation.spec = spec;
             EntityMeta meta = requireMeta(spec);
-            Target target = target(meta, spec);
+            Target existingTarget = spec.getOp() == CommandOperation.CREATE ? null : target(meta, spec);
+            String targetId = existingTarget == null ? null : existingTarget.targetId;
             invocation.operation = spec.getOp();
             invocation.meta = meta;
-            invocation.targetId = target.targetId;
+            invocation.targetId = targetId;
             invocation.stage = CrudErrorStage.GOVERNANCE;
             AuthorizationResult result = authorization.authorize(visitor, spec.toBuilder()
-                .subject(null).targetFilters(Collections.<QueryFilter>emptyList()).build(), target.targetId);
+                .subject(null).targetFilters(Collections.<QueryFilter>emptyList()).build(), targetId);
             invocation.result = result;
-            requireApplicable(visitor, meta, spec.getOp(), target.targetId, result);
+            requireApplicable(visitor, meta, spec.getOp(), targetId, result);
+            Target target = existingTarget == null ? createTarget(meta, spec) : existingTarget;
             if (spec.getOp() == CommandOperation.UPDATE) {
                 requireWriteFields(meta, target.values, result.getFields());
+                try {
+                    contracts.validateUpdate(target.values, meta);
+                } catch (IllegalArgumentException invalid) {
+                    throw new ValidationException(invalid.getMessage());
+                }
                 validator.validate(meta, target.values);
+            } else if (spec.getOp() == CommandOperation.CREATE) {
+                prepareCreate(meta, target, result);
             }
             CommandSpec<P> guardSpec = spec.toBuilder()
                 .payload((P) new WriteCommand<Object>(spec.getOp(), target.id, target.values,
@@ -176,8 +194,8 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             throw new ValidationException("命令规范(spec)不能为空");
         }
         CommandSpec<P> spec = SpecSnapshotFactory.copy(source);
-        if (spec.getOp() != CommandOperation.UPDATE && spec.getOp() != CommandOperation.DELETE) {
-            throw new PermissionDeniedException("受授权 JDBC 命令仅支持单目标 UPDATE/DELETE");
+        if (spec.getOp() != CommandOperation.CREATE && spec.getOp() != CommandOperation.UPDATE && spec.getOp() != CommandOperation.DELETE) {
+            throw new PermissionDeniedException("受授权 JDBC 命令仅支持单条 CREATE、单目标 UPDATE/DELETE");
         }
         if (spec.getRootType() == null || spec.getEntityClasses().size() > 1
             || (spec.getEntityClasses().size() == 1 && spec.getEntityClasses().get(0) != spec.getRootType())
@@ -279,6 +297,91 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         return new Target(id, String.valueOf(id), values, expectedVersion);
     }
 
+    private Target createTarget(EntityMeta meta, CommandSpec<?> spec) {
+        Object payload = spec.getPayload();
+        Object id = null;
+        if (spec.isDryRun() || (spec.getIdempotencyKey() != null && !spec.getIdempotencyKey().isBlank())) {
+            throw new ValidationException("CREATE 不支持试运行或幂等键");
+        }
+        if (!spec.getTargetFilters().isEmpty() || spec.getExpectedVersion() != null
+            || payload instanceof BatchCommand<?> || payload instanceof DeleteTarget) {
+            throw new PermissionDeniedException("CREATE 不接受目标条件、预期版本或批量目标");
+        }
+        if (payload instanceof WriteCommand<?>) {
+            WriteCommand<?> command = (WriteCommand<?>) payload;
+            if (command.getOp() != null && command.getOp() != CommandOperation.CREATE
+                || !command.getTargetFilters().isEmpty() || command.getExpectedVersion() != null) {
+                throw new ValidationException("CREATE 命令形状不一致");
+            }
+            id = command.getId();
+            payload = command.getValues();
+        }
+        Map<String, Object> values = new LinkedHashMap<>(payloadMapper.toMap(payload));
+        Object valueId = values.remove(meta.getIdField());
+        if (id != null && valueId != null && !sameValue(id, valueId)) {
+            throw new ValidationException("CREATE 主键与载荷不一致");
+        }
+        if (id == null) id = valueId;
+        if (meta.getIdPolicy() == EntityIdPolicy.GENERATED) {
+            if (id != null) throw new ValidationException("GENERATED 主键实体不能显式指定主键");
+        } else {
+            id = RowConstraintNormalizer.normalizeValue(meta.resolveFieldMeta(meta.getIdField()), scalarId(id, meta));
+        }
+        // 创建授权绑定业务操作，不借未来的主键冒充已有目标。
+        return new Target(id, null, values, null);
+    }
+
+    private void prepareCreate(EntityMeta meta, Target target, AuthorizationResult result) {
+        for (String name : target.values.keySet()) {
+            EntityFieldMeta field = meta.resolveFieldMeta(name);
+            if (field == null || field.isRelation() || field.isImmutable()
+                || name.equals(meta.getLogicDeleteField()) || "version".equals(name)
+                || (!field.isScopeField() && (!field.isWritable()
+                    || !result.getFields().allows(AuthorizationFields.Use.WRITE, name)))) {
+                throw new PermissionDeniedException("创建不允许输入字段: " + name);
+            }
+            if (field.isScopeField() && !containsScopeField(result.getScope(), name)) {
+                throw new PermissionDeniedException("创建缺少字段归属授权: " + name);
+            }
+        }
+        new RequiredFieldValidator(contracts).validateCreateValues(target.values, meta, target.id);
+        new CreateDefaultValueApplier().applyToValues(target.values, meta);
+        target.values.replaceAll((name, value) -> RowConstraintNormalizer.normalizeValue(meta.resolveFieldMeta(name), value));
+        Map<String, Object> scoped = InsertConstraintValueBinder.bind(insertConstraint(result.getScope()), meta, target.values);
+        target.values.clear();
+        target.values.putAll(scoped);
+        if (meta.getLogicDeleteField() != null && !meta.getLogicDeleteField().isBlank()) {
+            target.values.put(meta.getLogicDeleteField(), JdbcLogicDeleteValues.notDeleted(meta));
+        }
+        EntityFieldMeta version = meta.resolveFieldMeta("version");
+        if (version != null) {
+            Class<?> type = version.getJavaType();
+            if (type != Long.class && type != long.class && type != Integer.class && type != int.class) {
+                throw new ValidationException("version 字段必须是 Long 或 Integer");
+            }
+            target.values.put("version", RowConstraintNormalizer.normalizeValue(version, 0L));
+        }
+        if (target.id != null) target.values.put(meta.getIdField(), target.id);
+        validator.validateCreate(meta, target.values);
+    }
+
+    private boolean containsScopeField(AuthorizationScope scope, String field) {
+        if (field.equals(scope.getField())) return true;
+        return scope.getChildren().stream().anyMatch(child -> containsScopeField(child, field));
+    }
+
+    /** 创建只接受可确定的归属范围；复用 DAO 的范围填充与冲突校验。 */
+    private RowConstraint insertConstraint(AuthorizationScope scope) {
+        switch (scope.getKind()) {
+            case ALL: return RowConstraint.unrestricted();
+            case EQUAL: return RowConstraint.eq(scope.getField(), scope.getValues().get(0));
+            case IN: return RowConstraint.in(scope.getField(), scope.getValues());
+            case AND:
+                return RowConstraint.and(scope.getChildren().stream().map(this::insertConstraint).toArray(RowConstraint[]::new));
+            default: throw new PermissionDeniedException("CREATE 不支持授权范围: " + scope.getKind());
+        }
+    }
+
     private Object idFromFilters(EntityMeta meta, List<QueryFilter> filters) {
         if (filters == null || filters.size() != 1) {
             throw new PermissionDeniedException("单目标写入必须提供唯一主键目标");
@@ -336,6 +439,7 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
 
     private Object executeSql(VisitorContext visitor, CommandSpec<?> spec, EntityMeta meta,
                               Target target, AuthorizationResult result) {
+        if (spec.getOp() == CommandOperation.CREATE) return executeCreate(spec, meta, target);
         JdbcAuthorizationScopeCompiler.Predicate scope = scopes.compile(result.getScope(), meta, dialect);
         List<String> predicates = new ArrayList<String>();
         List<Object> whereArgs = new ArrayList<Object>();
@@ -381,6 +485,31 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         return result(spec, rows);
     }
 
+    private Object executeCreate(CommandSpec<?> spec, EntityMeta meta, Target target) {
+        if (target.values.isEmpty()) throw new ValidationException("创建载荷没有可写字段");
+        List<String> columns = new ArrayList<>();
+        List<Object> args = new ArrayList<>();
+        target.values.forEach((name, value) -> {
+            EntityFieldMeta field = meta.resolveFieldMeta(name);
+            if (field == null || field.isRelation() || meta.resolveColumn(name) == null) {
+                throw new ValidationException("创建字段没有持久化列: " + name);
+            }
+            columns.add(dialect.quoteIdentifier(meta.resolveColumn(name)));
+            args.add(value);
+        });
+        String sql = "insert into " + dialect.quoteIdentifier(meta.getTable()) + " (" + String.join(",", columns)
+            + ") values (" + String.join(",", Collections.nCopies(args.size(), "?")) + ")";
+        Object id = target.id;
+        if (meta.getIdPolicy() == EntityIdPolicy.GENERATED) {
+            Object generated = sqlExecutor.insertAndReturnGeneratedKey(sql, args, context(spec));
+            if (generated == null) throw new ValidationException("数据库生成主键未回填: " + meta.getIdField());
+            id = RowConstraintNormalizer.normalizeValue(meta.resolveFieldMeta(meta.getIdField()), scalarId(generated, meta));
+        } else if (sqlExecutor.update(sql, args, context(spec)) != 1) {
+            throw new ValidationException("单条创建影响行数异常");
+        }
+        return result(spec, 1, id);
+    }
+
     private void appendNotDeleted(EntityMeta meta, List<String> predicates, List<Object> args) {
         String field = meta.getLogicDeleteField();
         if (field == null || field.trim().isEmpty()) return;
@@ -390,11 +519,16 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         args.add(JdbcLogicDeleteValues.notDeleted(meta));
     }
 
-    @SuppressWarnings("unchecked")
     private <R> R result(CommandSpec<?> spec, int rows) {
+        return result(spec, rows, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <R> R result(CommandSpec<?> spec, int rows, Object createdId) {
         if (spec.getResultType() == Void.class) return null;
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("rows", rows);
+        if (createdId != null) data.put("id", createdId);
         Class<?> type = spec.getResultType();
         if (type != null && CommandResult.class.isAssignableFrom(type)) return (R) CommandResult.success(data);
         if (type != null && Number.class.isAssignableFrom(type)) return (R) Integer.valueOf(rows);

@@ -7,7 +7,6 @@ import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
 import com.entloom.crud.engine.jdbc.idempotency.JdbcIdempotencyStore;
 import com.entloom.crud.starter.config.CrudProperties;
 import java.time.Clock;
-import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,7 +36,7 @@ public class CrudIdempotencyConfiguration {
             jdbcTemplate,
             idempotency.getTableName(),
             Clock.systemUTC(),
-            Duration.ofHours(idempotency.getRetentionHours()),
+            idempotency.getRetention(),
             jdbcDialect
         );
         if (idempotency.isAutoInitializeSchema()) {
@@ -52,7 +51,7 @@ public class CrudIdempotencyConfiguration {
     @Bean
     @ConditionalOnMissingBean(IdempotencyStore.class)
     public IdempotencyStore inMemoryIdempotencyStore(CrudProperties properties) {
-        return new InMemoryIdempotencyStore(Duration.ofHours(properties.getIdempotency().getRetentionHours()).toMillis());
+        return new InMemoryIdempotencyStore(properties.getIdempotency().getRetention().toMillis());
     }
 
     /**

@@ -20,6 +20,7 @@ import com.entloom.crud.core.runtime.model.input.CrudNativeEntityModel;
 import com.entloom.meta.adapter.crud.model.CrudRelationRuntimeModel;
 import com.entloom.meta.adapter.crud.model.CrudRuntimeProperties;
 import com.entloom.crud.core.runtime.model.input.CrudNativeAnnotationParser;
+import com.entloom.crud.core.runtime.model.parser.RelationNavigationFieldResolver;
 import com.entloom.crud.core.convention.CrudConvention;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.meta.EntMetaId;
@@ -507,7 +508,12 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
             RelationEdge edge = new RelationEdge();
             edge.setFromEntity(model.entityClass());
             edge.setToEntity(targetClass);
-            edge.setRelationField(relation.relationField());
+            MetaDiagnosticResult<String> navigation = RelationNavigationFieldResolver.resolve(
+                model.entityClass(), relation.relationField(), relation.sourceField().value(),
+                targetClass, relation.cardinality().value()
+            );
+            diagnostics.addAll(navigation.diagnostics());
+            edge.setRelationField(navigation.value());
             edge.setFromField(relation.sourceField().value());
             edge.setToField(relation.targetField().value());
             edge.setScope(relation.scope().value());

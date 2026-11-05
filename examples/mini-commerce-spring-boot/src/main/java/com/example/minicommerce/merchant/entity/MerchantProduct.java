@@ -2,6 +2,7 @@ package com.example.minicommerce.merchant.entity;
 
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.annotations.EntRelation;
 import java.math.BigDecimal;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -23,6 +24,7 @@ public class MerchantProduct {
     private Long id;
 
     @EntField("商家 ID")
+    @EntRelation(targetEntity = "merchant")
     private Long merchantId;
 
     @EntField("商品名称")

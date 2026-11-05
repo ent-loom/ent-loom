@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
+# 商家名称公开展示，法人资料仅向所属商家及超级管理员开放。
+crud:
+  # 本体主键参与身份范围匹配，不作为自动注入的归属字段。
+  ownership: []
+  relations:
+    merchant: id
+  access:
+    public:
+      actions: [view]
+      scope: all
+      fields:
+        RETURN:
+          mode: INCLUDE
+          fields: [id, name]
+    merchant:
+      actions: [view, update]

@@ -10,6 +10,10 @@ import java.lang.annotation.Target;
 
 /**
  * 字段级关系元信息。
+ *
+ * <p>外键引用优先声明在 ID 属性上，例如 customerId；CRUD 可按名称与目标类型绑定 customer 单对象导航属性。
+ * CRUD 可结合已注册的唯一反向引用和集合泛型补全展开映射；歧义或特殊连接由组件显式配置。
+ * 关系元信息本身不触发加载或级联操作。
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

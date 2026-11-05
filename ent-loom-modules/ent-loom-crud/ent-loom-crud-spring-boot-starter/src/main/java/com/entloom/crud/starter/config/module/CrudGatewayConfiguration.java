@@ -70,7 +70,6 @@ import com.entloom.crud.core.capability.stats.StatsSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.time.Duration;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -264,8 +263,8 @@ public class CrudGatewayConfiguration {
         CrudProperties.ImportExport importExport = properties.getImportExport();
         return new LocalFileService(
             importExport.getStorageDirectory() + "/files",
-            importExport.getMaxFileBytes(),
-            Duration.ofHours(importExport.getRetentionHours())
+            importExport.getMaxFileSize().toBytes(),
+            importExport.getRetention()
         );
     }
 

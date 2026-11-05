@@ -3,6 +3,7 @@ package com.example.minicommerce.merchant.entity;
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.annotations.EntRelation;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,6 +17,7 @@ public class MerchantArticle {
     private Long id;
 
     @EntField("所属商户 ID")
+    @EntRelation(targetEntity = "merchant")
     private Long merchantId;
 
     @EntField("标题")

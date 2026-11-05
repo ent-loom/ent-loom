@@ -29,7 +29,7 @@ def run(command, env, **kwargs):
 
 def request(url, body=None):
     data = None if body is None else json.dumps(body).encode()
-    req = Request(url, data=data, headers={"Content-Type": "application/json"})
+    req = Request(url, data=data, headers={"Content-Type": "application/json", "Authorization": "Bearer demo-profile-admin"})
     with urlopen(req, timeout=5) as response:
         return json.load(response)
 
@@ -129,7 +129,7 @@ def verify(repository=None, skip_build=False):
         (logs / "detail.json").write_text(json.dumps(detail, ensure_ascii=False, indent=2))
         check(detail.get("success") is True, f"DETAIL 失败：{detail}")
         item = detail["data"]["item"]
-        check(int(item["id"]) == created_id and item["display_name"] == "Ada Lovelace"
+        check(int(item["id"]) == created_id and item["displayName"] == "Ada Lovelace"
               and item["email"] == "ada@example.com", "DETAIL 字段不匹配")
         sql = run(compose + ["exec", "-T", "-e", "MYSQL_PWD=customer_profile_verify", "mysql",
                             "mysql", "-ucustomer_profile", "-N", "-B", "customer_profile", "-e",

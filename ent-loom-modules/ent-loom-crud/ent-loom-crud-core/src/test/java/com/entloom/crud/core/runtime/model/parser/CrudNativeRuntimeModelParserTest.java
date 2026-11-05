@@ -20,6 +20,7 @@ import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.value.MetaValueSource;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -168,6 +169,29 @@ class CrudNativeRuntimeModelParserTest {
     }
 
     @Test
+    void CRUD独立模式同样将外键绑定到单对象导航属性() {
+        EntityMetaRegistry registry = registry(NavigatedLine.class, BatchEntity.class);
+
+        List<RelationEdge> edges = registry.getRelationGraph(NavigatedLine.class).outgoingOf(NavigatedLine.class);
+
+        Assertions.assertEquals(1, edges.size());
+        Assertions.assertEquals("batch", edges.get(0).getRelationField());
+        Assertions.assertEquals("batchId", edges.get(0).getFromField());
+        Assertions.assertEquals(RelationCardinality.MANY_TO_ONE, edges.get(0).getCardinality());
+        Assertions.assertTrue(registry.getEntityMeta(NavigatedLine.class).getFieldMetas().containsKey("batchId"));
+        Assertions.assertFalse(registry.getEntityMeta(NavigatedLine.class).getFieldMetas().containsKey("batch"));
+    }
+
+    @Test
+    void CRUD独立模式拒绝同名但类型不符的导航属性() {
+        MetaDiagnosticException exception = Assertions.assertThrows(MetaDiagnosticException.class,
+            () -> registry(WrongNavigationLine.class, BatchEntity.class));
+
+        Assertions.assertTrue(exception.diagnostics().stream().anyMatch(diagnostic ->
+            diagnostic.code() == MetaDiagnosticCode.RELATION_NAVIGATION_TYPE_MISMATCH));
+    }
+
+    @Test
     void should_build_resource_descriptor_from_entity_meta() {
         EntityMetaRegistry registry = registry(NamedEntity.class);
 
@@ -224,6 +248,26 @@ class CrudNativeRuntimeModelParserTest {
     @EntCrudEntity
     private static class BatchEntity {
         Long id;
+    }
+
+    @EntCrudEntity
+    private static class NavigatedLine {
+        Long id;
+
+        @EntCrudField(targetClass = BatchEntity.class)
+        Long batchId;
+
+        BatchEntity batch;
+    }
+
+    @EntCrudEntity
+    private static class WrongNavigationLine {
+        Long id;
+
+        @EntCrudField(targetClass = BatchEntity.class)
+        Long batchId;
+
+        String batch;
     }
 
     @EntCrudEntity

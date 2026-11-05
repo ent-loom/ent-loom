@@ -1,27 +1,45 @@
 # yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
-# 订单：关系结构继续来自 Java，身份字段差异集中声明。
+# 订单：默认只查值属性，客户与明细按请求显式展开。
 crud:
-  policy: order-read
-  fields:
+  access:
+    policy: workflow
+    actions:
+      add: [create, cancel]
     customer:
-      FILTER:
-        mode: EXCLUDE
-        fields: [customerId, totalAmount]
-      EXPAND:
-        mode: ALL
+      actions:
+        add: [create, cancel]
+      fields:
+        FILTER:
+          mode: EXCLUDE
+          fields: [customerId, totalAmount]
     merchant:
-      FILTER:
-        mode: EXCLUDE
-        fields: [merchantId, totalAmount]
-      EXPAND:
-        mode: EXCLUDE
-        fields: [customer.email]
+      actions:
+        add: [cancel]
+      fields:
+        FILTER:
+          mode: EXCLUDE
+          fields: [merchantId, totalAmount]
+    super-admin:
+      actions:
+        remove: [create]
+  operations:
+    create: []
+      # EXPAND:
+      #   mode: INCLUDE
+      #   fields: [customer.id, customer.displayName, orderItemList.id, orderItemList.orderId,
+      #     orderItemList.merchantProductId, orderItemList.productName, orderItemList.unitPrice,
+      #     orderItemList.quantity, orderItemList.lineAmount]
   actions:
-    place:
+    create:
       name: 下单
       entries:
-        consumer:
+        commerce:
           capability: place-order
+    cancel:
+      name: 取消订单
+      entries:
+        commerce:
+          capability: cancel-order
 ddl:
   indexes:
     - name: idx_order_customer

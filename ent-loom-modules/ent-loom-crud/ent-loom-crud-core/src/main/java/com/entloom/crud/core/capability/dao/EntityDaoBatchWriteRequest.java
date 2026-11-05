@@ -62,7 +62,7 @@ public final class EntityDaoBatchWriteRequest<T, ID> {
             } else if (operation != item.getOperation()) {
                 throw new ValidationException("批量写入不能混合 UPDATE 和 DELETE");
             }
-            if (!item.getOperation().name().toLowerCase(java.util.Locale.ROOT)
+            if (!("batch-" + item.getOperation().name().toLowerCase(java.util.Locale.ROOT))
                 .equals(authorization.getOperation().getOperationCode())) {
                 throw new PermissionDeniedException("批量写入形状与授权操作不一致");
             }

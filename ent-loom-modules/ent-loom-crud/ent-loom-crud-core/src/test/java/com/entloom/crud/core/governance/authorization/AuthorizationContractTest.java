@@ -179,10 +179,10 @@ class AuthorizationContractTest {
     void batch_write_request_binds_targets_versions_and_all_or_nothing() {
         VisitorContext visitor = request("1").getVisitor();
         EntityDaoAuthorizationContext first = batchAuthorization(
-            visitor, "1", AuthorizationScope.equal("tenantId", "tenant-a"), "update"
+            visitor, "1", AuthorizationScope.equal("tenantId", "tenant-a"), "batch-update"
         );
         EntityDaoAuthorizationContext second = batchAuthorization(
-            visitor, "2", AuthorizationScope.equal("tenantId", "tenant-a"), "update"
+            visitor, "2", AuthorizationScope.equal("tenantId", "tenant-a"), "batch-update"
         );
         EntityDaoBatchAuthorizationContext authorization = EntityDaoBatchAuthorizationContext.of(
             Arrays.asList(first, second)
@@ -207,8 +207,8 @@ class AuthorizationContractTest {
 
         EntityDaoBatchWriteRequest<String, Long> delete = EntityDaoBatchWriteRequest.of(
             EntityDaoBatchAuthorizationContext.of(Arrays.asList(
-                batchAuthorization(visitor, "1", AuthorizationScope.all(), "delete"),
-                batchAuthorization(visitor, "2", AuthorizationScope.all(), "delete"))),
+                batchAuthorization(visitor, "1", AuthorizationScope.all(), "batch-delete"),
+                batchAuthorization(visitor, "2", AuthorizationScope.all(), "batch-delete"))),
             Arrays.asList(
                 EntityDaoBatchWriteRequest.Item.delete("1", 1L),
                 EntityDaoBatchWriteRequest.Item.delete("2", 2L, 4L)

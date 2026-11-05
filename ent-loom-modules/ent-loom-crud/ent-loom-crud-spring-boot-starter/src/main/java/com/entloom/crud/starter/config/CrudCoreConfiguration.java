@@ -13,7 +13,6 @@ import com.entloom.crud.starter.config.module.CrudStatsEngineConfiguration;
 import java.util.Map;
 import java.util.List;
 import java.util.LinkedHashMap;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
@@ -27,8 +26,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
  * <p>导入顺序按依赖关系组织：公共能力 -> 幂等/安全 -> 引擎 -> 网关。
  */
 @Configuration
-@EnableConfigurationProperties(CrudProperties.class)
 @Import({
+    CrudPropertiesConfiguration.class,
     CrudEntityDeclarationConfiguration.class,
     CrudCommonConfiguration.class,
     CrudIdempotencyConfiguration.class,

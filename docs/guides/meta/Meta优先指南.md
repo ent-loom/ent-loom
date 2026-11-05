@@ -64,34 +64,49 @@ public class Student {
 
 数据库可空性独立：DDL 默认非空，可空例外使用 `@EntDdlField(nullable = OptionalBoolean.TRUE)`，主键不可为空。默认值另行声明，不自动补零或空字符串。
 
-通用关系同样由 Meta 声明：
+通用关系同样由 Meta 声明，外键引用优先标注在 ID 属性上：
+
+> 默认弱关系采用“唯一映射自动补全，加载与授权显式选择”，见 [核心契约](../../architecture/core/元数据约定与裁决契约.md#21-实体关系与结构属性默认弱关系)。结构属性只需保留 `@EntField`，CRUD 复用已声明外键及确定的属性类型补全映射；普通查询不会加载关联。商城示例通过请求展开和字段授权复用通用查询，无需手工查询服务或重复的组件标记。
 
 ```java
-@EntField("班级")
-@EntRelation(
-    targetEntity = "class",
-    sourceField = "classId",
-    targetField = "id",
-    cardinality = RelationCardinality.MANY_TO_ONE
-)
-private Long classId;
+@EntField("客户 ID")
+@EntRelation(targetEntity = "customer")
+private Long customerId;
+
+@EntField("客户")
+private Customer customer;
 ```
 
-`sourceField` 为空时默认使用被注解字段名，可省略重复配置。
+`targetEntity` 显式指定已注册的目标实体标识；`sourceField` 为空时取被注解字段名，`targetField` 默认 `id`，关系基数默认多对一。
+
+CRUD 将 `customerId` 上的关系按 `Id` 后缀约定绑定到 `customer` 单对象导航属性，并校验其类型必须与目标实体一致；该规则由 CRUD Core 提供，CRUD-only 使用 `@EntCrudField` 声明外键时同样适用。绑定结果通过 `INFERRED_VALUE_USED` 诊断保留规则来源；同名属性类型不符产生 `RELATION_NAVIGATION_TYPE_MISMATCH` ERROR，默认拒绝启动。
+
+没有 `customer` 属性时，关系仍以 `customerId` 为关系字段存在；不会按类型搜索其他不同名属性，也不会仅因对象属性存在就创建关系。`customerId` 保留数据库列映射，`customer` 不映射当前表列。该绑定只生成关系元数据，不自动加载或开启级联操作。
+
+非标准命名可以在导航属性上显式声明映射，例如 `@EntRelation(targetEntity = "customer", sourceField = "customerId") private Customer buyer;`；此时不再在 ID 属性上重复声明同一关系。
+
+集合关系可以复用子实体已声明的唯一反向引用，无需重复声明目标、外键和基数：
+
+```java
+@EntField("订单明细")
+private List<OrderItem> orderItemList;
+
+// OrderItem 上的外键关系事实。
+@EntRelation(targetEntity = "order")
+private Long orderId;
+```
+
+CRUD 根据 `List<OrderItem>` 与唯一反向多对一引用补全 `Order.id → OrderItem.orderId`。这仅产生候选映射，HTTP 仍需显式 `expandRelations` 和父资源授权。声明式策略省略 `EXPAND` 时开放候选普通字段，仅字段差异需要配置；`NONE` 可关闭展开。多个反向外键时不猜测，需要在集合上通过 `@EntCrudField` 指定目标字段及基数；无关系事实或泛型未知时不生成映射。显式一对多省略 `sourceField` 时使用当前实体主键；自动补全则保留反向关系的实际连接键。
 
 ## 组件覆盖
 
-只有出现组件专属行为时才增加组件注解。例如 CRUD 需要目标类型或加载策略：
+只有出现组件专属行为时才增加组件注解。例如 CRUD 需要覆盖默认连接策略：
 
 ```java
-@EntField("班级")
-@EntRelation(targetEntity = "class", targetField = "id")
-@EntCrudField(
-    targetClass = SchoolClass.class,
-    scope = RelationScope.LOCAL_DB,
-    joinType = JoinType.LEFT
-)
-private Long classId;
+@EntField("客户 ID")
+@EntRelation(targetEntity = "customer")
+@EntCrudField(joinType = JoinType.INNER)
+private Long customerId;
 ```
 
 DOC 的展示名称、示例和关系备注也只在与 Meta 通用定义不同时覆盖。不要为了“注册能力”给每个字段机械添加

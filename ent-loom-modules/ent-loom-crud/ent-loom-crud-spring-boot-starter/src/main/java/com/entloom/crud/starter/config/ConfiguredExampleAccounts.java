@@ -8,7 +8,6 @@ import com.entloom.crud.core.governance.admission.CredentialAuthentication;
 import com.entloom.crud.starter.web.access.HttpAccessAuthentication;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.server.PathContainer;
@@ -24,17 +23,14 @@ public final class ConfiguredExampleAccounts {
 
     public ConfiguredExampleAccounts(CrudExampleProperties properties, ConfiguredBusinessIdentities identities) {
         defaultEntry = requireText(properties.getDefaultAccessEntry(), "默认入口");
-        if (properties.getAccounts().isEmpty()) return;
-        properties.getRoutes().forEach((pattern, entry) -> routes.put(
-            PathPatternParser.defaultInstance.parse(requireText(pattern, "路由模式")), requireText(entry, "路由入口")));
-        Map<String, BusinessIdentityDefinition> fields = new LinkedHashMap<>();
-        identities.definitions().values().forEach(definition -> {
-            String field = normalize(definition.getIdField());
-            if (field.equals("token") || field.equals("subjectid") || fields.putIfAbsent(field, definition) != null) {
-                throw new IllegalArgumentException("演示账号身份字段重复或与凭证字段冲突: " + definition.getIdField());
-            }
+        properties.getRoutes().forEach(route -> {
+            if (route == null) throw new IllegalArgumentException("演示路由规则不能为空");
+            PathPattern pattern = PathPatternParser.defaultInstance.parse(requireText(route.getPath(), "路由 path"));
+            String entry = requireText(route.getEntry(), "路由 entry");
+            String previous = routes.putIfAbsent(pattern, entry);
+            if (previous != null) throw new IllegalArgumentException("演示路由 path 重复: " + route.getPath());
         });
-        for (Map<String, String> source : properties.getAccounts()) compileAccount(source, fields);
+        for (CrudExampleProperties.Account source : properties.getAccounts()) compileAccount(source, identities.definitions());
     }
 
     /** 每次准入重新核对已认证主体、身份码和 ID，不按身份类型匹配。 */
@@ -61,21 +57,14 @@ public final class ConfiguredExampleAccounts {
             UUID.randomUUID().toString(), null);
     }
 
-    private void compileAccount(Map<String, String> source, Map<String, BusinessIdentityDefinition> fields) {
-        Map<String, String> values = new LinkedHashMap<>();
-        source.forEach((key, value) -> {
-            if (values.putIfAbsent(normalize(key), requireText(value, "账号字段 " + key)) != null) {
-                throw new IllegalArgumentException("演示账号字段重复: " + key);
-            }
-        });
-        String token = requireText(values.remove("token"), "账号 token");
-        String subjectId = requireText(values.remove("subjectid"), "账号 subject-id");
-        if (values.size() != 1) throw new IllegalArgumentException("演示账号必须且只能声明一个业务身份 ID 字段");
-        Map.Entry<String, String> coordinate = values.entrySet().iterator().next();
-        BusinessIdentityDefinition definition = fields.get(coordinate.getKey());
-        if (definition == null) throw new IllegalArgumentException("演示账号引用未定义的身份字段: " + coordinate.getKey());
-        String id = definition.snapshot(coordinate.getValue()).getIdentityId();
-        String code = definition.getCode();
+    private void compileAccount(CrudExampleProperties.Account source, Map<String, BusinessIdentityDefinition> identities) {
+        if (source == null || source.getIdentity() == null) throw new IllegalArgumentException("演示账号必须声明 identity");
+        String token = requireText(source.getToken(), "账号 token");
+        String subjectId = requireText(source.getSubjectId(), "账号 subject-id");
+        String code = requireText(source.getIdentity().getCode(), "账号 identity.code");
+        BusinessIdentityDefinition definition = identities.get(code);
+        if (definition == null) throw new IllegalArgumentException("演示账号引用未定义的身份码: " + code);
+        String id = definition.snapshot(requireText(source.getIdentity().getId(), "账号 identity.id")).getIdentityId();
         if (subjects.putIfAbsent(subjectId, new Account(code, id)) != null) {
             throw new IllegalArgumentException("演示账号主体必须唯一");
         }
@@ -84,10 +73,6 @@ public final class ConfiguredExampleAccounts {
         if (credentials.putIfAbsent("Bearer " + token, authentication) != null) {
             throw new IllegalArgumentException("演示账号令牌必须唯一");
         }
-    }
-
-    private static String normalize(String value) {
-        return value.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
     }
 
     private static String requireText(String value, String name) {

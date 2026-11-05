@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** 不解释业务含义的只读声明节点；错误始终携带文件、资源码与配置路径。 */
@@ -48,6 +49,14 @@ public final class DeclarationNode {
         return (Integer) value;
     }
 
+    /** 读取 YAML 数值，保留解析器提供的整数或小数类型。 */
+    public Number number() {
+        if (!(value instanceof Number)) throw error("必须为数值，不能为 null");
+        return (Number) value;
+    }
+
+    public boolean isList() { return value instanceof List; }
+
     public java.util.List<DeclarationNode> elements() {
         if (!(value instanceof List)) throw error("必须为列表，不能为 null");
         List<DeclarationNode> nodes = new ArrayList<>();
@@ -60,6 +69,23 @@ public final class DeclarationNode {
         if (!(value instanceof String) || ((String) value).trim().isEmpty()
             || !value.equals(((String) value).trim())) throw error("必须为非空字符串且不能包含首尾空格");
         return (String) value;
+    }
+
+    /** 枚举展示使用 Java 常量名；解析忽略大小写，并接受连字符与下划线。 */
+    public <E extends Enum<E>> E enumValue(Class<E> type) {
+        return enumValue(type, text());
+    }
+
+    /** 同一编码规则也适用于字段用途等对象键。 */
+    public <E extends Enum<E>> E enumValue(Class<E> type, String code) {
+        List<String> codes = new ArrayList<>();
+        String normalized = code.toUpperCase(Locale.ROOT).replace('-', '_');
+        for (E item : type.getEnumConstants()) {
+            String candidate = item.name();
+            if (candidate.equals(normalized)) return item;
+            codes.add(candidate);
+        }
+        throw error("未知枚举值: " + code + "，可选值: " + codes);
     }
 
     public List<String> strings() {

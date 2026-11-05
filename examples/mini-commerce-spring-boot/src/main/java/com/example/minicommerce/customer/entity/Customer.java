@@ -2,6 +2,7 @@ package com.example.minicommerce.customer.entity;
 
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.annotations.EntRelation;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,4 +21,9 @@ public class Customer {
 
     @EntField("邮箱")
     private String email;
+
+    @EntField("所属商户 ID")
+    @EntRelation(targetEntity = "merchant")
+    private Long merchantId;
+
 }

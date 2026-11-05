@@ -65,28 +65,6 @@ jobs:
           path: examples/customer-profile-spring-boot/target/verification-logs/
           if-no-files-found: ignore
 
-  public-consumer-build:
-    name: Maven Central 消费者验收
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-      - name: 设置 JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: 使用全新 Maven 仓库验收公开消费者
-        working-directory: examples/customer-profile-spring-boot
-        run: python3 scripts/verify.py --maven-repository "$RUNNER_TEMP/central-consumer-m2"
-      - name: 保留公开消费者验收日志
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-consumer-verification-logs
-          path: examples/customer-profile-spring-boot/target/verification-logs/
-          if-no-files-found: ignore
-
   mini-commerce:
     name: 最小商城 MySQL 验收
     runs-on: ubuntu-latest

@@ -4,30 +4,35 @@
 
 ### 创建客户：元数据必填校验
 POST {{baseUrl}}/api/ent-crud/customer/create
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {"payload": {"displayName": "CRUD 示例客户", "email": "crud@example.com"}}
 
 ### 更新客户：主键用于定位，不允许改写
 POST {{baseUrl}}/api/ent-crud/customer/update
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {"payload": {"id": {{customerId}}, "displayName": "已更新客户"}}
 
 ### 分页查询：过滤、排序与分页
 POST {{baseUrl}}/api/ent-crud/customer/page
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {"options": {"filter": {"id": {{customerId}}}, "page": 1, "limit": 10, "sorts": [{"field": "id", "direction": "DESC"}]}}
 
 ### 查询详情：返回实体字段名
 POST {{baseUrl}}/api/ent-crud/customer/detail
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
-{"options": {"resultMode": "ENTITY", "filter": {"id": {{customerId}}}}}
+{"options": {"filter": {"id": {{customerId}}}}}
 
 ### 删除客户：预期 403，示例统一关闭客户删除以保护订单关联
 POST {{baseUrl}}/api/ent-crud/customer/delete
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {"payload": {"id": {{customerId}}}}

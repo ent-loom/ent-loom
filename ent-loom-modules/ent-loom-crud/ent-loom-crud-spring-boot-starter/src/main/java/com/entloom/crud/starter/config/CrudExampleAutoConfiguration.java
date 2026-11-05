@@ -15,7 +15,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Configuration;
@@ -27,8 +26,7 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureBefore({CrudAutoConfiguration.class, CrudPolicyAutoConfiguration.class, CrudAccessWebAutoConfiguration.class})
 @ConditionalOnProperty(prefix = "ent.loom.crud.example", name = "enabled", havingValue = "true")
-@EnableConfigurationProperties(CrudExampleProperties.class)
-@Import(CrudIdentityConfiguration.class)
+@Import({CrudPropertiesConfiguration.class, CrudIdentityConfiguration.class})
 public class CrudExampleAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(CrudSubjectResolver.class)

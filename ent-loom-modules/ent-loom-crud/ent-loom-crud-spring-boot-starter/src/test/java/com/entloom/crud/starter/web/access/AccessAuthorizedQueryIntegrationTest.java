@@ -27,10 +27,10 @@ import com.entloom.crud.core.governance.authorization.BusinessPermissionDecision
 import com.entloom.crud.core.governance.authorization.BusinessPermissionEvaluator;
 import com.entloom.crud.core.governance.policy.BusinessOperationDeclaration;
 import com.entloom.crud.core.governance.policy.CrudOperationMapping;
-import com.entloom.crud.core.governance.policy.EntityPolicyBinding;
 import com.entloom.crud.core.governance.policy.EntityPolicyTemplate;
 import com.entloom.crud.core.governance.policy.PolicyIdentityBranch;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.declaration.EntityDeclarations;
 import com.entloom.crud.starter.config.CrudAccessWebAutoConfiguration;
 import com.entloom.crud.starter.config.CrudAutoConfiguration;
 import com.entloom.crud.starter.config.CrudPolicyAutoConfiguration;
@@ -38,6 +38,7 @@ import com.entloom.crud.starter.support.StarterJdbcTestSupportConfiguration;
 import com.entloom.crud.starter.support.TestOrderEntity;
 import java.util.Collections;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,6 +49,9 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -62,7 +66,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-/** 验证真实 Starter → MVC → Gateway → 授权 → JDBC → 投影 → 审计闭环。 */
+/** 验证实体 policy 选择 Java 只读策略后的 MVC → Gateway → 授权 → JDBC → 投影 → 审计闭环。 */
 class AccessAuthorizedQueryIntegrationTest {
     private final WebApplicationContextRunner runner = new WebApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(CrudAutoConfiguration.class,
@@ -116,6 +120,18 @@ class AccessAuthorizedQueryIntegrationTest {
         });
     }
 
+    @Test
+    void Java策略缺少动态判定器时拒绝读取() {
+        runner.withPropertyValues("test.policy.evaluator.enabled=false").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(BusinessPermissionEvaluator.class);
+            mvc(context.getSourceApplicationContext()).perform(get("/authorized/list"))
+                .andExpect(status().isForbidden());
+            assertThat(context.getBean(State.class).events).singleElement().satisfies(event ->
+                assertThat(event.getOutcome()).isEqualTo(CrudGovernanceAuditOutcome.GOVERNANCE_DENIED));
+        });
+    }
+
     private static MockMvc mvc(org.springframework.web.context.WebApplicationContext context) {
         return MockMvcBuilders.webAppContextSetup(context)
             .addFilters(context.getBean("crudAccessAuthenticationFilter", FilterRegistrationBean.class).getFilter()).build();
@@ -139,11 +155,17 @@ class AccessAuthorizedQueryIntegrationTest {
             return new BusinessOperationDeclaration(operation(entities), "Project#view");
         }
         @Bean EntityPolicyTemplate template() {
-            return new EntityPolicyTemplate("public", "Project#public", Collections.singletonList(
+            return new EntityPolicyTemplate("order-read", "Project#orderRead", Collections.singletonList(
                 new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(), Collections.emptyList())));
         }
-        @Bean EntityPolicyBinding binding() {
-            return new EntityPolicyBinding(TestOrderEntity.class, "public", "Order#binding", Collections.emptyMap());
+        @Bean
+        @Primary
+        EntityDeclarations entityDeclarations(EntityMetaRegistry entities) {
+            String resource = entities.getEntityMeta(TestOrderEntity.class).getResourceDescriptor().getResourceCode();
+            return new EntityDeclarations(new ByteArrayResource(
+                "crud:\n  access:\n    policy: order-read\n".getBytes(StandardCharsets.UTF_8), "ent/entities/" + resource + ".yml") {
+                @Override public String getFilename() { return resource + ".yml"; }
+            });
         }
         @Bean CrudOperationMapping listMapping(EntityMetaRegistry entities) {
             return new CrudOperationMapping(CrudOperationKey.of(QueryOperation.LIST), null, operation(entities), "Project#list");
@@ -151,7 +173,9 @@ class AccessAuthorizedQueryIntegrationTest {
         @Bean CrudOperationMapping pageMapping(EntityMetaRegistry entities) {
             return new CrudOperationMapping(CrudOperationKey.of(QueryOperation.PAGE), null, operation(entities), "Project#page");
         }
-        @Bean BusinessPermissionEvaluator permissions(State state) {
+        @Bean
+        @ConditionalOnProperty(name = "test.policy.evaluator.enabled", havingValue = "true", matchIfMissing = true)
+        BusinessPermissionEvaluator permissions(State state) {
             return (visitor, operation, rule, target) -> {
                 state.decisions.incrementAndGet();
                 return state.allowed.get() ? BusinessPermissionDecision.allow(

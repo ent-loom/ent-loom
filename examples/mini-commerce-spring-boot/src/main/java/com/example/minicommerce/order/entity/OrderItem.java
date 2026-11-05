@@ -1,16 +1,15 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
+import com.entloom.meta.annotations.EntRelation;
 import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 订单明细由下单 Handler 经 OrderItemDao 保存，商家归属通过所属订单确定。 */
+/** 订单明细由下单 Handler 经 EntityDao 保存，商家归属通过所属订单确定。 */
 @EntEntity("订单明细")
-@EntCrudEntity
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,11 +18,13 @@ public class OrderItem {
     @EntField("明细 ID")
     private Long id;
 
-    /** 所属订单主键，由订单聚合保存时填充。 */
+    /** 由下单 Handler 保存订单后显式填充。 */
     @EntField("订单 ID")
+    @EntRelation(targetEntity = "order")
     private Long orderId;
 
     @EntField("商家商品 ID")
+    @EntRelation(targetEntity = "merchantProduct")
     private Long merchantProductId;
 
     /** 下单时的商品名称快照，不随商家商品变化。 */

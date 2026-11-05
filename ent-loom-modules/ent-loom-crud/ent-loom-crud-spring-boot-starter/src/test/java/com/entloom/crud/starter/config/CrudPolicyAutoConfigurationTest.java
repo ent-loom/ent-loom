@@ -166,13 +166,13 @@ class CrudPolicyAutoConfigurationTest {
                 assertEquals("ownerId", registry.requireDeclaration(AnnotatedOrder.class,
                     new BusinessOperation("order", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getRelationFields().get("owner"));
-                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.policy]", registry.requireDeclaration(
+                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.access.policy]", registry.requireDeclaration(
                     AnnotatedOrder.class, new BusinessOperation("order", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
                 assertEquals("Project#invoiceBinding", registry.requireDeclaration(JavaOrder.class,
                     new BusinessOperation("invoice", "view"), PolicyIdentityBranch.identity("teacher"))
                     .getBindingSource());
-                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/classified.yml] [实体=classified, 路径=crud.policy]", registry.requireDeclaration(
+                assertEquals("Byte array resource [CrudPolicyAutoConfigurationTest/classified.yml] [实体=classified, 路径=crud.access.policy]", registry.requireDeclaration(
                     ClassifiedOrder.class, new BusinessOperation("classified", "view"),
                     PolicyIdentityBranch.identity("teacher")).getBindingSource());
             });
@@ -194,7 +194,7 @@ class CrudPolicyAutoConfigurationTest {
                     cause = cause.getCause();
                     message += " " + cause.getMessage();
                 }
-                assertTrue(message.contains("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.policy]"), message);
+                assertTrue(message.contains("Byte array resource [CrudPolicyAutoConfigurationTest/order.yml] [实体=order, 路径=crud.access.policy]"), message);
                 assertTrue(message.contains("Project#override"), message);
             });
     }

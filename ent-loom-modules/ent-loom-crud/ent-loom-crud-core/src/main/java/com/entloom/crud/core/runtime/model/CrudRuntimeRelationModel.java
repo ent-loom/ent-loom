@@ -19,6 +19,8 @@ public final class CrudRuntimeRelationModel {
     private final RelationScope scope;
     private final JoinType joinKind;
     private final RelationCardinality cardinality;
+    /** 补全规则来源；显式关系为 null，模型合并后需重新裁定补全结果。 */
+    private final String inferenceRuleId;
 
     public CrudRuntimeRelationModel(
         Class<?> fromEntity,
@@ -30,6 +32,20 @@ public final class CrudRuntimeRelationModel {
         JoinType joinKind,
         RelationCardinality cardinality
     ) {
+        this(fromEntity, toEntity, relationField, fromField, toField, scope, joinKind, cardinality, null);
+    }
+
+    public CrudRuntimeRelationModel(
+        Class<?> fromEntity,
+        Class<?> toEntity,
+        String relationField,
+        String fromField,
+        String toField,
+        RelationScope scope,
+        JoinType joinKind,
+        RelationCardinality cardinality,
+        String inferenceRuleId
+    ) {
         this.fromEntity = fromEntity;
         this.toEntity = toEntity;
         this.relationField = relationField;
@@ -38,6 +54,7 @@ public final class CrudRuntimeRelationModel {
         this.scope = scope;
         this.joinKind = joinKind;
         this.cardinality = cardinality;
+        this.inferenceRuleId = inferenceRuleId;
     }
 
     public static CrudRuntimeRelationModel from(RelationEdge edge) {
@@ -52,7 +69,8 @@ public final class CrudRuntimeRelationModel {
             edge.getToField(),
             edge.getScope(),
             edge.getJoinKind(),
-            edge.getCardinality()
+            edge.getCardinality(),
+            edge.getInferenceRuleId()
         );
     }
 
@@ -66,6 +84,7 @@ public final class CrudRuntimeRelationModel {
         edge.setScope(scope);
         edge.setJoinKind(joinKind);
         edge.setCardinality(cardinality);
+        edge.setInferenceRuleId(inferenceRuleId);
         return edge;
     }
 

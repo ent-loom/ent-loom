@@ -1,13 +1,14 @@
 @baseUrl = http://localhost:8082
 @merchantA = demo-merchant-a
 @merchantProductId = 101
-@customerId = 1
+@customerId = 301
 @orderId = 1
 
 ### 准备商家商品：应用启动后执行 scripts/merchant-demo.sql
 
-### 创建客户：通用 CRUD
+### 管理员创建客户：独立 CRUD 演示；下单账号使用脚本预置的客户 301/302
 POST {{baseUrl}}/api/ent-crud/customer/create
+Authorization: Bearer demo-platform-admin
 Content-Type: application/json
 
 {
@@ -18,28 +19,48 @@ Content-Type: application/json
   }
 }
 
-### 下单：演示主体经显式 place 场景授权；提交商家商品 ID，服务端确定 merchantId
-POST {{baseUrl}}/api/ent-crud/order/action/place
+### 下单：可信客户身份确定 customerId，数据库商品确定 merchantId
+POST {{baseUrl}}/api/ent-crud/order/action/create
+Authorization: Bearer demo-customer-a
 Content-Type: application/json
 
 {
   "payload": {
-    "customerId": {{customerId}},
     "items": [
       {"merchantProductId": {{merchantProductId}}, "quantity": 2}
     ]
   }
 }
 
-### 查询订单及明细：orderId 取下单响应 data.orderIds 中的一项
+### 查询订单值字段：orderId 取下单响应 data.orderIds 中的一项；默认不加载结构属性
 POST {{baseUrl}}/api/ent-crud/order/detail
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"options": {"filter": {"id": {{orderId}}}, "expandRelations": ["customer", "orderItemList"]}}
+{"options": {"filter": {"id": {{orderId}}}}}
+
+### 同一详情接口显式展开客户和成交明细，不重新读取当前商品
+POST {{baseUrl}}/api/ent-crud/order/detail
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"filter":{"id":{{orderId}}},"expandRelations":["customer","orderItemList"]}}
 
 ### 默认订单创建未授权
 POST {{baseUrl}}/api/ent-crud/order/create
 Content-Type: application/json
 
 {"payload": {"customerId": {{customerId}}}}
+
+### 取消本人订单：只允许 CREATED → CANCELLED
+POST {{baseUrl}}/api/ent-crud/order/action/cancel
+Authorization: Bearer demo-customer-a
+Content-Type: application/json
+
+{"payload":{"orderId":{{orderId}}}}
+
+### 公共商品：不带凭证，只查已启用商品与白名单字段
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
+Content-Type: application/json
+
+{}

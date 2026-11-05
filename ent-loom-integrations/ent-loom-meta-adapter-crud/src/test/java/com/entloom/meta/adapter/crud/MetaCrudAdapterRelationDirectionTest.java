@@ -5,6 +5,9 @@ import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.contract.descriptor.EntRelationDescriptor;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
+import com.entloom.meta.contract.diagnostic.MetaDiagnosticException;
+import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.enums.RelationCardinality;
 import com.entloom.meta.contract.enums.RelationOwnerSide;
 import com.entloom.meta.core.parser.ReflectiveEntMetaParser;
@@ -18,6 +21,32 @@ import org.junit.jupiter.api.Test;
 class MetaCrudAdapterRelationDirectionTest {
 
     @Test
+    void 唯一反向引用补全集合映射且不改变Meta关系事实() {
+        for (List<Class<?>> types : Arrays.asList(Arrays.<Class<?>>asList(SimpleParent.class, SimpleChild.class),
+            Arrays.<Class<?>>asList(SimpleChild.class, SimpleParent.class))) {
+            MetaCrudAdapter adapter = new MetaCrudAdapter(types);
+            List<RelationEdge> edges = adapter.runtimeModel().relationEdges();
+            Assertions.assertEquals(2, edges.size());
+            RelationEdge collection = edges.stream().filter(edge -> edge.getFromEntity() == SimpleParent.class)
+                .findFirst().orElseThrow(AssertionError::new);
+            Assertions.assertEquals("lines", collection.getRelationField());
+            Assertions.assertEquals("id", collection.getFromField());
+            Assertions.assertEquals("parentId", collection.getToField());
+            Assertions.assertEquals(RelationCardinality.ONE_TO_MANY, collection.getCardinality());
+            Assertions.assertNull(adapter.runtimeModel().getEntity(SimpleParent.class).getField("lines"));
+            Assertions.assertTrue(new ReflectiveEntMetaParser().parse(SimpleParent.class).relations().isEmpty());
+        }
+    }
+
+    @Test
+    void 同一目标的多个反向引用不自动绑定父集合() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(MultiParent.class, MultiChild.class));
+        Assertions.assertEquals(2, adapter.runtimeModel().relationEdges().size());
+        Assertions.assertTrue(adapter.runtimeModel().relationEdges().stream()
+            .allMatch(edge -> edge.getFromEntity() == MultiChild.class));
+    }
+
+    @Test
     void many_to_one_edge_should_keep_declaring_entity_as_from_side() {
         MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(DirectionOrder.class, DirectionCustomer.class));
 
@@ -29,6 +58,68 @@ class MetaCrudAdapterRelationDirectionTest {
         Assertions.assertEquals("customerId", edge.getFromField());
         Assertions.assertEquals("id", edge.getToField());
         Assertions.assertEquals(RelationCardinality.MANY_TO_ONE, edge.getCardinality());
+    }
+
+    @Test
+    void 外键关系绑定继承的同名导航属性且保留列映射() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(NavigatedOrder.class, DirectionCustomer.class));
+
+        RelationEdge edge = onlyEdge(adapter.runtimeModel().relationEdges());
+
+        Assertions.assertEquals("customer", edge.getRelationField());
+        Assertions.assertEquals("customerId", edge.getFromField());
+        Assertions.assertEquals("id", edge.getToField());
+        Assertions.assertEquals(RelationCardinality.MANY_TO_ONE, edge.getCardinality());
+        Assertions.assertNotNull(adapter.runtimeModel().getEntity(NavigatedOrder.class).getField("customerId"));
+        Assertions.assertNull(adapter.runtimeModel().getEntity(NavigatedOrder.class).getField("customer"));
+        Assertions.assertTrue(adapter.diagnostics().stream().anyMatch(diagnostic ->
+            diagnostic.code() == MetaDiagnosticCode.INFERRED_VALUE_USED
+                && "relationField".equals(diagnostic.property())
+                && diagnostic.source() == MetaValueSource.INFERRED
+                && "crud.relation.navigation.id-suffix".equals(diagnostic.ruleId())));
+    }
+
+    @Test
+    void 同一目标的多个外键按名称分别绑定且不生成反向集合关系() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(TwoCustomerOrder.class, DirectionCustomer.class));
+
+        List<RelationEdge> edges = adapter.runtimeModel().relationEdges();
+
+        Assertions.assertEquals(2, edges.size());
+        Assertions.assertTrue(edges.stream().anyMatch(edge ->
+            "buyer".equals(edge.getRelationField()) && "buyerId".equals(edge.getFromField())));
+        Assertions.assertTrue(edges.stream().anyMatch(edge ->
+            "seller".equals(edge.getRelationField()) && "sellerId".equals(edge.getFromField())));
+        Assertions.assertTrue(edges.stream().allMatch(edge -> edge.getFromEntity() == TwoCustomerOrder.class));
+    }
+
+    @Test
+    void 不按目标类型猜测不同名导航属性() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(UnmatchedOrder.class, DirectionCustomer.class));
+
+        RelationEdge edge = onlyEdge(adapter.runtimeModel().relationEdges());
+
+        Assertions.assertEquals("customerId", edge.getRelationField());
+    }
+
+    @Test
+    void 导航属性上的显式非标准映射保持不变() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Arrays.<Class<?>>asList(ExplicitNavigationOrder.class, DirectionCustomer.class));
+
+        RelationEdge edge = onlyEdge(adapter.runtimeModel().relationEdges());
+
+        Assertions.assertEquals("buyer", edge.getRelationField());
+        Assertions.assertEquals("customerId", edge.getFromField());
+    }
+
+    @Test
+    void 同名导航属性类型错误时给出可定位诊断() {
+        MetaDiagnosticException exception = Assertions.assertThrows(MetaDiagnosticException.class,
+            () -> new MetaCrudAdapter(Arrays.<Class<?>>asList(WrongNavigationOrder.class, DirectionCustomer.class)));
+
+        Assertions.assertTrue(exception.diagnostics().stream().anyMatch(diagnostic ->
+            diagnostic.code() == MetaDiagnosticCode.RELATION_NAVIGATION_TYPE_MISMATCH
+                && (WrongNavigationOrder.class.getName() + "#customer").equals(diagnostic.location())));
     }
 
     @Test
@@ -78,6 +169,34 @@ class MetaCrudAdapterRelationDirectionTest {
         return items.get(0);
     }
 
+    @EntEntity(entity = "simpleParent")
+    private static class SimpleParent {
+        Long id;
+        List<SimpleChild> lines;
+    }
+
+    @EntEntity
+    private static class SimpleChild {
+        Long id;
+        @EntRelation(targetEntity = "simpleParent")
+        Long parentId;
+    }
+
+    @EntEntity(entity = "multiParent")
+    private static class MultiParent {
+        Long id;
+        List<MultiChild> lines;
+    }
+
+    @EntEntity
+    private static class MultiChild {
+        Long id;
+        @EntRelation(targetEntity = "multiParent")
+        Long primaryId;
+        @EntRelation(targetEntity = "multiParent")
+        Long secondaryId;
+    }
+
     @EntEntity(entity = "direction_order")
     private static final class DirectionOrder {
         @EntField
@@ -92,6 +211,64 @@ class MetaCrudAdapterRelationDirectionTest {
     private static final class DirectionCustomer {
         @EntField
         private Long id;
+    }
+
+    private static class NavigatedOrderBase {
+        private Long id;
+
+        @EntRelation(targetEntity = "direction_customer")
+        private Long customerId;
+
+        private DirectionCustomer customer;
+    }
+
+    @EntEntity
+    private static final class NavigatedOrder extends NavigatedOrderBase {
+    }
+
+    @EntEntity
+    private static final class TwoCustomerOrder {
+        private Long id;
+
+        @EntRelation(targetEntity = "direction_customer")
+        private Long buyerId;
+
+        @EntRelation(targetEntity = "direction_customer")
+        private Long sellerId;
+
+        private DirectionCustomer buyer;
+        private DirectionCustomer seller;
+        private List<DirectionCustomer> customerList;
+    }
+
+    @EntEntity
+    private static final class UnmatchedOrder {
+        private Long id;
+
+        @EntRelation(targetEntity = "direction_customer")
+        private Long customerId;
+
+        private DirectionCustomer buyer;
+        private List<DirectionCustomer> customerList;
+    }
+
+    @EntEntity
+    private static final class ExplicitNavigationOrder {
+        private Long id;
+        private Long customerId;
+
+        @EntRelation(targetEntity = "direction_customer", sourceField = "customerId")
+        private DirectionCustomer buyer;
+    }
+
+    @EntEntity
+    private static final class WrongNavigationOrder {
+        private Long id;
+
+        @EntRelation(targetEntity = "direction_customer")
+        private Long customerId;
+
+        private DirectionTag customer;
     }
 
     @EntEntity(entity = "direction_customer_aggregate")

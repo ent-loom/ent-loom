@@ -1,2 +1,12 @@
 crud:
-  access: JAVA
+  access:
+    policy: profile-management
+    operator:
+      fields:
+        WRITE:
+          mode: ALL
+  contracts:
+    create:
+      input-required-fields: [displayName, email]
+    update:
+      forbidden-fields: [id]

@@ -20,7 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** 随机端口真实 HTTP，验证同一订单资源的双身份范围、关联投影与统一 CRUD 协议。 */
+/** 随机端口真实 HTTP，验证同一订单资源的双身份范围、按需展开与统一 CRUD 协议。 */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "spring.config.import=",
     "spring.datasource.url=${COMMERCE_TEST_JDBC_URL:jdbc:h2:mem:commerce-order-page;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}",
@@ -109,57 +109,131 @@ class OrderPageIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({"demo-customer-a,503", "demo-customer-b,501", "demo-merchant-a,502", "demo-merchant-b,501"})
-    void 跨归属详情和关联不可见且唯一查询返回空(String token, long id) throws Exception {
-        String body = "{\"options\":{\"filter\":{\"id\":%d},\"expandRelations\":[\"customer\",\"orderItemList\"]}}".formatted(id);
+    void 跨归属详情不可见且唯一查询返回空(String token, long id) throws Exception {
+        String body = "{\"options\":{\"filter\":{\"id\":%d}}}".formatted(id);
         assertStatus(post("detail", token, body), 404);
         assertTrue(data(post("findOne", token, body)).get("item").isNull());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"demo-customer-a", "demo-merchant-a"})
-    void 订单关系按身份白名单返回且内部连接字段不自动泄露(String token) throws Exception {
-        String body = """
-            {"options":{"filter":{"id":501},"selectFields":["id"],
-            "expandRelations":["customer","orderItemList"]}}
-            """;
-        JsonNode item = data(post("detail", token, body)).get("item");
+    void 通用详情只返回值字段且不自动填充结构属性(String token) throws Exception {
+        JsonNode item = data(post("detail", token,
+            "{\"options\":{\"filter\":{\"id\":501}}}")).get("item");
         assertEquals(501, item.get("id").asLong());
-        assertFalse(item.has("customerId"));
-        assertFalse(item.has("merchantId"));
-        assertEquals(301, item.get("customer").get("id").asLong());
-        assertEquals(token.contains("customer"), item.get("customer").has("email"));
-        assertEquals(2, item.get("orderItemList").size());
-        item.get("orderItemList").forEach(child -> assertEquals(501, child.get("orderId").asLong()));
+        assertEquals(301, item.get("customerId").asLong());
+        assertEquals(1001, item.get("merchantId").asLong());
+        assertFalse(item.has("customer"));
+        assertFalse(item.has("orderItemList"));
+        item = data(post("detail", token,
+            "{\"options\":{\"filter\":{\"id\":501},\"selectFields\":[\"id\"]}}")).get("item");
+        assertEquals(1, item.size());
+        assertEquals(501, item.get("id").asLong());
         assertStatus(post("list", token, "{\"entityCodes\":[\"order\",\"orderItem\"]}"), 404);
-        assertStatus(post("list", token, "{\"options\":{\"expandRelations\":[\"customer.address\"]}}"), 403);
         assertStatus(post("detail", token, "{\"options\":{\"resultMode\":\"ENTITY\",\"filter\":{\"id\":501}}}"), 403);
         assertStatus(post("page/custom", token, "{}"), 403);
         assertStatus(post("page", token, "{\"options\":{\"selectFields\":[\"customer.email\"]}}"), 403);
     }
 
-    @Test
-    void 关联分页按订单计数且无计数分页保持相同归属() throws Exception {
-        String options = "{\"options\":{\"page\":1,\"limit\":1,\"sorts\":[{\"field\":\"id\",\"direction\":\"ASC\"}],\"expandRelations\":[\"orderItemList\"]%s}}";
-        JsonNode page = assertPage(post("page", "demo-merchant-a", options.formatted("")), 3, 1, 1, 501);
-        assertEquals(2, page.get("items").get(0).get("orderItemList").size());
-        page = data(post("page", "demo-merchant-a", options.formatted(",\"countMode\":\"NONE\"")));
-        assertTrue(page.get("page").get("hasNext").asBoolean());
-        assertFalse(page.get("page").get("totalKnown").asBoolean());
-        assertEquals(501, page.get("items").get(0).get("id").asLong());
-        assertEquals(2, page.get("items").get(0).get("orderItemList").size());
-        page = data(post("list", "demo-customer-a", "{\"options\":{\"filter\":{\"merchantId\":1001}}}"));
-        assertEquals(2, page.get("items").size());
+    @ParameterizedTest
+    @ValueSource(strings = {"demo-customer-a", "demo-merchant-a"})
+    void 未配置EXPAND时通用查询仅展开请求的候选关系字段(String token) throws Exception {
+        String body = """
+            {"options":{"filter":{"id":501},"expandRelations":["customer","orderItemList"]}}
+            """;
+        for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
+            JsonNode result = data(post(operation, token, body));
+            JsonNode item = operation.equals("page") || operation.equals("list")
+                ? result.get("items").get(0) : result.get("item");
+            assertEquals(501, item.get("id").asLong());
+            assertEquals(301, item.get("customer").get("id").asLong());
+            assertEquals("客户甲", item.get("customer").get("displayName").asText());
+            assertEquals("a@example.com", item.get("customer").get("email").asText());
+            assertEquals(2, item.get("orderItemList").size());
+            item.get("orderItemList").forEach(line -> assertEquals(501, line.get("orderId").asLong()));
+            if (operation.equals("page")) assertEquals(1, result.get("page").get("total").asLong());
+
+            JsonNode onlyItems = data(post(operation, token,
+                "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"orderItemList\"]}}"));
+            JsonNode withoutCustomer = operation.equals("page") || operation.equals("list")
+                ? onlyItems.get("items").get(0) : onlyItems.get("item");
+            assertFalse(withoutCustomer.has("customer"));
+            assertEquals(2, withoutCustomer.get("orderItemList").size());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"demo-customer-a", "demo-merchant-a"})
+    void 未授权关系及嵌套展开仍拒绝(String token) {
+        for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
+            for (String relation : new String[] {"merchantId", "customer.address", "orderItemList.merchantProduct"}) {
+                assertStatus(post(operation, token,
+                    "{\"options\":{\"filter\":{\"id\":501},\"expandRelations\":[\"%s\"]}}".formatted(relation)), 403);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"demo-customer-a,503", "demo-merchant-a,502"})
+    void 显式展开仍遵循根订单范围且缺失身份拒绝(String token, long id) throws Exception {
+        String body = """
+            {"options":{"filter":{"id":%d},"expandRelations":["customer","orderItemList"]}}
+            """.formatted(id);
+        assertStatus(post("detail", token, body), 404);
+        assertTrue(data(post("findOne", token, body)).get("item").isNull());
+        for (String operation : new String[] {"page", "list", "findOne", "detail"}) {
+            assertStatus(post(operation, null, body), 403);
+        }
+        assertTrue(data(post("list", token, body)).get("items").isEmpty());
+        assertPage(post("page", token, body), 0, 1, 10);
     }
 
     @Test
-    void 空关联使用空数组和空对象语义() throws Exception {
-        JsonNode item = data(post("detail", "demo-customer-a",
-            "{\"options\":{\"filter\":{\"id\":504},\"expandRelations\":[\"customer\",\"orderItemList\"]}}" )).get("item");
-        assertTrue(item.get("orderItemList").isEmpty());
+    void 展开区分无明细与客户缺失且不存在订单遵循唯一查询语义() throws Exception {
         jdbc.update("delete from customer where id=301");
-        item = data(post("detail", "demo-customer-a",
-            "{\"options\":{\"nullFieldMode\":\"INCLUDE\",\"filter\":{\"id\":501},\"expandRelations\":[\"customer\"]}}" )).get("item");
-        assertTrue(item.get("customer").isNull());
+        String body = """
+            {"options":{"filter":{"id":504},"nullFieldMode":"INCLUDE","expandRelations":["customer","orderItemList"]}}
+            """;
+        JsonNode item = data(post("detail", "demo-customer-a", body)).get("item");
+        assertTrue(item.path("customer").isNull());
+        assertTrue(item.get("orderItemList").isArray());
+        assertTrue(item.get("orderItemList").isEmpty());
+        assertFalse(data(post("detail", "demo-customer-a", body.replace("\"nullFieldMode\":\"INCLUDE\",", "")))
+            .get("item").has("customer"));
+        String missing = body.replace("504", "9999");
+        assertStatus(post("detail", "demo-customer-a", missing), 404);
+        assertTrue(data(post("findOne", "demo-customer-a", missing)).get("item").isNull());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"demo-customer-a", "demo-merchant-a"})
+    void 一对多展开不放大根分页且关联只来自本页订单(String token) throws Exception {
+        JsonNode result = assertPage(post("page", token, """
+            {"options":{"page":2,"limit":2,"sorts":[{"field":"id","direction":"DESC"}],
+              "expandRelations":["customer","orderItemList"]}}
+            """), 3, 2, 2, 501);
+        assertEquals(2, result.get("items").get(0).get("orderItemList").size());
+        JsonNode uncounted = data(post("page", token, """
+            {"options":{"page":1,"limit":2,"countMode":"NONE",
+              "expandRelations":["orderItemList"]}}
+            """));
+        assertEquals(2, uncounted.get("items").size());
+        assertTrue(uncounted.get("page").get("hasNext").asBoolean());
+        uncounted.get("items").forEach(order -> order.get("orderItemList").forEach(line ->
+            assertEquals(order.get("id").asLong(), line.get("orderId").asLong())));
+    }
+
+    @Test
+    void 有计数与无计数分页保持相同归属() throws Exception {
+        String options = "{\"options\":{\"page\":1,\"limit\":1,\"sorts\":[{\"field\":\"id\",\"direction\":\"ASC\"}]%s}}";
+        assertPage(post("page", "demo-merchant-a", options.formatted("")), 3, 1, 1, 501);
+        JsonNode page = data(post("page", "demo-merchant-a", options.formatted(",\"countMode\":\"NONE\"")));
+        assertTrue(page.get("page").get("hasNext").asBoolean());
+        assertFalse(page.get("page").get("totalKnown").asBoolean());
+        assertEquals(501, page.get("items").get(0).get("id").asLong());
+        assertFalse(page.get("items").get(0).has("orderItemList"));
+        page = data(post("list", "demo-customer-a", "{\"options\":{\"filter\":{\"merchantId\":1001}}}"));
+        assertEquals(2, page.get("items").size());
     }
 
     @Test

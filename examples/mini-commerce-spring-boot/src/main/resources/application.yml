@@ -26,7 +26,8 @@ ent:
         - com.example.minicommerce.*.entity
 
     crud:
-      # 业务访问：谁能执行什么操作、访问哪些数据与字段。
+      # 全局授权约定：身份定义、归属关系与公共策略；实体差异在 ent/entities/*.yml 声明。
+      # demo.yml 提供可信身份，授权按 identity.code 选择同名身份分支。
       access:
         # ID 字段默认采用“身份码 + Id”。
         identities:
@@ -34,39 +35,55 @@ ent:
             id-type: LONG
           merchant:
             id-type: LONG
+          # 仅由可信认证来源授予超级管理员身份。
+          super-admin:
+            id-field: superAdminId
+            id-type: LONG
         # 已有关系字段默认推导为归属字段并保护写入；策略范围采用同名身份关系。
         relations:
           merchant:
             field: merchantId
           customer:
             field: customerId
-        # 项目按业务规则定义共享模板，实体 YAML 选择模板并声明差异。
+        default-policy: maintainable
+        defaults:
+          access:
+            super-admin:
+              actions: ["*"]
+              scope: all
+            merchant:
+              scope: merchant
+            customer:
+              scope: customer
         policies:
-          # 客户只读本人记录。
-          customer-read:
-            customer:
-              actions: [view]
-          # 商家只读本人记录。
-          merchant-read:
-            merchant:
-              actions: [view]
-          # 商家读取、维护本人数据；字段差异由实体约束。
-          merchant-manage:
-            merchant:
-              actions: [view, update]
-          # 同一订单资源按当前可信身份分别限制客户或商家范围。
-          order-read:
-            customer:
-              actions: [view]
-            merchant:
-              actions: [view]
-      # 通用 HTTP 默认开放已注册实体；特殊实体通过注解关闭，访问仍须授权。
+          maintainable:
+            actions: [view, create, update, delete]
+            access:
+              merchant:
+                actions: [view, create, update, delete]
+              customer:
+                actions: [view, create, update, delete]
+          workflow:
+            actions: [view]
+            access:
+              customer:
+                actions: [view]
+              merchant:
+                actions: [view]
+          record:
+            actions: [view]
+            access:
+              customer:
+                actions: [view]
+              merchant:
+                actions: [view]
+      # 通用 HTTP 仅发布有 CRUD 声明且未关闭的实体；默认策略不自动发布内部实体。
       controller:
         enabled: true
     # 开发环境按实体同步表结构，包含删除多余列。
     ddl:
       mode: CREATE_MODIFY_DELETE_ALL
-    # 实体文档仅向演示主体开放。
+     # 实体文档仅向演示主体开放。
     doc:
       contract:
         enabled: true

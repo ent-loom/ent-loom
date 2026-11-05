@@ -345,7 +345,7 @@ final class JdbcAuthorizedEntityDao<T, ID> implements EntityDao<T, ID> {
 
     /** 在整批事务开始前冻结目标、字段、版本、范围和 JDBC 参数。 */
     PreparedUpdate prepareBatchUpdate(ID id, UpdatePatch<T> patch, Long expectedVersion) {
-        requireOperation("update");
+        requireOperation("batch-update");
         Object normalizedId = normalizeTargetId(id);
         NormalizedUpdatePatch normalized = NormalizedUpdatePatch.from(patch, meta);
         Object patchId = JdbcEntityValueBinder.normalize(meta.resolveFieldMeta(meta.getIdField()), normalized.getId());

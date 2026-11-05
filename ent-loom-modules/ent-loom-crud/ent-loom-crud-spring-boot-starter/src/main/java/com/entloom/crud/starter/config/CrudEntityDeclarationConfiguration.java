@@ -1,6 +1,7 @@
 package com.entloom.crud.starter.config;
 
 import com.entloom.declaration.EntityDeclarations;
+import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -41,10 +42,11 @@ public class CrudEntityDeclarationConfiguration {
     @ConditionalOnProperty(name = "ent.loom.crud.controller.enabled", havingValue = "true")
     public SmartInitializingSingleton entityDeclarationHttpGuard(
         CrudEntityDeclarations declarations,
-        ObjectProvider<EntityMetaRegistry> entities) {
+        ObjectProvider<EntityMetaRegistry> entities,
+        ObjectProvider<EntityPolicyRegistry> policies) {
         return () -> {
             var registry = entities.getIfAvailable();
-            if (registry != null) declarations.assertHttpAccess(registry);
+            if (registry != null) declarations.assertHttpAccess(registry, policies.getIfAvailable());
         };
     }
 

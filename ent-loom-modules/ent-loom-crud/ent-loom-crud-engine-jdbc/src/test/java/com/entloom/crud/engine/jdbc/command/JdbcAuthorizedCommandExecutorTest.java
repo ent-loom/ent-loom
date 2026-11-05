@@ -74,6 +74,7 @@ class JdbcAuthorizedCommandExecutorTest {
     private final AtomicBoolean allowed = new AtomicBoolean(true);
     private final java.util.Set<String> deniedTargets = new java.util.HashSet<>();
     private final List<String> targets = new ArrayList<String>();
+    private AuthorizationScope createScope = AuthorizationScope.equal("schoolId", 1L);
 
     @BeforeEach
     void setUp() {
@@ -87,27 +88,33 @@ class JdbcAuthorizedCommandExecutorTest {
             .parse(Arrays.<Class<?>>asList(OrderTestEntity.class, OrderItemTestEntity.class)));
         EntityMeta meta = entities.getEntityMeta(OrderTestEntity.class);
         BusinessOperation update = new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), "update");
+        BusinessOperation batchUpdate = new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), "batch-update");
         BusinessOperation delete = new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), "delete");
+        BusinessOperation create = new BusinessOperation(meta.getResourceDescriptor().getResourceCode(), "create");
         BusinessOperationCatalog operations = new BusinessOperationCatalog(
             Collections.singletonList(meta.getResourceDescriptor()),
             Arrays.asList(new BusinessOperationDeclaration(update, "Test#update"),
-                new BusinessOperationDeclaration(delete, "Test#delete")));
+                new BusinessOperationDeclaration(batchUpdate, "Test#batch-update"),
+                new BusinessOperationDeclaration(delete, "Test#delete"), new BusinessOperationDeclaration(create, "Test#create")));
         EntityPolicyTemplate template = new EntityPolicyTemplate("public", "Test#public",
             Arrays.asList(new EntityPolicyTemplate.Rule("update", PolicyIdentityBranch.publicBranch(), Collections.emptyList()),
-                new EntityPolicyTemplate.Rule("delete", PolicyIdentityBranch.publicBranch(), Collections.emptyList())));
+                new EntityPolicyTemplate.Rule("batch-update", PolicyIdentityBranch.publicBranch(), Collections.emptyList()),
+                new EntityPolicyTemplate.Rule("delete", PolicyIdentityBranch.publicBranch(), Collections.emptyList()),
+                new EntityPolicyTemplate.Rule("create", PolicyIdentityBranch.publicBranch(), Collections.emptyList())));
         EntityPolicyRegistry policies = new EntityPolicyRegistry(Collections.singletonList(meta),
             Collections.singletonList(template), Collections.singletonList(new EntityPolicyBinding(
                 OrderTestEntity.class, "public", "Test#binding", Collections.emptyMap())), operations,
             new BusinessIdentityRegistry(Collections.emptyList()));
         CrudOperationMappingRegistry mappings = new CrudOperationMappingRegistry(Collections.singletonList(meta), operations,
             Arrays.asList(new CrudOperationMapping(CrudOperationKey.of(CommandOperation.UPDATE), null, update, "Test#update-map"),
-                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.UPDATE_BATCH), null, update, "Test#batch-update-map"),
-                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.DELETE), null, delete, "Test#delete-map")));
+                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.UPDATE_BATCH), null, batchUpdate, "Test#batch-update-map"),
+                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.DELETE), null, delete, "Test#delete-map"),
+                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.CREATE), null, create, "Test#create-map")));
         BusinessAuthorizationService service = new BusinessAuthorizationService(operations, policies,
             (current, operation, rule, target) -> {
                 targets.add(target);
                 return allowed.get() && !deniedTargets.contains(target) ? BusinessPermissionDecision.allow(
-                    AuthorizationScope.in("id", Arrays.asList(1L, 4L)),
+                    operation.equals(create) ? createScope : AuthorizationScope.in("id", Arrays.asList(1L, 4L)),
                     AuthorizationFields.of(Collections.singletonMap(AuthorizationFields.Use.WRITE,
                         Collections.singletonList("orderNo")))) : BusinessPermissionDecision.deny();
             });
@@ -130,7 +137,57 @@ class JdbcAuthorizedCommandExecutorTest {
         AuthorizedBatchUpdateExecutor batches = new AuthorizedBatchUpdateExecutor(entities, adapter, daos, guard,
             audit::add, CrudInputContract.empty(), (entity, values) -> {});
         executor = new JdbcAuthorizedCommandExecutor(entities, adapter, guarded, guard,
-            StandardJdbcDialect.GENERIC, audit::add, transactions, batches, (entity, values) -> {});
+            StandardJdbcDialect.GENERIC, audit::add, transactions, batches, (entity, values) -> {}, CrudInputContract.empty());
+    }
+
+    @Test
+    void 创建显式主键并落实授权归属和逻辑删除初始值() {
+        CommandResult<?> result = executor.action(visitor, create(map("id", 10L, "orderNo", "created")));
+        assertEquals(10L, ((Map<?, ?>) result.getData()).get("id"));
+        assertEquals(1L, jdbc.queryForObject("select school_id from t_order where id=10", Long.class));
+        assertEquals(0, jdbc.queryForObject("select is_deleted from t_order where id=10", Integer.class));
+        assertEquals(Collections.singletonList(null), targets);
+        assertEquals(CrudGovernanceAuditOutcome.SUCCESS, audit.get(0).getOutcome());
+    }
+
+    @Test
+    void 创建拒绝未授权字段越权归属和不可确定范围且不写入() {
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor,
+            create(map("id", 10L, "orderNo", "bad", "unknown", "x"))));
+        assertThrows(ValidationException.class, () -> executor.action(visitor,
+            create(map("id", 10L, "orderNo", "bad", "schoolId", 2L))));
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor,
+            create(map("id", 10L, "orderNo", "bad", "isDeleted", 1))));
+        createScope = AuthorizationScope.or(List.of(AuthorizationScope.equal("schoolId", 1L),
+            AuthorizationScope.equal("schoolId", 2L)));
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor, create(map("id", 10L, "orderNo", "bad"))));
+        createScope = AuthorizationScope.none();
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor, create(map("id", 10L, "orderNo", "bad"))));
+        assertEquals(4, jdbc.queryForObject("select count(*) from t_order", Integer.class));
+    }
+
+    @Test
+    void 创建拒绝无可信访问者拒绝决策和目标条件() {
+        assertThrows(PermissionDeniedException.class, () -> executor.action(null, create(map("id", 10L, "orderNo", "bad"))));
+        allowed.set(false);
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor, create(map("id", 10L, "orderNo", "bad"))));
+        allowed.set(true);
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor,
+            create(map("id", 10L, "orderNo", "bad")).toBuilder().expectedVersion(0L).build()));
+        assertEquals(4, jdbc.queryForObject("select count(*) from t_order", Integer.class));
+    }
+
+    @Test
+    void 创建唯一键冲突回滚并记录执行失败() {
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+            () -> executor.action(visitor, create(map("id", 1L, "orderNo", "duplicate"))));
+        assertEquals("one", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, audit.get(0).getOutcome());
+    }
+
+    private CommandSpec<Map<String, Object>> create(Map<String, Object> values) {
+        return CommandSpec.<Map<String, Object>>builder().rootType(OrderTestEntity.class).op(CommandOperation.CREATE)
+            .payload(values).resultType(CommandResult.class).build();
     }
 
     @Test
@@ -245,9 +302,9 @@ class JdbcAuthorizedCommandExecutorTest {
             .payload(new WriteCommand<Map<String, Object>>(CommandOperation.UPDATE, id, values)).build();
     }
 
-    private Map<String, Object> map(String key, Object value) {
+    private Map<String, Object> map(Object... pairs) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put(key, value);
+        for (int i = 0; i < pairs.length; i += 2) result.put((String) pairs[i], pairs[i + 1]);
         return result;
     }
 }

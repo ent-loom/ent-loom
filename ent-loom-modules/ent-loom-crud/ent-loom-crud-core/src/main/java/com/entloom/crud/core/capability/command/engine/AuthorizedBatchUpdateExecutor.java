@@ -37,7 +37,7 @@ import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.spec.SpecSnapshotFactory;
-import com.entloom.crud.core.runtime.validation.EntityUpdateValidator;
+import com.entloom.crud.core.runtime.validation.EntityWriteValidator;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,12 +56,12 @@ public final class AuthorizedBatchUpdateExecutor implements AuthorizedCommandExe
     private final SqlSecurityGuard sqlGuard;
     private final CrudGovernanceAuditRecorder audit;
     private final CrudInputContract inputContract;
-    private final EntityUpdateValidator validator;
+    private final EntityWriteValidator validator;
     private final DefaultCommandPayloadBinder binder = new DefaultCommandPayloadBinder();
 
     public AuthorizedBatchUpdateExecutor(EntityMetaRegistry entities, CrudBusinessAuthorizationAdapter authorization,
         EntityDaoFactory daos, SqlSecurityGuard sqlGuard, CrudGovernanceAuditRecorder audit,
-        CrudInputContract inputContract, EntityUpdateValidator validator) {
+        CrudInputContract inputContract, EntityWriteValidator validator) {
         this.entities = Objects.requireNonNull(entities, "实体元数据不能为空");
         this.authorization = Objects.requireNonNull(authorization, "业务授权适配器不能为空");
         this.daos = Objects.requireNonNull(daos, "实体 DAO 工厂不能为空");

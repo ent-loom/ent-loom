@@ -248,6 +248,27 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public <T, ID> EntityDao<T, ID> scopedAction(EntityType<T, ID> type,
+        com.entloom.crud.core.capability.command.engine.AuthorizedActionContext action, EntityAccessScope scope) {
+        action.requireDaoScope(type.getEntityClass(), scope.getRowConstraint());
+        if (type.getEntityClass() == action.entityType()) scope = EntityAccessScope.of(
+            com.entloom.crud.core.capability.dao.RowConstraint.and(action.rowConstraint(), scope.getRowConstraint()));
+        EntityMeta meta = metaRegistry.getEntityMeta(type.getEntityClass());
+        validateEntityType(type, meta);
+        validateDatabaseStructure(meta);
+        RowConstraint normalized = RowConstraintNormalizer.normalize(scope.getRowConstraint(), meta);
+        EntityDao<T, ID> delegate = new JdbcEntityDao<>(type, meta, normalized, guardedSqlExecutor,
+            new JdbcEntityPredicateCompiler(dialect, maxParameters), dialect, transactionExecutor, maxBatchSize, true);
+        return (EntityDao<T, ID>) java.lang.reflect.Proxy.newProxyInstance(EntityDao.class.getClassLoader(),
+            new Class<?>[] {EntityDao.class}, (proxy, method, args) -> {
+                if (method.getDeclaringClass() != Object.class) action.requireDaoMethod(type.getEntityClass(), method.getName());
+                try { return method.invoke(delegate, args); }
+                catch (java.lang.reflect.InvocationTargetException failure) { throw failure.getCause(); }
+            });
+    }
+
+    @Override
     public <T, ID> EntityDao<T, ID> scopedAuthorized(
         EntityType<T, ID> entityType,
         EntityDaoAuthorizationContext authorization
@@ -297,8 +318,8 @@ public final class JdbcEntityDaoFactory implements EntityDaoFactory {
         if (type == null || authorization == null) {
             throw new ValidationException("EntityType 和批量写入授权上下文不能为空");
         }
-        if (!"update".equals(authorization.getOperation().getOperationCode())) {
-            throw new PermissionDeniedException("JDBC 批量写入当前只支持 update 授权");
+        if (!"batch-update".equals(authorization.getOperation().getOperationCode())) {
+            throw new PermissionDeniedException("JDBC 批量写入当前只支持 batch-update 授权");
         }
         if (authorization.size() > maxBatchSize) {
             throw new ValidationException("批量写入目标数量超过 JDBC 上限 " + maxBatchSize);

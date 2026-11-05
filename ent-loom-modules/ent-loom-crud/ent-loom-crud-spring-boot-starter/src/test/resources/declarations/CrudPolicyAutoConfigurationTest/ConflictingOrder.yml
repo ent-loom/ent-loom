@@ -1,3 +1,5 @@
 crud:
-  policy: record
-  policy: public
+  access:
+    policy: record
+  access:
+    policy: public

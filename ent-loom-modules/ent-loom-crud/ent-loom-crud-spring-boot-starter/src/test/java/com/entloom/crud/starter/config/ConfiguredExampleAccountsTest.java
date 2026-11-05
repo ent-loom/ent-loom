@@ -44,13 +44,13 @@ class ConfiguredExampleAccountsTest {
         .withConfiguration(AutoConfigurations.of(CrudExampleAutoConfiguration.class,
             CrudPolicyAutoConfiguration.class, CrudAccessWebAutoConfiguration.class))
         .withUserConfiguration(MvcConfiguration.class)
-        .withPropertyValues("ent.loom.crud.access.identities.customer.id-type=LONG",
-            "ent.loom.crud.access.identities.merchant.id-type=LONG", PREFIX + "enabled=true", PREFIX + "default-access-entry=consumer",
-            PREFIX + "routes[/api/merchant/**]=merchant",
+        .withPropertyValues("ent.loom.crud.access.identities.customer.id-type=long",
+            "ent.loom.crud.access.identities.merchant.id-type=long", PREFIX + "enabled=true", PREFIX + "default-access-entry=consumer",
+            PREFIX + "routes[0].path=/api/merchant/**", PREFIX + "routes[0].entry=merchant",
             PREFIX + "accounts[0].token=customer-a", PREFIX + "accounts[0].subject-id=user-a",
-            PREFIX + "accounts[0].customerId=301",
+            PREFIX + "accounts[0].identity.code=customer", PREFIX + "accounts[0].identity.id=301",
             PREFIX + "accounts[1].token=merchant-a", PREFIX + "accounts[1].subject-id=user-b",
-            PREFIX + "accounts[1].merchantId=1001");
+            PREFIX + "accounts[1].identity.code=merchant", PREFIX + "accounts[1].identity.id=1001");
 
     @Test
     void 按Yaml身份码注册同类快照并在创建Controller前完成装配() {
@@ -105,18 +105,18 @@ class ConfiguredExampleAccountsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"accounts[0].customerId=bad", "accounts[0].customerId=0", "accounts[0].customerId=-1",
-        "accounts[0].customerId=0301", "accounts[0].token=", "accounts[0].subject-id=",
+    @ValueSource(strings = {"accounts[0].identity.id=bad", "accounts[0].identity.id=0", "accounts[0].identity.id=-1",
+        "accounts[0].identity.id=0301", "accounts[0].token=", "accounts[0].subject-id=",
         "accounts[1].token=customer-a", "accounts[1].subject-id=user-a",
-        "accounts[0].merchantId=1001", "accounts[0].unknownId=1"})
+        "accounts[0].identity.code=unknown", "accounts[0].identity.code=", "accounts[0].identity.id=", "accounts[0].unknown-id=1"})
     void 非法账号启动失败(String invalidProperty) {
         runner.withPropertyValues(PREFIX + invalidProperty).run(context -> assertThat(context).hasFailed());
     }
 
     @Test
-    void 兼容账号字段的连字符命名() {
+    void 固定身份结构引用共享身份码并校验归属() {
         runner.withPropertyValues(PREFIX + "accounts[2].token=customer-c", PREFIX + "accounts[2].subject-id=user-c",
-            PREFIX + "accounts[2].customer-id=303").run(context -> {
+            PREFIX + "accounts[2].identity.code=customer", PREFIX + "accounts[2].identity.id=303").run(context -> {
                 assertThat(context).hasNotFailed();
                 assertThat(context.getBean(BusinessIdentityRegistry.class).resolve(
                     new AccessSubject("user-c", AccessSubjectType.HUMAN), "customer", "303"))
@@ -125,14 +125,12 @@ class ConfiguredExampleAccountsTest {
     }
 
     @Test
-    void 重复身份字段未知字段或缺失类型启动失败() {
-        runner.withPropertyValues("ent.loom.crud.access.identities.merchant.id-field=customerId")
-            .run(context -> assertThat(context).hasFailed());
+    void 未知字段缺失身份或缺失类型启动失败() {
         runner.withPropertyValues(PREFIX + "accounts[2].token=wrong", PREFIX + "accounts[2].subject-id=user-c",
             PREFIX + "accounts[2].unknownId=1").run(context -> assertThat(context).hasFailed());
         runner.withPropertyValues("ent.loom.crud.access.identities.merchant.id-type=")
             .run(context -> assertThat(context).hasFailed());
-        runner.withPropertyValues("ent.loom.crud.access.identities.merchant.id-field=token")
+        runner.withPropertyValues(PREFIX + "accounts[2].token=missing-identity", PREFIX + "accounts[2].subject-id=user-c")
             .run(context -> assertThat(context).hasFailed());
     }
 
@@ -200,10 +198,25 @@ class ConfiguredExampleAccountsTest {
 
     @Test
     void 路由匹配到不同入口时拒绝() {
-        runner.withPropertyValues(PREFIX + "routes[/api/**]=consumer").run(context ->
+        runner.withPropertyValues(PREFIX + "routes[1].path=/api/**", PREFIX + "routes[1].entry=consumer").run(context ->
             assertThatThrownBy(() -> context.getBean(CrudHttpAuthenticationSource.class)
                 .authenticate(new MockHttpServletRequest("GET", "/api/merchant/current")))
                 .isInstanceOf(PermissionDeniedException.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"routes[1].path=/api/merchant/**", "routes[1].path=", "routes[1].entry=",
+        "routes[1].unknown=value"})
+    void 路由缺失字段重复路径与未知字段启动失败(String property) {
+        runner.withPropertyValues(PREFIX + "routes[1].entry=consumer", PREFIX + property)
+            .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void 无账号时仍校验路由规则() {
+        new WebApplicationContextRunner().withConfiguration(AutoConfigurations.of(CrudExampleAutoConfiguration.class))
+            .withPropertyValues(PREFIX + "enabled=true", PREFIX + "routes[0].path=/api/**")
+            .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

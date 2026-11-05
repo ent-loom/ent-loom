@@ -7,6 +7,7 @@ Accept: application/json
 
 ### Create a customer profile
 POST {{baseUrl}}/api/ent-crud/customer_profile/create
+Authorization: Bearer demo-profile-admin
 Content-Type: application/json
 
 {
@@ -22,6 +23,7 @@ Content-Type: application/json
 
 ### Read the profile created above
 POST {{baseUrl}}/api/ent-crud/customer_profile/detail
+Authorization: Bearer demo-profile-admin
 Content-Type: application/json
 
 {

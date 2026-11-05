@@ -49,6 +49,7 @@ import com.entloom.crud.engine.jdbc.log.SqlExecutionLogger;
 import com.entloom.crud.engine.jdbc.log.SqlLogLevel;
 import com.entloom.crud.starter.config.CrudAccessProperties;
 import com.entloom.crud.starter.config.CrudProperties;
+import com.entloom.crud.starter.config.CrudPropertiesConfiguration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,7 +60,6 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -69,8 +69,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 核心公共能力装配（元数据、校验、日志与基础 JDBC）。
  */
 @Configuration
-@Import({ReadVisibilityConfiguration.class, CrudEntityDeclarationConfiguration.class})
-@EnableConfigurationProperties(CrudAccessProperties.class)
+@Import({CrudPropertiesConfiguration.class, ReadVisibilityConfiguration.class, CrudEntityDeclarationConfiguration.class})
 public class CrudCommonConfiguration {
     /**
      * 构建命令幂等校验策略，支持业务覆盖。

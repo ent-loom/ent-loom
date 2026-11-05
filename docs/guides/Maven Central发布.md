@@ -29,17 +29,17 @@
 
 ### 1. 升级版本
 
-已发布版本不可覆盖，先将仓库内版本统一升级。例如：
+已发布版本不可覆盖，先确认目标坐标未发布，再将仓库内版本统一升级。以下版本仅为示例；当前 `ent-loom` 开发版本为 `2.0.0-SNAPSHOT`，`ent-runtime 0.1.1` 已发布：
 
 ```bash
 # ent-loom
-./mvnw versions:set -DnewVersion=1.0.1 -DgenerateBackupPoms=false
+./mvnw versions:set -DnewVersion=2.0.0 -DgenerateBackupPoms=false
 
 # ent-runtime
-./mvnw versions:set -DnewVersion=0.1.1 -DgenerateBackupPoms=false
+./mvnw versions:set -DnewVersion=0.2.0 -DgenerateBackupPoms=false
 ```
 
-执行后检查所有模块的 parent、dependency 和项目版本是否一致。
+执行后检查所有模块的 parent、dependency 和项目版本是否一致；`ent-loom` 的独立示例和示例聚合 POM 不属于默认 Reactor，须同步更新并验证。
 
 ### 2. 本地验证
 
@@ -59,17 +59,17 @@
 
 ```bash
 git add -A
-git commit -m "release: ent-loom 1.0.1"
+git commit -m "release: ent-loom 2.0.0"
 ```
 
 `ent-runtime` 使用对应的版本和提交信息。建议在发布前创建本地 Tag：
 
 ```bash
 # ent-loom
-git tag ent-loom-v1.0.1
+git tag ent-loom-v2.0.0
 
 # ent-runtime
-git tag ent-runtime-v0.1.1
+git tag ent-runtime-v0.2.0
 ```
 
 Tag 不得覆盖已有版本。
@@ -105,10 +105,12 @@ Tag 不得覆盖已有版本。
 
 ```bash
 git push origin main
-git push origin ent-loom-v1.0.1
+git push origin ent-loom-v2.0.0
 ```
 
 `ent-runtime` 推送其对应 Tag。也可以在 Central Search 或 Maven Central 文件目录中验证构件；`mvnrepository.com` 是第三方索引，更新可能晚于 Central 几小时到 1～2 天。
+
+`ent-loom` 新版本发布后，使用全新 Maven 仓库验收独立示例从 Central 下载的构件，并恢复 CI 的公开消费者验收；不能用本地安装的开发构件代替。
 
 ## 状态说明
 
@@ -121,9 +123,9 @@ git push origin ent-loom-v1.0.1
 
 ## 两个仓库
 
-| 仓库 | 根目录 | 本次目标发布版本 |
+| 仓库 | 根目录 | 版本状态 |
 |---|---|---|
-| `ent-loom` | `<ent-loom-repo>` | `1.0.1` |
-| `ent-runtime` | `<ent-runtime-repo>` | `0.1.1` |
+| `ent-loom` | `<ent-loom-repo>` | 已发布 `1.0.1`；当前开发 `2.0.0-SNAPSHOT` |
+| `ent-runtime` | `<ent-runtime-repo>` | 已发布 `0.1.1`；下次版本按实际变更确定 |
 
 每次只在发生变更的仓库中执行版本升级、验证、上传和 Central 发布。两个仓库同时变更时，分别完成各自的流程。

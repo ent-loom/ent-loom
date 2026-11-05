@@ -112,8 +112,8 @@ class CrudStarterConfigurationContractTest {
         values.put("ent.loom.crud.import.enabled", "false");
         values.put("ent.loom.crud.export.enabled", "true");
         values.put("ent.loom.crud.import-export.storage-directory", "target/typed-crud");
-        values.put("ent.loom.crud.import-export.retention-hours", "12");
-        values.put("ent.loom.crud.import-export.max-file-bytes", "1048576");
+        values.put("ent.loom.crud.import-export.retention", "12h");
+        values.put("ent.loom.crud.import-export.max-file-size", "1MB");
         values.put("ent.loom.crud.idempotency.mode", "REQUIRED");
         values.put("ent.loom.crud.dao.pagination.max-page-size", "80");
         values.put("ent.loom.crud.dao.pagination.max-offset", "9000");
@@ -135,8 +135,8 @@ class CrudStarterConfigurationContractTest {
         Assertions.assertFalse(properties.getImport().isEnabled());
         Assertions.assertTrue(properties.getExport().isEnabled());
         Assertions.assertEquals("target/typed-crud", properties.getImportExport().getStorageDirectory());
-        Assertions.assertEquals(12L, properties.getImportExport().getRetentionHours());
-        Assertions.assertEquals(1048576L, properties.getImportExport().getMaxFileBytes());
+        Assertions.assertEquals(java.time.Duration.ofHours(12), properties.getImportExport().getRetention());
+        Assertions.assertEquals(1048576L, properties.getImportExport().getMaxFileSize().toBytes());
         Assertions.assertEquals(IdempotencyPolicy.Mode.REQUIRED, properties.getIdempotency().getMode());
         Assertions.assertEquals(80, properties.getDao().getPagination().getMaxPageSize());
         Assertions.assertEquals(9000L, properties.getDao().getPagination().getMaxOffset());

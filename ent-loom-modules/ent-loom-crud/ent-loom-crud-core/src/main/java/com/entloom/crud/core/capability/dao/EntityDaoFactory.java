@@ -18,6 +18,12 @@ public interface EntityDaoFactory {
      */
     <T, ID> EntityDao<T, ID> scoped(EntityType<T, ID> entityType, EntityAccessScope scope);
 
+    /** 已授权业务 Handler 的内部 DAO；范围已包含根实体授权与固定业务条件，默认拒绝。 */
+    default <T, ID> EntityDao<T, ID> scopedAction(EntityType<T, ID> type,
+        com.entloom.crud.core.capability.command.engine.AuthorizedActionContext action, EntityAccessScope scope) {
+        throw new PermissionDeniedException("当前 EntityDaoFactory 尚不支持业务 Handler 范围执行");
+    }
+
     /**
      * 创建消费按次业务授权结果的 DAO。
      *

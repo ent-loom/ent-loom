@@ -53,7 +53,7 @@ class CrudBusinessAuthorizationAdapterTest {
     private static final BusinessOperation REFUND = new BusinessOperation("order", "refund");
 
     @Test
-    void 显式场景动作与实体读取策略共存且新映射和可信作用域优先() {
+    void 显式业务动作与标准读取均受实体策略约束() {
         Fixture fixture = fixture((visitor, operation, rule, target) -> BusinessPermissionDecision.deny());
         CrudGovernanceService governance = (CrudGovernanceService) java.lang.reflect.Proxy.newProxyInstance(
             getClass().getClassLoader(), new Class<?>[] {CrudGovernanceService.class},
@@ -61,7 +61,7 @@ class CrudBusinessAuthorizationAdapterTest {
         ExecutionPipeline pipeline = new ExecutionPipeline(governance, fixture.adapter);
         CommandSpec<Object> place = CommandSpec.builder().rootType(Order.class)
             .op(CommandOperation.ACTION).scene("place").build();
-        assertFalse(pipeline.requiresBusinessAuthorization(place));
+        assertTrue(pipeline.requiresBusinessAuthorization(place));
         assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().scene("refund").build()));
         assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().scene("unknown").build()));
         assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().op(CommandOperation.CREATE).build()));
@@ -154,10 +154,7 @@ class CrudBusinessAuthorizationAdapterTest {
                 new CrudOperationMapping(CrudOperationKey.of(CommandOperation.ACTION), "refund", REFUND,
                     "Project#refundMapping")));
         BusinessAuthorizationService authorization = new BusinessAuthorizationService(catalog, policies, evaluator);
-        return new Fixture(authorization, new CrudBusinessAuthorizationAdapter(entities, mappings, authorization,
-            new com.entloom.crud.core.governance.policy.ScenePolicyRegistry(java.util.Arrays.asList(
-                new com.entloom.crud.core.governance.policy.ScenePolicy(new com.entloom.crud.core.governance.policy.ScenePolicyKey("base", "order", CrudOperationKey.of(CommandOperation.ACTION), "place"), "place-order", Collections.emptySet()),
-                new com.entloom.crud.core.governance.policy.ScenePolicy(new com.entloom.crud.core.governance.policy.ScenePolicyKey("base", "order", CrudOperationKey.of(CommandOperation.ACTION), "refund"), "refund", Collections.emptySet())))));
+        return new Fixture(authorization, new CrudBusinessAuthorizationAdapter(entities, mappings, authorization));
     }
 
     private static final class Fixture {

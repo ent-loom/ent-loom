@@ -35,6 +35,29 @@ public final class InsertConstraintValueBinder {
         return Collections.unmodifiableMap(result);
     }
 
+    /** 业务 Handler 必须明确提供归属值；只校验可信业务范围，不将查询谓词转为赋值规则。 */
+    public static Map<String, Object> verifyBusinessScope(RowConstraint constraint, EntityMeta meta, Map<String, Object> values) {
+        RowConstraint normalized = RowConstraintNormalizer.normalize(constraint, meta);
+        verifyNode(normalized, meta, values);
+        return Collections.unmodifiableMap(new LinkedHashMap<String, Object>(values));
+    }
+
+    private static void verifyNode(RowConstraint constraint, EntityMeta meta, Map<String, Object> values) {
+        switch (constraint.getKind()) {
+            case UNRESTRICTED: return;
+            case AND:
+                for (RowConstraint child : constraint.getChildren()) verifyNode(child, meta, values);
+                return;
+            case PREDICATE:
+                EntityFieldMeta field = meta.resolveFieldMeta(constraint.getField());
+                Object actual = RowConstraintNormalizer.normalizeValue(field, values.get(constraint.getField()));
+                if ((constraint.getOperator() == RowConstraintOperator.EQ || constraint.getOperator() == RowConstraintOperator.IN)
+                    && actual != null && constraint.getValues().contains(actual)) return;
+                throw new ValidationException("业务新增数据不符合范围: " + constraint.getField());
+            default: throw new ValidationException("业务新增尚不支持该范围表达式: " + constraint.getKind());
+        }
+    }
+
     private static void bindNode(RowConstraint constraint, EntityMeta meta, Map<String, Object> values) {
         switch (constraint.getKind()) {
             case UNRESTRICTED:

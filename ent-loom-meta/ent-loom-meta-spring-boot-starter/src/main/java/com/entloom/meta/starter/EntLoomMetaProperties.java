@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Meta -> sub-framework adapter auto-configuration properties.
  */
-@ConfigurationProperties(prefix = "ent.loom.meta")
+@ConfigurationProperties(prefix = "ent.loom.meta", ignoreUnknownFields = false)
 public class EntLoomMetaProperties {
     /** Meta 适配器总开关。 */
     private boolean enabled = true;

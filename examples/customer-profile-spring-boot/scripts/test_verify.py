@@ -57,7 +57,7 @@ class VerificationLifecycleTest(unittest.TestCase):
                     return {"success": True, "data": {"id": 123}}
                 self.assertEqual(body["options"]["filterMap"]["id"]["value"], 123)
                 return {"success": True, "data": {"item": {
-                    "id": 123, "display_name": "wrong" if fail_detail else "Ada Lovelace",
+                    "id": 123, "displayName": "wrong" if fail_detail else "Ada Lovelace",
                     "email": "ada@example.com"}}}
 
             with patch.object(verify, "EXAMPLE", example), \

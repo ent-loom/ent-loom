@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * DDL starter 配置项。
  */
-@ConfigurationProperties(prefix = "ent.loom.ddl")
+@ConfigurationProperties(prefix = "ent.loom.ddl", ignoreUnknownFields = false)
 public class EntDdlProperties {
     /** 目标数据库 schema；空值使用数据源默认 schema。 */
     private String schema = "";

@@ -6,8 +6,6 @@ import com.example.minicommerce.common.exception.BusinessError;
 public enum OrderError implements BusinessError {
     /** 请求对象为空。 */
     REQUEST_REQUIRED("REQUEST_REQUIRED", "下单请求不能为空"),
-    /** 下单客户主键为空。 */
-    CUSTOMER_REQUIRED("CUSTOMER_REQUIRED", "下单客户不能为空"),
     /** 下单客户不存在。 */
     CUSTOMER_NOT_FOUND("CUSTOMER_NOT_FOUND", "客户不存在"),
     /** 订单商品行为空。 */
@@ -27,7 +25,11 @@ public enum OrderError implements BusinessError {
     /** 商家商品当前未启用。 */
     MERCHANT_PRODUCT_INACTIVE("MERCHANT_PRODUCT_INACTIVE", "商家商品当前不可下单"),
     /** 商家商品价格不符合下单要求。 */
-    MERCHANT_PRODUCT_PRICE_INVALID("MERCHANT_PRODUCT_PRICE_INVALID", "商家商品价格必须大于零");
+    MERCHANT_PRODUCT_PRICE_INVALID("MERCHANT_PRODUCT_PRICE_INVALID", "商家商品价格必须大于零"),
+    /** 订单不存在或不属于当前身份。 */
+    ORDER_NOT_FOUND("ORDER_NOT_FOUND", "订单不存在或不可访问"),
+    /** 仅允许取消已创建订单。 */
+    ORDER_NOT_CANCELLABLE("ORDER_NOT_CANCELLABLE", "当前订单状态不允许取消");
 
     private final String code;
     private final String message;

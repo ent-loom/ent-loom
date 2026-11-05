@@ -72,7 +72,7 @@ Content-Type: application/json
 
 已绑定业务访问策略的实体需要显式将 `UPDATE_BATCH` 映射到 `update` 业务操作；映射存在不代表访问者已获授权。每项独立校验范围和 WRITE 字段，未提交字段保持原值，显式 `null` 表示清空（须通过实体约束）。启用 `version` 的实体要求每项携带当前版本；成功后由框架递增。
 
-受授权 UPDATE_BATCH 复用授权 DAO 的全量原子执行：全部目标准备完成后启动事务，任一失败整批回滚；最终 commit 后才返回成功并逐目标记录成功审计。不存在、跨范围和版本冲突统一返回 `409 WRITE_CONFLICT`。每批 1～500 项、主键不得重复；不接受外层事务、全局版本/目标条件、场景、试运行或幂等键。框架默认复用应用的 SmartValidator 校验显式提交的实体字段，应用可通过 EntityUpdateValidator 扩展；示例见[商家批量改价](商家批量改价演示.md)。
+受授权 UPDATE_BATCH 复用授权 DAO 的全量原子执行：全部目标准备完成后启动事务，任一失败整批回滚；最终 commit 后才返回成功并逐目标记录成功审计。不存在、跨范围和版本冲突统一返回 `409 WRITE_CONFLICT`。每批 1～500 项、主键不得重复；不接受外层事务、全局版本/目标条件、场景、试运行或幂等键。框架默认复用应用的 SmartValidator 校验显式提交的实体字段，应用可通过 EntityWriteValidator 扩展；示例见[商家批量改价](商家批量改价演示.md)。
 
 尚未绑定业务访问策略的批量命令继续原执行合同；上述受授权批量 UPDATE 的事务保证不自动扩展到 CREATE_BATCH、DELETE_BATCH 或 SAVE_OR_UPDATE_BATCH。
 

@@ -10,6 +10,7 @@ import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.idempotency.IdempotencyPolicy;
 import com.entloom.crud.engine.jdbc.command.JdbcCrudCommandOptions;
 import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -23,15 +24,24 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.NestedConfigurationProperty;
+import org.springframework.util.unit.DataSize;
 
 /**
  * ent-loom-crud 配置项。
  */
-@ConfigurationProperties(prefix = "ent.loom.crud")
+@ConfigurationProperties(prefix = "ent.loom.crud", ignoreUnknownFields = false)
 @Getter
 @Setter
 public class CrudProperties {
-    private static final long DEFAULT_RETENTION_HOURS = 48L;
+    private static final Duration DEFAULT_RETENTION = Duration.ofHours(48);
+
+    /** 共享业务访问声明。 */
+    @NestedConfigurationProperty
+    private CrudAccessProperties access = new CrudAccessProperties();
+    /** 显式启用的本地演示接入。 */
+    @NestedConfigurationProperty
+    private CrudExampleProperties example = new CrudExampleProperties();
 
     /** SQL 日志配置。 */
     private SqlLog sqlLog = new SqlLog();
@@ -57,8 +67,6 @@ public class CrudProperties {
     private ImportExport importExport = new ImportExport();
     /** 实体 DAO 配置。 */
     private Dao dao = new Dao();
-    /** 外部创建/更新输入契约。 */
-
     /** 实体默认行为。 */
     private Defaults defaults = new Defaults();
 
@@ -118,17 +126,18 @@ public class CrudProperties {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+    private static Duration positiveDuration(Duration value, String property) {
+        if (value == null || value.isNegative() || value.toMillis() < 1) {
+            throw new IllegalArgumentException(property + " 必须为至少 1ms 的时长");
+        }
+        return value;
     }
 
-    private static long positiveOrDefault(long value, long defaultValue) {
-        return value > 0 ? value : defaultValue;
-    }
-
-    private static <E extends Enum<E>> E parseEnum(String value, Class<E> enumType, E defaultValue) {
+    /** 默认值由字段初始化提供；显式空枚举不能等同于省略配置。 */
+    private static <E extends Enum<E>> E parseEnum(String value, Class<E> enumType, String property) {
         String normalized = trimToNull(value);
-        return normalized == null ? defaultValue : Enum.valueOf(enumType, normalized.toUpperCase(Locale.ENGLISH));
+        if (normalized == null) throw new IllegalArgumentException("ent.loom.crud." + property + " 枚举配置不能为空");
+        return Enum.valueOf(enumType, normalized.toUpperCase(Locale.ROOT).replace('-', '_'));
     }
 
     private static <T> Set<T> copySet(Set<T> values) {
@@ -212,14 +221,17 @@ public class CrudProperties {
         }
 
         public void setMode(String mode) {
-            this.mode = parseEnum(mode, Mode.class, Mode.SAFE);
+            this.mode = parseEnum(mode, Mode.class, "sql-log.mode");
         }
 
         /**
-         * 设置采样率并限制取值范围。
+         * 显式越界应在配置期失败，不静默修正。
          */
         public void setSampleRate(double sampleRate) {
-            this.sampleRate = clamp(sampleRate, 0d, 1d);
+            if (!Double.isFinite(sampleRate) || sampleRate < 0d || sampleRate > 1d) {
+                throw new IllegalArgumentException("ent.loom.crud.sql-log.sample-rate 必须介于 0 和 1");
+            }
+            this.sampleRate = sampleRate;
         }
 
         public void setOutput(Output output) {
@@ -227,7 +239,7 @@ public class CrudProperties {
         }
 
         public void setOutput(String output) {
-            this.output = parseEnum(output, Output.class, Output.TEMPLATE);
+            this.output = parseEnum(output, Output.class, "sql-log.output");
         }
 
         /**
@@ -285,33 +297,11 @@ public class CrudProperties {
         }
 
         public void setDefaultReadResultMode(String defaultReadResultMode) {
-            String normalized = trimToNull(defaultReadResultMode);
-            if (normalized == null) {
-                this.defaultReadResultMode = DEFAULT_READ_RESULT_MODE;
-                return;
-            }
-            CrudReadResultMode resolved = CrudReadResultMode.from(normalized);
-            if (resolved == null) {
-                throw new IllegalArgumentException(
-                    "ent.loom.crud.controller.default-read-result-mode 仅支持 MAP 或 ENTITY，当前值: " + defaultReadResultMode
-                );
-            }
-            this.defaultReadResultMode = resolved;
+            this.defaultReadResultMode = parseEnum(defaultReadResultMode, CrudReadResultMode.class, "controller.default-read-result-mode");
         }
 
         public void setDefaultNullFieldMode(String defaultNullFieldMode) {
-            String normalized = trimToNull(defaultNullFieldMode);
-            if (normalized == null) {
-                this.defaultNullFieldMode = DEFAULT_NULL_FIELD_MODE;
-                return;
-            }
-            CrudNullFieldMode resolved = CrudNullFieldMode.from(normalized);
-            if (resolved == null) {
-                throw new IllegalArgumentException(
-                    "ent.loom.crud.controller.default-null-field-mode 仅支持 INCLUDE 或 OMIT，当前值: " + defaultNullFieldMode
-                );
-            }
-            this.defaultNullFieldMode = resolved;
+            this.defaultNullFieldMode = parseEnum(defaultNullFieldMode, CrudNullFieldMode.class, "controller.default-null-field-mode");
         }
 
         public void setStringFilter(StringFilter stringFilter) {
@@ -337,7 +327,7 @@ public class CrudProperties {
         }
 
         public void setDefaultLikeMode(String defaultLikeMode) {
-            this.defaultLikeMode = parseEnum(defaultLikeMode, LikeMode.class, LikeMode.CONTAINS);
+            this.defaultLikeMode = parseEnum(defaultLikeMode, LikeMode.class, "controller.string-filter.default-like-mode");
         }
 
         public void setDefaultLikeExcludeFields(Set<String> defaultLikeExcludeFields) {
@@ -408,7 +398,7 @@ public class CrudProperties {
             }
 
             public void setTimeDirection(String timeDirection) {
-                this.timeDirection = parseEnum(timeDirection, SortDirection.class, SortDirection.DESC);
+                this.timeDirection = parseEnum(timeDirection, SortDirection.class, "query.default-sort.time-direction");
             }
 
             public void setIdDirection(SortDirection idDirection) {
@@ -416,7 +406,7 @@ public class CrudProperties {
             }
 
             public void setIdDirection(String idDirection) {
-                this.idDirection = parseEnum(idDirection, SortDirection.class, SortDirection.DESC);
+                this.idDirection = parseEnum(idDirection, SortDirection.class, "query.default-sort.id-direction");
             }
 
             private static Set<QueryOperation> defaultApplyTo() {
@@ -456,7 +446,7 @@ public class CrudProperties {
             this.createScopeFieldValidationMode = parseEnum(
                 createScopeFieldValidationMode,
                 JdbcCrudCommandOptions.CreateScopeFieldValidationMode.class,
-                JdbcCrudCommandOptions.CreateScopeFieldValidationMode.STRICT_ALL
+                "command.create-scope-field-validation-mode"
             );
         }
 
@@ -497,21 +487,24 @@ public class CrudProperties {
     public static class ImportExport {
         /** 本地持久化根目录。 */
         private String storageDirectory = System.getProperty("java.io.tmpdir") + "/entloom-crud";
-        /** 默认文件保留小时数。 */
-        private long retentionHours = 48;
+        /** 文件保留时长，例如 48h。 */
+        private Duration retention = DEFAULT_RETENTION;
         /** 默认单文件大小上限。 */
-        private long maxFileBytes = 50L * 1024L * 1024L;
+        private DataSize maxFileSize = DataSize.ofMegabytes(50);
         public void setStorageDirectory(String storageDirectory) {
             String normalized = trimToNull(storageDirectory);
             this.storageDirectory = normalized == null ? System.getProperty("java.io.tmpdir") + "/entloom-crud" : normalized;
         }
 
-        public void setRetentionHours(long retentionHours) {
-            this.retentionHours = positiveOrDefault(retentionHours, DEFAULT_RETENTION_HOURS);
+        public void setRetention(Duration retention) {
+            this.retention = positiveDuration(retention, "ent.loom.crud.import-export.retention");
         }
 
-        public void setMaxFileBytes(long maxFileBytes) {
-            this.maxFileBytes = positiveOrDefault(maxFileBytes, 50L * 1024L * 1024L);
+        public void setMaxFileSize(DataSize maxFileSize) {
+            if (maxFileSize == null || maxFileSize.toBytes() < 1) {
+                throw new IllegalArgumentException("ent.loom.crud.import-export.max-file-size 必须大于 0B");
+            }
+            this.maxFileSize = maxFileSize;
         }
     }
 
@@ -533,11 +526,13 @@ public class CrudProperties {
         private boolean allowExternalLoaders = false;
 
         public void setMaxDepth(int maxDepth) {
-            this.maxDepth = Math.max(1, maxDepth);
+            if (maxDepth < 1) throw new IllegalArgumentException("ent.loom.crud.relation.max-depth 必须至少为 1");
+            this.maxDepth = maxDepth;
         }
 
         public void setMaxExpandEdges(int maxExpandEdges) {
-            this.maxExpandEdges = Math.max(1, maxExpandEdges);
+            if (maxExpandEdges < 1) throw new IllegalArgumentException("ent.loom.crud.relation.max-expand-edges 必须至少为 1");
+            this.maxExpandEdges = maxExpandEdges;
         }
     }
 
@@ -553,8 +548,8 @@ public class CrudProperties {
         private Set<CommandOperation> requiredOps = EnumSet.noneOf(CommandOperation.class);
         /** 必填幂等场景集合。 */
         private Set<String> requiredScenes = new HashSet<>();
-        /** 保留时长（小时）。 */
-        private long retentionHours = 48;
+        /** 幂等记录保留时长，例如 48h；至少 1s 且必须为整秒，与 MySQL 秒级存储一致。 */
+        private Duration retention = DEFAULT_RETENTION;
         /** 表名。 */
         private String tableName = "entloom_idempotency_record";
         /** 是否自动初始化表结构。 */
@@ -572,8 +567,11 @@ public class CrudProperties {
             this.requiredScenes = copySet(requiredScenes);
         }
 
-        public void setRetentionHours(long retentionHours) {
-            this.retentionHours = positiveOrDefault(retentionHours, DEFAULT_RETENTION_HOURS);
+        public void setRetention(Duration retention) {
+            if (retention == null || retention.getSeconds() < 1 || retention.getNano() != 0) {
+                throw new IllegalArgumentException("ent.loom.crud.idempotency.retention 必须为至少 1s 的整秒时长");
+            }
+            this.retention = retention;
         }
 
     }

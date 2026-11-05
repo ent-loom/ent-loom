@@ -29,7 +29,7 @@ class CommandActionRegistrationTest {
             ProxyFactory factory = new ProxyFactory(new BoundAction());
             factory.setProxyTargetClass(classProxy);
             factory.addAdvice((MethodInterceptor) invocation -> {
-                invocations.incrementAndGet();
+                if ("handle".equals(invocation.getMethod().getName())) invocations.incrementAndGet();
                 return invocation.proceed();
             });
             CommandActionSceneHandler<?, ?> proxy = (CommandActionSceneHandler<?, ?>) factory.getProxy();
@@ -39,6 +39,7 @@ class CommandActionRegistrationTest {
                     TestEntity.class, Collections.<Class<?>>singletonList(TestEntity.class), " ORDER.PLACE ");
                 assertThat(contract.getRequestType()).isEqualTo(String.class);
                 assertThat(contract.getResponseType()).isEqualTo(String.class);
+                assertThat(contract.getRelatedAccess()).isEmpty();
 
                 CommandSpec<String> spec = CommandSpec.<String>builder()
                     .rootType(TestEntity.class)

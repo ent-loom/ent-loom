@@ -1,3 +1,0 @@
-crud:
-  policy: owned-data
-  policy: other

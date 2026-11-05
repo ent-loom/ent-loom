@@ -88,14 +88,17 @@ class CrudQueryAdmissionIntegrationTest {
     }
 
     @Test
-    void 缺失无效凭证和伪造身份头不能获得通用查询准入() {
+    void 公共策略允许无凭证但伪造身份头不生效且无效凭证拒绝() {
         authenticated.run(context -> {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
-            mvc.perform(post(ROOT + "/list").header("X-Subject-Id", "actor").header("X-Access-Entry", "trusted-entry"))
-                .andExpect(status().isForbidden());
+            mvc.perform(post(ROOT + "/list").header("X-Subject-Id", "actor").header("X-Access-Entry", "forged-entry"))
+                .andExpect(status().isOk());
             mvc.perform(post(ROOT + "/list").header("Authorization", "Bearer expired"))
                 .andExpect(status().isForbidden());
-            assertThat(context.getBean(State.class).events).isEmpty();
+            assertThat(context.getBean(State.class).events).singleElement().satisfies(event -> {
+                assertThat(event.getVisitor().isAnonymous()).isTrue();
+                assertThat(event.getVisitor().getAccessEntry()).isEqualTo("trusted-entry");
+            });
             assertThat(AccessContextScope.currentVisitor()).isEmpty();
         });
     }

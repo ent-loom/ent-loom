@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -30,9 +30,9 @@ class ConfiguredOwnershipTest {
         ent.loom.crud.access:
           identities:
             customer:
-              id-type: LONG
+              id-type: long
             merchant:
-              id-type: LONG
+              id-type: long
           relations:
             customer:
               field: customerId
@@ -88,7 +88,7 @@ class ConfiguredOwnershipTest {
             YAML.replace("ownership: [merchant]", "ownership: [' ']"),
             YAML.replace("ownership: [merchant]", "ownership: [merchant]\n      relations:\n        merchant: missingId"),
             YAML.replace("sale:", "unknown:"),
-            YAML.replace("id-type: LONG", "id-type: STRING"))) {
+            YAML.replace("id-type: long", "id-type: string"))) {
             runner(yaml).run(context -> assertThat(context).hasFailed());
         }
     }
@@ -130,7 +130,7 @@ class ConfiguredOwnershipTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(CrudAccessProperties.class)
+    @Import(CrudPropertiesConfiguration.class)
     static class OwnershipConfiguration {
         @Bean
         CrudOwnershipRules ownership(CrudAccessProperties properties, CrudEntityDeclarations declarations) {

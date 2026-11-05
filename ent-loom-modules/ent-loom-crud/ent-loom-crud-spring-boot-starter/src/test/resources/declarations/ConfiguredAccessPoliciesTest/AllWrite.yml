@@ -1,7 +1,0 @@
-crud:
-  policy: order
-  fields:
-    owner:
-      WRITE:
-        mode: ALL
-        fields: []

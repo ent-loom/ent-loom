@@ -4,7 +4,7 @@ ddl:
       fields: [displayName]
       unique: true
 crud:
-  access: JAVA
+  http-exposed: false
 doc:
   fields:
     displayName:

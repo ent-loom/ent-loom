@@ -11,6 +11,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'guides/快速开始',
         'guides/配置参考',
+        'guides/实体YAML与IDEA配置',
         {
           type: 'category',
           label: 'Meta：实体建模',

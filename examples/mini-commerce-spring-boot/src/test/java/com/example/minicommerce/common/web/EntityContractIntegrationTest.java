@@ -5,8 +5,9 @@ import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
 import com.example.minicommerce.customer.entity.Customer;
-import com.example.minicommerce.customer.entity.CustomerAddress;
+import com.example.minicommerce.customer.entity.CustomerLevel;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
+import com.example.minicommerce.merchant.entity.Merchant;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
@@ -21,6 +22,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -59,15 +62,16 @@ class EntityContractIntegrationTest {
 
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
-        assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
-                MerchantProduct.class, MerchantArticle.class),
+        assertEquals(Set.of(com.example.minicommerce.customer.entity.CustomerBankCard.class, Customer.class, CustomerLevel.class, Order.class, OrderItem.class,
+                Merchant.class, MerchantProduct.class, MerchantArticle.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
-        assertEquals(CustomerAddress.class, exposedEntities.resolveOrThrow("customerAddress"));
+        assertEquals(CustomerLevel.class, exposedEntities.resolveOrThrow("customerLevel"));
         assertEquals(MerchantArticle.class, exposedEntities.resolveOrThrow("merchantArticle"));
         assertEquals(Customer.class, exposedEntities.resolveOrThrow("customer"));
         assertEquals(Order.class, exposedEntities.resolveOrThrow("order"));
         assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchantOrder"));
+        assertThrows(CrudException.class, () -> exposedEntities.resolveOrThrow("merchant"));
         assertThrows(
             CrudException.class,
             () -> exposedEntities.resolveOrThrow("orderItem"));
@@ -77,13 +81,59 @@ class EntityContractIntegrationTest {
     }
 
     @Test
+    void 商家主数据建表且三处外键均指向已注册商家实体() {
+        assertEquals("merchant", entityMetaRegistry.getEntityMeta(Merchant.class).getTable());
+        var merchant = ddlMetadataLoader.load(new com.entloom.ddl.api.MetadataLoadRequest(
+                java.util.List.of(), java.util.List.of(Merchant.class)))
+            .stream().filter(entity -> entity.entityClassName().equals(Merchant.class.getName()))
+            .findFirst().orElseThrow();
+        assertEquals(Set.of("id", "name", "legalRepresentativeName", "legalRepresentativePhone"), merchant.fields().stream()
+            .map(com.entloom.ddl.api.DdlFieldMetadata::fieldName).collect(Collectors.toSet()));
+        for (Class<?> source : java.util.List.of(Order.class, MerchantProduct.class, MerchantArticle.class)) {
+            var edges = entityMetaRegistry.getRelationGraph(source).outgoingOf(source).stream()
+                .filter(edge -> edge.getToEntity() == Merchant.class).toList();
+            assertEquals(1, edges.size());
+            assertEquals("merchantId", edges.get(0).getFromField());
+            assertEquals("id", edges.get(0).getToField());
+        }
+    }
+
+    @Test
+    void 订单结构属性复用已有关系生成展开映射且不映射数据库列() throws Exception {
+        for (String name : java.util.List.of("customer", "orderItemList")) {
+            var field = Order.class.getDeclaredField(name);
+            assertNotNull(field.getAnnotation(com.entloom.meta.annotations.EntField.class));
+            assertNull(field.getAnnotation(com.entloom.meta.annotations.EntRelation.class));
+            assertNull(field.getAnnotation(com.entloom.crud.annotations.EntCrudField.class));
+        }
+        assertNull(Order.class.getDeclaredField("customerId")
+            .getAnnotation(com.entloom.crud.annotations.EntCrudField.class));
+        var relations = entityMetaRegistry.getRelationGraph(Order.class).outgoingOf(Order.class);
+        var customer = relations.stream().filter(edge -> "customer".equals(edge.getRelationField())).toList();
+        assertEquals(1, customer.size());
+        assertEquals("customerId", customer.getFirst().getFromField());
+        assertEquals("id", customer.getFirst().getToField());
+        var items = relations.stream().filter(edge -> "orderItemList".equals(edge.getRelationField())).toList();
+        assertEquals(1, items.size());
+        assertEquals("id", items.getFirst().getFromField());
+        assertEquals("orderId", items.getFirst().getToField());
+        var order = ddlMetadataLoader.load(new com.entloom.ddl.api.MetadataLoadRequest(
+                java.util.List.of(), java.util.List.of(Order.class)))
+            .stream().filter(entity -> entity.entityClassName().equals(Order.class.getName()))
+            .findFirst().orElseThrow();
+        assertEquals(Set.of("id", "customerId", "merchantId", "status", "totalAmount", "createdAt"),
+            order.fields().stream().filter(com.entloom.ddl.api.DdlFieldMetadata::persisted)
+                .map(com.entloom.ddl.api.DdlFieldMetadata::fieldName).collect(Collectors.toSet()));
+    }
+
+    @Test
     void 客户基础Crud保留创建更新读取和删除拒绝() throws Exception {
-        mvc.perform(post("/api/ent-crud/customer/create").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/customer/create").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"payload":{"displayName":"缺少邮箱"}}
                     """))
             .andExpect(status().isBadRequest());
-        String created = mvc.perform(post("/api/ent-crud/customer/create").contentType(MediaType.APPLICATION_JSON)
+        String created = mvc.perform(post("/api/ent-crud/customer/create").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"payload":{"displayName":"配置清理客户","email":"cleanup@example.com"}}
                     """))
@@ -91,18 +141,18 @@ class EntityContractIntegrationTest {
             .andExpect(jsonPath("$.data.id").isNumber())
             .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(created, "$.data.id")).longValue();
-        mvc.perform(post("/api/ent-crud/customer/update").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/customer/update").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"payload":{"id":%d,"displayName":"已更新客户"}}
                     """.formatted(id)))
             .andExpect(status().isOk());
-        mvc.perform(post("/api/ent-crud/customer/detail").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/customer/detail").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"options":{"resultMode":"ENTITY","filter":{"id":%d}}}
+                    {"options":{"filter":{"id":%d}}}
                     """.formatted(id)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.item.displayName").value("已更新客户"));
-        mvc.perform(post("/api/ent-crud/customer/delete").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/ent-crud/customer/delete").header("Authorization", "Bearer demo-platform-admin").contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"payload":{"id":%d}}
                     """.formatted(id)))
@@ -114,8 +164,8 @@ class EntityContractIntegrationTest {
         mvc.perform(get("/api/ent-doc/contract"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
-                org.hamcrest.Matchers.containsInAnyOrder("customer", "customerAddress", "order", "orderItem",
-                    "merchantProduct", "merchantArticle")))
+                org.hamcrest.Matchers.containsInAnyOrder("customerBankCard", "customer", "customerLevel", "order", "orderItem",
+                    "merchant", "merchantProduct", "merchantArticle")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'merchantProduct')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "merchantId", "name", "price", "active", "version")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'order')].fields[*].property",

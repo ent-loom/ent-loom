@@ -30,7 +30,7 @@ public final class CommandActionRegistration<P, R> implements CommandSceneHandle
         this.routeKeys = Collections.singleton(new CrudRouteKey(
             Collections.singletonList(entityClass.getName()),
             CrudOperationKey.of(CommandOperation.ACTION), normalizedScene));
-        this.contract = new CommandActionContract(requestType, responseType);
+        this.contract = new CommandActionContract(requestType, responseType, handler.relatedAccess());
         this.handler = handler;
     }
 

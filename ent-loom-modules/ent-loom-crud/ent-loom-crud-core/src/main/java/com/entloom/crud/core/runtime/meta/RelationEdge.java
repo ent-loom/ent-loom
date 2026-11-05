@@ -27,6 +27,8 @@ public class RelationEdge {
     private JoinType joinKind;
     /** 关联基数。 */
     private RelationCardinality cardinality;
+    /** 推导规则来源，显式关系为 null。 */
+    private String inferenceRuleId;
 
     public RelationEdge() {
         this(false);
@@ -88,6 +90,11 @@ public class RelationEdge {
         this.cardinality = cardinality;
     }
 
+    public void setInferenceRuleId(String inferenceRuleId) {
+        requireMutable();
+        this.inferenceRuleId = inferenceRuleId;
+    }
+
     private void requireMutable() {
         if (frozen) {
             throw new UnsupportedOperationException("RelationEdge 已冻结");
@@ -106,5 +113,6 @@ public class RelationEdge {
         target.scope = source.scope;
         target.joinKind = source.joinKind;
         target.cardinality = source.cardinality;
+        target.inferenceRuleId = source.inferenceRuleId;
     }
 }

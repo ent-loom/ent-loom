@@ -1,7 +1,0 @@
-crud:
-  policy: order
-  fields:
-    owner:
-      EXPAND:
-        mode: EXCLUDE
-        fields: [items.title]

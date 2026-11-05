@@ -38,9 +38,6 @@ public final class EntityPolicyTemplate {
             }
             copy.add(rule);
         }
-        if (copy.isEmpty()) {
-            throw new ValidationException("模板至少需要一条操作规则: " + code + "，来源: " + source);
-        }
         this.rules = Collections.unmodifiableList(copy);
     }
 

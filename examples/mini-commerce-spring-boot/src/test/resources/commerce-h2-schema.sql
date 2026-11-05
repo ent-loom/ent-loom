@@ -4,12 +4,18 @@ CREATE TABLE IF NOT EXISTS customer (
     display_name VARCHAR(200),
     email VARCHAR(200)
 );
-CREATE TABLE IF NOT EXISTS customer_address (
+CREATE TABLE IF NOT EXISTS customer_bank_card (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     customer_id BIGINT,
-    recipient VARCHAR(200),
-    phone VARCHAR(200),
-    address VARCHAR(200)
+    bank_name VARCHAR(200),
+    card_last_four VARCHAR(200),
+    binding_token VARCHAR(200)
+);
+CREATE TABLE IF NOT EXISTS customer_level (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    merchant_id BIGINT,
+    customer_id BIGINT,
+    level VARCHAR(200)
 );
 CREATE TABLE IF NOT EXISTS merchant_article (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

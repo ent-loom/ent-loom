@@ -4,4 +4,6 @@ package com.example.minicommerce.order.enums;
 public enum OrderStatus {
     /** 订单已创建。 */
     CREATED,
+    /** 订单已取消。 */
+    CANCELLED,
 }

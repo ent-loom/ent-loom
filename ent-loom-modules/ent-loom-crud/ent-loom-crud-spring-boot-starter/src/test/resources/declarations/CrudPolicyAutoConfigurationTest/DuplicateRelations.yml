@@ -1,5 +1,6 @@
 crud:
-  policy: record
+  access:
+    policy: record
   relations:
     owner: ownerId
     owner: id
