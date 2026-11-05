@@ -8,7 +8,6 @@ import com.entloom.base.util.value.TypedValueCodec;
 import com.entloom.base.util.value.TypedValueType;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
@@ -38,7 +37,6 @@ import com.entloom.meta.contract.enums.RelationResolutionStatus;
 import com.entloom.meta.core.descriptor.DefaultEntEntityDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntFieldConstraintDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntFieldDescriptor;
-import com.entloom.meta.core.descriptor.DefaultEntIndexDescriptor;
 import com.entloom.meta.core.descriptor.DefaultEntRelationDescriptor;
 import com.entloom.meta.core.model.MetaEntityDefaults;
 import com.entloom.meta.contract.value.SourcedValue;
@@ -90,7 +88,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
         MetaEntityDefaults defaults
     ) {
         this.conventions = new ArrayList<MetaConvention>();
-        this.conventions.add(new BuiltInDateTimeConvention());
+        this.defaults = defaults == null ? new MetaEntityDefaults() : defaults;
+        this.conventions.add(new BuiltInDateTimeConvention(this.defaults.createdTimeFields()));
         if (conventions != null) {
             for (MetaConvention convention : conventions) {
                 if (convention != null && !(convention instanceof BuiltInDateTimeConvention)) {
@@ -99,7 +98,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             }
         }
         this.contributionResolver = new PropertyContributionResolver();
-        this.defaults = defaults == null ? new MetaEntityDefaults() : defaults;
     }
 
     @Override
@@ -431,20 +429,8 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
     }
 
     private List<EntIndexDescriptor> indexes(Class<?> entityClass) {
-        List<EntIndexDescriptor> indexes = new ArrayList<EntIndexDescriptor>();
-        for (EntIndex index : entityClass.getAnnotationsByType(EntIndex.class)) {
-            indexes.add(toIndexDescriptor(index));
-        }
-        return indexes;
-    }
-
-    private EntIndexDescriptor toIndexDescriptor(EntIndex index) {
-        return new DefaultEntIndexDescriptor(
-            emptyToNull(index.name()),
-            Arrays.asList(index.fields()),
-            index.unique(),
-            indexSources(index)
-        );
+        // 索引由 DDL 实体文件编译；基础 Meta 解析不再声明组件索引。
+        return java.util.Collections.emptyList();
     }
 
     private void collectFieldDiagnostics(
@@ -1044,15 +1030,6 @@ public class ReflectiveEntMetaParser implements EntMetaParser {
             return RelationOwnerSide.UNKNOWN;
         }
         return RelationOwnerSide.DECLARING_ENTITY;
-    }
-
-    private Map<String, SourcedValue<?>> indexSources(EntIndex index) {
-        Map<String, SourcedValue<?>> sources = new LinkedHashMap<String, SourcedValue<?>>();
-        String indexName = emptyToNull(index.name());
-        sources.put(MetaDescriptorProperties.INDEX_NAME, indexName == null ? SourcedValue.unknown(null) : SourcedValue.metaExplicit(indexName));
-        sources.put(MetaDescriptorProperties.FIELDS, SourcedValue.metaExplicit(Arrays.asList(index.fields())));
-        sources.put(MetaDescriptorProperties.UNIQUE, index.unique() ? SourcedValue.metaExplicit(Boolean.TRUE) : SourcedValue.unknown(Boolean.FALSE));
-        return sources;
     }
 
     private SourcedValue<String> stringSource(String value) {

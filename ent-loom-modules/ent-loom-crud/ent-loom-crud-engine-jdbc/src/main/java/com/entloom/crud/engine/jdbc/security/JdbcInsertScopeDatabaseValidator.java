@@ -212,14 +212,30 @@ public final class JdbcInsertScopeDatabaseValidator {
         String normalized = grant.toLowerCase(Locale.ROOT)
             .replace("`", "")
             .replaceAll("\\s+", " ");
-        if (!normalized.contains("trigger") && !normalized.contains("all privileges")) {
+        int on = normalized.indexOf(" on ");
+        int to = normalized.indexOf(" to ", on + 4);
+        if (!normalized.startsWith("grant ") || on < 0 || to < 0) {
             return false;
         }
+        boolean canReadTriggers = false;
+        for (String privilege : normalized.substring(6, on).split(",")) {
+            if ("trigger".equals(privilege.trim()) || "all privileges".equals(privilege.trim())) {
+                canReadTriggers = true;
+            }
+        }
+        if (!canReadTriggers) {
+            return false;
+        }
+        String target = normalized.substring(on + 4, to).trim();
         String schemaName = normalize(schema);
         String tableName = normalize(table);
-        return normalized.contains(" on *.*")
-            || normalized.contains(" on " + schemaName + ".*")
-            || normalized.contains(" on " + schemaName + "." + tableName);
+        // MySQL 的库级授权会将库名中的通配符字符转义，如 mini\_commerce；表级名称不作此转换。
+        if (target.endsWith(".*")) {
+            String grantedSchema = target.substring(0, target.length() - 2)
+                .replace("\\_", "_").replace("\\%", "%");
+            return "*".equals(grantedSchema) || schemaName.equals(grantedSchema);
+        }
+        return target.equals(schemaName + "." + tableName);
     }
 
     private String resolveSchema(Connection connection) throws Exception {

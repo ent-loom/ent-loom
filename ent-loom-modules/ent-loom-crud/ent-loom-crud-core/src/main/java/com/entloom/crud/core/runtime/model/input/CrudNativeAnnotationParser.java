@@ -12,6 +12,7 @@ import com.entloom.crud.core.convention.CrudConventionProperties;
 import com.entloom.crud.core.util.NamingUtils;
 import com.entloom.crud.enums.RelationScope;
 import com.entloom.meta.contract.contribution.Contribution;
+import com.entloom.meta.contract.convention.CreatedTimeFields;
 import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.contribution.PropertyContributionResolver;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
@@ -19,6 +20,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.enums.role.DateTimeRole;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
 import java.lang.annotation.Annotation;
@@ -41,8 +43,12 @@ public class CrudNativeAnnotationParser {
     }
 
     public CrudNativeAnnotationParser(Collection<? extends CrudConvention> conventions) {
+        this(conventions, new CreatedTimeFields());
+    }
+
+    public CrudNativeAnnotationParser(Collection<? extends CrudConvention> conventions, CreatedTimeFields createdTimeFields) {
         this.conventions = new ArrayList<CrudConvention>();
-        this.conventions.add(new BuiltInDateTimeConvention());
+        this.conventions.add(new BuiltInDateTimeConvention(createdTimeFields));
         if (conventions != null) {
             for (CrudConvention convention : conventions) {
                 if (convention != null && !(convention instanceof BuiltInDateTimeConvention)) {
@@ -131,16 +137,18 @@ public class CrudNativeAnnotationParser {
         MetaDiagnosticResult<java.util.Map<String, Contribution<?>>> resolved = contributionResolver.resolve(contributions);
         diagnostics.addAll(resolved.diagnostics());
         Contribution<?> writable = resolved.value().get(target + "." + CrudConventionProperties.WRITABLE);
+        Contribution<?> role = resolved.value().get(target + "." + CrudConventionProperties.DATE_TIME_ROLE);
         return new CrudNativeFieldModel(
             field.getName(),
             field.getType(),
             SourcedValue.inferred(NamingUtils.camelToSnake(field.getName())),
             SourcedValue.inferred(Boolean.valueOf(!field.getType().isPrimitive())),
-            writable == null ? SourcedValue.inferred(Boolean.TRUE) : sourcedValue(writable)
+            writable == null ? SourcedValue.inferred(Boolean.TRUE) : sourcedValue(writable, Boolean.class),
+            role == null ? SourcedValue.defaulted(DateTimeRole.UNSET) : sourcedValue(role, DateTimeRole.class)
         );
     }
 
-    private SourcedValue<Boolean> sourcedValue(Contribution<?> contribution) {
+    private <T> SourcedValue<T> sourcedValue(Contribution<?> contribution, Class<T> valueType) {
         MetaValueSource source = contribution.source();
         boolean explicit = source == MetaValueSource.META_EXPLICIT
             || source == MetaValueSource.NATIVE_EXPLICIT
@@ -151,7 +159,7 @@ public class CrudNativeAnnotationParser {
                 ? com.entloom.meta.contract.value.MetaValueState.INFERRED
                 : com.entloom.meta.contract.value.MetaValueState.DEFAULTED;
         return SourcedValue.of(
-            (Boolean) contribution.value(),
+            valueType.cast(contribution.value()),
             source,
             state,
             explicit,

@@ -1,7 +1,5 @@
 @EntEntity
 @EntField
-@EntIndex
-@EntIndexes
 @EntMeta
 
 面向业务和扩展的注解方案

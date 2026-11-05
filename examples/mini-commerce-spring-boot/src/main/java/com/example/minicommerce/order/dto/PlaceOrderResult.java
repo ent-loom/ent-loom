@@ -3,6 +3,6 @@ package com.example.minicommerce.order.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** 客户结算成功后的结果；每个商家都有独立销售订单。 */
-public record PlaceOrderResult(Long orderId, List<Long> merchantOrderIds, BigDecimal totalAmount) {
+/** 一次下单生成的订单 ID 列表及合计金额；每个商家对应一笔订单。 */
+public record PlaceOrderResult(List<Long> orderIds, BigDecimal totalAmount) {
 }

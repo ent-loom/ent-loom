@@ -1,0 +1,7 @@
+crud:
+  actions:
+    place:
+      name: 下单
+      entries:
+        base:
+          capability: place-order

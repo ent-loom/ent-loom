@@ -158,13 +158,14 @@ public class CrudGatewayConfiguration {
         ObjectProvider<CrudDataScopeContributor[]> crudDataScopeContributors,
         CrudGovernanceAuditRecorder crudGovernanceAuditRecorder,
         CrudSpecAttributeResolver crudSpecAttributeResolver,
-        ScenePolicyService scenePolicyService
+        ScenePolicyService scenePolicyService,
+        com.entloom.crud.core.governance.policy.ScenePolicyRegistry declarations
     ) {
         return new DefaultCrudGovernanceService(
             entityMetaRegistry,
             specValidator,
             crudSubjectResolver,
-            crudPermissionService,
+            new com.entloom.crud.core.governance.permission.DeclaredCrudPermissionService(crudPermissionService, declarations),
             crudDataScopeResolver,
             collectContributors(crudDataScopeContributors),
             crudGovernanceAuditRecorder,

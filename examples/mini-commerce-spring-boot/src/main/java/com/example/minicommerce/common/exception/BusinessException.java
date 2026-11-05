@@ -12,11 +12,6 @@ public class BusinessException extends EntBusinessException {
         this.error = error;
     }
 
-    public BusinessException(BusinessError error, Throwable cause) {
-        this(error);
-        initCause(cause);
-    }
-
     @Override
     public String getCode() {
         return error.code();

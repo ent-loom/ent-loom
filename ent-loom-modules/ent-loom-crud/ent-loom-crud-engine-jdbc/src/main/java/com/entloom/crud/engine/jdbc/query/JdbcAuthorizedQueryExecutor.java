@@ -11,6 +11,7 @@ import com.entloom.crud.api.model.PageResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.core.capability.query.CompiledQuery;
+import com.entloom.crud.core.capability.query.QueryDefaultSortResolver;
 import com.entloom.crud.core.capability.query.QueryPlan;
 import com.entloom.crud.core.capability.query.engine.AuthorizedQueryExecutor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
@@ -44,67 +45,71 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.LinkedHashSet;
+import java.util.Collections;
 
 /**
  * 普通根实体 LIST/PAGE/FIND_ONE/DETAIL 的按次授权执行入口，调用方显式传入可信访问者。
  * 授权结果只在本次调用内消费；不接受外部结果，也不经过可替换的旧路由和查询组件。
- * 输出仅支持 CrudRecord，实体/DTO、场景、关联及时间简写条件须待对应适配验收后开放。
+ * 输出仅支持 CrudRecord，可按父资源 EXPAND 授权加载本地一级关系；实体/DTO、场景及时间简写仍拒绝。
  */
 public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecutor {
+    private final QueryDefaultSortResolver defaultSortResolver;
     private final EntityMetaRegistry entities;
     private final CrudBusinessAuthorizationAdapter authorization;
     private final SqlSecurityGuard sqlGuard;
     private final JdbcQueryCompiler compiler;
     private final JdbcQueryExecutor executor;
     private final CrudGovernanceAuditRecorder audit;
+    private final JdbcAuthorizedRelationReader relations;
     private final QuerySpecValidator validator = new QuerySpecValidator();
     private final RootFirstQueryPlanner planner = new RootFirstQueryPlanner();
 
     public JdbcAuthorizedQueryExecutor(EntityMetaRegistry entities, CrudBusinessAuthorizationAdapter authorization,
                                        GuardedSqlExecutor sqlExecutor, SqlSecurityGuard sqlGuard, JdbcDialect dialect,
-                                       CrudGovernanceAuditRecorder audit) {
+                                       CrudGovernanceAuditRecorder audit, QueryDefaultSortResolver defaultSortResolver) {
+        this.defaultSortResolver = Objects.requireNonNull(defaultSortResolver, "默认排序解析器不能为空");
         this.entities = Objects.requireNonNull(entities, "实体元数据注册表不能为空");
         this.authorization = Objects.requireNonNull(authorization, "CRUD 业务授权适配器不能为空");
         this.sqlGuard = Objects.requireNonNull(sqlGuard, "SQL 安全守卫不能为空");
         this.compiler = new JdbcQueryCompiler(dialect);
         this.executor = new JdbcQueryExecutor(Objects.requireNonNull(sqlExecutor, "SQL 执行器不能为空"), entities);
         this.audit = Objects.requireNonNull(audit, "治理审计记录器不能为空");
+        this.relations = new JdbcAuthorizedRelationReader(entities, sqlGuard, compiler, executor);
     }
 
     @Override
     public List<CrudRecord> list(VisitorContext visitor, QuerySpec<?> spec) {
-        return execute(visitor, spec, QueryOperation.LIST, query ->
-            project(executor.executeList(query, CrudRecord.class), query.getQueryPlan().getSpec().getSelectFields()));
+        return execute(visitor, spec, QueryOperation.LIST, (query, invocation) ->
+            project(executor.executeList(query, CrudRecord.class), invocation));
     }
 
     @Override
     public PageResult<CrudRecord> page(VisitorContext visitor, QuerySpec<?> spec) {
-        return execute(visitor, spec, QueryOperation.PAGE, query -> {
+        return execute(visitor, spec, QueryOperation.PAGE, (query, invocation) -> {
             PageResult<CrudRecord> result = executor.executePage(query, CrudRecord.class);
-            result.setItems(project(result.getItems(), query.getQueryPlan().getSpec().getSelectFields()));
+            result.setItems(project(result.getItems(), invocation));
             return result;
         });
     }
 
     @Override
     public CrudRecord findOne(VisitorContext visitor, QuerySpec<?> spec) {
-        return execute(visitor, spec, QueryOperation.FIND_ONE, query -> {
+        return execute(visitor, spec, QueryOperation.FIND_ONE, (query, invocation) -> {
             CrudRecord row = executor.executeFindOne(query, CrudRecord.class);
-            return row == null ? null : project(java.util.Collections.singletonList(row),
-                query.getQueryPlan().getSpec().getSelectFields()).get(0);
+            return row == null ? null : project(Collections.singletonList(row), invocation).get(0);
         });
     }
 
     @Override
     public CrudRecord detail(VisitorContext visitor, QuerySpec<?> spec) {
-        return execute(visitor, spec, QueryOperation.DETAIL, query ->
-            project(java.util.Collections.singletonList(executor.executeOne(query, CrudRecord.class)),
-                query.getQueryPlan().getSpec().getSelectFields()).get(0));
+        return execute(visitor, spec, QueryOperation.DETAIL, (query, invocation) ->
+            project(Collections.singletonList(executor.executeOne(query, CrudRecord.class)), invocation).get(0));
     }
 
     private <T> T execute(VisitorContext visitor, QuerySpec<?> source, QueryOperation operation,
-                          Function<CompiledQuery, T> action) {
+                          BiFunction<CompiledQuery, Invocation, T> action) {
         long started = System.nanoTime();
         Invocation invocation = new Invocation(source);
         T value;
@@ -114,7 +119,7 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
             }
             CompiledQuery query = compile(visitor, source, operation, invocation);
             invocation.stage = CrudErrorStage.EXECUTE;
-            value = action.apply(query);
+            value = action.apply(query, invocation);
         } catch (RuntimeException | Error failure) {
             CrudGovernanceAuditOutcome outcome = invocation.stage == CrudErrorStage.EXECUTE
                 ? CrudGovernanceAuditOutcome.EXECUTION_FAILED : CrudGovernanceAuditOutcome.GOVERNANCE_DENIED;
@@ -151,7 +156,17 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
             throw new PermissionDeniedException("授权结果不适用于本次根实体查询");
         }
         List<String> selected = validateFields(spec, meta, result.getFields(), operation);
-        QuerySpec<?> effective = spec.toBuilder().selectFields(selected).build();
+        invocation.returned = selected;
+        invocation.relations = relations.prepare(meta, spec.getExpandRelations(), result.getFields());
+        LinkedHashSet<String> fetched = new LinkedHashSet<String>(selected);
+        for (JdbcAuthorizedRelationReader.Projection relation : invocation.relations) fetched.add(relation.edge.getFromField());
+        QuerySpec<?> effective = spec.toBuilder().selectFields(new ArrayList<String>(fetched))
+            .expandRelations(Collections.<String>emptyList()).build();
+        // 调用方排序已完成授权校验；内部缺省排序复用统一角色解析，不增加字段权限。
+        List<QuerySort> defaults = defaultSortResolver.resolve(effective, meta);
+        if (defaults != null && !defaults.isEmpty()) {
+            effective = effective.toBuilder().sorts(defaults).build();
+        }
         sqlGuard.beforeCompile(effective);
         QueryPlan plan = planner.plan(effective, meta, RelationGraph.empty());
         return compiler.compileAuthorized(plan, result.getScope());
@@ -180,6 +195,8 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     private static final class Invocation {
         private QuerySpec<?> spec;
         private AuthorizationResult result;
+        private List<String> returned;
+        private List<JdbcAuthorizedRelationReader.Projection> relations;
         private CrudErrorStage stage = CrudErrorStage.NORMALIZE;
 
         private Invocation(QuerySpec<?> spec) { this.spec = spec; }
@@ -192,7 +209,7 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
         }
         if (spec.getResultType() != CrudRecord.class || (spec.getScene() != null && !spec.getScene().trim().isEmpty())
             || spec.getAccessDecision() != AccessDecision.ALLOW
-            || spec.getEntityClasses().size() > 1 || !spec.getExpandRelations().isEmpty()
+            || spec.getEntityClasses().size() > 1
             || spec.getExistsRelationFilter() != null || spec.getTime() != null || spec.getGrantedScope() != null
             || QueryStrategyResolver.resolveEffectiveStrategy(spec.getHandlerDefaultStrategy(), spec.getStrategy(),
                 QueryStrategy.ROOT_FIRST) != QueryStrategy.ROOT_FIRST) {
@@ -268,7 +285,12 @@ public final class JdbcAuthorizedQueryExecutor implements AuthorizedQueryExecuto
     }
 
     /** 按投影白名单构建输出，并适配 JDBC 驱动的列别名大小写；不暴露额外列。 */
-    private List<CrudRecord> project(List<CrudRecord> rows, List<String> selected) {
+    private List<CrudRecord> project(List<CrudRecord> rows, Invocation invocation) {
+        return invocation.relations.isEmpty() ? project(rows, invocation.returned)
+            : relations.expand(rows, invocation.returned, invocation.relations);
+    }
+
+    static List<CrudRecord> project(List<CrudRecord> rows, List<String> selected) {
         List<CrudRecord> result = new ArrayList<CrudRecord>(rows.size());
         for (CrudRecord row : rows) {
             Map<String, Object> projected = new LinkedHashMap<String, Object>();

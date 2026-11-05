@@ -11,11 +11,18 @@ public final class DdlExecutionResult {
     private final List<String> generatedSql;
     private final List<String> executedSql;
     private final List<String> errors;
+    private final List<String> warnings;
 
     public DdlExecutionResult(List<String> generatedSql, List<String> executedSql, List<String> errors) {
+        this(generatedSql, executedSql, errors, Collections.<String>emptyList());
+    }
+
+    public DdlExecutionResult(List<String> generatedSql, List<String> executedSql,
+                              List<String> errors, List<String> warnings) {
         this.generatedSql = immutableCopy(generatedSql);
         this.executedSql = immutableCopy(executedSql);
         this.errors = immutableCopy(errors);
+        this.warnings = immutableCopy(warnings);
     }
 
     public List<String> generatedSql() {
@@ -28,6 +35,11 @@ public final class DdlExecutionResult {
 
     public List<String> errors() {
         return errors;
+    }
+
+    /** 不影响迁移执行与成功状态的提示。 */
+    public List<String> warnings() {
+        return warnings;
     }
 
     public boolean success() {

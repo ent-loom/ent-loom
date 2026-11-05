@@ -13,15 +13,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 基于全局配置的默认排序解析器。
+ * 基于统一创建时间角色及全局方向配置的默认排序解析器。
  */
 public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortResolver {
     /** 是否启用。 */
     private final boolean enabled;
     /** 生效操作集合。 */
     private final Set<QueryOperation> applyTo;
-    /** 候选创建时间字段。 */
-    private final List<String> timeFields;
     /** 创建时间排序方向。 */
     private final SortDirection timeDirection;
     /** 是否追加主键排序。 */
@@ -34,7 +32,6 @@ public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortRes
     public ConfigurableQueryDefaultSortResolver(
         boolean enabled,
         Set<QueryOperation> applyTo,
-        List<String> timeFields,
         SortDirection timeDirection,
         boolean appendId,
         SortDirection idDirection,
@@ -48,7 +45,6 @@ public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortRes
         }
         this.enabled = enabled;
         this.applyTo = copyApplyTo(applyTo);
-        this.timeFields = copyTimeFields(timeFields);
         this.timeDirection = timeDirection;
         this.appendId = appendId;
         this.idDirection = idDirection;
@@ -68,8 +64,8 @@ public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortRes
         }
 
         List<QuerySort> result = new ArrayList<QuerySort>();
-        String timeField = firstAvailableTimeField(rootMeta);
-        if (timeField != null) {
+        String timeField = rootMeta.getCreatedTimeField();
+        if (isAvailableField(rootMeta, timeField) && rootMeta.resolveFieldMeta(timeField).isSortable()) {
             result.add(new QuerySort(timeField, timeDirection, SortTarget.FIELD));
             if (appendId) {
                 addIdSortIfAvailable(result, rootMeta);
@@ -81,15 +77,6 @@ public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortRes
             addIdSortIfAvailable(result, rootMeta);
         }
         return result;
-    }
-
-    private String firstAvailableTimeField(EntityMeta rootMeta) {
-        for (String field : timeFields) {
-            if (isAvailableField(rootMeta, field)) {
-                return field;
-            }
-        }
-        return null;
     }
 
     private void addIdSortIfAvailable(List<QuerySort> result, EntityMeta rootMeta) {
@@ -121,20 +108,6 @@ public class ConfigurableQueryDefaultSortResolver implements QueryDefaultSortRes
             return EnumSet.noneOf(QueryOperation.class);
         }
         return EnumSet.copyOf(source);
-    }
-
-    private static List<String> copyTimeFields(List<String> source) {
-        List<String> result = new ArrayList<String>();
-        if (source == null) {
-            return result;
-        }
-        for (String field : source) {
-            String normalized = trimToNull(field);
-            if (normalized != null) {
-                result.add(normalized);
-            }
-        }
-        return result;
     }
 
     private static String trimToNull(String value) {

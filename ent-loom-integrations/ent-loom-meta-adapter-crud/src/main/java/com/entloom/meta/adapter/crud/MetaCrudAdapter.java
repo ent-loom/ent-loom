@@ -246,7 +246,7 @@ public class MetaCrudAdapter implements ResourceCatalogAdapter {
                     field.label(),
                     field.inputRequired() && !(field.fieldName().equals(idField) && idPolicy == EntityIdPolicy.GENERATED),
                     field.createDefaultValue()
-                )
+                ).withDateTimeRole(field.dateTimeRole())
             );
         }
         EntCrudEntity crudEntity = entityClass.getAnnotation(EntCrudEntity.class);

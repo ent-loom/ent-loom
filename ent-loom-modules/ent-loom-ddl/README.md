@@ -56,7 +56,7 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 
 1. `@EntDdlEntity`：`table`、`schema`、`comment`、命名策略
 2. `@EntDdlField`：类型、长度、nullable、unique、default、comment、持久化开关、生成策略
-3. `@EntDdlIndex/@EntDdlIndexes`：仅在实体类型上定义索引。`fields` 按声明顺序填写 Java 属性名，由框架映射为持久化列；与原生 SQL `expression` 必须且只能填写一个，表达式内使用数据库列名。
+3. 实体文件 `ddl.indexes`：集中定义索引。`fields` 按声明顺序填写 Java 属性名，由框架映射为持久化列；与原生 SQL `expression` 必须且只能填写一个，表达式内使用数据库列名。
 
 建议补充（支撑 R3/R4/R5/R9 的关键缺口）：
 
@@ -75,6 +75,8 @@ DDL 注解只声明数据库结构与迁移信息，不声明字段的 INSERT / 
 ## 5. 当前实现基线
 
 当前代码已经具备 API、注解、元数据加载器、MySQL 建表 SQL 生成、受控 ALTER 差异、Spring Boot 配置和 Meta -> DDL 静态适配器；E1-E5 已建立稳定元数据、结构快照、差异计划、执行结果分类、来源诊断、模块边界和简单实体全链路测试。`CustomerProfile` 已验证静态 Meta / DDL / CRUD / DOC / UI Runtime Model、MySQL 8 DDL 与 H2 + MockMvc CRUD；命令和边界见 [实体全链路验收](../../docs/guides/ddl/实体全链路验收.md)。Noop QueryStrategy / SqlExecutor 仅作为显式测试或预览实现，Spring、Starter 和 Bootstrap 不再默认装配它们。
+
+执行模式已支持显式 `CREATE_MODIFY_DELETE_ALL`：按实体表同步全部结构差异，包含删除多余列、删除或重建索引、修改主键及不兼容字段变化；单表合并为一条 ALTER，可能丢失数据。受控模式 `CREATE_MODIFY_TABLE_AND_METAS` 保留既有安全边界，详情见[自动迁移安全边界](../../docs/guides/ddl/自动迁移安全边界.md)。
 
 ## 6. 非核心边界（避免 ddl-core 过重）
 

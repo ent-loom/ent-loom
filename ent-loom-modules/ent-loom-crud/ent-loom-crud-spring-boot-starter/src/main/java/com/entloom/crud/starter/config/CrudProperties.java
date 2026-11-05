@@ -58,7 +58,7 @@ public class CrudProperties {
     /** 实体 DAO 配置。 */
     private Dao dao = new Dao();
     /** 外部创建/更新输入契约。 */
-    private Contracts contracts = new Contracts();
+
     /** 实体默认行为。 */
     private Defaults defaults = new Defaults();
 
@@ -100,10 +100,6 @@ public class CrudProperties {
 
     public void setDao(Dao dao) {
         this.dao = getOrDefault(dao, Dao::new);
-    }
-
-    public void setContracts(Contracts contracts) {
-        this.contracts = getOrDefault(contracts, Contracts::new);
     }
 
     public void setDefaults(Defaults defaults) {
@@ -186,40 +182,6 @@ public class CrudProperties {
         public JdbcPaginationPolicy toPolicy() {
             return new JdbcPaginationPolicy(maxPageSize, maxOffset);
         }
-    }
-
-    /**
-     * 普通 CRUD 外部输入边界。
-     */
-    @Getter
-    @Setter
-    public static class Contracts {
-        /** 创建请求必须提供的字段，键为资源编码或实体别名。 */
-        private Create create = new Create();
-        /** 更新请求禁止修改的字段，键为资源编码或实体别名。 */
-        private Update update = new Update();
-
-        public void setCreate(Create create) {
-            this.create = getOrDefault(create, Create::new);
-        }
-
-        public void setUpdate(Update update) {
-            this.update = getOrDefault(update, Update::new);
-        }
-    }
-
-    @Getter
-    @Setter
-    public static class Create {
-        /** 按资源声明创建请求必须提供的字段。 */
-        private Map<String, List<String>> inputRequiredFields = new java.util.LinkedHashMap<>();
-    }
-
-    @Getter
-    @Setter
-    public static class Update {
-        /** 按资源声明更新请求禁止修改的字段。 */
-        private Map<String, List<String>> forbiddenFields = new java.util.LinkedHashMap<>();
     }
 
     /** CRUD 实体默认行为。 */
@@ -428,8 +390,6 @@ public class CrudProperties {
             private boolean enabled = true;
             /** 生效入口。 */
             private Set<QueryOperation> applyTo = defaultApplyTo();
-            /** 候选创建时间字段。 */
-            private List<String> timeFields = defaultTimeFields();
             /** 时间字段排序方向。 */
             private SortDirection timeDirection = SortDirection.DESC;
             /** 是否追加主键排序。 */
@@ -441,10 +401,6 @@ public class CrudProperties {
 
             public void setApplyTo(Set<QueryOperation> applyTo) {
                 this.applyTo = copyEnumSet(applyTo, QueryOperation.class);
-            }
-
-            public void setTimeFields(List<String> timeFields) {
-                this.timeFields = copyNonBlankList(timeFields);
             }
 
             public void setTimeDirection(SortDirection timeDirection) {
@@ -467,16 +423,6 @@ public class CrudProperties {
                 return EnumSet.of(QueryOperation.PAGE, QueryOperation.LIST);
             }
 
-            private static List<String> defaultTimeFields() {
-                List<String> fields = new ArrayList<String>();
-                fields.add("createTime");
-                fields.add("createdAt");
-                fields.add("createDate");
-                fields.add("createdTime");
-                fields.add("gmtCreate");
-                fields.add("insertTime");
-                return fields;
-            }
         }
     }
 

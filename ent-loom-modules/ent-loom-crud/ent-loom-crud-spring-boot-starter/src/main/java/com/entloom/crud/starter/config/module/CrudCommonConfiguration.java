@@ -1,5 +1,9 @@
 package com.entloom.crud.starter.config.module;
 
+import com.entloom.crud.starter.config.CrudEntityDeclarationConfiguration;
+import com.entloom.crud.starter.config.CrudEntityDeclarations;
+import org.springframework.context.annotation.Import;
+
 import com.entloom.crud.api.enums.AccessDecision;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.QueryOperation;
@@ -23,7 +27,6 @@ import com.entloom.crud.core.governance.audit.CrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.audit.LoggingCrudGovernanceAuditRecorder;
 import com.entloom.crud.core.governance.permission.CrudPermissionRule;
 import com.entloom.crud.core.governance.permission.CrudPermissionService;
-import com.entloom.crud.core.governance.permission.AnnotationCrudPermissionService;
 import com.entloom.crud.core.governance.permission.RuleBasedCrudPermissionService;
 import com.entloom.crud.core.governance.policy.DefaultScenePolicyService;
 import com.entloom.crud.core.governance.policy.ScenePolicy;
@@ -66,7 +69,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 核心公共能力装配（元数据、校验、日志与基础 JDBC）。
  */
 @Configuration
-@org.springframework.context.annotation.Import(ReadVisibilityConfiguration.class)
+@Import({ReadVisibilityConfiguration.class, CrudEntityDeclarationConfiguration.class})
 @EnableConfigurationProperties(CrudAccessProperties.class)
 public class CrudCommonConfiguration {
     /**
@@ -110,9 +113,12 @@ public class CrudCommonConfiguration {
     /** 启动期统一收集实体动作注解与业务 Scene Policy，校验后冻结。 */
     @Bean
     @ConditionalOnMissingBean
-    public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, ObjectProvider<ScenePolicy[]> policiesProvider) {
+    public ScenePolicyRegistry scenePolicyRegistry(EntityMetaRegistry entities, ObjectProvider<ScenePolicy[]> policiesProvider, CrudEntityDeclarations declarations) {
         ScenePolicy[] policies = policiesProvider.getIfAvailable();
-        return ScenePolicyRegistry.create(entities, policies == null ? java.util.Collections.<ScenePolicy>emptyList() : java.util.Arrays.asList(policies));
+        declarations.validate(entities);
+        List<ScenePolicy> all = new ArrayList<>(declarations.scenes());
+        if (policies != null) all.addAll(java.util.Arrays.asList(policies));
+        return ScenePolicyRegistry.create(entities, all, declarations.actions(), declarations.allowedOperations());
     }
 
     @Bean
@@ -156,7 +162,7 @@ public class CrudCommonConfiguration {
             ));
         }
         addConventionGrantRules(rules, properties.getGovernance().getGrants());
-        return new AnnotationCrudPermissionService(new RuleBasedCrudPermissionService(rules));
+        return new RuleBasedCrudPermissionService(rules);
     }
 
     /**
@@ -315,7 +321,7 @@ public class CrudCommonConfiguration {
     /** 各声明来源共用的归属字段规则。 */
     @Bean
     @ConditionalOnMissingBean
-    public CrudOwnershipRules crudOwnershipRules(CrudAccessProperties properties) {
+    public CrudOwnershipRules crudOwnershipRules(CrudAccessProperties properties, CrudEntityDeclarations entityFiles) {
         Map<String, CrudOwnershipRules.Relation> relations = new LinkedHashMap<>();
         properties.getRelations().forEach((name, relation) -> {
             CrudAccessProperties.Identity identity = properties.getIdentities().get(name);
@@ -324,7 +330,8 @@ public class CrudCommonConfiguration {
                 identity == null || identity.getIdType() == null ? null : identity.getIdType().getJavaType()));
         });
         Map<String, CrudOwnershipRules.Ownership> declarations = new LinkedHashMap<>();
-        properties.getEntityOptions().forEach((resource, entity) -> {
+        Map<String, CrudEntityDeclarations.EntityOptions> entityOptions = entityFiles.options();
+        entityOptions.forEach((resource, entity) -> {
             if (entity.getOwnership() != null || !entity.getRelations().isEmpty()) {
                 declarations.put(resource, new CrudOwnershipRules.Ownership(entity.getOwnership(), entity.getRelations()));
             }

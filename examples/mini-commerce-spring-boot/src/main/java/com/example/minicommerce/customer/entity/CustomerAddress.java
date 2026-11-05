@@ -1,6 +1,5 @@
 package com.example.minicommerce.customer.entity;
 
-import com.example.minicommerce.common.access.CustomerReadPolicy;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import lombok.Getter;
@@ -11,7 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class CustomerAddress implements CustomerReadPolicy {
+public class CustomerAddress {
     @EntField("地址 ID")
     private Long id;
 

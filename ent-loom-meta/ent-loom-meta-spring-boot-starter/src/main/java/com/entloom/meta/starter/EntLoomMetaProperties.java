@@ -1,6 +1,7 @@
 package com.entloom.meta.starter;
 
 import com.entloom.meta.enums.EntIdPolicy;
+import com.entloom.meta.contract.convention.CreatedTimeFields;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -166,6 +167,17 @@ public class EntLoomMetaProperties {
     }
 
     public static class Defaults {
+        /** 全局创建时间字段命名；显式列表整体替换缺省，空列表关闭按名称推导。 */
+        private List<String> createdTimeFields = new ArrayList<String>(new CreatedTimeFields().fieldNames());
+
+        public List<String> getCreatedTimeFields() {
+            return createdTimeFields;
+        }
+
+        public void setCreatedTimeFields(List<String> createdTimeFields) {
+            this.createdTimeFields = new ArrayList<String>(new CreatedTimeFields(createdTimeFields).fieldNames());
+        }
+
         /** 未显式声明时的实体所属服务；缺省使用 spring.application.name。 */
         private String service;
         /** 未显式声明时的主键值提供方。 */

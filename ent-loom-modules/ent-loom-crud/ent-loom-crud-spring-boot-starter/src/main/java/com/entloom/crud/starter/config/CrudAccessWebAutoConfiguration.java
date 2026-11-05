@@ -2,6 +2,8 @@ package com.entloom.crud.starter.config;
 
 import com.entloom.crud.core.governance.admission.AccessAdmissionService;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
+import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
+import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
 import com.entloom.crud.starter.web.access.AccessAdmissionInterceptor;
 import com.entloom.crud.starter.web.access.AccessIdentityDeclarationValidator;
 import com.entloom.crud.starter.web.access.AccessAuthenticationFilter;
@@ -58,8 +60,9 @@ public class CrudAccessWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AccessAdmissionInterceptor accessAdmissionInterceptor(AccessAdmissionService service, AccessHttpErrorWriter errorWriter) {
-        return new AccessAdmissionInterceptor(service, errorWriter);
+    public AccessAdmissionInterceptor accessAdmissionInterceptor(AccessAdmissionService service, AccessHttpErrorWriter errorWriter,
+        ObjectProvider<ExposedEntityRegistry> exposedEntities, ObjectProvider<EntityPolicyRegistry> policies) {
+        return new AccessAdmissionInterceptor(service, errorWriter, exposedEntities.getIfAvailable(), policies.getIfAvailable());
     }
 
     @Bean

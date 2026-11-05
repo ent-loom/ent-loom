@@ -20,6 +20,8 @@ public enum CrudGovernanceAuditReasonCode {
     ENTITY_NOT_EXPOSED,
     /** 路由未命中。 */
     ROUTE_NOT_FOUND,
+    /** 写入未命中或版本冲突。 */
+    WRITE_CONFLICT,
     /** 路由歧义。 */
     ROUTE_AMBIGUOUS,
     /** 单条语义命中多条。 */

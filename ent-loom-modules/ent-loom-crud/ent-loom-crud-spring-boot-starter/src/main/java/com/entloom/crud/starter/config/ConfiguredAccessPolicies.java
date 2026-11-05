@@ -1,5 +1,7 @@
 package com.entloom.crud.starter.config;
 
+import com.entloom.declaration.EntityDeclarations;
+
 import com.entloom.crud.api.access.BusinessIdentity;
 import com.entloom.crud.api.access.ConfiguredBusinessIdentity;
 import com.entloom.crud.api.access.BusinessOperation;
@@ -33,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-/** 将配置冻结为现有 Core 声明；与 Java、注解来源统一校验，不建立第二条执行链。 */
+/** 将配置冻结为现有 Core 声明；与程序化来源统一校验，不建立第二条执行链。 */
 public final class ConfiguredAccessPolicies {
     private static final String SOURCE = "ent.loom.crud.access";
     /** 仅标准动作具有缺省映射，批量、保存及业务动作须显式登记。 */
@@ -51,6 +53,11 @@ public final class ConfiguredAccessPolicies {
 
     public ConfiguredAccessPolicies(CrudAccessProperties config, EntityMetaRegistry entities,
         BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions) {
+        this(config, entities, identities, definitions, new CrudEntityDeclarations(new EntityDeclarations()));
+    }
+
+    public ConfiguredAccessPolicies(CrudAccessProperties config, EntityMetaRegistry entities,
+        BusinessIdentityRegistry identities, ConfiguredBusinessIdentities definitions, CrudEntityDeclarations entityFiles) {
         Map<String, EntityMeta> metas = new LinkedHashMap<>();
         for (EntityMeta meta : entities.getEntityMetas()) {
             metas.put(meta.getResourceDescriptor().getResourceCode(), meta);
@@ -71,56 +78,50 @@ public final class ConfiguredAccessPolicies {
             }
             templates.add(new EntityPolicyTemplate(policy.getKey(), SOURCE + ".policies." + policy.getKey(), rules));
         }
-        Map<String, CrudAccessProperties.EntityOptions> declarations = config.getEntityOptions();
-        Map<String, EntityPolicyBinding> annotatedBindings = AnnotatedEntityPolicyBindings.resolve(entities.getEntityMetas());
-        // 实体差异只调整已选策略；关系与归属差异可独立存在，不能隐式绑定同名策略。
+        Map<String, CrudEntityDeclarations.EntityOptions> declarations = entityFiles.options();
+        Map<String, EntityPolicyBinding> fileBindings = entityFiles.bindings(entities);
+        // 不按资源名隐式绑定策略。
         declarations.forEach((resource, declaration) -> {
             require(metas.containsKey(resource), "实体差异引用未知实体: " + resource);
-            require(declaration.getOperations() == null || annotatedBindings.containsKey(resource),
-                "操作差异的实体未通过 @EntCrudPolicy 选择策略: " + resource);
+            require(entityFiles.fields(resource).isEmpty() || fileBindings.containsKey(resource),
+                "字段授权实体未选择策略: " + resource);
+            require(declaration.getOperations() == null || fileBindings.containsKey(resource),
+                "操作差异的实体未选择策略: " + resource);
         });
         Set<String> configuredResources = new LinkedHashSet<>();
-        // 策略选择统一来自注解；HTTP 暴露独立由实体元数据决定。
-        for (var selected : annotatedBindings.entrySet()) {
+        // 实体文件编译为既有策略绑定模型。
+        for (var selected : fileBindings.entrySet()) {
             String resource = selected.getKey();
             EntityMeta meta = metas.get(resource);
             require(meta != null, "策略绑定未知实体: " + resource);
-            var declaration = declarations.getOrDefault(resource, new CrudAccessProperties.EntityOptions());
+            var declaration = declarations.getOrDefault(resource, new CrudEntityDeclarations.EntityOptions());
             for (var relation : declaration.getRelations().entrySet()) {
-                require(config.getRelations().containsKey(relation.getKey()),
+                require(!config.getPolicies().containsKey(selected.getValue().getTemplateCode()) || config.getRelations().containsKey(relation.getKey()),
                     "实体引用未知关系: " + resource + "/" + relation.getKey());
                 var field = meta.resolveFieldMeta(relation.getValue());
                 require(field != null && !field.isRelation(),
                     "实体关系字段必须是已有标量属性: " + resource + "/" + relation.getValue());
             }
-            EntityPolicyBinding annotated = selected.getValue();
-            String policy = annotated.getTemplateCode();
+            EntityPolicyBinding binding = selected.getValue();
+            String policy = binding.getTemplateCode();
             if (!config.getPolicies().containsKey(policy)) {
-                require(declaration.getOperations() == null,
-                    "Java 策略的操作目录须由项目声明: " + resource);
-                bindings.add(annotated);
+                require(declaration.getOperations() == null && entityFiles.fields(resource).isEmpty(),
+                    "Java 策略的操作目录与字段授权须由项目声明: " + resource);
+                bindings.add(binding);
                 continue;
             }
-            String declarationSource = SOURCE + ".entity-options." + resource;
+            String declarationSource = entityFiles.source(resource);
             var branches = config.getPolicies().get(policy);
-            require(branches != null, "实体绑定未知策略: " + resource + " -> " + policy);
-            Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, resource);
-            String operationSource = declaration.getOperations() == null
-                ? SOURCE + ".policies." + policy : declarationSource + ".operations";
-            configuredResources.add(resource);
-            var resourceFields = config.getFieldPlans().get(resource);
-            require(!config.getFieldPlans().containsKey(resource) || resourceFields != null && !resourceFields.isEmpty(),
-                "实体字段配置不能为空: " + resource);
-            for (String identity : resourceFields == null ? Set.<String>of() : resourceFields.keySet()) {
-                require(branches.containsKey(identity), "实体字段方案引用未使用的身份: " + resource + "/" + identity);
+            require(branches != null, declarationSource + ": 实体绑定未知策略: " + resource + " -> " + policy);
+            for (String identity : entityFiles.fields(resource).keySet()) {
+                require(branches.containsKey(identity), declarationSource + ": 字段授权引用未使用的身份: " + identity);
             }
+            Map<String, List<String>> operationCatalog = resolveOperations(declaration, branches, declarationSource + "/" + resource);
+            String operationSource = declaration.getOperations() == null
+                ? SOURCE + ".policies." + policy : entityFiles.source(resource, "operations");
+            configuredResources.add(resource);
             Map<String, String> relations = new LinkedHashMap<>();
             Map<String, String> relationDeclarations = new LinkedHashMap<>(declaration.getRelations());
-            annotated.getRelationFields().forEach((role, field) -> {
-                String previous = relationDeclarations.putIfAbsent(role, field);
-                require(previous == null || previous.equals(field),
-                    "策略注解与配置关系字段冲突: " + resource + "/" + role);
-            });
             for (var branch : branches.entrySet()) {
                 String identity = branch.getKey();
                 String role = defaultName(branch.getValue().getScope(), identity);
@@ -145,7 +146,7 @@ public final class ConfiguredAccessPolicies {
                 } else {
                     reader = reader(identities.snapshot().get(identity).getIdentityType(), identityField);
                 }
-                AuthorizationFields fieldPlan = compileFields(config, meta, resource, identity);
+                AuthorizationFields fieldPlan = compileFields(meta, entities, resource, identity, entityFiles);
                 for (String action : branch.getValue().getActions()) {
                     require(operationCatalog.containsKey(action), "策略动作未在实体操作目录注册: " + resource + "/" + action);
                     Key key = new Key(new BusinessOperation(resource, action), identity);
@@ -153,10 +154,7 @@ public final class ConfiguredAccessPolicies {
                     identityReaders.put(key, reader);
                 }
             }
-            for (String role : annotated.getRelationFields().keySet()) {
-                require(relations.containsKey(role), "策略注解绑定未使用的关系: " + resource + "/" + role);
-            }
-            String bindingSource = annotated.getSource();
+            String bindingSource = binding.getSource();
             bindings.add(new EntityPolicyBinding(meta.getEntityType(), policy, bindingSource, relations));
             for (var action : operationCatalog.entrySet()) {
                 BusinessOperation operation = new BusinessOperation(resource, name(action.getKey(), "动作"));
@@ -164,14 +162,9 @@ public final class ConfiguredAccessPolicies {
                 Set<String> seen = new LinkedHashSet<>();
                 for (String shape : action.getValue()) {
                     require(seen.add(shape), "重复 CRUD 映射: " + operation + "/" + shape);
-                    mappings.add(new CrudOperationMapping(operationKey(shape), null, operation, operationSource));
+                    mappings.add(new CrudOperationMapping(operationKey(shape, operationSource), null, operation, operationSource));
                 }
             }
-        }
-        for (String resource : config.getFieldPlans().keySet()) {
-            name(resource, "字段配置实体");
-            require(metas.containsKey(resource), "字段配置引用未知实体: " + resource);
-            require(configuredResources.contains(resource), "字段配置实体未选择声明式策略: " + resource);
         }
         require(config.getPolicies().isEmpty() || !configuredResources.isEmpty(), "策略配置没有实体消费者");
     }
@@ -181,59 +174,72 @@ public final class ConfiguredAccessPolicies {
     public List<BusinessOperationDeclaration> operations() { return List.copyOf(operations); }
     public List<CrudOperationMapping> mappings() { return List.copyOf(mappings); }
 
-    /** 显式目录整体覆盖；缺省只展开策略已声明的标准动作，不增加授权动作。 */
-    private static Map<String, List<String>> resolveOperations(CrudAccessProperties.EntityOptions entity,
+    /** 按动作整体替换；未声明的标准动作沿用缺省，不隐式开放批量操作。 */
+    private static Map<String, List<String>> resolveOperations(CrudEntityDeclarations.EntityOptions entity,
         Map<String, CrudAccessProperties.Branch> branches, String resource) {
-        if (entity.getOperations() != null) return entity.getOperations();
+        Map<String, List<String>> overrides = entity.getOperations() == null ? Map.of() : entity.getOperations();
         Map<String, List<String>> result = new LinkedHashMap<>();
         for (CrudAccessProperties.Branch branch : branches.values()) {
             for (String action : branch.getActions()) {
-                List<String> shapes = DEFAULT_OPERATIONS.get(action);
+                List<String> shapes = overrides.containsKey(action) ? overrides.get(action) : DEFAULT_OPERATIONS.get(action);
                 require(shapes != null, "业务动作须显式声明 operations: " + resource + "/" + action);
                 result.putIfAbsent(action, shapes);
             }
         }
+        overrides.forEach((action, shapes) -> {
+            require(shapes != null, "操作映射不能为 null: " + resource + "/operations/" + action);
+            result.put(action, shapes);
+        });
         return result;
     }
 
     /** 字段差异归实体；同一模板可绑定不同结构的实体。 */
-    private static AuthorizationFields compileFields(CrudAccessProperties config,
-        EntityMeta meta, String resource, String identity) {
-        var resourceFields = config.getFieldPlans().get(resource);
-        if (resourceFields == null || !resourceFields.containsKey(identity)) return AuthorizationFields.of(Map.of());
-        var plan = resourceFields.get(identity);
-        String path = SOURCE + ".field-plans." + resource + "." + identity;
-        require(plan != null && !plan.isEmpty(), "身份字段配置不能为空: " + path);
-        var limit = EntityPolicyRegistry.compileFieldLimit(meta);
+    private static AuthorizationFields compileFields(
+        EntityMeta meta, EntityMetaRegistry entities, String resource, String identity, CrudEntityDeclarations entityFiles) {
+        var limit = EntityPolicyRegistry.compileFieldLimit(meta, entities);
         Map<AuthorizationFields.Use, Set<String>> compiled = new EnumMap<>(AuthorizationFields.Use.class);
-        for (var use : plan.entrySet()) {
-            String usePath = path + "." + use.getKey();
-            var declaration = use.getValue();
-            require(declaration != null && declaration.getMode() != null, "字段用途必须声明 mode: " + usePath);
-            Set<String> candidates = new LinkedHashSet<>(limit.snapshot().get(use.getKey()));
-            if (use.getKey() == AuthorizationFields.Use.RETURN) {
+        Map<AuthorizationFields.Use, CrudEntityDeclarations.FieldPlan> plans = new LinkedHashMap<>(
+            entityFiles.fields(resource).getOrDefault(identity, Map.of()));
+        for (var entry : plans.entrySet()) {
+            var use = entry.getKey();
+            var declaration = entry.getValue();
+            String path = declaration.source();
+            Set<String> candidates = new LinkedHashSet<>(limit.snapshot().get(use));
+            if (use == AuthorizationFields.Use.RETURN) {
                 candidates.removeAll(limit.snapshot().get(AuthorizationFields.Use.EXPAND));
             }
-            switch (declaration.getMode()) {
+            switch (declaration.mode()) {
                 case INCLUDE, EXCLUDE -> {
-                    List<String> names = unique(declaration.getFields(), "字段用途 " + usePath);
+                    List<String> names = declaration.fields().isEmpty() && declaration.mode() == CrudEntityDeclarations.FieldMode.EXCLUDE
+                        ? List.of() : unique(declaration.fields(), "字段用途 " + path);
                     for (String field : names) {
-                        require(meta.getAllowedFields().contains(field), "字段用途引用未知字段: " + usePath + "/" + field);
+                        require(meta.getAllowedFields().contains(field)
+                            || use == AuthorizationFields.Use.EXPAND && limit.allows(use, field),
+                            "字段用途引用未知字段: " + path + "/" + field);
                     }
-                    if (declaration.getMode() == CrudAccessProperties.FieldMode.INCLUDE) candidates.retainAll(names);
+                    if (declaration.mode() == CrudEntityDeclarations.FieldMode.INCLUDE) candidates.retainAll(names);
+                    else if (use == AuthorizationFields.Use.EXPAND) excludeRelationFields(candidates, names);
                     else candidates.removeAll(names);
                 }
                 case ALL, NONE -> {
-                    require(declaration.getFields() == null, "ALL/NONE 不得声明 fields: " + usePath);
-                    if (declaration.getMode() == CrudAccessProperties.FieldMode.NONE) candidates.clear();
+                    require(declaration.fields().isEmpty(), "ALL/NONE 不得声明 fields: " + path);
+                    if (declaration.mode() == CrudEntityDeclarations.FieldMode.NONE) candidates.clear();
                 }
             }
-            compiled.put(use.getKey(), candidates);
+            compiled.put(use, candidates);
         }
         return AuthorizationFields.of(compiled);
     }
 
-    /** YAML 授权显式动作与实体字段方案（含 RETURN/FILTER 缺省）；项目动态判断只能进一步收窄或拒绝。 */
+    /** 关系名代表整段授权；先转为已知投影，子字段排除才不会被整段授权绕过。 */
+    private static void excludeRelationFields(Set<String> candidates, List<String> excluded) {
+        Set<String> paths = new LinkedHashSet<>(candidates);
+        candidates.removeIf(field -> paths.stream().anyMatch(path -> path.startsWith(field + ".")));
+        candidates.removeIf(field -> excluded.stream().anyMatch(name ->
+            field.equals(name) || field.startsWith(name + ".")));
+    }
+
+    /** YAML 授权显式动作与实体字段方案（含 RETURN/FILTER/SORT 缺省）；项目动态判断只能进一步收窄或拒绝。 */
     public BusinessPermissionEvaluator evaluator(BusinessPermissionEvaluator dynamic) {
         return (visitor, operation, rule, target) -> {
             AuthorizationFields allowed = fields.get(key(rule));
@@ -299,11 +305,11 @@ public final class ConfiguredAccessPolicies {
         throw new ValidationException("关系引用未知身份属性: " + type.getName() + "/" + field);
     }
 
-    private static CrudOperationKey operationKey(String shape) {
+    private static CrudOperationKey operationKey(String shape, String source) {
         QueryOperation query = QueryOperation.from(shape);
         if (query != null) return CrudOperationKey.of(query);
         CommandOperation command = CommandOperation.from(shape);
-        require(command != null && command != CommandOperation.ACTION, "不支持的声明式 CRUD 映射: " + shape);
+        require(command != null && command != CommandOperation.ACTION, source + ": 不支持的声明式 CRUD 映射: " + shape);
         return CrudOperationKey.of(command);
     }
 

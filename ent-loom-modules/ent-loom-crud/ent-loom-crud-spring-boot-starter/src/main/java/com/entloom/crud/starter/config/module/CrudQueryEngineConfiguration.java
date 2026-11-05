@@ -42,7 +42,6 @@ public class CrudQueryEngineConfiguration {
         return new ConfigurableQueryDefaultSortResolver(
             defaultSort.isEnabled(),
             defaultSort.getApplyTo(),
-            defaultSort.getTimeFields(),
             defaultSort.getTimeDirection(),
             defaultSort.isAppendId(),
             defaultSort.getIdDirection(),

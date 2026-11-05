@@ -16,6 +16,8 @@ public enum CrudErrorCode {
     ENTITY_NOT_EXPOSED,
     /** 路由未命中。 */
     ROUTE_NOT_FOUND,
+    /** 写入目标不存在、不可写或版本已变化。 */
+    WRITE_CONFLICT,
     /** 路由歧义。 */
     ROUTE_AMBIGUOUS,
     /** 单条语义命中多条。 */

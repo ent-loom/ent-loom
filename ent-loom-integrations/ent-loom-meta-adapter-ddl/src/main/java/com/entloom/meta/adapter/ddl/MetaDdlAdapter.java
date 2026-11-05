@@ -32,6 +32,13 @@ public final class MetaDdlAdapter {
     private final DdlNativeAnnotationParser nativeParser = new DdlNativeAnnotationParser();
     private final DdlRuntimeModelMerger merger;
     private final List<DdlEntityMetadata> models;
+    private final com.entloom.ddl.declaration.DdlEntityDeclarations entityDeclarations;
+    private final java.util.Set<String> resources = new java.util.LinkedHashSet<>();
+
+    /** 仅完整实体发现结束后调用，避免对子集投影施加全局校验。 */
+    public void validateDeclarations() {
+        entityDeclarations.validateResources(resources);
+    }
 
     public MetaDdlAdapter(Collection<Class<?>> entityClasses) {
         this(entityClasses, new ReflectiveEntMetaParser(), DefaultMetaDiagnosticPolicy.failFast());
@@ -55,6 +62,12 @@ public final class MetaDdlAdapter {
         MetaDiagnosticPolicy diagnosticPolicy,
         DdlGenerationDefaults defaults
     ) {
+        this(entityClasses, parser, diagnosticPolicy, defaults, com.entloom.declaration.EntityDeclarations.classpath());
+    }
+
+    public MetaDdlAdapter(Collection<Class<?>> entityClasses, EntMetaParser parser, MetaDiagnosticPolicy diagnosticPolicy,
+        DdlGenerationDefaults defaults, com.entloom.declaration.EntityDeclarations declarations) {
+        this.entityDeclarations = new com.entloom.ddl.declaration.DdlEntityDeclarations(declarations);
         this.merger = new DdlRuntimeModelMerger(defaults);
         if (parser == null) {
             throw new IllegalArgumentException("parser 不能为空");
@@ -78,7 +91,9 @@ public final class MetaDdlAdapter {
                 merger.merge(entityClass, metaDescriptor, nativeModel);
             diagnostics.addAll(merged.diagnostics());
             if (merged.value() != null) {
-                parsed.add(merged.value());
+                String resource = metaDescriptor == null ? entityClass.getSimpleName() : metaDescriptor.entityName();
+                resources.add(resource);
+                parsed.add(entityDeclarations.apply(resource, merged.value()));
             }
         }
         parsed.sort(Comparator.comparing(DdlEntityMetadata::entityClassName));

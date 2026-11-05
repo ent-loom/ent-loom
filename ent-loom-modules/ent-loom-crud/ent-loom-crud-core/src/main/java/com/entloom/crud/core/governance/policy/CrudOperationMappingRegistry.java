@@ -20,6 +20,11 @@ public final class CrudOperationMappingRegistry {
 
     public CrudOperationMappingRegistry(Collection<EntityMeta> entities, BusinessOperationCatalog catalog,
                                         Collection<CrudOperationMapping> declarations) {
+        this(entities, catalog, declarations, new ScenePolicyRegistry(null));
+    }
+
+    public CrudOperationMappingRegistry(Collection<EntityMeta> entities, BusinessOperationCatalog catalog,
+        Collection<CrudOperationMapping> declarations, ScenePolicyRegistry scenes) {
         Objects.requireNonNull(entities, "实体元数据不能为空");
         Objects.requireNonNull(catalog, "业务操作目录不能为空");
         Objects.requireNonNull(declarations, "CRUD 映射声明不能为空");
@@ -41,7 +46,7 @@ public final class CrudOperationMappingRegistry {
                     + "，来源: " + declaration.getSource());
             }
             if (isAction(declaration.getOperationKey())
-                && !EntityActionDeclarations.allows(resource.getEntityType(), declaration.getScene())) {
+                && !scenes.allowsAction(resource.getResourceCode(), declaration.getScene())) {
                 throw new ValidationException("ACTION 映射超出实体动作边界: " + target + "/"
                     + declaration.getScene() + "，来源: " + declaration.getSource());
             }
@@ -72,6 +77,12 @@ public final class CrudOperationMappingRegistry {
     }
 
     public Map<Key, CrudOperationMapping> snapshot() { return mappings; }
+
+    public boolean contains(String resourceCode, CrudOperationKey operationKey, String scene) {
+        Objects.requireNonNull(operationKey, "CRUD 操作不能为空");
+        return mappings.containsKey(new Key(resourceCode, operationKey,
+            isAction(operationKey) ? RouteKeyFactory.normalizeScene(scene) : ""));
+    }
 
     private static boolean isAction(CrudOperationKey operationKey) {
         return CrudOperationKey.of(CommandOperation.ACTION).equals(operationKey);

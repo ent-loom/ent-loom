@@ -24,6 +24,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 /** 优先使用显式 DDL 来源，缺省复用 Meta 来源，并在执行 SQL 前校验主键契约。 */
 final class MetaDdlMetadataLoader implements MetadataLoader {
+    private final com.entloom.declaration.EntityDeclarations declarations;
     private final List<Class<?>> metaClasses;
     private final SpringPackageEntityClassResolver classResolver;
     private final EntMetaParser parser;
@@ -33,7 +34,8 @@ final class MetaDdlMetadataLoader implements MetadataLoader {
 
     MetaDdlMetadataLoader(List<Class<?>> metaClasses, SpringPackageEntityClassResolver classResolver,
                           EntMetaParser parser, DdlGenerationDefaults defaults,
-                          MetaDiagnosticPolicy diagnosticPolicy, ObjectProvider<EntityMetaRegistry> registryProvider) {
+                          MetaDiagnosticPolicy diagnosticPolicy, ObjectProvider<EntityMetaRegistry> registryProvider, com.entloom.declaration.EntityDeclarations declarations) {
+        this.declarations = declarations;
         this.metaClasses = new ArrayList<Class<?>>(metaClasses);
         this.classResolver = classResolver;
         this.parser = parser;
@@ -44,6 +46,15 @@ final class MetaDdlMetadataLoader implements MetadataLoader {
 
     @Override
     public List<DdlEntityMetadata> load(MetadataLoadRequest request) {
+        return load(request, false);
+    }
+
+    @Override
+    public void validateDeclarations(MetadataLoadRequest request) {
+        load(request, true);
+    }
+
+    private List<DdlEntityMetadata> load(MetadataLoadRequest request, boolean validateAll) {
         if (request == null) {
             return Collections.emptyList();
         }
@@ -54,7 +65,9 @@ final class MetaDdlMetadataLoader implements MetadataLoader {
             classes.addAll(request.entityClasses());
             classes.addAll(classResolver.resolve(request.basePackages()));
         }
-        List<DdlEntityMetadata> models = new MetaDdlAdapter(classes, parser, diagnosticPolicy, defaults).models();
+        MetaDdlAdapter adapter = new MetaDdlAdapter(classes, parser, diagnosticPolicy, defaults, declarations);
+        if (validateAll) adapter.validateDeclarations();
+        List<DdlEntityMetadata> models = adapter.models();
         EntityMetaRegistry registry = registryProvider.getIfAvailable();
         if (registry != null) {
             for (EntityMeta crud : registry.getEntityMetas()) {

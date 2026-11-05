@@ -1,0 +1,6 @@
+ddl:
+  indexes:
+    - fields: [accountCode, tenantId]
+      unique: true
+    - fields: [tenantId]
+    - expression: "lower(account_code)"

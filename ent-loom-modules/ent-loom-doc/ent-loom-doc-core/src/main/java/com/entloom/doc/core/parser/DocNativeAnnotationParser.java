@@ -43,10 +43,11 @@ public class DocNativeAnnotationParser {
             return MetaDiagnosticResult.of(null, Collections.emptyList());
         }
         EntDocEntity entity = entityClass.getAnnotation(EntDocEntity.class);
-        if (entity == null && !hasDocFields(entityClass)) {
+        String tableName = entityMetaResolver == null ? configuredTableName : entityMetaResolver.resolveTableName(entityClass, configuredTableName);
+        List<DocIndexModel> indexes = buildIndexes(tableName);
+        if (entity == null && !hasDocFields(entityClass) && indexes.isEmpty()) {
             return MetaDiagnosticResult.of(null, Collections.emptyList());
         }
-        String tableName = entityMetaResolver == null ? configuredTableName : entityMetaResolver.resolveTableName(entityClass, configuredTableName);
         return MetaDiagnosticResult.of(
             new DocEntityModel(
                 entityClass,
@@ -56,7 +57,7 @@ public class DocNativeAnnotationParser {
                 stringExplicitOrUnknown(tableName),
                 buildFields(entityClass),
                 buildRelations(entityClass),
-                buildIndexes(tableName)
+                indexes
             ),
             Collections.emptyList()
         );
@@ -80,8 +81,8 @@ public class DocNativeAnnotationParser {
                 stringExplicitOrUnknown(column),
                 stringExplicitOrInferred(fieldDoc.name(), field.getName()),
                 stringExplicitOrUnknown(fieldDoc.description()),
-                stringExplicitOrUnknown(fieldDoc.example()),
-                exampleList(fieldDoc.example()),
+                SourcedValue.unknown(null),
+                Collections.<String>emptyList(),
                 SourcedValue.unknown(null),
                 SourcedValue.unknown(null),
                 intExplicitOrUnknown(fieldDoc.maxLength()),
@@ -151,8 +152,8 @@ public class DocNativeAnnotationParser {
                     : SourcedValue.nativeExplicit(cardinality),
                 SourcedValue.inferred(ownerSide(cardinality)),
                 SourcedValue.inferred(RelationResolutionStatus.RESOLVED),
-                stringExplicitOrUnknown(fieldDoc.targetEntityLabel()),
-                stringExplicitOrUnknown(fieldDoc.relationRemark()),
+                SourcedValue.unknown(null),
+                SourcedValue.unknown(null),
                 sourceInferred
             ));
         }
@@ -193,8 +194,7 @@ public class DocNativeAnnotationParser {
             || !isBlank(fieldDoc.sourceField())
             || !"id".equals(fieldDoc.targetField())
             || fieldDoc.cardinality() != RelationCardinality.MANY_TO_ONE
-            || !isBlank(fieldDoc.targetEntityLabel())
-            || !isBlank(fieldDoc.relationRemark());
+            ;
     }
 
     private List<Field> getAllFields(Class<?> entityClass) {

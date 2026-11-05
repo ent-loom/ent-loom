@@ -29,7 +29,7 @@ class SpringAnnotationMetadataLoaderTest {
     @Test
     @DisplayName("Spring 加载器对包装类型 id 使用非空主键")
     void shouldMakeInferredIdNonNullable() {
-        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null).load(
+        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).load(
                 new MetadataLoadRequest(Collections.<String>emptyList(),
                         Collections.<Class<?>>singletonList(AccountEntity.class)));
 

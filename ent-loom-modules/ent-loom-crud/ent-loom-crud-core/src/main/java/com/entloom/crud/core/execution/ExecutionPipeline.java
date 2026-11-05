@@ -69,7 +69,7 @@ public class ExecutionPipeline {
         return governanceService.governExport(spec);
     }
 
-    /** 已绑定新策略的资源始终使用业务授权；声明式作用域内的其他资源也不能降级。 */
+    /** 标准操作使用实体策略，显式业务动作按适配器分流；可信作用域始终禁止降级。 */
     public boolean requiresBusinessAuthorization(BaseSpec spec) {
         return AccessContextScope.isAuthorizationRequired()
             || (authorizationAdapter != null && authorizationAdapter.governs(spec));

@@ -24,6 +24,26 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class CrudConventionConsumerTest {
+    @Test
+    void 显式角色覆盖命名推导且适配与运行时冻结均保留角色() {
+        MetaCrudAdapter adapter = new MetaCrudAdapter(Collections.<Class<?>>singletonList(RoleOverrideOrder.class));
+        var runtime = adapter.runtimeModel().getEntity(RoleOverrideOrder.class);
+        Assertions.assertEquals(DateTimeRole.UPDATED_TIME, runtime.getField("createTime").getDateTimeRole());
+        Assertions.assertEquals(DateTimeRole.CREATED_TIME, runtime.getField("recordedAt").getDateTimeRole());
+        var meta = runtime.toEntityMeta();
+        Assertions.assertEquals("recordedAt", meta.getCreatedTimeField());
+        Assertions.assertEquals(DateTimeRole.UPDATED_TIME, meta.resolveFieldMeta("createTime").getDateTimeRole());
+    }
+
+    @EntEntity(entity = "role_override_order")
+    private static final class RoleOverrideOrder {
+        private Long id;
+        @EntMetaDateTime(DateTimeRole.UPDATED_TIME)
+        private LocalDateTime createTime;
+        @EntMetaDateTime(DateTimeRole.CREATED_TIME)
+        private LocalDateTime recordedAt;
+    }
+
 
     @Test
     void meta_created_time_should_be_projected_as_non_writable() {

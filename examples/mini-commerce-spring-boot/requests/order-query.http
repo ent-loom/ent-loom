@@ -4,88 +4,95 @@
 @merchantA = demo-merchant-a
 @merchantB = demo-merchant-b
 
-### 准备：应用建表后执行 scripts/order-query-demo.sql，两个端访问同一批销售订单。
-### 用户甲：本人销售订单 501、502、504，total=3
-POST {{baseUrl}}/api/consumer/orders/page
+### 准备：应用建表后执行 scripts/order-query-demo.sql，客户和商家查询同一 order 资源。
+### 客户甲：501、502、504，data.page.total=3
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"pageNumber":1,"pageSize":20}
+{"options":{"page":1,"limit":20}}
 
-### 用户甲按商家甲筛选：501、504，total=2；不返回用户乙的 503
-POST {{baseUrl}}/api/consumer/orders/page
+### 客户甲按商家甲筛选：501、504，total=2
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"merchantId":1001,"pageNumber":1,"pageSize":20}
+{"options":{"filter":{"merchantId":1001},"page":1,"limit":20}}
 
-### 用户甲按商家乙筛选：502，total=1
-POST {{baseUrl}}/api/consumer/orders/page
-Authorization: Bearer {{customerA}}
-Content-Type: application/json
-
-{"merchantId":2001}
-
-### 商家甲：本商家销售订单 501、503、504，total=3
-POST {{baseUrl}}/api/merchant/orders/page
+### 商家甲：501、503、504，total=3
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"pageNumber":1,"pageSize":20}
+{"options":{"page":1,"limit":20}}
 
-### 商家甲按用户甲筛选：501、504，total=2；不返回商家乙的 502
-POST {{baseUrl}}/api/merchant/orders/page
+### 商家甲按客户甲筛选：501、504，total=2
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"customerId":301}
+{"options":{"filter":{"customerId":301}}}
 
-### 用户乙：503、505，total=2
-POST {{baseUrl}}/api/consumer/orders/page
+### 客户乙：503、505，total=2
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerB}}
 Content-Type: application/json
 
 {}
 
 ### 商家乙：502、505，total=2
-POST {{baseUrl}}/api/merchant/orders/page
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{merchantB}}
 Content-Type: application/json
 
 {}
 
-### 用户甲第二页：502，total仍为3；固定按销售订单 ID 升序
-POST {{baseUrl}}/api/consumer/orders/page
+### 客户甲第二页：502，total=3；框架缺省按创建时间、主键倒序
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerA}}
 Content-Type: application/json
 
-{"pageNumber":2,"pageSize":1}
+{"options":{"page":2,"limit":1}}
 
-### 用户令牌不能进入商家端：403
-POST {{baseUrl}}/api/merchant/orders/page
-Authorization: Bearer {{customerA}}
-Content-Type: application/json
-
-{}
-
-### 商家令牌不能进入用户端：403
-POST {{baseUrl}}/api/consumer/orders/page
+### 无计数分页及明细展开：只给本页订单补数，返回 totalKnown=false
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{}
+{"options":{"page":1,"limit":1,"countMode":"NONE","expandRelations":["orderItemList"]}}
 
-### 用户甲伪造 customerId 和入口 Header：400 VALIDATION_ERROR，未知归属字段拒绝
-POST {{baseUrl}}/api/consumer/orders/page
+### 客户甲读取本人订单、客户及明细；客户邮箱仅本人可见
+POST {{baseUrl}}/api/ent-crud/order/detail
+Authorization: Bearer {{customerA}}
+Content-Type: application/json
+
+{"options":{"filter":{"id":501},"expandRelations":["customer","orderItemList"]}}
+
+### 商家甲读取同一订单：customer 仅返回 id、displayName，不返回邮箱
+POST {{baseUrl}}/api/ent-crud/order/detail
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"filter":{"id":501},"expandRelations":["customer","orderItemList"]}}
+
+### 商家甲跨归属详情：404；相同条件 findOne 返回 data.item=null（默认空字段省略）
+POST {{baseUrl}}/api/ent-crud/order/detail
+Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"filter":{"id":502},"expandRelations":["orderItemList"]}}
+
+### 客户甲试图指定其他客户归属：403，FILTER 未授予当前归属字段
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerA}}
 X-Customer-Id: 302
 X-Access-Entry: merchant
 Content-Type: application/json
 
-{"customerId":302}
+{"options":{"filter":{"customerId":302}}}
 
-### 用户甲仅伪造入口 Header：仍仅本人 501、502、504，total=3
-POST {{baseUrl}}/api/consumer/orders/page
+### 仅伪造 Header：仍只返回客户甲的订单
+POST {{baseUrl}}/api/ent-crud/order/page
 Authorization: Bearer {{customerA}}
 X-Customer-Id: 302
 X-Access-Entry: merchant
@@ -93,8 +100,8 @@ Content-Type: application/json
 
 {}
 
-### 通用销售订单分页禁用：404 ENTITY_NOT_EXPOSED
-POST {{baseUrl}}/api/ent-crud/merchantOrder/page
+### 缺少凭证：403，旧 local-developer 演示主体不再授予订单读取权限
+POST {{baseUrl}}/api/ent-crud/order/page
 Content-Type: application/json
 
 {}

@@ -1,0 +1,5 @@
+ddl:
+  indexes:
+    - name: uk_native_account_code
+      fields: [code]
+      unique: true

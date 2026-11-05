@@ -76,13 +76,13 @@ class AccessAuthorizedQueryIntegrationTest {
             MockMvc mvc = mvc(context.getSourceApplicationContext());
             mvc.perform(get("/authorized/list")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].orderNo").value("ORD-2"))
-                .andExpect(jsonPath("$[1].orderNo").value("ORD-4"))
+                .andExpect(jsonPath("$[0].orderNo").value("ORD-4"))
+                .andExpect(jsonPath("$[1].orderNo").value("ORD-2"))
                 .andExpect(jsonPath("$[0].id").doesNotExist());
             mvc.perform(get("/authorized/page")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(2))
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].orderNo").value("ORD-2"));
+                .andExpect(jsonPath("$.items[0].orderNo").value("ORD-4"));
             State state = context.getBean(State.class);
             assertThat(state.events).hasSize(2).allSatisfy(event -> {
                 assertThat(event.getOutcome()).isEqualTo(CrudGovernanceAuditOutcome.SUCCESS);

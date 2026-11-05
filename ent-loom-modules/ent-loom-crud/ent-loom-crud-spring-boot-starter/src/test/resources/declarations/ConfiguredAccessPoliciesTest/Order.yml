@@ -1,0 +1,10 @@
+crud:
+  policy: order
+  fields:
+    owner:
+      RETURN:
+        mode: INCLUDE
+        fields: [id]
+      FILTER:
+        mode: INCLUDE
+        fields: [ownerId]

@@ -2,7 +2,6 @@ package com.entloom.meta.core.parser;
 
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
@@ -48,13 +47,11 @@ class ReflectiveEntMetaParserFixtureTest {
         Assertions.assertTrue(result.hasErrors());
         Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.INFERRED_VALUE_USED));
         Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.RELATION_SOURCE_FIELD_NOT_FOUND));
-        Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.INDEX_FIELD_NOT_FOUND));
 
         EntEntityDescriptor descriptor = result.value();
         Assertions.assertEquals("parser_fixture", descriptor.entityName());
         Assertions.assertEquals(6, descriptor.fields().size());
         Assertions.assertEquals(2, descriptor.relations().size());
-        Assertions.assertEquals(2, descriptor.indexes().size());
 
         Map<String, EntFieldDescriptor> fields = fieldsByName(descriptor);
         Assertions.assertEquals("ID", fields.get("id").role());
@@ -118,7 +115,6 @@ class ReflectiveEntMetaParserFixtureTest {
         Assertions.assertTrue(result.hasErrors());
         Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.FIELD_KIND_META_MISMATCH));
         Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.INVALID_FIELD_CONSTRAINT));
-        Assertions.assertTrue(codes(result.diagnostics()).contains(MetaDiagnosticCode.DUPLICATE_INDEX));
     }
 
     private Map<String, EntFieldDescriptor> fieldsByName(EntEntityDescriptor descriptor) {
@@ -169,8 +165,7 @@ class ReflectiveEntMetaParserFixtureTest {
     }
 
     @EntEntity(entity = "semantically_broken")
-    @EntIndex(name = "idx_duplicate", fields = {"amount"})
-    @EntIndex(name = "idx_duplicate", fields = {"name"})
+
     private static final class SemanticallyBrokenEntity {
         private Long id;
 
@@ -186,8 +181,7 @@ class ReflectiveEntMetaParserFixtureTest {
     }
 
     @EntEntity(entity = "parser_fixture")
-    @EntIndex(name = "idx_parser_fixture_name_status", fields = {"name", "status"})
-    @EntIndex(name = "idx_parser_fixture_missing", fields = {"missingIndexField"})
+
     private static final class ParserFixtureEntity {
         @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.SNOWFLAKE)

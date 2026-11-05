@@ -12,6 +12,6 @@ public enum DdlExecutionMode {
     CREATE_TABLE_AND_METAS,
     /** E3：允许新增字段、索引和有限字段修改，并保留 Meta 处理边界。 */
     CREATE_MODIFY_TABLE_AND_METAS,
-    /** 后续阶段：允许删除全部差异。 */
+    /** 按实体同步表结构，允许删除多余列、重建索引、修改主键及不兼容字段；可能丢失数据。 */
     CREATE_MODIFY_DELETE_ALL
 }

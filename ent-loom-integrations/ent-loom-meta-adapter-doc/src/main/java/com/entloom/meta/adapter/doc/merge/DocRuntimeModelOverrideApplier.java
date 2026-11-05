@@ -43,9 +43,25 @@ public class DocRuntimeModelOverrideApplier {
             booleanOverride("hidden", model, null, diagnostics, model.hidden(), override.hidden()),
             listOverride(model.visibleFor(), override.visibleFor()),
             applyFields(model, override, diagnostics),
-            model.relations(),
+            applyRelations(model, override, diagnostics),
             model.indexes()
         );
+    }
+
+    private List<com.entloom.doc.core.model.DocRelationModel> applyRelations(DocEntityModel model,
+            DocEntityOverride override, MetaDiagnosticCollector diagnostics) {
+        List<com.entloom.doc.core.model.DocRelationModel> relations = new ArrayList<com.entloom.doc.core.model.DocRelationModel>();
+        for (com.entloom.doc.core.model.DocRelationModel relation : model.relations()) {
+            DocFieldOverride field = override.fields().get(relation.relationField());
+            if (field == null) { relations.add(relation); continue; }
+            relations.add(new com.entloom.doc.core.model.DocRelationModel(relation.relationField(), relation.targetService(),
+                relation.targetEntity(), relation.sourceField(), relation.targetField(), relation.cardinality(), relation.ownerSide(),
+                relation.resolutionStatus(), stringOverride("targetEntityLabel", model, relation.relationField(), diagnostics,
+                    relation.targetEntityLabel(), field.targetEntityLabel()),
+                stringOverride("relationRemark", model, relation.relationField(), diagnostics, relation.relationRemark(), field.relationRemark()),
+                relation.sourceFieldInferred()));
+        }
+        return relations;
     }
 
     private List<DocFieldModel> applyFields(

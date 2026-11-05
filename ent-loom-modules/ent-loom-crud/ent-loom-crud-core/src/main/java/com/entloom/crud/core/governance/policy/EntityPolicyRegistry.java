@@ -8,6 +8,9 @@ import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.identity.BusinessIdentityRegistry;
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
+import com.entloom.crud.core.runtime.meta.RelationEdge;
+import com.entloom.crud.core.runtime.meta.RelationGraph;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /** 将项目模板与实体字段绑定编译为不可变声明；声明存在不代表已授权。 */
 public final class EntityPolicyRegistry {
@@ -30,6 +34,19 @@ public final class EntityPolicyRegistry {
         BusinessOperationCatalog operations,
         BusinessIdentityRegistry identities
     ) {
+        this(entityMetas, templates, bindings, operations, identities, EntityPolicyRegistry::compileFieldLimit);
+    }
+
+    /** 关联字段能力从同一注册表中的显式关系与目标字段编译，不推导任意连接。 */
+    public EntityPolicyRegistry(EntityMetaRegistry entities, Collection<EntityPolicyTemplate> templates,
+        Collection<EntityPolicyBinding> bindings, BusinessOperationCatalog operations, BusinessIdentityRegistry identities) {
+        this(entities.getEntityMetas(), templates, bindings, operations, identities,
+            meta -> compileFieldLimit(meta, entities));
+    }
+
+    private EntityPolicyRegistry(Collection<EntityMeta> entityMetas, Collection<EntityPolicyTemplate> templates,
+        Collection<EntityPolicyBinding> bindings, BusinessOperationCatalog operations, BusinessIdentityRegistry identities,
+        Function<EntityMeta, AuthorizationFields> fieldLimits) {
         Objects.requireNonNull(entityMetas, "实体元数据不能为空");
         Objects.requireNonNull(templates, "策略模板不能为空");
         Objects.requireNonNull(bindings, "实体绑定不能为空");
@@ -92,7 +109,7 @@ public final class EntityPolicyRegistry {
                 throw new ValidationException("绑定模板未注册: " + binding.getTemplateCode()
                     + "，实体: " + binding.getEntityType().getName() + "，来源: " + binding.getSource());
             }
-            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities));
+            compiled.put(binding.getEntityType(), compile(meta, template, binding, operations, identities, fieldLimits.apply(meta)));
         }
         this.entities = Collections.unmodifiableMap(compiled);
         Map<String, EffectiveEntityPolicy> byResource = new LinkedHashMap<String, EffectiveEntityPolicy>();
@@ -107,10 +124,10 @@ public final class EntityPolicyRegistry {
         EntityPolicyTemplate template,
         EntityPolicyBinding binding,
         BusinessOperationCatalog operations,
-        BusinessIdentityRegistry identities
+        BusinessIdentityRegistry identities,
+        AuthorizationFields fieldLimit
     ) {
         String resourceCode = meta.getResourceDescriptor().getResourceCode();
-        AuthorizationFields fieldLimit = compileFieldLimit(meta);
         Set<String> neededRoles = new LinkedHashSet<String>();
         Map<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>> rules =
             new LinkedHashMap<BusinessOperation, Map<PolicyIdentityBranch, EffectiveRule>>();
@@ -188,6 +205,29 @@ public final class EntityPolicyRegistry {
                 fields.get(AuthorizationFields.Use.SORT).add(name);
             }
         }
+        return AuthorizationFields.of(fields);
+    }
+
+    /** EXPAND 支持一级「关系.字段」，只作为父资源授权的关系投影，不加入根实体 RETURN/FILTER。 */
+    public static AuthorizationFields compileFieldLimit(EntityMeta meta, EntityMetaRegistry entities) {
+        Map<AuthorizationFields.Use, Collection<String>> fields = new EnumMap<AuthorizationFields.Use, Collection<String>>(
+            AuthorizationFields.Use.class);
+        fields.putAll(compileFieldLimit(meta).snapshot());
+        Set<String> expanded = new LinkedHashSet<String>(fields.get(AuthorizationFields.Use.EXPAND));
+        RelationGraph graph = entities.getRelationGraph(meta.getEntityType());
+        for (RelationEdge edge : (graph == null ? RelationGraph.empty() : graph).outgoingOf(meta.getEntityType())) {
+            EntityFieldMeta relation = meta.resolveFieldMeta(edge.getRelationField());
+            EntityMeta target = entities.getEntityMeta(edge.getToEntity());
+            // CRUD-only 元数据只保留持久化字段；关联图仍是显式声明的权威来源。
+            if (relation != null && !relation.isRelation() || target == null) continue;
+            expanded.add(edge.getRelationField());
+            for (EntityFieldMeta field : target.getFieldMetas().values()) {
+                if (!field.isRelation() && field.getColumnName() != null) {
+                    expanded.add(edge.getRelationField() + "." + field.getFieldName());
+                }
+            }
+        }
+        fields.put(AuthorizationFields.Use.EXPAND, expanded);
         return AuthorizationFields.of(fields);
     }
 

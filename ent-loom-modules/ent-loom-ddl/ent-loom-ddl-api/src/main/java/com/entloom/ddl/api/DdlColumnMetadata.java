@@ -13,8 +13,10 @@ public final class DdlColumnMetadata {
     private final String sqlType;
     private final boolean nullable;
     private final String defaultValue;
+    private final boolean hasDefaultValue;
     private final String comment;
     private final boolean autoIncrement;
+    private final boolean generated;
 
     public DdlColumnMetadata(String columnName,
                              String sqlType,
@@ -30,12 +32,28 @@ public final class DdlColumnMetadata {
                              String defaultValue,
                              String comment,
                              boolean autoIncrement) {
+        this(columnName, sqlType, nullable, defaultValue, comment, autoIncrement, false);
+    }
+
+    /**
+     * @param defaultValue 数据库默认值；null 表示无默认值，空字符串表示空字符串默认值
+     * @param generated 是否为数据库生成列
+     */
+    public DdlColumnMetadata(String columnName,
+                             String sqlType,
+                             boolean nullable,
+                             String defaultValue,
+                             String comment,
+                             boolean autoIncrement,
+                             boolean generated) {
         this.columnName = requireText(columnName, "columnName");
         this.sqlType = requireText(sqlType, "sqlType");
         this.nullable = nullable;
         this.defaultValue = trim(defaultValue);
+        this.hasDefaultValue = defaultValue != null;
         this.comment = trim(comment);
         this.autoIncrement = autoIncrement;
+        this.generated = generated;
     }
 
     public String columnName() {
@@ -54,12 +72,20 @@ public final class DdlColumnMetadata {
         return defaultValue;
     }
 
+    public boolean hasDefaultValue() {
+        return hasDefaultValue;
+    }
+
     public String comment() {
         return comment;
     }
 
     public boolean autoIncrement() {
         return autoIncrement;
+    }
+
+    public boolean generated() {
+        return generated;
     }
 
     @Override
@@ -73,6 +99,8 @@ public final class DdlColumnMetadata {
         DdlColumnMetadata that = (DdlColumnMetadata) other;
         return nullable == that.nullable
                 && autoIncrement == that.autoIncrement
+                && generated == that.generated
+                && hasDefaultValue == that.hasDefaultValue
                 && columnName.equals(that.columnName)
                 && sqlType.equals(that.sqlType)
                 && defaultValue.equals(that.defaultValue)
@@ -81,7 +109,8 @@ public final class DdlColumnMetadata {
 
     @Override
     public int hashCode() {
-        return Objects.hash(columnName, sqlType, nullable, defaultValue, comment, autoIncrement);
+        return Objects.hash(columnName, sqlType, nullable, defaultValue, hasDefaultValue,
+                comment, autoIncrement, generated);
     }
 
     private static String requireText(String value, String fieldName) {

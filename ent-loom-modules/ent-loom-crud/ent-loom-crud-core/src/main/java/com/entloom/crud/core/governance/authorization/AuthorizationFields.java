@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** RETURN 缺省为实体普通字段，FILTER 缺省复用 RETURN；其他用途须显式授权，最终受实体元数据约束。 */
+/** RETURN 缺省为实体普通字段，FILTER/SORT 缺省复用 RETURN；其他用途须显式授权，最终受实体元数据约束。 */
 public final class AuthorizationFields {
     public enum Use {
         /** 返回字段。 */
@@ -55,9 +55,11 @@ public final class AuthorizationFields {
             }
             copy.put(use, Collections.unmodifiableSet(names));
         }
-        // 仅在声明阶段展开缺省；显式空集合表示关闭筛选。
-        if (!copy.containsKey(Use.FILTER) && copy.containsKey(Use.RETURN)) {
-            copy.put(Use.FILTER, copy.get(Use.RETURN));
+        // 仅在声明阶段展开缺省；显式空集合表示关闭对应用途。
+        for (Use use : new Use[] {Use.FILTER, Use.SORT}) {
+            if (!copy.containsKey(use) && copy.containsKey(Use.RETURN)) {
+                copy.put(use, copy.get(Use.RETURN));
+            }
         }
         return new AuthorizationFields(Collections.unmodifiableMap(copy), !source.containsKey(Use.RETURN));
     }
@@ -87,7 +89,7 @@ public final class AuthorizationFields {
             Set<String> ceiling = limit.allowed.get(entry.getKey());
             Set<String> fields = new LinkedHashSet<String>(entry.getValue());
             fields.retainAll(ceiling == null ? Collections.<String>emptySet() : ceiling);
-            // 保留空用途，避免再次构建时将已收窄的 FILTER 从 RETURN 重新开放。
+            // 保留空用途，避免再次构建时将已收窄的 FILTER/SORT 从 RETURN 重新开放。
             narrowed.put(entry.getKey(), Collections.unmodifiableSet(fields));
         }
         return narrowed.isEmpty() ? NONE : new AuthorizationFields(Collections.unmodifiableMap(narrowed));

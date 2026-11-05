@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
+# 订单：关系结构继续来自 Java，身份字段差异集中声明。
+crud:
+  policy: order-read
+  fields:
+    customer:
+      FILTER:
+        mode: EXCLUDE
+        fields: [customerId, totalAmount]
+      EXPAND:
+        mode: ALL
+    merchant:
+      FILTER:
+        mode: EXCLUDE
+        fields: [merchantId, totalAmount]
+      EXPAND:
+        mode: EXCLUDE
+        fields: [customer.email]
+  actions:
+    place:
+      name: 下单
+      entries:
+        consumer:
+          capability: place-order
+ddl:
+  indexes:
+    - name: idx_order_customer
+      fields: [customerId]
+    - name: idx_order_merchant
+      fields: [merchantId]

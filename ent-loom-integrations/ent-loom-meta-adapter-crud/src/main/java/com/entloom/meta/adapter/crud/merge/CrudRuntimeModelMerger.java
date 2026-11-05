@@ -24,6 +24,7 @@ import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCollector;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticResult;
 import com.entloom.meta.enums.RelationCardinality;
+import com.entloom.meta.enums.role.DateTimeRole;
 import com.entloom.meta.contract.enums.RelationOwnerSide;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.value.SourcedValue;
@@ -167,10 +168,34 @@ public class CrudRuntimeModelMerger {
                 false,
                 metaField == null ? fieldName : metaField.label(),
                 inputRequiredFields.contains(fieldName),
-                createDefaultValue
+                createDefaultValue,
+                resolveDateTimeRole(entityClass, fieldName, metaField, nativeField, diagnostics)
             ));
         }
         return fields;
+    }
+
+    /** 日期角色沿用 Contribution 来源裁决，显式 Meta 角色可覆盖原生命名推导。 */
+    private DateTimeRole resolveDateTimeRole(Class<?> entityClass, String fieldName,
+        EntFieldDescriptor metaField, CrudNativeFieldModel nativeField, MetaDiagnosticCollector diagnostics) {
+        String target = entityClass.getName() + "#" + fieldName;
+        List<Contribution<?>> contributions = new ArrayList<Contribution<?>>();
+        if (nativeField != null) {
+            addContribution(contributions, target, CrudConventionProperties.DATE_TIME_ROLE,
+                nativeField.dateTimeRole(), "crud.native." + fieldName + ".dateTimeRole");
+        }
+        if (metaField != null && metaField.role() != null) {
+            DateTimeRole role = metaField.role().startsWith("DATETIME.")
+                ? DateTimeRole.valueOf(metaField.role().substring("DATETIME.".length())) : DateTimeRole.UNSET;
+            SourcedValue<?> source = metaField.sourcedValue(MetaDescriptorProperties.ROLE);
+            addContribution(contributions, target, CrudConventionProperties.DATE_TIME_ROLE, role,
+                source == null || isBlank(source.ruleId()) ? "meta." + fieldName + ".dateTimeRole" : source.ruleId(),
+                source == null ? MetaValueSource.META_EXPLICIT : source.source());
+        }
+        MetaDiagnosticResult<Map<String, Contribution<?>>> result = contributionResolver.resolve(contributions);
+        diagnostics.addAll(result.diagnostics());
+        Contribution<?> winner = result.value().get(target + "." + CrudConventionProperties.DATE_TIME_ROLE);
+        return winner == null ? DateTimeRole.UNSET : DateTimeRole.class.cast(winner.value());
     }
 
     private SourcedValue<Boolean> resolveWritable(
@@ -298,7 +323,7 @@ public class CrudRuntimeModelMerger {
             .ruleId("crud.consumer.datetime.role")
             .property(MetaDescriptorProperties.ROLE)
             .location(entityClass.getName() + "#" + metaField.fieldName())
-            .message("CRUD 当前仅消费 DATETIME.CREATED_TIME 的只读语义，暂不执行: " + metaField.role())
+            .message("CRUD 保留日期角色；当前仅 CREATED_TIME 参与默认排序，暂不自动执行此角色的填充或其他行为: " + metaField.role())
             .build());
     }
 

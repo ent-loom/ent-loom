@@ -1,0 +1,6 @@
+ddl:
+  indexes:
+    - name: idx_mysql_account_display_name
+      fields: [displayName]
+    - name: idx_mysql_account_lower_name
+      expression: "lower(`display_name`)"

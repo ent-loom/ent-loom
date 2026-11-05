@@ -10,6 +10,9 @@ import com.entloom.crud.starter.config.module.CrudIdempotencyConfiguration;
 import com.entloom.crud.starter.config.module.CrudQueryEngineConfiguration;
 import com.entloom.crud.starter.config.module.CrudSqlSecurityConfiguration;
 import com.entloom.crud.starter.config.module.CrudStatsEngineConfiguration;
+import java.util.Map;
+import java.util.List;
+import java.util.LinkedHashMap;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -26,6 +29,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 @Configuration
 @EnableConfigurationProperties(CrudProperties.class)
 @Import({
+    CrudEntityDeclarationConfiguration.class,
     CrudCommonConfiguration.class,
     CrudIdempotencyConfiguration.class,
     CrudSqlSecurityConfiguration.class,
@@ -38,10 +42,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 public class CrudCoreConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    public CrudInputContract crudInputContract(CrudProperties properties) {
+    public CrudInputContract crudInputContract(CrudProperties properties, CrudEntityDeclarations declarations) {
         return new CrudInputContract(
-            properties.getContracts().getCreate().getInputRequiredFields(),
-            properties.getContracts().getUpdate().getForbiddenFields()
+            declarations.required(), declarations.forbidden()
         );
     }
 

@@ -170,6 +170,12 @@ class E5CrudMvcAcceptanceTest {
     @Configuration
     static class E5CrudMvcTestConfiguration {
         @Bean
+        com.entloom.declaration.EntityDeclarations entityDeclarations() {
+            return new com.entloom.declaration.EntityDeclarations(
+                new org.springframework.core.io.ClassPathResource("declarations/customer_profile.yml"));
+        }
+
+        @Bean
         DataSource dataSource() {
             return new DriverManagerDataSource(
                 "jdbc:h2:mem:e5_customer_profile;MODE=MYSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",

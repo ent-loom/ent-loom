@@ -1,0 +1,7 @@
+crud:
+  fields:
+    owner:
+      WRITE:
+        mode: INCLUDE
+        fields: [amount]
+  policy: owned-data

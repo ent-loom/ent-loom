@@ -1,0 +1,6 @@
+crud:
+  fields:
+    owner:
+      WRITE:
+        mode: EXCLUDE
+        fields: []

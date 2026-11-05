@@ -9,6 +9,10 @@ import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.command.spec.DeleteTarget;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
+import com.entloom.crud.core.capability.command.engine.AuthorizedBatchUpdateExecutor;
+import com.entloom.crud.core.runtime.contract.CrudInputContract;
+import com.entloom.crud.engine.jdbc.dao.JdbcEntityDaoFactory;
+import com.entloom.crud.engine.jdbc.dao.JdbcPaginationPolicy;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
@@ -68,6 +72,7 @@ class JdbcAuthorizedCommandExecutorTest {
     private JdbcAuthorizedCommandExecutor executor;
     private final List<CrudGovernanceAuditEvent> audit = new ArrayList<CrudGovernanceAuditEvent>();
     private final AtomicBoolean allowed = new AtomicBoolean(true);
+    private final java.util.Set<String> deniedTargets = new java.util.HashSet<>();
     private final List<String> targets = new ArrayList<String>();
 
     @BeforeEach
@@ -96,11 +101,12 @@ class JdbcAuthorizedCommandExecutorTest {
             new BusinessIdentityRegistry(Collections.emptyList()));
         CrudOperationMappingRegistry mappings = new CrudOperationMappingRegistry(Collections.singletonList(meta), operations,
             Arrays.asList(new CrudOperationMapping(CrudOperationKey.of(CommandOperation.UPDATE), null, update, "Test#update-map"),
+                new CrudOperationMapping(CrudOperationKey.of(CommandOperation.UPDATE_BATCH), null, update, "Test#batch-update-map"),
                 new CrudOperationMapping(CrudOperationKey.of(CommandOperation.DELETE), null, delete, "Test#delete-map")));
         BusinessAuthorizationService service = new BusinessAuthorizationService(operations, policies,
             (current, operation, rule, target) -> {
                 targets.add(target);
-                return allowed.get() ? BusinessPermissionDecision.allow(
+                return allowed.get() && !deniedTargets.contains(target) ? BusinessPermissionDecision.allow(
                     AuthorizationScope.in("id", Arrays.asList(1L, 4L)),
                     AuthorizationFields.of(Collections.singletonMap(AuthorizationFields.Use.WRITE,
                         Collections.singletonList("orderNo")))) : BusinessPermissionDecision.deny();
@@ -118,8 +124,13 @@ class JdbcAuthorizedCommandExecutorTest {
         };
         JdbcGuardedSqlExecutor guarded = new JdbcGuardedSqlExecutor(jdbc, guard, new SqlExecutionLogger());
         CrudWriteTransactionExecutor transactions = new JdbcCrudWriteTransactionExecutor(dataSource);
+        JdbcEntityDaoFactory daos = new JdbcEntityDaoFactory(entities, guarded, StandardJdbcDialect.GENERIC,
+            JdbcEntityDaoFactory.DEFAULT_MAX_PARAMETERS, null, transactions, JdbcEntityDaoFactory.DEFAULT_MAX_BATCH_SIZE,
+            new JdbcPaginationPolicy(), audit::add);
+        AuthorizedBatchUpdateExecutor batches = new AuthorizedBatchUpdateExecutor(entities, adapter, daos, guard,
+            audit::add, CrudInputContract.empty(), (entity, values) -> {});
         executor = new JdbcAuthorizedCommandExecutor(entities, adapter, guarded, guard,
-            StandardJdbcDialect.GENERIC, audit::add, transactions);
+            StandardJdbcDialect.GENERIC, audit::add, transactions, batches, (entity, values) -> {});
     }
 
     @Test
@@ -151,14 +162,81 @@ class JdbcAuthorizedCommandExecutorTest {
     }
 
     @Test
-    void batch_and_relation_or_primary_key_fields_should_be_rejected_before_sql() {
+    void unsupported_batch_and_relation_or_primary_key_fields_should_be_rejected_before_sql() {
         CommandSpec<BatchCommand<Map<String, Object>>> batch = CommandSpec.<BatchCommand<Map<String, Object>>>builder()
-            .rootType(OrderTestEntity.class).op(CommandOperation.UPDATE_BATCH).payload(
+            .rootType(OrderTestEntity.class).op(CommandOperation.DELETE_BATCH).payload(
                 BatchCommand.of(Collections.singletonList(new WriteCommand<Map<String, Object>>(
                     CommandOperation.UPDATE, 1L, map("orderNo", "x"))))).build();
         assertThrows(PermissionDeniedException.class, () -> executor.action(visitor, batch));
         assertThrows(PermissionDeniedException.class,
             () -> executor.action(visitor, update(1L, map("id", 1L))));
+    }
+
+    @Test
+    void 批量命令逐目标授权并在提交后按输入顺序返回结果和审计() {
+        CommandResult<?> result = executor.action(visitor, batch(4L, 1L));
+        assertEquals(Arrays.asList("4", "1"), targets);
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(2, data.get("rows"));
+        assertEquals(4L, ((Map<?, ?>) ((List<?>) data.get("items")).get(0)).get("id"));
+        assertEquals("updated", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals(2, audit.size());
+        assertTrue(audit.stream().allMatch(event -> event.getOutcome() == CrudGovernanceAuditOutcome.SUCCESS));
+    }
+
+    @Test
+    void 第二项目标不可写则第一项回滚且整批没有成功审计() {
+        assertThrows(EntityDaoWriteMissException.class, () -> executor.action(visitor, batch(1L, 2L)));
+        assertEquals("one", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals("two", jdbc.queryForObject("select order_no from t_order where id=2", String.class));
+        assertEquals(2, audit.size());
+        assertTrue(audit.stream().allMatch(event -> event.getOutcome() == CrudGovernanceAuditOutcome.EXECUTION_FAILED));
+    }
+
+    @Test
+    void 显式空值清空可空字段且未提交字段保持原值() {
+        CommandSpec<BatchCommand<Map<String, Object>>> spec = CommandSpec.<BatchCommand<Map<String, Object>>>builder()
+            .rootType(OrderTestEntity.class).op(CommandOperation.UPDATE_BATCH).resultType(CommandResult.class)
+            .payload(BatchCommand.of(Collections.singletonList(new WriteCommand<>(CommandOperation.UPDATE, 1L,
+                Collections.singletonMap("orderNo", null))))).build();
+        executor.action(visitor, spec);
+        assertEquals(null, jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals(1L, jdbc.queryForObject("select school_id from t_order where id=1", Long.class));
+    }
+
+    @Test
+    void 空批次重复目标和试运行在授权及写入前拒绝() {
+        assertThrows(ValidationException.class, () -> executor.action(visitor, batch()));
+        assertThrows(ValidationException.class, () -> executor.action(visitor, batch(1L, 1L)));
+        assertThrows(ValidationException.class, () -> executor.action(visitor, batch(1L).toBuilder().dryRun(true).build()));
+        assertThrows(ValidationException.class, () -> executor.action(visitor,
+            batch(1L).toBuilder().idempotencyKey("unsupported-key").build()));
+        assertThrows(ValidationException.class, () -> executor.action(visitor,
+            batch(1L).toBuilder().expectedVersion(0L).build()));
+        Long[] tooMany = new Long[501];
+        Arrays.fill(tooMany, 1L);
+        assertThrows(ValidationException.class, () -> executor.action(visitor, batch(tooMany)));
+        assertTrue(targets.isEmpty());
+        assertEquals("one", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+    }
+
+    @Test
+    void 第二项目标动态拒绝时整批不写入且保留拒绝授权审计() {
+        deniedTargets.add("4");
+        assertThrows(PermissionDeniedException.class, () -> executor.action(visitor, batch(1L, 4L)));
+        assertEquals("one", jdbc.queryForObject("select order_no from t_order where id=1", String.class));
+        assertEquals("four", jdbc.queryForObject("select order_no from t_order where id=4", String.class));
+        assertEquals(Arrays.asList("1", "4"), targets);
+        assertEquals(2, audit.size());
+        assertTrue(audit.stream().allMatch(event -> event.getOutcome() == CrudGovernanceAuditOutcome.GOVERNANCE_DENIED));
+        assertEquals(com.entloom.crud.api.enums.AccessDecision.DENY, audit.get(1).getAuthorizationResult().getDecision());
+    }
+
+    private CommandSpec<BatchCommand<Map<String, Object>>> batch(Long... ids) {
+        List<WriteCommand<Map<String, Object>>> items = new ArrayList<>();
+        for (Long id : ids) items.add(new WriteCommand<>(CommandOperation.UPDATE, id, map("orderNo", "updated")));
+        return CommandSpec.<BatchCommand<Map<String, Object>>>builder().rootType(OrderTestEntity.class)
+            .op(CommandOperation.UPDATE_BATCH).resultType(CommandResult.class).payload(BatchCommand.of(items)).build();
     }
 
     private CommandSpec<WriteCommand<Map<String, Object>>> update(Object id, Map<String, Object> values) {

@@ -12,7 +12,7 @@ import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.api.model.QuerySort;
 import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.crud.core.exception.QueryNotUniqueException;
-import com.entloom.crud.core.exception.RouteNotFoundException;
+import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.capability.command.scene.AbstractPatchUpdateSceneHandler;
@@ -270,14 +270,14 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
     }
 
     @Test
-    void update_soft_deleted_order_should_be_treated_as_not_found() {
+    void update_soft_deleted_order_should_report_write_conflict() {
         jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 3001L, "ORD-SOFT-DELETED", 1);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("id", 3001L);
         payload.put("orderNo", "ORD-SHOULD-NOT-UPDATE");
 
-        RouteNotFoundException exception = Assertions.assertThrows(
-            RouteNotFoundException.class,
+        EntityDaoWriteMissException exception = Assertions.assertThrows(
+            EntityDaoWriteMissException.class,
             () -> commandGateway.action(commandSpec(CommandOperation.UPDATE, "u-soft-delete", payload))
         );
 
@@ -286,11 +286,11 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
     }
 
     @Test
-    void delete_soft_deleted_order_should_be_treated_as_not_found() {
+    void delete_soft_deleted_order_should_report_write_conflict() {
         jdbcTemplate.update("insert into t_order(id, order_no, is_deleted) values (?,?,?)", 3002L, "ORD-ALREADY-DELETED", 1);
 
-        RouteNotFoundException exception = Assertions.assertThrows(
-            RouteNotFoundException.class,
+        EntityDaoWriteMissException exception = Assertions.assertThrows(
+            EntityDaoWriteMissException.class,
             () ->
                 commandGateway.action(commandSpec(CommandOperation.DELETE, "d-soft-delete", Collections.singletonMap("id", 3002L)))
         );
@@ -487,8 +487,8 @@ class DefaultEngineSingleTableCrudTest extends EngineJdbcTestSupport {
 
         Map<String, Object> updatePayload = new LinkedHashMap<String, Object>();
         updatePayload.put("orderNo", "ORD-UPDATE-MISSING");
-        RouteNotFoundException updateError = Assertions.assertThrows(
-            RouteNotFoundException.class,
+        EntityDaoWriteMissException updateError = Assertions.assertThrows(
+            EntityDaoWriteMissException.class,
             () -> commandGateway.action(commandSpec(
                 CommandOperation.SAVE_OR_UPDATE_BATCH,
                 "save-or-update-batch-explicit-update",

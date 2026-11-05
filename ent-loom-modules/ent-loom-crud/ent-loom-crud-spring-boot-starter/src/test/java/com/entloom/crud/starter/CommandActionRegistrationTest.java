@@ -1,8 +1,6 @@
 package com.entloom.crud.starter;
 
 import com.entloom.crud.annotations.EntCrudCommandAction;
-import com.entloom.crud.annotations.EntCrudActions;
-import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.core.capability.command.handler.CommandActionContract;
@@ -100,6 +98,12 @@ class CommandActionRegistrationTest {
     private GenericApplicationContext context(CommandActionSceneHandler<?, ?> handler) {
         GenericApplicationContext context = new GenericApplicationContext();
         context.getBeanFactory().registerSingleton("action", handler);
+        context.getBeanFactory().registerSingleton("scenes", new com.entloom.crud.core.governance.policy.ScenePolicyRegistry(
+            Collections.emptyList(), Collections.singletonMap("test", Collections.singleton("order.place")), Collections.emptyMap()));
+        com.entloom.crud.core.runtime.meta.EntityMetaRegistry entities = org.mockito.Mockito.mock(com.entloom.crud.core.runtime.meta.EntityMetaRegistry.class);
+        org.mockito.Mockito.when(entities.getResourceDescriptor(TestEntity.class)).thenReturn(new com.entloom.crud.core.runtime.meta.ResourceDescriptor(TestEntity.class, "test", null, Collections.emptySet()));
+        org.mockito.Mockito.when(entities.getResourceDescriptor(RestrictedEntity.class)).thenReturn(new com.entloom.crud.core.runtime.meta.ResourceDescriptor(RestrictedEntity.class, "test", null, Collections.emptySet()));
+        context.getBeanFactory().registerSingleton("entities", entities);
         context.refresh();
         return context;
     }
@@ -131,7 +135,6 @@ class CommandActionRegistrationTest {
     public static class ForbiddenAction extends BoundAction {
     }
 
-    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order"))
     private static class RestrictedEntity {
     }
 

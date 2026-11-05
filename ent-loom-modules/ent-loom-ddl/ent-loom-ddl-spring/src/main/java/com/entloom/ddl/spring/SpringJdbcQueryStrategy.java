@@ -119,12 +119,14 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
             statement.setString(2, table.tableName);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
+                    String extra = trim(resultSet.getString("EXTRA"));
                     columns.add(new DdlColumnMetadata(resultSet.getString("COLUMN_NAME"),
                             resultSet.getString("COLUMN_TYPE"),
                             isYes(resultSet.getString("IS_NULLABLE")),
                             resultSet.getString("COLUMN_DEFAULT"),
                             resultSet.getString("COLUMN_COMMENT"),
-                            trim(resultSet.getString("EXTRA")).contains("auto_increment")));
+                            extra.contains("auto_increment"),
+                            extra.contains("VIRTUAL GENERATED") || extra.contains("STORED GENERATED")));
                 }
             }
         }
@@ -146,7 +148,8 @@ public final class SpringJdbcQueryStrategy implements QueryStrategy {
                         resultSet.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls,
                         resultSet.getString("COLUMN_DEF"),
                         resultSet.getString("REMARKS"),
-                        isYes(resultSet.getString("IS_AUTOINCREMENT"))));
+                        isYes(resultSet.getString("IS_AUTOINCREMENT")),
+                        isYes(resultSet.getString("IS_GENERATEDCOLUMN"))));
             }
         }
         return columns;

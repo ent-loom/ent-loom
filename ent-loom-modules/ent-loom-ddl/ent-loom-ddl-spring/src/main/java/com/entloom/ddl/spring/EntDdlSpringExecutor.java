@@ -9,6 +9,8 @@ import com.entloom.ddl.api.MetadataLoader;
 import com.entloom.ddl.api.QueryStrategy;
 import com.entloom.ddl.api.SqlExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 
@@ -16,6 +18,7 @@ import org.springframework.context.event.ContextRefreshedEvent;
  * Spring 容器刷新后触发 DDL 执行。
  */
 public final class EntDdlSpringExecutor implements ApplicationListener<ContextRefreshedEvent> {
+    private static final Log LOGGER = LogFactory.getLog(EntDdlSpringExecutor.class);
     private final DdlEngine ddlEngine;
     private final MetadataLoader metadataLoader;
     private final QueryStrategy queryStrategy;
@@ -52,6 +55,9 @@ public final class EntDdlSpringExecutor implements ApplicationListener<ContextRe
                 options.getMode(),
                 metadataLoader.load(new MetadataLoadRequest(options.getBasePackages(), options.getEntityClasses())));
         DdlExecutionResult result = ddlEngine.execute(request, queryStrategy, sqlExecutor);
+        for (String warning : result.warnings()) {
+            LOGGER.warn("DDL 迁移提示: " + warning);
+        }
         if (!result.success()) {
             StringBuilder message = new StringBuilder("\n========== DDL 执行失败 ==========\n")
                     .append("执行模式: ").append(options.getMode())

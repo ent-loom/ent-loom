@@ -1,0 +1,4 @@
+crud:
+  policy: record
+  relations:
+    owner: ownerId

@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
+# 请求显式提供字段与实体最终值非空分别建模。
+crud:
+  access: JAVA
+  contracts:
+    create:
+      input-required-fields: [displayName, email]

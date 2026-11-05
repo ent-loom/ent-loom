@@ -2,48 +2,57 @@
 @merchantA = demo-merchant-a
 @merchantB = demo-merchant-b
 
-### 准备：应用启动建表后执行 scripts/merchant-demo.sql；版本按 GET 结果填写。
+### 准备：应用启动建表后执行 scripts/merchant-demo.sql；版本按查询结果填写。
 ### 商家 A 只读自己的两条商品
-GET {{baseUrl}}/api/merchant/products
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"limit":100}}
 
 ### 商家 B 只读自己的商品 201
-GET {{baseUrl}}/api/merchant/products
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 Authorization: Bearer {{merchantB}}
+Content-Type: application/json
 
-### 整批成功；两条商品版本各加一，data 返回 [101,102]
-POST {{baseUrl}}/api/merchant/products/prices
+{"options":{"limit":100}}
+
+### 整批成功；两条商品版本各加一，data.rows 为 2，data.items 按顺序返回各项目标与影响行数
+POST {{baseUrl}}/api/ent-crud/merchantProduct/updateBatch
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"items":[{"id":101,"price":11.50,"version":0},{"id":102,"price":22.00,"version":0}]}
+{"payload":{"items":[{"id":101,"price":11.5,"version":0},{"id":102,"price":22.0,"version":0}]}}
 
 ### 第二项跨商家；409，商品 101 的价格和版本也回滚
-POST {{baseUrl}}/api/merchant/products/prices
+POST {{baseUrl}}/api/ent-crud/merchantProduct/updateBatch
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"items":[{"id":101,"price":99,"version":1},{"id":201,"price":99,"version":0}]}
+{"payload":{"items":[{"id":101,"price":99,"version":1},{"id":201,"price":99,"version":0}]}}
 
 ### 第二项使用旧版本；409，整批回滚
-POST {{baseUrl}}/api/merchant/products/prices
+POST {{baseUrl}}/api/ent-crud/merchantProduct/updateBatch
 Authorization: Bearer {{merchantA}}
 Content-Type: application/json
 
-{"items":[{"id":101,"price":99,"version":1},{"id":102,"price":99,"version":0}]}
+{"payload":{"items":[{"id":101,"price":99,"version":1},{"id":102,"price":99,"version":0}]}}
 
 ### 确认两条商品仍为 11.50 / 22.00、版本均为 1
-GET {{baseUrl}}/api/merchant/products
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 Authorization: Bearer {{merchantA}}
+Content-Type: application/json
+
+{"options":{"limit":100}}
 
 ### 无凭证：403
-GET {{baseUrl}}/api/merchant/products
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 
 ### 无效凭证：403
-GET {{baseUrl}}/api/merchant/products
+POST {{baseUrl}}/api/ent-crud/merchantProduct/list
 Authorization: Bearer invalid
 
-### 商家商品实体禁止通用 HTTP 路由：404
+### 无商家身份的通用写入：403
 POST {{baseUrl}}/api/ent-crud/merchantProduct/update
 Content-Type: application/json
 

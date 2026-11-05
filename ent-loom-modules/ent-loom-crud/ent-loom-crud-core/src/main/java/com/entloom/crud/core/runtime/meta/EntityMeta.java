@@ -1,5 +1,7 @@
 package com.entloom.crud.core.runtime.meta;
 
+import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.meta.enums.role.DateTimeRole;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -138,6 +140,22 @@ public class EntityMeta {
 
     public EntityFieldMeta resolveFieldMeta(String field) {
         return fieldMetas.get(field);
+    }
+
+    /** 读取唯一创建时间字段；存在多个角色时拒绝猜测，避免排序取决于声明顺序。 */
+    public String getCreatedTimeField() {
+        String found = null;
+        for (EntityFieldMeta field : fieldMetas.values()) {
+            if (field.getDateTimeRole() != DateTimeRole.CREATED_TIME) continue;
+            if (field.isRelation()) {
+                throw new ValidationException("创建时间必须为普通字段: " + entityType.getName() + "#" + field.getFieldName());
+            }
+            if (found != null) {
+                throw new ValidationException("实体创建时间角色不唯一: " + entityType.getName() + "#" + found + ", " + field.getFieldName());
+            }
+            found = field.getFieldName();
+        }
+        return found;
     }
 
     /** 是否已显式提供逻辑删除的两个状态值。 */

@@ -36,7 +36,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
@@ -83,7 +82,7 @@ class EntityPropertyMappingAcceptanceTest {
         Set<String> expected = Set.of("id", "customerId", "amount", "binary");
         assertEquals(expected, nativeMeta.getAllowedFields());
         assertEquals(expected, meta.getAllowedFields());
-        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(Aggregate.class)).models().get(0);
+        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(Aggregate.class), new ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).models().get(0);
         assertEquals(expected, ddl.fields().stream().filter(DdlFieldMetadata::persisted)
             .map(DdlFieldMetadata::fieldName).collect(Collectors.toSet()));
 
@@ -133,7 +132,7 @@ class EntityPropertyMappingAcceptanceTest {
 
     @Test
     void should_use_generated_ddl_for_single_table_writes_and_manual_assembly() {
-        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(Aggregate.class)).models().get(0);
+        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(Aggregate.class), new ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).models().get(0);
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
             "jdbc:h2:mem:property-mapping;MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("drop table if exists aggregate");
@@ -171,15 +170,15 @@ class EntityPropertyMappingAcceptanceTest {
         assertTrue(new ReflectiveEntMetaParser().parseWithDiagnostics(UnsupportedStorage.class).diagnostics().stream()
             .anyMatch(diagnostic -> diagnostic.code() == MetaDiagnosticCode.UNSUPPORTED_COLUMN_MAPPING));
         assertThrows(RuntimeException.class, () -> nativeMeta(UnsupportedStorage.class));
-        assertThrows(RuntimeException.class, () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(UnsupportedStorage.class)));
+        assertThrows(RuntimeException.class, () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(UnsupportedStorage.class), new ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()));
         assertDoesNotThrow(() -> new ReflectiveEntMetaParser().parse(InvalidIndex.class));
-        assertThrows(RuntimeException.class, () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(InvalidIndex.class)));
-        assertThrows(RuntimeException.class, () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(InvalidNativeStorage.class)));
+        assertThrows(RuntimeException.class, () -> declaredDdl(InvalidIndex.class));
+        assertThrows(RuntimeException.class, () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(InvalidNativeStorage.class), new ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()));
     }
 
     @Test
     void should_validate_indexes_after_native_persistence_overrides() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(NativeIndexOverride.class));
+        MetaDdlAdapter adapter = declaredDdl(NativeIndexOverride.class);
         DdlEntityMetadata ddl = adapter.models().get(0);
         assertTrue(ddl.fields().stream().filter(field -> field.fieldName().equals("name"))
             .findFirst().get().persisted());
@@ -187,12 +186,12 @@ class EntityPropertyMappingAcceptanceTest {
         assertTrue(adapter.diagnostics().stream()
             .anyMatch(diagnostic -> diagnostic.code() == MetaDiagnosticCode.EXPLICIT_VALUE_CONFLICT));
         assertThrows(RuntimeException.class,
-            () -> new MetaDdlAdapter(Collections.<Class<?>>singletonList(NativeIndexExclusion.class)));
+            () -> declaredDdl(NativeIndexExclusion.class));
     }
 
     @Test
     void should_round_trip_special_single_column_types() {
-        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(SpecialValues.class)).models().get(0);
+        DdlEntityMetadata ddl = new MetaDdlAdapter(Collections.<Class<?>>singletonList(SpecialValues.class), new ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).models().get(0);
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
             "jdbc:h2:mem:special-property-mapping;MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("drop table if exists special_values");
@@ -246,6 +245,19 @@ class EntityPropertyMappingAcceptanceTest {
         return new CrudNativeRuntimeModelParser().parse(Collections.<Class<?>>singletonList(type)).getEntity(type).toEntityMeta();
     }
 
+    private MetaDdlAdapter declaredDdl(Class<?> type) {
+        var annotation = type.getAnnotation(EntEntity.class);
+        String resource = annotation.entity().isEmpty() ? java.beans.Introspector.decapitalize(type.getSimpleName()) : annotation.entity();
+        var fixture = new org.springframework.core.io.ClassPathResource("declarations/EntityPropertyMappingAcceptanceTest/" + type.getSimpleName() + ".yml");
+        try {
+            return new MetaDdlAdapter(Collections.<Class<?>>singletonList(type), new ReflectiveEntMetaParser(),
+                com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(),
+                new com.entloom.declaration.EntityDeclarations(new org.springframework.core.io.ByteArrayResource(fixture.getInputStream().readAllBytes()) {
+                    @Override public String getFilename() { return resource + ".yml"; }
+                }));
+        } catch (java.io.IOException exception) { throw new IllegalStateException(exception); }
+    }
+
     @EntEntity
     @EntCrudEntity
     @EntDdlEntity
@@ -296,14 +308,14 @@ class EntityPropertyMappingAcceptanceTest {
     }
 
     @EntEntity
-    @EntIndex(fields = "items")
+
     static class InvalidIndex {
         Long id;
         List<Item> items;
     }
 
     @EntEntity
-    @EntIndex(fields = "name")
+
     static class NativeIndexOverride {
         Long id;
         @EntField(persisted = OptionalBoolean.FALSE)
@@ -312,7 +324,7 @@ class EntityPropertyMappingAcceptanceTest {
     }
 
     @EntEntity
-    @EntIndex(fields = "name")
+
     static class NativeIndexExclusion {
         Long id;
         @EntDdlField(persisted = OptionalBoolean.FALSE)

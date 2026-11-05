@@ -14,6 +14,7 @@ import com.entloom.crud.core.runtime.context.CrudInvocationContext;
 import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
 import com.entloom.crud.core.capability.query.gateway.QueryGateway;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.starter.web.assembler.CrudQuerySpecAssembler;
 import com.entloom.crud.starter.web.assembler.CrudSchemaAssembler;
@@ -104,7 +105,8 @@ public class EntCrudQueryFacade {
             entity,
             scene,
             request,
-            subjectResolver.resolveOrThrow()
+            // 新授权链只使用本次可信准入，不再依赖旧主体解析或演示权限。
+            AccessContextScope.isAuthorizationRequired() ? null : subjectResolver.resolveOrThrow()
         );
     }
 

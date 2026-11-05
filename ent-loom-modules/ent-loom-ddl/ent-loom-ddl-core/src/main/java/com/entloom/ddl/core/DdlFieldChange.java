@@ -3,7 +3,7 @@ package com.entloom.ddl.core;
 import com.entloom.ddl.api.DdlFieldMetadata;
 
 /**
- * 单个字段的有限修改计划。
+ * 单个字段的修改计划。
  */
 public final class DdlFieldChange {
     private final String existingColumnName;

@@ -1,0 +1,6 @@
+ddl:
+  indexes:
+    - name: idx_order_item_order
+      fields: [orderId]
+crud:
+  http-exposed: false

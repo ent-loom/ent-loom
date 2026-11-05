@@ -149,7 +149,7 @@ public class CrudNativeRuntimeModelParser {
             exportField == null ? null : exportField.format(),
             exportField == null ? null : exportField.dictionaryCode(),
             exportField == null ? null : exportField.displayField()
-        );
+        ).withDateTimeRole(nativeField == null ? null : nativeField.dateTimeRole().value());
     }
 
     private boolean contains(String[] fields, String fieldName) {

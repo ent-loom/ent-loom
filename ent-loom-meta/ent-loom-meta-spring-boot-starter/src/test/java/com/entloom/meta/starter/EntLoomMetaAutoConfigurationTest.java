@@ -25,6 +25,11 @@ import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.descriptor.EntFieldDescriptor;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
 import com.entloom.meta.contract.value.MetaValueSource;
+import com.entloom.meta.enums.role.DateTimeRole;
+import com.entloom.crud.core.capability.query.ConfigurableQueryDefaultSortResolver;
+import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.api.enums.QueryOperation;
+import com.entloom.crud.api.enums.SortDirection;
 import com.entloom.meta.core.convention.MetaConvention;
 import com.entloom.meta.core.convention.MetaConventionContext;
 import com.entloom.meta.core.parser.EntMetaParser;
@@ -49,6 +54,87 @@ class EntLoomMetaAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
         .withUserConfiguration(MinimalCrudRegistryConfiguration.class)
         .withConfiguration(AutoConfigurations.of(EntLoomMetaAutoConfiguration.class));
+
+    @Test
+    void 无配置时全局识别两种常见创建时间命名且不要求字段注解() {
+        contextRunner.withPropertyValues(entityClasses(GlobalNamingEntity.class, CommonCreateTimeEntity.class)).run(context -> {
+            Assertions.assertNull(context.getStartupFailure());
+            EntMetaParser parser = context.getBean(EntMetaParser.class);
+            EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+            Map<Class<?>, String> names = Map.of(GlobalNamingEntity.class, "createdAt", CommonCreateTimeEntity.class, "createTime");
+            names.forEach((type, name) -> {
+                EntityMeta meta = registry.getEntityMeta(type);
+                Assertions.assertEquals("DATETIME.CREATED_TIME", namedField(parser, type, name).role());
+                Assertions.assertFalse(meta.resolveFieldMeta(name).isWritable());
+                Assertions.assertTrue(meta.resolveFieldMeta(name).isSortable());
+                Assertions.assertEquals(DateTimeRole.CREATED_TIME, meta.resolveFieldMeta(name).getDateTimeRole());
+                Assertions.assertEquals(name, meta.getCreatedTimeField());
+            });
+            Assertions.assertNotEquals("DATETIME.CREATED_TIME", namedField(parser, GlobalNamingEntity.class, "recordedAt").role());
+        });
+    }
+
+    @Test
+    void 项目命名只配置一次并覆盖全部实体继承字段与Crud写入保护() {
+        contextRunner.withPropertyValues(entityClasses(GlobalNamingEntity.class, InheritedNamingEntity.class, WrongTypeNamingEntity.class))
+            .withPropertyValues("ent.loom.meta.defaults.created-time-fields=recordedAt")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                EntMetaParser parser = context.getBean(EntMetaParser.class);
+                EntityMetaRegistry registry = context.getBean(EntityMetaRegistry.class);
+                for (Class<?> type : Arrays.asList(GlobalNamingEntity.class, InheritedNamingEntity.class)) {
+                    EntFieldDescriptor field = namedField(parser, type, "recordedAt");
+                    Assertions.assertEquals("DATETIME.CREATED_TIME", field.role());
+                    Assertions.assertEquals("创建时间", field.label());
+                    Assertions.assertEquals(Boolean.TRUE, field.readOnly());
+                    Assertions.assertFalse(registry.getEntityMeta(type).resolveFieldMeta("recordedAt").isWritable());
+                    EntityMeta meta = registry.getEntityMeta(type);
+                    Assertions.assertTrue(meta.resolveFieldMeta("recordedAt").isSortable());
+                    Assertions.assertEquals("recordedAt", meta.getCreatedTimeField());
+                    var sorts = new ConfigurableQueryDefaultSortResolver(true, EnumSet.of(QueryOperation.PAGE),
+                        SortDirection.DESC, true, SortDirection.ASC, true)
+                        .resolve(QuerySpec.builder().op(QueryOperation.PAGE).build(), meta);
+                    Assertions.assertEquals(List.of("recordedAt", "id"), sorts.stream().map(sort -> sort.getField()).toList());
+                }
+                // 项目列表整体替换内置名称；同名文本字段不推导为时间。
+                Assertions.assertNotEquals("DATETIME.CREATED_TIME", namedField(parser, GlobalNamingEntity.class, "createdAt").role());
+                Assertions.assertTrue(registry.getEntityMeta(GlobalNamingEntity.class).resolveFieldMeta("createdAt").isWritable());
+                Assertions.assertNotEquals("DATETIME.CREATED_TIME", namedField(parser, WrongTypeNamingEntity.class, "recordedAt").role());
+                Assertions.assertTrue(registry.getEntityMeta(WrongTypeNamingEntity.class).resolveFieldMeta("recordedAt").isWritable());
+                context.getBean(EntLoomMetaProperties.class).getDefaults().getCreatedTimeFields().clear();
+                Assertions.assertEquals("DATETIME.CREATED_TIME", namedField(parser, GlobalNamingEntity.class, "recordedAt").role());
+            });
+    }
+
+    @Test
+    void 空列表关闭命名推导且重复名称绑定失败() {
+        contextRunner.withPropertyValues(entityClasses(GlobalNamingEntity.class))
+            .withPropertyValues("ent.loom.meta.defaults.created-time-fields=")
+            .run(context -> {
+                Assertions.assertNull(context.getStartupFailure());
+                EntMetaParser parser = context.getBean(EntMetaParser.class);
+                EntityMeta meta = context.getBean(EntityMetaRegistry.class).getEntityMeta(GlobalNamingEntity.class);
+                for (String name : List.of("createdAt")) {
+                    Assertions.assertNotEquals("DATETIME.CREATED_TIME", namedField(parser, GlobalNamingEntity.class, name).role());
+                    Assertions.assertTrue(meta.resolveFieldMeta(name).isWritable());
+                }
+            });
+        contextRunner.withPropertyValues(entityClasses(GlobalNamingEntity.class))
+            .withPropertyValues("ent.loom.meta.defaults.created-time-fields=recordedAt,recordedAt")
+            .run(context -> Assertions.assertNotNull(context.getStartupFailure()));
+    }
+
+    @Test
+    void 同一实体多个创建时间角色应在启动时拒绝猜测() {
+        contextRunner.withPropertyValues(entityClasses(AmbiguousCreationEntity.class)).run(context -> {
+            Assertions.assertNotNull(context.getStartupFailure());
+            Assertions.assertTrue(context.getStartupFailure().getMessage().contains("创建时间角色不唯一"));
+        });
+    }
+
+    private static EntFieldDescriptor namedField(EntMetaParser parser, Class<?> type, String name) {
+        return parser.parse(type).fields().stream().filter(field -> name.equals(field.fieldName())).findFirst().orElseThrow();
+    }
 
     @Test
     void 全局服务配置应传递到共享解析器和Crud且允许实体覆盖() {
@@ -494,6 +580,40 @@ class EntLoomMetaAutoConfigurationTest {
 
         @EntField
         private String name;
+    }
+
+    @EntEntity(entity = "global_naming_entity")
+    static class GlobalNamingEntity {
+        private Long id;
+        private LocalDateTime createdAt;
+        private LocalDateTime recordedAt;
+    }
+
+    @EntEntity(entity = "common_create_time_entity")
+    static class CommonCreateTimeEntity {
+        private Long id;
+        private LocalDateTime createTime;
+    }
+
+    @EntEntity(entity = "ambiguous_creation_entity")
+    static class AmbiguousCreationEntity {
+        private Long id;
+        private LocalDateTime createdAt;
+        private LocalDateTime createTime;
+    }
+
+    static class NamingBase {
+        private Long id;
+        private LocalDateTime recordedAt;
+    }
+
+    @EntEntity(entity = "inherited_naming_entity")
+    static class InheritedNamingEntity extends NamingBase { }
+
+    @EntEntity(entity = "wrong_type_naming_entity")
+    static class WrongTypeNamingEntity {
+        private Long id;
+        private String recordedAt;
     }
 
     @EntEntity(entity = "starter_convention_entity")

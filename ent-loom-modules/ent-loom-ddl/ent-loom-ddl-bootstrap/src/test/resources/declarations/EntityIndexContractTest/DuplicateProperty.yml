@@ -1,0 +1,3 @@
+ddl:
+  indexes:
+    - fields: [accountCode, accountCode]

@@ -4,24 +4,30 @@ import com.entloom.meta.contract.contribution.Contribution;
 import com.entloom.meta.contract.contribution.Priority;
 import com.entloom.meta.contract.value.MetaValueSource;
 import com.entloom.meta.contract.descriptor.MetaDescriptorProperties;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import com.entloom.meta.contract.convention.CreatedTimeFields;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 
 /**
  * Meta 内置创建时间约定。
  */
 public final class BuiltInDateTimeConvention implements MetaConvention {
+    private final CreatedTimeFields createdTimeFields;
+
+    public BuiltInDateTimeConvention() {
+        this(new CreatedTimeFields());
+    }
+
+    public BuiltInDateTimeConvention(CreatedTimeFields createdTimeFields) {
+        this.createdTimeFields = java.util.Objects.requireNonNull(createdTimeFields, "创建时间字段约定不能为空");
+    }
+
     @Override
     public Collection<? extends Contribution<?>> contribute(MetaConventionContext context) {
         String fieldName = context.field().getName();
-        if (!("createTime".equals(fieldName) || "createdAt".equals(fieldName))
-            || !isDateTime(context.field().getType())) {
+        if (!createdTimeFields.matches(fieldName, context.field().getType())) {
             return Collections.emptyList();
         }
         String target = context.entityClass().getName() + "#" + fieldName;
@@ -45,13 +51,6 @@ public final class BuiltInDateTimeConvention implements MetaConvention {
             "meta.datetime.created-time.read-only"
         ));
         return contributions;
-    }
-
-    private static boolean isDateTime(Class<?> type) {
-        return LocalDate.class.equals(type)
-            || LocalDateTime.class.equals(type)
-            || Instant.class.equals(type)
-            || Date.class.equals(type);
     }
 
     private static <T> Contribution<T> contribution(

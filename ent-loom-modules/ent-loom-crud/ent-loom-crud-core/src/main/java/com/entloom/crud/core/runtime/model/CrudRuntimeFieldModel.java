@@ -1,6 +1,7 @@
 package com.entloom.crud.core.runtime.model;
 
 import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
+import com.entloom.meta.enums.role.DateTimeRole;
 import lombok.Getter;
 
 /**
@@ -8,6 +9,8 @@ import lombok.Getter;
  */
 @Getter
 public final class CrudRuntimeFieldModel {
+    /** 日期时间字段语义。 */
+    private final DateTimeRole dateTimeRole;
     private final String fieldName;
     private final Class<?> javaType;
     private final String columnName;
@@ -41,7 +44,7 @@ public final class CrudRuntimeFieldModel {
         boolean immutable
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
-            scopeField, immutable, null, null, null, null, null, null, null, false, null);
+            scopeField, immutable, null, null, null, null, null, null, null, false, null, DateTimeRole.UNSET);
     }
 
     public CrudRuntimeFieldModel(
@@ -64,7 +67,7 @@ public final class CrudRuntimeFieldModel {
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
             scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
-            dictionaryCode, displayField, null, false, null);
+            dictionaryCode, displayField, null, false, null, DateTimeRole.UNSET);
     }
 
     public CrudRuntimeFieldModel(
@@ -86,8 +89,10 @@ public final class CrudRuntimeFieldModel {
         String displayField,
         String label,
         boolean inputRequired,
-        Object createDefaultValue
+        Object createDefaultValue,
+        DateTimeRole dateTimeRole
     ) {
+        this.dateTimeRole = dateTimeRole == null ? DateTimeRole.UNSET : dateTimeRole;
         this.fieldName = fieldName;
         this.javaType = javaType == null ? Object.class : javaType;
         this.columnName = columnName;
@@ -132,7 +137,8 @@ public final class CrudRuntimeFieldModel {
             fieldMeta.getDisplayField(),
             fieldMeta.getLabel(),
             fieldMeta.isInputRequired(),
-            fieldMeta.getCreateDefaultValue()
+            fieldMeta.getCreateDefaultValue(),
+            fieldMeta.getDateTimeRole()
         );
     }
 
@@ -140,6 +146,6 @@ public final class CrudRuntimeFieldModel {
     public CrudRuntimeFieldModel withScopeField(boolean scope) {
         return new CrudRuntimeFieldModel(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
             writable && !scope, scope, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
-            dictionaryCode, displayField, label, inputRequired, createDefaultValue);
+            dictionaryCode, displayField, label, inputRequired, createDefaultValue, dateTimeRole);
     }
 }

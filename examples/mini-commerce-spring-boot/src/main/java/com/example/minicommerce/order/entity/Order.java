@@ -1,8 +1,5 @@
 package com.example.minicommerce.order.entity;
 
-import com.entloom.ddl.annotations.EntDdlIndex;
-import com.entloom.crud.annotations.EntCrudActions;
-import com.entloom.crud.annotations.EntCrudAction;
 import com.entloom.crud.annotations.EntCrudField;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
@@ -18,14 +15,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * 订单持久化实体，由下单 Handler 经 EntityDao 保存。
+ * 每笔订单属于一个客户和一个商家；跨商家下单由 Handler 在同一事务内拆分。
  *
- * <p>订单是流程实体：标准 CRUD 沿用项目全局权限，本实体仅将业务动作限制为下单，
- * 避免其他动作绕过订单流程。</p>
+ * <p>标准读取复用客户、商家策略；下单经过显式业务动作的场景授权。</p>
  */
 @EntEntity("订单")
-@EntCrudActions(@EntCrudAction(value = Order.PLACE, name = "下单", accessEntry = "consumer", capability = "place-order"))
-@EntDdlIndex(name = "idx_order_customer", fields = "customerId")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,6 +32,9 @@ public class Order {
 
     @EntField("客户 ID")
     private Long customerId;
+
+    @EntField("商家 ID")
+    private Long merchantId;
 
     @EntField("客户")
     @EntCrudField(targetClass = Customer.class, sourceField = "customerId")
@@ -58,10 +55,4 @@ public class Order {
     @EntField("订单明细")
     @EntCrudField(targetClass = OrderItem.class, targetField = "orderId", cardinality = RelationCardinality.ONE_TO_MANY)
     private List<OrderItem> orderItemList;
-
-    @EntField("商家销售订单")
-    @EntCrudField(targetClass = MerchantOrder.class, targetField = "orderId",
-        cardinality = RelationCardinality.ONE_TO_MANY)
-    private List<MerchantOrder> merchantOrderList;
-
 }

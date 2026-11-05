@@ -5,13 +5,11 @@ import com.entloom.crud.annotations.EntCrudEntity;
 import com.entloom.crud.api.enums.CrudIdPolicy;
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
-import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.enums.GenerationStrategy;
 import com.entloom.doc.annotations.EntDocEntity;
 import com.entloom.doc.annotations.EntDocField;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaMedia;
 import com.entloom.meta.annotations.meta.EntMetaNumber;
@@ -30,13 +28,9 @@ import java.time.LocalDateTime;
     description = "客户档案",
     service = "customer-service"
 )
-@EntIndex(name = "uk_customer_profile_display_name", fields = {"displayName"}, unique = true)
+
 @EntDdlEntity(table = "customer_profile", comment = "客户档案")
-@EntDdlIndex(
-    name = "uk_customer_profile_display_name",
-    fields = {"displayName"},
-    unique = OptionalBoolean.TRUE
-)
+
 @EntCrudEntity(
     name = "customer_profile",
     table = "customer_profile",
@@ -65,12 +59,8 @@ public final class CustomerProfile {
     )
     @EntMetaText(maxLength = 64)
     @EntDdlField(column = "display_name", length = 64, nullable = OptionalBoolean.FALSE, comment = "客户展示名称")
-    @EntDocField(
-        name = "显示名称",
-        description = "客户展示名称",
-        example = "张三",
-        maxLength = 64
-    )
+    @EntDocField(name = "显示名称",
+        description = "客户展示名称", maxLength = 64)
     private String displayName;
 
     /** 客户信用额度。 */
@@ -81,11 +71,8 @@ public final class CustomerProfile {
     )
     @EntMetaNumber(value = NumberRole.MONEY, precision = 10, scale = 2)
     @EntDdlField(column = "credit_limit", precision = 10, scale = 2, nullable = OptionalBoolean.FALSE, comment = "客户信用额度")
-    @EntDocField(
-        name = "信用额度",
-        description = "客户信用额度",
-        example = "1000.00"
-    )
+    @EntDocField(name = "信用额度",
+        description = "客户信用额度")
     private BigDecimal creditLimit;
 
     /** 客户注册时间。 */

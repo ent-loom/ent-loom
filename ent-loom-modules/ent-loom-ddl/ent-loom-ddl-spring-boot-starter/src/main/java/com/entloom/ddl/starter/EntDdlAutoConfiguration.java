@@ -30,9 +30,25 @@ import org.springframework.context.annotation.Bean;
  * ent-loom-ddl Spring Boot 自动配置。
  */
 @AutoConfiguration
+@org.springframework.context.annotation.Import(com.entloom.declaration.EntityDeclarationConfiguration.class)
 @ConditionalOnClass(EntDdlSpringExecutor.class)
 @EnableConfigurationProperties(EntDdlProperties.class)
 public class EntDdlAutoConfiguration {
+    @Bean
+    public org.springframework.beans.factory.SmartInitializingSingleton ddlEntityDeclarationGuard(
+            com.entloom.declaration.EntityDeclarations declarations, MetadataLoader loader, EntDdlProperties properties) {
+        return () -> {
+            boolean declared = declarations.entities().values().stream().anyMatch(root -> root.members().containsKey("ddl"));
+            if (declared) loader.validateDeclarations(new com.entloom.ddl.api.MetadataLoadRequest(properties.getBasePackages(), resolveClasses(properties.getEntityClassNames())));
+        };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public com.entloom.ddl.declaration.DdlEntityDeclarations ddlEntityDeclarations(com.entloom.declaration.EntityDeclarations declarations) {
+        return new com.entloom.ddl.declaration.DdlEntityDeclarations(declarations);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public DdlEngine entDdlEngine() {
@@ -41,9 +57,9 @@ public class EntDdlAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MetadataLoader entDdlMetadataLoader(EntDdlProperties properties) {
+    public MetadataLoader entDdlMetadataLoader(EntDdlProperties properties, com.entloom.declaration.EntityDeclarations declarations) {
         return new SpringAnnotationMetadataLoader(new SpringPackageEntityClassResolver(null),
-            new DdlGenerationDefaults(properties.getDefaults().getGenerationStrategy()));
+            new DdlGenerationDefaults(properties.getDefaults().getGenerationStrategy()), declarations);
     }
 
     @Bean

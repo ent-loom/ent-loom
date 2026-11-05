@@ -1,7 +1,5 @@
 package com.entloom.crud.core.governance.policy;
 
-import com.entloom.crud.annotations.EntCrudAction;
-import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.core.exception.ValidationException;
@@ -49,14 +47,14 @@ class EntityActionPolicyTest {
 
     @Test
     void should_enforce_empty_boundary_even_with_manually_built_registry() {
-        ScenePolicyRegistry registry = new ScenePolicyRegistry(Collections.singletonList(policy("base", "place")));
+        ScenePolicyRegistry registry = new ScenePolicyRegistry(Collections.singletonList(policy("base", "place")), Collections.singletonMap("order", Collections.emptySet()), Collections.emptyMap());
         ScenePolicyMatch match = match(registry, ClosedOrder.class, "place", "base", null);
         assertFalse(match.isMatched());
         assertTrue(match.getRejectionReason().contains("实体动作边界"));
     }
 
     @Test
-    void should_reject_duplicate_keys_from_annotations_beans_and_mixed_sources() {
+    void should_reject_duplicate_keys_from_compiled_declarations_and_beans() {
         assertThrows(ValidationException.class, () -> registry(DuplicateOrder.class));
         assertThrows(ValidationException.class, () -> registry(PlainOrder.class, policy("base", "place"), policy("BASE", "PLACE")));
         assertThrows(ValidationException.class, () -> registry(MultiEntryOrder.class, policy("base", "place")));
@@ -64,10 +62,6 @@ class EntityActionPolicyTest {
 
     @Test
     void should_reject_invalid_action_metadata() {
-        for (Class<?> type : Arrays.<Class<?>>asList(ConflictingNames.class, BlankScene.class,
-            BlankCapability.class, BlankEntry.class, BlankName.class, BlankPortal.class)) {
-            assertThrows(ValidationException.class, () -> registry(type), type.getSimpleName());
-        }
         assertThrows(ValidationException.class, () -> registry(PlainOrder.class, policy("base", " ")));
         ScenePolicy unknown = new ScenePolicy(new ScenePolicyKey("base", "missing",
             CrudOperationKey.of(CommandOperation.ACTION), "place"), "place-order", Collections.<String>emptySet());
@@ -79,7 +73,17 @@ class EntityActionPolicyTest {
             Collections.singletonMap("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true)));
         EntityMetaRegistry entities = new CrudRuntimeModelBackedEntityMetaRegistry(
             CrudRuntimeModel.from(Collections.singletonList(meta), Collections.emptyList()));
-        return ScenePolicyRegistry.create(entities, Arrays.asList(policies));
+        java.util.List<ScenePolicy> compiled = new java.util.ArrayList<>(Arrays.asList(policies));
+        java.util.Map<String, java.util.Set<String>> boundary = new java.util.HashMap<>();
+        if (type == MultiEntryOrder.class || type == DuplicateOrder.class) {
+            boundary.put("order", Collections.singleton("place"));
+            compiled.add(policy("base", "place"));
+            compiled.add(type == DuplicateOrder.class ? policy("BASE", "PLACE") :
+                new ScenePolicy(new ScenePolicyKey("management", "order", CrudOperationKey.of(CommandOperation.ACTION), "place"),
+                    "manage-order", Collections.singleton("http")));
+        }
+        if (type == ClosedOrder.class) boundary.put("order", Collections.emptySet());
+        return ScenePolicyRegistry.create(entities, compiled, boundary, Collections.emptyMap());
     }
 
     private ScenePolicy policy(String entry, String scene) {
@@ -96,51 +100,33 @@ class EntityActionPolicyTest {
         return new ResourceDescriptor(type, "order", null, null);
     }
 
-    @EntCrudActions({
-        @EntCrudAction(value = "place", name = "下单", capability = "place-order"),
-        @EntCrudAction(value = "PLACE", name = "下单", accessEntry = "MANAGEMENT", capability = "manage-order", portals = "HTTP")
-    })
     private static class MultiEntryOrder {
     }
 
     private static class PlainOrder {
     }
 
-    @EntCrudActions
     private static class ClosedOrder {
     }
 
-    @EntCrudActions({
-        @EntCrudAction(value = "place", name = "下单", capability = "place-order"),
-        @EntCrudAction(value = " PLACE ", name = "下单", accessEntry = " BASE ", capability = "place-order")
-    })
     private static class DuplicateOrder {
     }
 
-    @EntCrudActions({
-        @EntCrudAction(value = "place", name = "下单", capability = "place-order"),
-        @EntCrudAction(value = "place", name = "其他名称", accessEntry = "consumer", capability = "place-order")
-    })
     private static class ConflictingNames {
     }
 
-    @EntCrudActions(@EntCrudAction(value = " ", name = "下单", capability = "place-order"))
     private static class BlankScene {
     }
 
-    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = " "))
     private static class BlankCapability {
     }
 
-    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order", accessEntry = " "))
     private static class BlankEntry {
     }
 
-    @EntCrudActions(@EntCrudAction(value = "place", name = " ", capability = "place-order"))
     private static class BlankName {
     }
 
-    @EntCrudActions(@EntCrudAction(value = "place", name = "下单", capability = "place-order", portals = " "))
     private static class BlankPortal {
     }
 }

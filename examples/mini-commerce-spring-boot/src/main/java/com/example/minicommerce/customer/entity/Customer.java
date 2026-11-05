@@ -20,5 +20,4 @@ public class Customer {
 
     @EntField("邮箱")
     private String email;
-
 }

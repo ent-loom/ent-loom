@@ -59,6 +59,12 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 @Configuration
 public class StarterJdbcTestSupportConfiguration {
     @Bean
+    public com.entloom.declaration.EntityDeclarations testEntityDeclarations() {
+        return new com.entloom.declaration.EntityDeclarations(
+            new org.springframework.core.io.ClassPathResource("declarations/TestOrderEntity.yml"));
+    }
+
+    @Bean
     public DataSource dataSource() {
         return new DriverManagerDataSource(
             "jdbc:h2:mem:starter_crud;MODE=MYSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",

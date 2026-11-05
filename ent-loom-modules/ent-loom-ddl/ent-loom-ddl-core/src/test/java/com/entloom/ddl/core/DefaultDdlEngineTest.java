@@ -166,8 +166,8 @@ class DefaultDdlEngineTest {
     }
 
     @Test
-    @DisplayName("E3 明确拒绝删除模式")
-    void shouldRejectDeleteModeOutsideE3() {
+    @DisplayName("全量同步要求读取真实结构，不能把只提供存在性查询的策略当作空表")
+    void shouldRequireSnapshotInSynchronizeMode() {
         DdlExecutionResult result = engine.execute(
                 request(DdlExecutionMode.CREATE_MODIFY_DELETE_ALL, entity("account")),
                 (schema, table) -> false,
@@ -175,7 +175,7 @@ class DefaultDdlEngineTest {
 
         assertTrue(result.generatedSql().isEmpty());
         assertTrue(result.executedSql().isEmpty());
-        assertEquals(Collections.singletonList("E3 不支持执行模式: CREATE_MODIFY_DELETE_ALL"), result.errors());
+        assertEquals(Collections.singletonList("表 account 处理失败: QueryStrategy 未提供表结构读取能力"), result.errors());
     }
 
     @Test

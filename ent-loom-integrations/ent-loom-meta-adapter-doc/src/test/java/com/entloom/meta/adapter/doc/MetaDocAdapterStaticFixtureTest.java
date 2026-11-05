@@ -10,7 +10,6 @@ import com.entloom.doc.core.spi.DocOverrideProvider;
 import com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticLevel;
@@ -52,8 +51,8 @@ class MetaDocAdapterStaticFixtureTest {
     @Test
     void order_static_fixture_should_output_entity_fields_relations_indexes_and_final_map_only_at_boundary() {
         MetaDocAdapter adapter = new MetaDocAdapter(
-            new SimpleDocMetaResolver(),
-            Arrays.<Class<?>>asList(Order.class, OrderItem.class, Customer.class)
+            new SimpleDocMetaResolver(), declaredIndexes(),
+            Arrays.<Class<?>>asList(Order.class, OrderItem.class, Customer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new DocRuntimeModelMerger(), DocDeclarationFixtures.provider("MetaDocAdapterStaticFixtureTest"), DefaultMetaDiagnosticPolicy.failFast()
         );
 
         Map<String, Object> doc = adapter.buildOne(Order.class);
@@ -99,7 +98,7 @@ class MetaDocAdapterStaticFixtureTest {
     void business_doc_provider_should_override_display_fields_and_hide_fields() {
         MetaDocAdapter adapter = new MetaDocAdapter(
             new SimpleDocMetaResolver(),
-            DocIndexProvider.noop(),
+            declaredIndexes(),
             Arrays.<Class<?>>asList(Order.class, OrderItem.class, Customer.class),
             new com.entloom.meta.core.parser.ReflectiveEntMetaParser(),
             new DocRuntimeModelMerger(),
@@ -162,20 +161,29 @@ class MetaDocAdapterStaticFixtureTest {
         return false;
     }
 
+    private static com.entloom.doc.core.spi.DocIndexProvider declaredIndexes() {
+        return table -> {
+            if (!"sales_order".equals(table)) return java.util.Collections.emptyList();
+            java.util.List<java.util.Map<String,Object>> indexes = new java.util.ArrayList<>();
+            indexes.add(java.util.Map.of("name", "uk_order_no", "fields", java.util.List.of("orderNo"), "unique", true));
+            return indexes;
+        };
+    }
+
     @EntEntity("订单")
-    @EntIndex(name = "uk_order_no", fields = {"orderNo"}, unique = true)
+
     @EntDocEntity(name = "订单文档覆盖")
     private static final class Order {
         @EntField
         private Long id;
 
         @EntField(value = "订单号")
-        @EntDocField(name = "订单号文档覆盖", example = "SO-001")
+        @EntDocField(name = "订单号文档覆盖")
         private String orderNo;
 
         @EntField
         @EntRelation(targetEntity = "customer")
-        @EntDocField(targetEntityLabel = "客户", relationRemark = "订单归属客户")
+        @EntDocField
         private Long customerId;
 
         @EntRelation(targetEntity = "order_item", targetField = "orderId", cardinality = com.entloom.meta.enums.RelationCardinality.ONE_TO_MANY)

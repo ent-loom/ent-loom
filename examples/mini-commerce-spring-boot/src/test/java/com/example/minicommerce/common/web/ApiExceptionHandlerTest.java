@@ -4,11 +4,9 @@ import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.starter.web.error.EntBusinessExceptionHandler;
 import com.entloom.crud.starter.web.support.CrudResponseBuilder;
 import com.example.minicommerce.common.exception.BusinessException;
-import com.example.minicommerce.merchant.dto.ChangePricesCommand;
-import com.example.minicommerce.merchant.enums.MerchantError;
-import com.example.minicommerce.order.dto.CustomerOrderPageQuery;
 import com.example.minicommerce.order.enums.OrderError;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -54,25 +51,14 @@ class ApiExceptionHandlerTest {
 
     @ParameterizedTest
     @CsvSource({
-        "business, 400, ITEMS_REQUIRED, 订单至少需要一件商品",
-        "price, 409, PRICE_UPDATE_REJECTED, 商品不可更新或版本已变化，整批未生效；请重新读取本人商品"
+        "business, 400, ITEMS_REQUIRED, 订单至少需要一件商品"
     })
-    void 两个模块的公共业务异常均由框架全局处理(String kind, int httpStatus, String code, String message)
+    void 公共业务异常由框架全局处理(String kind, int httpStatus, String code, String message)
         throws Exception {
         mvc.perform(get("/test/errors/" + kind))
             .andExpect(status().is(httpStatus))
             .andExpect(jsonPath("$.code").value(code))
             .andExpect(jsonPath("$.message").value(message));
-    }
-
-    @Test
-    void 嵌套商品校验返回对应中文提示() throws Exception {
-        mvc.perform(post("/test/prices").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"items\":[{\"id\":1,\"price\":0}]}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-            .andExpect(jsonPath("$.message", containsString("预期版本不能为空")))
-            .andExpect(jsonPath("$.message", containsString("价格须大于 0")));
     }
 
     @Test
@@ -84,9 +70,9 @@ class ApiExceptionHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "{", "{\"items\":\"错误类型\"}"})
+    @ValueSource(strings = {"", "{", "{\"pageNumber\":\"错误类型\"}"})
     void 请求体缺失或解析失败返回统一提示(String body) throws Exception {
-        mvc.perform(post("/test/prices").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/test/page").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
             .andExpect(jsonPath("$.message").value("请求体不能为空，且须为符合接口约定的 JSON"));
@@ -94,14 +80,14 @@ class ApiExceptionHandlerTest {
 
     @Test
     void 未匹配控制器的方法错误仍保留405与Allow响应头() throws Exception {
-        mvc.perform(get("/test/prices"))
+        mvc.perform(get("/test/page"))
             .andExpect(status().isMethodNotAllowed())
             .andExpect(header().string("Allow", "POST"));
     }
 
     @Test
     void 内容类型不支持时保持415状态() throws Exception {
-        mvc.perform(post("/test/prices").contentType(MediaType.TEXT_PLAIN).content("{}"))
+        mvc.perform(post("/test/page").contentType(MediaType.TEXT_PLAIN).content("{}"))
             .andExpect(status().isUnsupportedMediaType())
             .andExpect(jsonPath("$.success").value(false));
     }
@@ -126,19 +112,14 @@ class ApiExceptionHandlerTest {
     // 非静态测试控制器不参与应用组件扫描，仅供 standalone MVC 注册。
     @RestController
     class TestController {
-        @PostMapping("/test/prices")
-        void prices(@Valid @RequestBody ChangePricesCommand command) {}
-
         @PostMapping("/test/page")
-        void page(@Valid @RequestBody CustomerOrderPageQuery query) {}
+        void page(@Valid @RequestBody TestPageQuery query) {}
 
         @GetMapping("/test/errors/{kind}")
         void error(@PathVariable String kind) {
             throw switch (kind) {
                 case "permission" -> new PermissionDeniedException("无权访问");
                 case "business" -> new BusinessException(OrderError.ITEMS_REQUIRED);
-                case "price" -> new BusinessException(MerchantError.PRICE_UPDATE_REJECTED,
-                    new IllegalStateException("底层写入详情"));
                 case "status" -> new ResponseStatusException(HttpStatus.NOT_FOUND, "内部资源定位信息");
                 case "annotated-status" -> new MissingResourceException();
                 default -> new IllegalStateException("内部 SQL 与连接信息");
@@ -148,4 +129,6 @@ class ApiExceptionHandlerTest {
 
     @ResponseStatus(HttpStatus.NOT_FOUND)
     static class MissingResourceException extends RuntimeException {}
+
+    record TestPageQuery(@Min(value = 1, message = "页码须从 1 开始") int pageNumber) {}
 }

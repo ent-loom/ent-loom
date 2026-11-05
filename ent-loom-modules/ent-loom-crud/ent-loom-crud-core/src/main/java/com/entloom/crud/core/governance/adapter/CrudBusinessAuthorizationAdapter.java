@@ -5,11 +5,14 @@ import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
 import com.entloom.crud.api.enums.CrudOperationKey;
 import com.entloom.crud.api.enums.AccessDecision;
+import com.entloom.crud.api.enums.CommandOperation;
+import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.authorization.AuthorizationResult;
 import com.entloom.crud.core.governance.authorization.BusinessAuthorizationService;
 import com.entloom.crud.core.governance.policy.CrudOperationMappingRegistry;
+import com.entloom.crud.core.governance.policy.ScenePolicyRegistry;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.spec.BaseSpec;
@@ -21,19 +24,37 @@ public final class CrudBusinessAuthorizationAdapter {
     private final EntityMetaRegistry entities;
     private final CrudOperationMappingRegistry mappings;
     private final BusinessAuthorizationService authorization;
+    private final ScenePolicyRegistry scenes;
 
     public CrudBusinessAuthorizationAdapter(EntityMetaRegistry entities, CrudOperationMappingRegistry mappings,
                                             BusinessAuthorizationService authorization) {
+        this(entities, mappings, authorization, new ScenePolicyRegistry(null));
+    }
+
+    public CrudBusinessAuthorizationAdapter(EntityMetaRegistry entities, CrudOperationMappingRegistry mappings,
+        BusinessAuthorizationService authorization, ScenePolicyRegistry scenes) {
+        this.scenes = Objects.requireNonNull(scenes, "场景策略不能为空");
         this.entities = Objects.requireNonNull(entities, "实体元数据注册表不能为空");
         this.mappings = Objects.requireNonNull(mappings, "CRUD 操作映射不能为空");
         this.authorization = Objects.requireNonNull(authorization, "业务授权服务不能为空");
     }
 
-    /** 新策略绑定是资源级边界，与当前线程是否持有身份无关。 */
+    /** 标准操作按资源策略授权；未映射到新策略的显式业务动作继续经过场景授权。 */
     public boolean governs(BaseSpec spec) {
         if (spec == null || spec.getRootType() == null) return false;
         EntityMeta meta = entities.getEntityMeta(spec.getRootType());
-        return meta != null && authorization.governs(meta.getResourceDescriptor().getResourceCode());
+        if (meta == null || !authorization.governs(meta.getResourceDescriptor().getResourceCode())) return false;
+        if (spec instanceof CommandSpec<?>) {
+            CommandSpec<?> command = (CommandSpec<?>) spec;
+            if (command.getOp() == CommandOperation.ACTION
+                && scenes.declaresAction(meta.getResourceDescriptor().getResourceCode(), command.getScene())
+                && !mappings.contains(meta.getResourceDescriptor().getResourceCode(),
+                    command.getOperationKey(), command.getScene())) {
+                // 只按声明分流；不捕获授权失败，也不放宽未知动作、普通写入或可信作用域。
+                return false;
+            }
+        }
+        return true;
     }
 
     public AuthorizationResult authorize(VisitorContext visitor, BaseSpec spec, String targetId) {

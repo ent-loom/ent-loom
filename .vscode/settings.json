@@ -1,0 +1,8 @@
+{
+  "yaml.schemas": {
+    "./ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json": [
+      "**/ent/entities/*.yml",
+      "**/ent/entities/*.yaml"
+    ]
+  }
+}

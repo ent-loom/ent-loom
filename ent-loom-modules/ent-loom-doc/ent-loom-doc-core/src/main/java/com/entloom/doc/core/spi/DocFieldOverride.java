@@ -11,6 +11,8 @@ public final class DocFieldOverride {
     private final String property;
     private final String name;
     private final String description;
+    private final String targetEntityLabel;
+    private final String relationRemark;
     private final String example;
     private final List<String> examples;
     private final String group;
@@ -22,6 +24,8 @@ public final class DocFieldOverride {
         this.property = builder.property;
         this.name = builder.name;
         this.description = builder.description;
+        this.targetEntityLabel = builder.targetEntityLabel;
+        this.relationRemark = builder.relationRemark;
         this.example = builder.example;
         this.examples = immutable(builder.examples);
         this.group = builder.group;
@@ -45,6 +49,9 @@ public final class DocFieldOverride {
     public String description() {
         return description;
     }
+
+    public String targetEntityLabel() { return targetEntityLabel; }
+    public String relationRemark() { return relationRemark; }
 
     public String example() {
         return example;
@@ -80,6 +87,8 @@ public final class DocFieldOverride {
         private final String property;
         private String name;
         private String description;
+        private String targetEntityLabel;
+        private String relationRemark;
         private String example;
         private List<String> examples;
         private String group;
@@ -100,6 +109,9 @@ public final class DocFieldOverride {
             this.description = description;
             return this;
         }
+
+        public Builder targetEntityLabel(String value) { this.targetEntityLabel = value; return this; }
+        public Builder relationRemark(String value) { this.relationRemark = value; return this; }
 
         public Builder example(String example) {
             this.example = example;

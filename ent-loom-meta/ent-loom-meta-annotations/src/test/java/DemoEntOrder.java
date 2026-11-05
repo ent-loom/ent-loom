@@ -1,6 +1,5 @@
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntEntity;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
@@ -31,8 +30,7 @@ import java.time.LocalDateTime;
         description = "订单业务语义模型",
         plannedVolume = 2000000
 )
-@EntIndex(name = "idx_trade_order_owner", fields = {"ownerId"})
-@EntIndex(name = "uk_trade_order_order_no", fields = {"orderNo"}, unique = true)
+
 public class DemoEntOrder {
 
     @EntField

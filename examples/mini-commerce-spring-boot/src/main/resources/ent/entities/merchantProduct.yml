@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../../../../../../ent-loom-declarations/src/main/resources/META-INF/ent-entity.schema.json
+# 商家商品：查询沿用策略缺省，批量更新必须显式开放。
+crud:
+  policy: merchant-manage
+  operations:
+    update: [UPDATE, UPDATE_BATCH]
+  fields:
+    merchant:
+      WRITE:
+        mode: ALL

@@ -3,7 +3,6 @@ package com.entloom.meta.adapter.ddl;
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
-import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.enums.DdlTableSize;
@@ -14,7 +13,6 @@ import com.entloom.ddl.enums.SqlType;
 import com.entloom.ddl.enums.UniqueScope;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.annotations.meta.EntMetaNumber;
@@ -33,7 +31,7 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void 应支持MetaOnly并把通用语义投影为DDL模型() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(MetaOnlyAccount.class));
+        MetaDdlAdapter adapter = adapter(Collections.<Class<?>>singletonList(MetaOnlyAccount.class));
 
         DdlEntityMetadata model = adapter.models().get(0);
 
@@ -56,7 +54,7 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void 应支持DDLOnly并保留DDL专属属性() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(DdlOnlyAccount.class));
+        MetaDdlAdapter adapter = adapter(Collections.<Class<?>>singletonList(DdlOnlyAccount.class));
 
         DdlEntityMetadata model = adapter.models().get(0);
 
@@ -78,7 +76,7 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void 应以DDLExplicitOverrideMeta并在边界暴露冲突诊断() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(
+        MetaDdlAdapter adapter = adapter(
             Arrays.<Class<?>>asList(OverrideAccount.class, MetaOnlyAccount.class, OverrideAccount.class),
             new com.entloom.meta.core.parser.ReflectiveEntMetaParser(),
             DefaultMetaDiagnosticPolicy.lenient()
@@ -96,15 +94,15 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void 空输入应返回空模型且结果稳定排序() {
-        Assertions.assertTrue(new MetaDdlAdapter(null).models().isEmpty());
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Arrays.<Class<?>>asList(MetaOnlyAccount.class, DdlOnlyAccount.class));
+        Assertions.assertTrue(adapter(null).models().isEmpty());
+        MetaDdlAdapter adapter = adapter(Arrays.<Class<?>>asList(MetaOnlyAccount.class, DdlOnlyAccount.class));
         Assertions.assertEquals(DdlOnlyAccount.class.getName(), adapter.models().get(0).entityClassName());
         Assertions.assertEquals(MetaOnlyAccount.class.getName(), adapter.models().get(1).entityClassName());
     }
 
     @Test
     void 宽松模式可查询错误诊断但不能读取残缺模型() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(InvalidGeneratedId.class),
+        MetaDdlAdapter adapter = adapter(Collections.<Class<?>>singletonList(InvalidGeneratedId.class),
             new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), DefaultMetaDiagnosticPolicy.lenient());
         Assertions.assertFalse(adapter.diagnostics().isEmpty());
         Assertions.assertThrows(com.entloom.meta.contract.diagnostic.MetaDiagnosticException.class, adapter::models);
@@ -112,14 +110,14 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void DDL原生命名策略应生效() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(Collections.<Class<?>>singletonList(AsIsAccount.class));
+        MetaDdlAdapter adapter = adapter(Collections.<Class<?>>singletonList(AsIsAccount.class));
 
         Assertions.assertEquals("AsIsAccount", adapter.models().get(0).tableName());
     }
 
     @Test
     void 未承接的DDL显式属性应暴露结构化警告而不是静默丢失() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(
+        MetaDdlAdapter adapter = adapter(
             Collections.<Class<?>>singletonList(UnsupportedDdlProperties.class)
         );
 
@@ -127,13 +125,11 @@ class MetaDdlAdapterP0AcceptanceTest {
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "collation"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "dialectOptions"));
         Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "defaultValueHint"));
-        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "uniqueScope"));
-        Assertions.assertTrue(hasDiagnostic(adapter.diagnostics(), MetaDiagnosticCode.CONSUMER_UNSUPPORTED_PROPERTY, "type"));
     }
 
     @Test
     void MetaFirst与等价DDL声明应生成一致的字段和索引模型() {
-        MetaDdlAdapter adapter = new MetaDdlAdapter(
+        MetaDdlAdapter adapter = adapter(
             Arrays.<Class<?>>asList(MetaOnlyAccount.class, EquivalentDdlAccount.class)
         );
 
@@ -160,11 +156,35 @@ class MetaDdlAdapterP0AcceptanceTest {
 
     @Test
     void 输入提示不影响存储且引用类型默认非空() {
-        DdlEntityMetadata model = new MetaDdlAdapter(
+        DdlEntityMetadata model = adapter(
             Collections.<Class<?>>singletonList(InputHintAccount.class)).models().get(0);
         Assertions.assertFalse(field(model, "optionalInput").nullable());
         Assertions.assertFalse(field(model, "unspecifiedInput").nullable());
         Assertions.assertTrue(field(model, "requiredInput").nullable());
+    }
+
+    private MetaDdlAdapter adapter(java.util.Collection<Class<?>> classes) {
+        return adapter(classes, new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), DefaultMetaDiagnosticPolicy.failFast());
+    }
+    private MetaDdlAdapter adapter(java.util.Collection<Class<?>> classes, com.entloom.meta.core.parser.EntMetaParser parser) {
+        return adapter(classes, parser, DefaultMetaDiagnosticPolicy.failFast());
+    }
+    private MetaDdlAdapter adapter(java.util.Collection<Class<?>> classes, com.entloom.meta.core.parser.EntMetaParser parser,
+            com.entloom.meta.contract.diagnostic.MetaDiagnosticPolicy policy) {
+        java.util.List<org.springframework.core.io.Resource> resources = new java.util.ArrayList<>();
+        if (classes != null) for (Class<?> type : new java.util.LinkedHashSet<>(classes)) {
+            var source = new org.springframework.core.io.ClassPathResource("declarations/MetaDdlAdapterP0AcceptanceTest/" + type.getSimpleName() + ".yml");
+            if (source.exists()) {
+                var annotation = type.getAnnotation(com.entloom.meta.annotations.EntEntity.class);
+                String resource = annotation == null ? type.getSimpleName() : annotation.entity().isEmpty()
+                    ? java.beans.Introspector.decapitalize(type.getSimpleName()) : annotation.entity();
+                try { resources.add(new org.springframework.core.io.ByteArrayResource(source.getInputStream().readAllBytes()) {
+                    @Override public String getFilename() { return resource + ".yml"; }
+                }); } catch (java.io.IOException exception) { throw new IllegalStateException(exception); }
+            }
+        }
+        return new MetaDdlAdapter(classes, parser, policy, new com.entloom.ddl.api.DdlGenerationDefaults(),
+            new com.entloom.declaration.EntityDeclarations(resources.toArray(new org.springframework.core.io.Resource[0])));
     }
 
     @EntEntity(entity = "input_hint_account")
@@ -210,7 +230,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntEntity(entity = "account-resource")
-    @EntIndex(name = "uk_meta_account_display_name", fields = {"displayName"}, unique = true)
+
     private static final class MetaOnlyAccount {
         @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.AUTO)
@@ -237,7 +257,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity(table = "native_account", schema = "account_schema", comment = "Native account", size = DdlTableSize.MEDIUM)
-    @EntDdlIndex(name = "uk_native_account_code", fields = {"code"}, unique = OptionalBoolean.TRUE)
+
     private static final class DdlOnlyAccount {
         @EntDdlField(column = "account_id", primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.AUTO_INCREMENT)
@@ -263,7 +283,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity(table = "meta_only_account")
-    @EntDdlIndex(name = "uk_meta_account_display_name", fields = {"displayName"}, unique = OptionalBoolean.TRUE)
+
     private static final class EquivalentDdlAccount {
         @EntDdlField(primaryKey = OptionalBoolean.TRUE, nullable = OptionalBoolean.FALSE,
             generationStrategy = GenerationStrategy.NONE)
@@ -284,8 +304,7 @@ class MetaDdlAdapterP0AcceptanceTest {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(name = "idx_unsupported_payload", fields = {"payload"},
-        uniqueScope = UniqueScope.ACTIVE_ONLY, type = IndexType.FULLTEXT)
+
     private static final class UnsupportedDdlProperties {
         private Long id;
 

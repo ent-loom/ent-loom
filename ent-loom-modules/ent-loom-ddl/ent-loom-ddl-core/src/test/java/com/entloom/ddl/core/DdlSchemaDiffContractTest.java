@@ -150,7 +150,8 @@ class DdlSchemaDiffContractTest {
         DdlSchemaDiff removalDiff = new DdlSchemaDiffer().diff(
                 removed,
                 snapshot("account", "", column("id", "bigint", false), column("name", "varchar(80)", true)));
-        assertTrue(removalDiff.errors().stream().anyMatch(error -> error.contains("删除字段")));
+        assertTrue(removalDiff.errors().isEmpty());
+        assertTrue(removalDiff.warnings().stream().anyMatch(warning -> warning.contains("name")));
 
         DdlEntityMetadata narrowed = entity(
                 field("id", "id", Long.class, false, false, true, -1, "", ""),
@@ -184,7 +185,7 @@ class DdlSchemaDiffContractTest {
                 true, true, -1, -1, -1, "", "", "", GenerationStrategy.AUTO_INCREMENT);
         DdlEntityMetadata desired = entity(id);
         DdlTableSnapshot current = new DdlTableSnapshot(true, "", "account", "",
-                Collections.singletonList(new DdlColumnMetadata("id", "bigint", false, "", "", false)),
+                Collections.singletonList(new DdlColumnMetadata("id", "bigint", false, null, "", false)),
                 Collections.singletonList("id"), Collections.<DdlIndexMetadata>emptyList());
 
         DdlExecutionResult result = new DefaultDdlEngine().execute(
@@ -200,7 +201,7 @@ class DdlSchemaDiffContractTest {
         DdlFieldMetadata id = new DdlFieldMetadata("id", "id", Long.class, "", false, false,
                 true, true, -1, -1, -1, "", "", "", GenerationStrategy.NONE);
         DdlTableSnapshot current = new DdlTableSnapshot(true, "", "account", "",
-                Collections.singletonList(new DdlColumnMetadata("id", "bigint", false, "", "", true)),
+                Collections.singletonList(new DdlColumnMetadata("id", "bigint", false, null, "", true)),
                 Collections.singletonList("id"), Collections.<DdlIndexMetadata>emptyList());
         RecordingExecutor executor = new RecordingExecutor();
         DdlExecutionResult result = new DefaultDdlEngine().execute(
@@ -215,8 +216,10 @@ class DdlSchemaDiffContractTest {
     @DisplayName("危险差异不会执行部分 SQL，并保留中文拒绝原因")
     void shouldRejectDangerousPlanBeforeExecution() {
         DdlEntityMetadata desired = entity(
-                field("id", "id", Long.class, false, false, true, -1, "", ""));
-        DdlTableSnapshot current = snapshot("account", "", column("id", "bigint", false), column("legacy", "varchar(80)", true));
+                field("id", "id", Long.class, false, false, true, -1, "", ""),
+                field("nickname", "nickname", String.class, true, false, false, 80, "", ""));
+        DdlTableSnapshot current = snapshot("account", "", column("id", "bigint", false),
+                column("legacy", "varchar(80)", false), column("optional_legacy", "bigint", true));
         RecordingExecutor executor = new RecordingExecutor();
 
         DdlExecutionResult result = new DefaultDdlEngine().execute(
@@ -225,8 +228,56 @@ class DdlSchemaDiffContractTest {
 
         assertTrue(result.generatedSql().isEmpty());
         assertTrue(result.executedSql().isEmpty());
-        assertTrue(result.errors().get(0).contains("删除字段"));
+        assertFalse(result.success());
+        assertTrue(result.errors().get(0).contains("数据库多余字段会影响插入: legacy"));
+        assertTrue(result.errors().get(0).contains("显式迁移"));
+        assertEquals(1, result.warnings().size());
         assertTrue(executor.statements.isEmpty());
+    }
+
+    @Test
+    @DisplayName("兼容多余列只告警，仍执行新增字段且不生成删除 SQL")
+    void shouldRetainCompatibleExtraColumnsAndExecuteAllowedChanges() {
+        DdlEntityMetadata desired = entity(
+                field("id", "id", Long.class, false, false, true, -1, "", ""),
+                field("nickname", "nickname", String.class, true, false, false, 80, "", ""));
+        List<DdlColumnMetadata> compatibleColumns = Arrays.asList(
+                column("nullable_legacy", "bigint", true),
+                new DdlColumnMetadata("default_legacy", "bigint", false, "0", ""),
+                new DdlColumnMetadata("empty_legacy", "varchar(80)", false, "", ""),
+                new DdlColumnMetadata("space_legacy", "varchar(80)", false, " ", ""),
+                new DdlColumnMetadata("auto_legacy", "bigint", false, null, "", true),
+                new DdlColumnMetadata("generated_legacy", "bigint", false, null, "", false, true));
+        for (DdlColumnMetadata extra : compatibleColumns) {
+            DdlTableSnapshot current = snapshot("account", "账户表", column("id", "bigint", false), extra);
+            RecordingExecutor executor = new RecordingExecutor();
+            DdlExecutionResult result = new DefaultDdlEngine().execute(
+                    request(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS, desired, current),
+                    new SnapshotQueryStrategy(current), executor);
+
+            assertTrue(result.success(), result.errors().toString());
+            assertEquals(Collections.singletonList("表 account: 数据库多余字段已保留，不执行删除: "
+                    + extra.columnName()), result.warnings());
+            assertEquals(Collections.singletonList(
+                    "ALTER TABLE `account` ADD COLUMN `nickname` varchar(80) NULL"), result.generatedSql());
+            assertEquals(result.generatedSql(), result.executedSql());
+            assertEquals(result.generatedSql(), executor.statements);
+        }
+    }
+
+    @Test
+    @DisplayName("仅有兼容多余列时不产生结构变更，告警结果保持不可变")
+    void shouldOnlyWarnWhenCompatibleExtraColumnIsTheOnlyDifference() {
+        DdlEntityMetadata desired = entity(field("id", "id", Long.class,
+                false, false, true, -1, "", ""));
+        DdlSchemaDiff diff = new DdlSchemaDiffer().diff(desired,
+                snapshot("account", "账户表", column("id", "bigint", false), column("legacy", "bigint", true)));
+
+        assertFalse(diff.hasChanges());
+        assertTrue(diff.errors().isEmpty());
+        assertEquals(1, diff.warnings().size());
+        org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> diff.warnings().clear());
     }
 
     @Test
@@ -269,7 +320,7 @@ class DdlSchemaDiffContractTest {
     }
 
     private static DdlColumnMetadata column(String name, String type, boolean nullable) {
-        return new DdlColumnMetadata(name, type, nullable, "", "");
+        return new DdlColumnMetadata(name, type, nullable, null, "");
     }
 
     private static DdlTableSnapshot snapshot(String table, String comment, DdlColumnMetadata... columns) {

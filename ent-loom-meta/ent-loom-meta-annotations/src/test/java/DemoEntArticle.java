@@ -1,6 +1,5 @@
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntEntity;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.enums.EntFieldKind;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
@@ -26,8 +25,7 @@ import com.entloom.meta.enums.role.TextRole;
         description = "内容文章语义模型",
         plannedVolume = 500000
 )
-@EntIndex(name = "idx_content_article_creator", fields = {"creatorId"})
-@EntIndex(name = "idx_content_article_stage_publish_time", fields = {"publishStage", "publishAtEpochSeconds"})
+
 public class DemoEntArticle {
 
     @EntField

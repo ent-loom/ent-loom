@@ -21,6 +21,8 @@ import com.entloom.crud.api.model.QueryTimeRange;
 import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.capability.query.spec.ExistsRelationFilter;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
+import com.entloom.crud.core.capability.query.ConfigurableQueryDefaultSortResolver;
+import java.util.EnumSet;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.adapter.CrudBusinessAuthorizationAdapter;
@@ -117,7 +119,7 @@ class JdbcAuthorizedQueryExecutorTest {
         EntityPolicyTemplate template = new EntityPolicyTemplate("public", "Project#public",
             Collections.singletonList(new EntityPolicyTemplate.Rule("view", PolicyIdentityBranch.publicBranch(),
                 Collections.emptyList())));
-        EntityPolicyRegistry policies = new EntityPolicyRegistry(Collections.singletonList(meta),
+        EntityPolicyRegistry policies = new EntityPolicyRegistry(entities,
             Collections.singletonList(template), Collections.singletonList(new EntityPolicyBinding(
                 OrderTestEntity.class, "public", "Order#binding", Collections.emptyMap())),
             operations, new BusinessIdentityRegistry(Collections.emptyList()));
@@ -149,9 +151,14 @@ class JdbcAuthorizedQueryExecutorTest {
             "jdbc:h2:mem:authorized_" + UUID.randomUUID() + ";MODE=MYSQL;DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("create table t_order(id bigint primary key, order_no varchar(64), school_id bigint, tenant_id varchar(64), is_deleted int)");
         jdbc.update("insert into t_order values (1,'one',1,'A',0),(2,'two',1,'B',0),(3,'three',2,'A',0),(4,'four',2,'B',0),(5,'deleted',1,'A',1)");
+        jdbc.execute("create table t_order_item(id bigint primary key, order_id bigint, student_id bigint, tenant_id varchar(64), sku_code varchar(64), quantity int, is_deleted int)");
+        jdbc.update("insert into t_order_item values (11,1,null,'A','visible-a',2,0),(12,1,null,'A','visible-b',3,0),"
+            + "(13,2,null,'B','other-order',9,0),(14,4,null,'B','visible-c',4,0),(15,1,null,'A','deleted',8,1)");
         CrudBusinessAuthorizationAdapter adapter = new CrudBusinessAuthorizationAdapter(entities, mappings, authorization);
         executor = new JdbcAuthorizedQueryExecutor(entities, adapter,
-            new JdbcGuardedSqlExecutor(jdbc, guard, new SqlExecutionLogger()), guard, StandardJdbcDialect.GENERIC, audit::add);
+            new JdbcGuardedSqlExecutor(jdbc, guard, new SqlExecutionLogger()), guard, StandardJdbcDialect.GENERIC, audit::add,
+            new ConfigurableQueryDefaultSortResolver(true, EnumSet.of(QueryOperation.LIST, QueryOperation.PAGE),
+                SortDirection.DESC, true, SortDirection.ASC, true));
         legacyRouter = mock(QueryRouter.class);
         legacyGovernance = mock(CrudGovernanceService.class);
         gateway = new QueryGatewayImpl(legacyRouter,
@@ -161,6 +168,70 @@ class JdbcAuthorizedQueryExecutorTest {
         scope = AuthorizationScope.or(Arrays.asList(
             AuthorizationScope.and(Arrays.asList(AuthorizationScope.equal("schoolId", 1L), AuthorizationScope.equal("tenantId", "A"))),
             AuthorizationScope.and(Arrays.asList(AuthorizationScope.equal("schoolId", 2L), AuthorizationScope.equal("tenantId", "B")))));
+    }
+
+    @Test
+    void 关联按授权根记录批量加载且连接键和未授权字段不泄露() {
+        Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<>(AuthorizationFields.Use.class);
+        uses.put(AuthorizationFields.Use.RETURN, Collections.singletonList("orderNo"));
+        uses.put(AuthorizationFields.Use.EXPAND, Collections.singletonList("items.skuCode"));
+        fields = AuthorizationFields.of(uses);
+        QuerySpec<CrudRecord> request = query().toBuilder().expandRelations(Collections.singletonList("items"))
+            .page(new PageRequest(1, 10)).build();
+        PageResult<CrudRecord> page = executor.page(visitor, request);
+        assertEquals(2, page.getTotal());
+        assertEquals(Arrays.asList("visible-a", "visible-b"), page.getItems().get(0).records("items").stream()
+            .map(row -> row.string("skuCode")).collect(Collectors.toList()));
+        assertEquals("visible-c", page.getItems().get(1).records("items").get(0).string("skuCode"));
+        assertEquals(Arrays.asList("orderNo", "items"), new ArrayList<>(page.getItems().get(0).keys()));
+        assertEquals(Collections.singleton("skuCode"), page.getItems().get(0).records("items").get(0).keys());
+        assertEquals(3, executedSql.size());
+        assertTrue(executedSql.stream().noneMatch(sql -> sql.contains("quantity")));
+        assertEquals(1, decisions);
+        assertEquals(CrudGovernanceAuditOutcome.SUCCESS, audit.get(0).getOutcome());
+
+        executedSql.clear();
+        page = executor.page(visitor, request.toBuilder().page(new PageRequest(1, 1)).countMode(PageCountMode.NONE).build());
+        assertTrue(page.getHasNext());
+        assertEquals(1, page.getItems().size());
+        assertEquals(2, page.getItems().get(0).records("items").size());
+        assertEquals(2, executedSql.size());
+
+        executedSql.clear();
+        scope = AuthorizationScope.none();
+        assertTrue(executor.page(visitor, request).getItems().isEmpty());
+        assertEquals(1, executedSql.size());
+    }
+
+    @Test
+    void 关联重复嵌套或未授权投影在任何SQL执行前拒绝() {
+        Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<>(AuthorizationFields.Use.class);
+        uses.put(AuthorizationFields.Use.RETURN, Arrays.asList("id", "orderNo"));
+        uses.put(AuthorizationFields.Use.EXPAND, Collections.singletonList("items.skuCode"));
+        fields = AuthorizationFields.of(uses);
+        for (List<String> relations : Arrays.asList(Arrays.asList("items", "items"),
+            Collections.singletonList("items.student"), Collections.singletonList("missing"))) {
+            assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+                query().toBuilder().expandRelations(relations).build()));
+        }
+        fields = fields("id", "orderNo");
+        assertThrows(PermissionDeniedException.class, () -> executor.list(visitor,
+            query().toBuilder().expandRelations(Collections.singletonList("items")).build()));
+        assertTrue(executedSql.isEmpty());
+    }
+
+    @Test
+    void 关联超限明确失败且不记录成功或返回截断明细() {
+        Map<AuthorizationFields.Use, List<String>> uses = new EnumMap<>(AuthorizationFields.Use.class);
+        uses.put(AuthorizationFields.Use.RETURN, Collections.singletonList("id"));
+        uses.put(AuthorizationFields.Use.EXPAND, Collections.singletonList("items.skuCode"));
+        fields = AuthorizationFields.of(uses);
+        jdbc.update("insert into t_order_item(id,order_id,sku_code,is_deleted) "
+            + "select 100+x,1,'overflow',0 from system_range(1,1001)");
+        assertThrows(ValidationException.class, () -> executor.detail(visitor,
+            targetQuery(1L).toBuilder().expandRelations(Collections.singletonList("items")).build()));
+        assertEquals(CrudGovernanceAuditOutcome.EXECUTION_FAILED, audit.get(0).getOutcome());
+        assertFalse(audit.stream().anyMatch(CrudGovernanceAuditEvent::isSuccess));
     }
 
     @Test

@@ -1,10 +1,12 @@
 # DDL 实施清单
 
+> 历史记录：2026-10-16 实体声明集中化迁移后，旧策略、动作、字段权限与索引注解及全局实体差异入口已删除。当前合同以[配置参考](../../../guides/配置参考.md#实体-yaml)为准。
+
 > 状态：E5 已完成，后续 DDL 阶段未排期
 > 当前大项：无
 > 当前小项：无
 > 阻塞项：无
-> 最近核验：2026-08-26，E5 实体全链路验收与使用说明完成
+> 最近核验：2026-10-15，显式全量结构同步与 MySQL 8 验收完成
 
 本文是 DDL 的唯一执行看板。它把模块 README 中的能力设想收敛为可验收的阶段，后续每次只推进一个小项。
 
@@ -48,7 +50,7 @@ declare["实体声明\n@EntDdlEntity / @EntDdlField"]
 | 实体解析 | E2.2 已完成 | Bootstrap 和 Spring 均已统一显式类、包扫描、去重和稳定排序；Starter 可绑定显式实体类名 |
 | 实际数据库执行 | E2.5 已完成 | `ent-loom-ddl-spring` 已提供 Spring JDBC `QueryStrategy` / `SqlExecutor`，并有真实 MySQL 8 建库建表证据 |
 | 消费者接入 | E2.4 已完成 | 独立消费者测试模块仅通过公开 Annotations、API 和 Bootstrap 构件完成最小实体接入 |
-| 字段 / 索引差异 | E3 已完成 | 已有表结构快照、稳定差异计划和受控 ADD / MODIFY SQL |
+| 字段 / 索引差异 | E3 已完成并补充全量同步 | 已有表结构快照、稳定差异计划和受控 ADD / MODIFY SQL；显式 `CREATE_MODIFY_DELETE_ALL` 支持列删除、索引重建、主键及字段同步 |
 | Meta -> DDL | 已完成 | `MetaDdlAdapter` 已提供 Meta-only、DDL-only 和 Meta + DDL override 投影 |
 | DDL 测试基线 | 已建立 | Core 25 项、Spring 14 项和 Meta Adapter 7 项测试覆盖 SQL、差异、H2 读取 / 执行、投影、诊断和模块边界 |
 | 实体全链路验收 | E5 已完成 | `CustomerProfile` 已覆盖静态 Runtime Model、MySQL 8 DDL、H2 + MockMvc CRUD 与使用说明 |
@@ -192,7 +194,7 @@ E2.5 验收证据（2026-08-25）：
 - [x] 实现表注释、字段、主键、唯一约束和索引的差异计算，并统一数据库标识符大小写比较。
 - [x] 实现新增字段和新增索引的确定性 `ALTER TABLE` SQL。
 - [x] 实现有限字段修改和受控 `renameFrom`，明确删除、主键变化、索引重建和不兼容变化的拒绝原因。
-- [x] 让 `CREATE_*` 与 `MODIFY_*` 执行模式有可测试的合法矩阵；删除模式仍拒绝。
+- [x] 让 `CREATE_*` 与 `MODIFY_*` 执行模式有可测试的合法矩阵；受控模式拒绝危险差异，显式全量同步模式允许删除、重建及不兼容字段修改。
 - [x] 建立执行前 SQL 预览和失败结果合同；发现危险差异时不执行部分计划。
 
 E3 验收证据（2026-08-25）：
@@ -206,6 +208,13 @@ E3 验收证据（2026-08-25）：
 - 未完成工作：E4 Meta -> DDL Adapter；E5 DDL、CRUD、DOC、UI 实体全链路验收。
 
 阶段门禁：从旧模型升级到新模型只执行声明允许的 ALTER，危险变更默认拒绝。
+
+全量同步补充验收（2026-10-15）：
+
+- `CREATE_MODIFY_DELETE_ALL` 按请求中的实体表同步结构，删除多余列和索引，允许字段收缩、显式重命名、主键替换和取消自增；单表差异合并为一条 ALTER，不删除未声明的其他表。
+- JDK 21 执行 `./mvnw -pl :ent-loom-ddl-mysql-integration-test,:ent-loom-ddl-consumer-test -am -Pmysql-integration test`，Core 40 项、Bootstrap 8 项、Spring 19 项、Starter 5 项、独立消费者 1 项及真实 MySQL 8 验收 1 项全部通过。
+- `DdlFullSynchronizationTest` 覆盖删除计划、生成与执行结果、主键和自增同步、无差异及生成失败时不执行部分计划；MySQL 验收使用随机隔离 schema，验证删除普通列和生成列、索引重建、删除后插入、保留未声明表、复合主键及连续重复同步。
+- 模式与数据边界见[自动迁移安全边界](../../../guides/ddl/自动迁移安全边界.md)。
 
 ### E4：Meta -> DDL Adapter
 

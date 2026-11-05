@@ -67,16 +67,13 @@ class CrudPropertiesTest {
     }
 
     @Test
-    void setters_should_copy_mutable_collections_and_drop_blank_time_fields() {
+    void 默认排序应复制生效操作集合() {
         CrudProperties.Query.DefaultSort defaultSort = new CrudProperties.Query.DefaultSort();
         HashSet<QueryOperation> applyTo = new HashSet<QueryOperation>(Arrays.asList(QueryOperation.PAGE));
         defaultSort.setApplyTo(applyTo);
         applyTo.add(QueryOperation.DETAIL);
 
-        defaultSort.setTimeFields(Arrays.asList("createdAt", " ", null, "gmtCreate"));
-
         Assertions.assertEquals(EnumSet.of(QueryOperation.PAGE), defaultSort.getApplyTo());
-        Assertions.assertEquals(Arrays.asList("createdAt", "gmtCreate"), defaultSort.getTimeFields());
     }
 
     @Test
@@ -105,23 +102,14 @@ class CrudPropertiesTest {
     }
 
     @Test
-    void input_contracts_should_bind_resource_field_lists() {
-        Map<String, String> values = new LinkedHashMap<String, String>();
-        values.put("ent.loom.crud.contracts.create.input-required-fields.customer", "displayName,email");
-        values.put("ent.loom.crud.contracts.update.forbidden-fields.customer", "phone,createdAt");
-
-        CrudProperties properties = new Binder(new MapConfigurationPropertySource(values))
-            .bind("ent.loom.crud", Bindable.of(CrudProperties.class))
-            .get();
-
-        Assertions.assertEquals(
-            Arrays.asList("displayName", "email"),
-            properties.getContracts().getCreate().getInputRequiredFields().get("customer")
-        );
-        Assertions.assertEquals(
-            Arrays.asList("phone", "createdAt"),
-            properties.getContracts().getUpdate().getForbiddenFields().get("customer")
-        );
+    void 实体输入契约由独立文件解析() {
+        var resource = new org.springframework.core.io.ByteArrayResource(
+            "crud: {contracts: {create: {input-required-fields: [displayName, email]}, update: {forbidden-fields: [id]}}}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            @Override public String getFilename() { return "customer.yml"; }
+        };
+        var declarations = new CrudEntityDeclarations(new com.entloom.declaration.EntityDeclarations(resource));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("displayName", "email"), declarations.required().get("customer"));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("id"), declarations.forbidden().get("customer"));
     }
 
 }

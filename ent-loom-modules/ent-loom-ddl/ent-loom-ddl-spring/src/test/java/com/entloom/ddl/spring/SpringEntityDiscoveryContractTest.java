@@ -2,7 +2,6 @@ package com.entloom.ddl.spring;
 
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
-import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import com.entloom.ddl.api.DdlFieldMetadata;
 import com.entloom.ddl.api.DdlIndexMetadata;
@@ -30,7 +29,7 @@ class SpringEntityDiscoveryContractTest {
     @Test
     void should_keep_complex_properties_out_of_columns() {
         DdlEntityMetadata model = new SpringAnnotationMetadataLoader(
-            new SpringPackageEntityClassResolver(getClass().getClassLoader())).load(new MetadataLoadRequest(
+            new SpringPackageEntityClassResolver(getClass().getClassLoader()), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).load(new MetadataLoadRequest(
                 Collections.<String>emptyList(), Collections.<Class<?>>singletonList(Aggregate.class))).get(0);
         assertEquals(1, model.fields().stream().filter(DdlFieldMetadata::persisted).count());
     }
@@ -46,7 +45,7 @@ class SpringEntityDiscoveryContractTest {
     @Test
     @DisplayName("Spring 解析器读取实体、字段和索引公开合同")
     void shouldLoadEntityFieldAndIndexMetadata() {
-        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null).load(
+        List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(null, new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations(new org.springframework.core.io.ClassPathResource("declarations/SpringEntityDiscoveryContractTest/OrderEntity.yml"))).load(
                 new MetadataLoadRequest(Collections.<String>emptyList(),
                         Collections.<Class<?>>singletonList(OrderEntity.class)));
 
@@ -103,7 +102,7 @@ class SpringEntityDiscoveryContractTest {
     @DisplayName("Spring 解析器合并显式类与扫描类时去重并按类名排序")
     void shouldDeduplicateAndSortExplicitAndScannedClasses() {
         List<DdlEntityMetadata> entities = new SpringAnnotationMetadataLoader(
-                new SpringPackageEntityClassResolver(getClass().getClassLoader())).load(
+                new SpringPackageEntityClassResolver(getClass().getClassLoader()), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations()).load(
                 new MetadataLoadRequest(
                         Collections.singletonList(FIXTURE_PACKAGE),
                         Arrays.<Class<?>>asList(ZetaEntity.class, AlphaEntity.class, ZetaEntity.class)));
@@ -114,8 +113,7 @@ class SpringEntityDiscoveryContractTest {
 
     @EntDdlEntity(table = "ddl_order", schema = "biz", comment = "订单实体",
             size = DdlTableSize.MEDIUM, namingStrategy = NamingStrategy.SNAKE_CASE)
-    @EntDdlIndex(name = "uk_order_no", fields = {"orderNumber"}, unique = com.entloom.base.common.OptionalBoolean.TRUE)
-    @EntDdlIndex(name = "idx_amount", fields = "amount")
+
     private static final class OrderEntity {
         /**
          * 订单主键。

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
+import org.springframework.context.support.GenericApplicationContext;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -134,6 +135,77 @@ class SpringJdbcExecutionContractTest {
                 .map(DdlColumnMetadata::columnName)
                 .map(String::toLowerCase)
                 .anyMatch("nickname"::equals));
+    }
+
+    @Test
+    @DisplayName("兼容多余列允许 Spring 启动，继续新增字段并完成实际插入")
+    void shouldStartAndInsertWithCompatibleExtraColumns() {
+        DataSource dataSource = h2DataSource("ddl_compatible_extra_columns");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("CREATE TABLE account (id BIGINT NOT NULL PRIMARY KEY,"
+                + " nullable_legacy BIGINT NULL, default_legacy BIGINT NOT NULL DEFAULT 0,"
+                + " empty_legacy VARCHAR(80) NOT NULL DEFAULT '',"
+                + " generated_legacy BIGINT GENERATED ALWAYS AS (id + 1) NOT NULL)");
+        SpringJdbcQueryStrategy queryStrategy = new SpringJdbcQueryStrategy(dataSource);
+        DdlTableSnapshot snapshot = queryStrategy.readTable("PUBLIC", "account");
+        DdlColumnMetadata id = snapshot.columns().get(0);
+        DdlColumnMetadata empty = snapshot.columns().get(3);
+        DdlColumnMetadata generated = snapshot.columns().get(4);
+        assertFalse(id.hasDefaultValue());
+        assertTrue(empty.hasDefaultValue());
+        assertTrue(generated.generated());
+
+        EntDdlSpringOptions options = new EntDdlSpringOptions();
+        options.setMode(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS);
+        try (GenericApplicationContext context = new GenericApplicationContext()) {
+            context.addApplicationListener(new EntDdlSpringExecutor(new DefaultDdlEngine(),
+                    request -> Collections.singletonList(accountWithNickname()), queryStrategy,
+                    new SpringJdbcSqlExecutor(dataSource), options));
+            context.refresh();
+            assertTrue(context.isActive());
+            jdbc.update("INSERT INTO account (id, nickname) VALUES (?, ?)", 1L, "测试账户");
+            assertEquals(0L, jdbc.queryForObject("SELECT default_legacy FROM account", Long.class));
+            assertEquals("", jdbc.queryForObject("SELECT empty_legacy FROM account", String.class));
+            assertEquals(2L, jdbc.queryForObject("SELECT generated_legacy FROM account", Long.class));
+        }
+        DdlExecutionResult repeat = new DefaultDdlEngine().execute(
+                new DdlExecutionRequest("", false, options.getMode(),
+                        Collections.singletonList(accountWithNickname())),
+                queryStrategy, new SpringJdbcSqlExecutor(dataSource));
+        assertTrue(repeat.success(), repeat.errors().toString());
+        assertEquals(4, repeat.warnings().size());
+        assertTrue(repeat.generatedSql().isEmpty());
+        assertEquals(6, queryStrategy.readTable("PUBLIC", "account").columns().size());
+    }
+
+    @Test
+    @DisplayName("非空且无默认值的多余列阻止启动和整个迁移计划")
+    void shouldRejectStartupWithRequiredExtraColumn() {
+        DataSource dataSource = h2DataSource("ddl_required_extra_column");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("CREATE TABLE account (id BIGINT NOT NULL PRIMARY KEY, legacy BIGINT NOT NULL)");
+        EntDdlSpringOptions options = new EntDdlSpringOptions();
+        options.setMode(DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS);
+        SpringJdbcQueryStrategy queryStrategy = new SpringJdbcQueryStrategy(dataSource);
+        try (GenericApplicationContext context = new GenericApplicationContext()) {
+            context.addApplicationListener(new EntDdlSpringExecutor(new DefaultDdlEngine(),
+                    request -> Collections.singletonList(accountWithNickname()), queryStrategy,
+                    new SpringJdbcSqlExecutor(dataSource), options));
+            IllegalStateException failure = assertThrows(IllegalStateException.class, context::refresh);
+            assertTrue(failure.getMessage().contains("NOT NULL、无默认值"));
+            assertTrue(failure.getMessage().contains("已执行 SQL: 0 条"));
+        }
+        assertEquals(2, queryStrategy.readTable("PUBLIC", "account").columns().size());
+    }
+
+    private static DdlEntityMetadata accountWithNickname() {
+        return new DdlEntityMetadata("AccountEntity", "", "account", "", DdlTableSize.SMALL,
+                Arrays.asList(
+                        new DdlFieldMetadata("id", "id", Long.class, "", false, false, true, true,
+                                -1, -1, -1, "", "", ""),
+                        new DdlFieldMetadata("nickname", "nickname", String.class, "", true, false, true, false,
+                                32, -1, -1, "", "", "")),
+                Collections.emptyList());
     }
 
     private static DataSource h2DataSource(String name) {

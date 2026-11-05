@@ -1,0 +1,7 @@
+crud:
+  policy: order
+  fields:
+    owner:
+      WRITE:
+        mode: EXCLUDE
+        fields: [amount, amount]

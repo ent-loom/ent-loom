@@ -35,7 +35,7 @@ public final class DefaultScenePolicyService implements ScenePolicyService {
         if (!requiresPolicy(action)) return ScenePolicyMatch.skipped(accessEntry, portal);
         if (action.getOperationDomain() == CrudOperationDomain.COMMAND
             && "ACTION".equals(action.getOperation())
-            && !EntityActionDeclarations.allows(action.getResourceDescriptor().getEntityType(), action.getScene())) {
+            && !registry.allowsAction(action.getResource(), action.getScene())) {
             return ScenePolicyMatch.rejected(accessEntry, portal, "ACTION 超出实体动作边界: " + action.getScene());
         }
         ScenePolicyKey key = new ScenePolicyKey(accessEntry, action.getResource(), operationKey(action), action.getScene());

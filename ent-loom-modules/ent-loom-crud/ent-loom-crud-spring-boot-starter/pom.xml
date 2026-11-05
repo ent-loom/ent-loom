@@ -11,6 +11,10 @@
     <name>ent-loom-crud-spring-boot-starter</name>
     <dependencies>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>ent-loom-declarations</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.github.ent-loom</groupId>
             <artifactId>ent-loom-crud-core</artifactId>
             <version>${project.version}</version>
@@ -24,6 +28,10 @@
             <groupId>io.github.ent-loom</groupId>
             <artifactId>ent-loom-crud-annotations</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

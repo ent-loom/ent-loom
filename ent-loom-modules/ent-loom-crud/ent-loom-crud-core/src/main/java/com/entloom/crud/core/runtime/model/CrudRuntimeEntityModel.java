@@ -125,7 +125,8 @@ public final class CrudRuntimeEntityModel {
                     field.getDisplayField(),
                     field.getLabel(),
                     field.isInputRequired(),
-                    field.getCreateDefaultValue()
+                    field.getCreateDefaultValue(),
+                    field.getDateTimeRole()
                 )
             );
         }

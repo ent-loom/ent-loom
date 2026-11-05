@@ -13,6 +13,7 @@
     <name>ent-loom-meta-adapter-doc</name>
 
     <dependencies>
+        <dependency><groupId>${project.groupId}</groupId><artifactId>ent-loom-declarations</artifactId></dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-crud-core</artifactId>

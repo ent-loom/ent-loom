@@ -21,8 +21,9 @@ import java.util.regex.Pattern;
 /**
  * MySQL 表结构差异计算器。
  *
- * <p>E3 只自动处理新增字段、新增索引、表注释和有限字段修改。删除、主键变化、
- * 已有索引重建以及不兼容类型变化都会形成中文拒绝原因。</p>
+ * <p>只自动处理新增字段、新增索引、表注释和有限字段修改。兼容的数据库多余列
+ * 保留并告警；阻碍插入的多余列、主键变化、已有索引重建及不兼容类型变化会被拒绝。
+ * 显式全量同步模式允许这些差异进入执行计划。</p>
  */
 public final class DdlSchemaDiffer {
     private static final Pattern SIZED_TYPE = Pattern.compile("([a-z]+)\\((\\d+)(?:,(\\d+))?\\)");
@@ -40,6 +41,10 @@ public final class DdlSchemaDiffer {
     }
 
     public DdlSchemaDiff diff(DdlEntityMetadata entity, DdlTableSnapshot current) {
+        return diff(entity, current, false);
+    }
+
+    public DdlSchemaDiff diff(DdlEntityMetadata entity, DdlTableSnapshot current, boolean synchronizeAll) {
         if (entity == null) {
             throw new IllegalArgumentException("entity must not be null");
         }
@@ -55,6 +60,7 @@ public final class DdlSchemaDiffer {
         }
 
         List<String> errors = new ArrayList<String>();
+        List<String> warnings = new ArrayList<String>();
         if (!entity.tableName().equals(current.tableName())) {
             errors.add("当前表名与实体表名不一致: " + current.tableName());
         }
@@ -72,6 +78,7 @@ public final class DdlSchemaDiffer {
 
         List<DdlFieldMetadata> addedFields = new ArrayList<DdlFieldMetadata>();
         List<DdlFieldChange> changedFields = new ArrayList<DdlFieldChange>();
+        List<String> removedColumns = new ArrayList<String>();
         Set<String> consumedCurrentColumns = new HashSet<String>();
         for (DdlFieldMetadata desired : desiredColumns.values()) {
             DdlColumnMetadata existing = currentColumns.get(identifierKey(desired.columnName()));
@@ -86,40 +93,57 @@ public final class DdlSchemaDiffer {
                 addedFields.add(desired);
                 continue;
             }
-            consumedCurrentColumns.add(identifierKey(existingName));
-            compareField(existingName, existing, desired, changedFields, errors);
+            if (!consumedCurrentColumns.add(identifierKey(existingName))) {
+                errors.add("数据库列被多个实体字段重复映射: " + existingName);
+                continue;
+            }
+            compareField(existingName, existing, desired, changedFields, errors, synchronizeAll);
         }
 
         for (DdlColumnMetadata currentColumn : currentColumns.values()) {
             String currentKey = identifierKey(currentColumn.columnName());
             if (!consumedCurrentColumns.contains(currentKey)
                     && !desiredColumns.containsKey(currentKey)) {
-                errors.add("删除字段暂不支持，发现数据库多余字段: " + currentColumn.columnName());
+                if (synchronizeAll) {
+                    removedColumns.add(currentColumn.columnName());
+                } else if (currentColumn.nullable() || currentColumn.hasDefaultValue()
+                        || currentColumn.autoIncrement() || currentColumn.generated()) {
+                    warnings.add("数据库多余字段已保留，不执行删除: " + currentColumn.columnName());
+                } else {
+                    errors.add("数据库多余字段会影响插入: " + currentColumn.columnName()
+                            + "（NOT NULL、无默认值且非数据库自动生成列）"
+                            + "；实体插入不会提供该字段，请通过显式迁移调整列约束或清理旧列");
+                }
             }
         }
 
         List<String> desiredPrimaryKeys = desiredPrimaryKeys(entity);
-        if (!sameIdentifiers(desiredPrimaryKeys, current.primaryKeyColumns())) {
+        boolean primaryKeyChanged = !sameIdentifiers(desiredPrimaryKeys, current.primaryKeyColumns());
+        if (primaryKeyChanged && !synchronizeAll) {
             errors.add("主键变化暂不支持自动迁移: 当前=" + current.primaryKeyColumns()
                     + ", 目标=" + desiredPrimaryKeys);
         }
 
         boolean commentChanged = !normalizeText(entity.comment()).equals(normalizeText(current.comment()));
-        List<DdlIndexMetadata> addedIndexes = compareIndexes(entity, current, errors);
-        return new DdlSchemaDiff(commentChanged, addedFields, changedFields, addedIndexes, errors);
+        List<String> removedIndexes = new ArrayList<String>();
+        List<DdlIndexMetadata> addedIndexes = compareIndexes(entity, current, errors, removedIndexes, synchronizeAll);
+        return new DdlSchemaDiff(commentChanged, addedFields, changedFields, addedIndexes, errors, warnings,
+                removedColumns, removedIndexes, synchronizeAll && primaryKeyChanged);
     }
 
     private void compareField(String existingName,
                               DdlColumnMetadata existing,
                               DdlFieldMetadata desired,
                               List<DdlFieldChange> changedFields,
-                              List<String> errors) {
+                              List<String> errors,
+                              boolean synchronizeAll) {
         String desiredType = desired.columnDefinition().isEmpty()
                 ? typeMapper.toSqlType(desired)
                 : desired.columnDefinition();
         String currentType = normalizeType(existing.sqlType());
         String normalizedDesiredType = normalizeType(desiredType);
-        if (!currentType.equals(normalizedDesiredType)
+        int initialErrorCount = errors.size();
+        if (!synchronizeAll && !currentType.equals(normalizedDesiredType)
                 && !isCompatibleWidening(currentType, normalizedDesiredType)) {
             errors.add("字段类型变化不兼容，拒绝修改字段 " + existingName
                     + "\n    数据库实际类型: " + existing.sqlType()
@@ -127,10 +151,11 @@ public final class DdlSchemaDiffer {
                     + "\n    拒绝原因: 此类型转换不在自动迁移支持范围内"
                     + "\n    处理建议: 核对实体声明与数据库结构；确认需要转换时，使用版本化迁移");
         }
-        if (existing.nullable() && !desired.nullable()) {
+        if (!synchronizeAll && existing.nullable() && !desired.nullable()) {
             errors.add("字段由可空改为非空可能造成数据丢失，拒绝修改字段: " + desired.columnName());
         }
-        if (existing.autoIncrement() && desired.generationStrategy() == GenerationStrategy.NONE) {
+        boolean autoIncrementRemoved = existing.autoIncrement() && desired.generationStrategy() == GenerationStrategy.NONE;
+        if (!synchronizeAll && autoIncrementRemoved) {
             errors.add("取消数据库自增暂不支持自动迁移，请使用版本化迁移: " + desired.columnName());
         }
         boolean autoIncrementAdded = (desired.generationStrategy() == GenerationStrategy.AUTO_INCREMENT
@@ -141,19 +166,11 @@ public final class DdlSchemaDiffer {
                 || !normalizeDefault(existing.defaultValue()).equals(normalizeDefault(desired.defaultValue()))
                 || !normalizeText(existing.comment()).equals(normalizeText(desired.comment()))
                 || autoIncrementAdded
+                || autoIncrementRemoved
                 || !existingName.equals(desired.columnName());
-        if (changed && !containsFieldError(errors, desired.columnName())) {
+        if (changed && errors.size() == initialErrorCount) {
             changedFields.add(new DdlFieldChange(existingName, desired, existing.autoIncrement()));
         }
-    }
-
-    private static boolean containsFieldError(List<String> errors, String columnName) {
-        for (String error : errors) {
-            if (error.contains(columnName)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static List<String> desiredPrimaryKeys(DdlEntityMetadata entity) {
@@ -168,7 +185,9 @@ public final class DdlSchemaDiffer {
 
     private static List<DdlIndexMetadata> compareIndexes(DdlEntityMetadata entity,
                                                           DdlTableSnapshot current,
-                                                          List<String> errors) {
+                                                          List<String> errors,
+                                                          List<String> removedIndexes,
+                                                          boolean synchronizeAll) {
         Map<String, DdlIndexMetadata> desired = new LinkedHashMap<String, DdlIndexMetadata>();
         for (DdlFieldMetadata field : entity.fields()) {
             if (field.persisted() && field.unique()) {
@@ -193,12 +212,21 @@ public final class DdlSchemaDiffer {
             if (currentIndex == null) {
                 added.add(entry.getValue());
             } else if (!sameIndex(currentIndex, entry.getValue())) {
-                errors.add("已有索引定义变化暂不支持重建，拒绝修改索引: " + entry.getKey());
+                if (synchronizeAll) {
+                    removedIndexes.add(MysqlCreateTableSqlBuilder.resolvedIndexName(currentIndex));
+                    added.add(entry.getValue());
+                } else {
+                    errors.add("已有索引定义变化暂不支持重建，拒绝修改索引: " + entry.getKey());
+                }
             }
         }
         for (String existingName : existing.keySet()) {
             if (!desired.containsKey(existingName)) {
-                errors.add("删除索引暂不支持，发现数据库多余索引: " + existing.get(existingName).name());
+                if (synchronizeAll) {
+                    removedIndexes.add(MysqlCreateTableSqlBuilder.resolvedIndexName(existing.get(existingName)));
+                } else {
+                    errors.add("删除索引暂不支持，发现数据库多余索引: " + existing.get(existingName).name());
+                }
             }
         }
         return added;

@@ -3,7 +3,6 @@ package com.entloom.meta.core.parser;
 import com.entloom.base.util.value.TypedValueType;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.annotations.meta.EntMetaId;
 import com.entloom.meta.annotations.meta.EntMetaNumber;
@@ -100,8 +99,9 @@ class ReflectiveEntMetaParserDescriptorContractTest {
     }
 
     @EntEntity(entity = "  ")
-    @EntIndex(fields = {"missing"})
     private static class InvalidEntity {
+        @EntRelation(targetEntity = "missing", sourceField = "absent")
+        Long owner;
     }
 
     @Test
@@ -179,12 +179,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         assertSource(relation.sourcedValue(MetaDescriptorProperties.RESOLUTION_STATUS), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
         assertSource(relation.sourcedValue(MetaDescriptorProperties.SOURCE_FIELD_INFERRED), MetaValueSource.INFERRED, MetaValueState.INFERRED, false);
 
-        Assertions.assertEquals(1, descriptor.indexes().size());
-        Assertions.assertEquals("uk_contract_entity_name", descriptor.indexes().get(0).name());
-        Assertions.assertEquals("name", descriptor.indexes().get(0).fields().get(0));
-        Assertions.assertTrue(descriptor.indexes().get(0).unique());
-        assertSource(descriptor.indexes().get(0).sourcedValue(MetaDescriptorProperties.INDEX_NAME), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
-        assertSource(descriptor.indexes().get(0).sourcedValue(MetaDescriptorProperties.UNIQUE), MetaValueSource.META_EXPLICIT, MetaValueState.EXPLICIT, true);
     }
 
     @Test
@@ -198,7 +192,6 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         List<MetaDiagnosticCode> codes = diagnosticCodes(result.diagnostics());
         Assertions.assertTrue(codes.contains(MetaDiagnosticCode.RELATION_SOURCE_FIELD_NOT_FOUND));
         Assertions.assertTrue(codes.contains(MetaDiagnosticCode.RELATION_TARGET_ENTITY_NOT_FOUND));
-        Assertions.assertTrue(codes.contains(MetaDiagnosticCode.INDEX_FIELD_NOT_FOUND));
 
         MetaDiagnostic sourceFieldDiagnostic = firstDiagnostic(result.diagnostics(), MetaDiagnosticCode.RELATION_SOURCE_FIELD_NOT_FOUND);
         Assertions.assertEquals(MetaDiagnosticLevel.ERROR, sourceFieldDiagnostic.level());
@@ -254,7 +247,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
         description = "Contract descriptor fixture",
         plannedVolume = 1000L
     )
-    @EntIndex(name = "uk_contract_entity_name", fields = {"name"}, unique = true)
+
     private static final class ContractEntity {
         @EntField
         @EntMetaId(generator = EntMetaId.IdGenerator.SNOWFLAKE)
@@ -280,7 +273,7 @@ class ReflectiveEntMetaParserDescriptorContractTest {
     }
 
     @EntEntity(entity = "broken_contract_entity")
-    @EntIndex(name = "idx_missing", fields = {"missingIndexField"})
+
     private static final class BrokenContractEntity {
         @EntField
         private Long id;

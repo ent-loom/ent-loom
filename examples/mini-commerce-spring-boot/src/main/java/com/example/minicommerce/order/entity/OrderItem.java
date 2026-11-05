@@ -1,7 +1,6 @@
 package com.example.minicommerce.order.entity;
 
 import com.entloom.crud.annotations.EntCrudEntity;
-import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
 import java.math.BigDecimal;
@@ -9,10 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 订单明细持久化实体，由订单业务服务经 OrderItemDao 保存。 */
+/** 订单明细由下单 Handler 经 OrderItemDao 保存，商家归属通过所属订单确定。 */
 @EntEntity("订单明细")
-@EntCrudEntity(httpExposed = false)
-@EntDdlIndex(name = "idx_order_item_order", fields = "orderId")
+@EntCrudEntity
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,14 +23,8 @@ public class OrderItem {
     @EntField("订单 ID")
     private Long orderId;
 
-    @EntField("商家订单 ID")
-    private Long merchantOrderId;
-
     @EntField("商家商品 ID")
     private Long merchantProductId;
-
-    @EntField("商家 ID")
-    private Long merchantId;
 
     /** 下单时的商品名称快照，不随商家商品变化。 */
     @EntField("商品名称")
@@ -49,5 +41,4 @@ public class OrderItem {
     /** 成交单价乘以购买数量，由业务层计算。 */
     @EntField("明细金额")
     private BigDecimal lineAmount;
-
 }

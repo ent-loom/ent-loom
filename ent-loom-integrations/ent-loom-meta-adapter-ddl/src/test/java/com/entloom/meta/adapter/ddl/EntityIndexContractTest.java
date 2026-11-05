@@ -3,7 +3,6 @@ package com.entloom.meta.adapter.ddl;
 import com.entloom.base.common.OptionalBoolean;
 import com.entloom.ddl.annotations.EntDdlEntity;
 import com.entloom.ddl.annotations.EntDdlField;
-import com.entloom.ddl.annotations.EntDdlIndex;
 import com.entloom.ddl.api.DdlEntityMetadata;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,8 +35,21 @@ class EntityIndexContractTest {
         }
     }
 
+    @Test
+    void 子集加载不受其他实体声明影响但全量校验仍拒绝漏扫描() {
+        var declarations = new com.entloom.declaration.EntityDeclarations(
+            new org.springframework.core.io.ClassPathResource("declarations/EntityIndexContractTest/IndexedEntity.yml"),
+            new org.springframework.core.io.ByteArrayResource("ddl: {}".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+                @Override public String getFilename() { return "OtherEntity.yml"; }
+            });
+        var adapter = new MetaDdlAdapter(Collections.singletonList(IndexedEntity.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), declarations);
+        assertEquals(3, adapter.models().get(0).indexes().size());
+        var error = assertThrows(IllegalArgumentException.class, adapter::validateDeclarations);
+        assertTrue(error.getMessage().contains("OtherEntity"));
+    }
+
     private DdlEntityMetadata load(Class<?> type) {
-        return new MetaDdlAdapter(Collections.<Class<?>>singletonList(type)).models().get(0);
+        return new MetaDdlAdapter(Collections.<Class<?>>singletonList(type), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast(), new com.entloom.ddl.api.DdlGenerationDefaults(), new com.entloom.declaration.EntityDeclarations(new org.springframework.core.io.ClassPathResource("declarations/EntityIndexContractTest/" + type.getSimpleName() + ".yml"))).models().get(0);
     }
 
     private static class BaseEntity {
@@ -50,44 +62,42 @@ class EntityIndexContractTest {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = {"accountCode", "tenantId"}, unique = OptionalBoolean.TRUE)
-    @EntDdlIndex(fields = "tenantId")
-    @EntDdlIndex(expression = "lower(account_code)")
+
     private static class IndexedEntity extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex
+
     private static class EmptyIndex extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = "accountCode", expression = "lower(account_code)")
+
     private static class ConflictingIndex extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = "missing")
+
     private static class UnknownProperty extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = "account_code")
+
     private static class PhysicalColumn extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = "displayLabel")
+
     private static class NonPersistentProperty extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = {"accountCode", " "})
+
     private static class BlankProperty extends BaseEntity {
     }
 
     @EntDdlEntity
-    @EntDdlIndex(fields = {"accountCode", "accountCode"})
+
     private static class DuplicateProperty extends BaseEntity {
     }
 }

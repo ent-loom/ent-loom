@@ -1,14 +1,17 @@
 package com.entloom.meta.core.model;
 
+import com.entloom.meta.contract.convention.CreatedTimeFields;
 import com.entloom.meta.enums.EntIdPolicy;
+
 /**
- * Meta 实体默认值。
+ * Meta 全局默认值与字段命名约定。
  *
- * <p>默认值只在实体注解没有显式声明时生效。</p>
+ * <p>默认约定不覆盖显式注解和更高优先级的项目约定。</p>
  */
 public final class MetaEntityDefaults {
     private final String service;
     private final EntIdPolicy idPolicy;
+    private final CreatedTimeFields createdTimeFields;
 
     public MetaEntityDefaults() {
         this(null);
@@ -19,8 +22,17 @@ public final class MetaEntityDefaults {
     }
 
     public MetaEntityDefaults(String service, EntIdPolicy idPolicy) {
+        this(service, idPolicy, new CreatedTimeFields());
+    }
+
+    public MetaEntityDefaults(String service, EntIdPolicy idPolicy, CreatedTimeFields createdTimeFields) {
         this.service = normalize(service);
         this.idPolicy = idPolicy == null ? EntIdPolicy.UNSET : idPolicy;
+        this.createdTimeFields = java.util.Objects.requireNonNull(createdTimeFields, "创建时间字段约定不能为空");
+    }
+
+    public CreatedTimeFields createdTimeFields() {
+        return createdTimeFields;
     }
 
     public String service() {

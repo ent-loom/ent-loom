@@ -23,9 +23,6 @@ public @interface EntDocField {
     /** 字段描述 */
     String description() default "";
 
-    /** 示例值 */
-    String example() default "";
-
     /** 最大长度（-1 表示未知或不限制） */
     int maxLength() default -1;
 
@@ -71,9 +68,4 @@ public @interface EntDocField {
 
     // DOC 专属关系展示语义。
 
-    /** 目标实体展示名称（如 学生） */
-    String targetEntityLabel() default "";
-
-    /** 关联备注（关联规则/关联条件说明） */
-    String relationRemark() default "";
 }

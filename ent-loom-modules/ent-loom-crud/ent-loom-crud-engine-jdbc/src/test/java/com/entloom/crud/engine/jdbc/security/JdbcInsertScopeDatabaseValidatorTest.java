@@ -98,6 +98,36 @@ class JdbcInsertScopeDatabaseValidatorTest {
     }
 
     @Test
+    void 库级授权中的下划线转义仍能证明触发器元数据可见() {
+        for (String grant : Arrays.asList(
+            "GRANT ALL PRIVILEGES ON `test\\_schema`.* TO 'test'@'%'",
+            "GRANT SELECT, TRIGGER ON `test\\_schema`.* TO 'test'@'%'",
+            "GRANT TRIGGER ON `test_schema`.`scope_entity` TO 'test'@'%'"
+        )) {
+            DataSource dataSource = new FakeMysqlDataSource(
+                Collections.singletonList(column("tenant_id", "", "")), false, grant
+            );
+            assertDoesNotThrow(() -> new JdbcInsertScopeDatabaseValidator(dataSource, registry()).validateOrThrow());
+        }
+    }
+
+    @Test
+    void 其他库或同名前缀表的授权不能证明当前表的触发器权限() {
+        for (String grant : Arrays.asList(
+            "GRANT ALL PRIVILEGES ON `test\\_schema\\_other`.* TO 'test'@'%'",
+            "GRANT TRIGGER ON `test_schema`.`scope_entity_other` TO 'test'@'%'",
+            "GRANT SELECT ON `test_schema`.* TO 'trigger'@'%'"
+        )) {
+            DataSource dataSource = new FakeMysqlDataSource(
+                Collections.singletonList(column("tenant_id", "", "")), false, grant
+            );
+            ValidationException exception = assertThrows(ValidationException.class,
+                () -> new JdbcInsertScopeDatabaseValidator(dataSource, registry()).validateOrThrow());
+            assertTrue(exception.getMessage().contains("无法可靠读取"), exception.getMessage());
+        }
+    }
+
+    @Test
     void custom_registry_without_complete_snapshot_is_rejected() {
         EntityMetaRegistry delegate = registry();
         EntityMetaRegistry incomplete = new EntityMetaRegistry() {
@@ -233,7 +263,7 @@ class JdbcInsertScopeDatabaseValidatorTest {
     private static final class FakeMysqlDataSource extends FakeDatabaseDataSource {
         private final List<Map<String, String>> columns;
         private final boolean trigger;
-        private final boolean triggerMetadataVisible;
+        private final String grant;
 
         private FakeMysqlDataSource(List<Map<String, String>> columns, boolean trigger) {
             this(columns, trigger, true);
@@ -244,16 +274,20 @@ class JdbcInsertScopeDatabaseValidatorTest {
             boolean trigger,
             boolean triggerMetadataVisible
         ) {
+            this(columns, trigger, triggerMetadataVisible ? "GRANT ALL PRIVILEGES ON *.* TO 'test'@'%'" : null);
+        }
+
+        private FakeMysqlDataSource(List<Map<String, String>> columns, boolean trigger, String grant) {
             super("MySQL");
             this.columns = columns;
             this.trigger = trigger;
-            this.triggerMetadataVisible = triggerMetadataVisible;
+            this.grant = grant;
         }
 
         @Override
         protected Connection connection() {
             return JdbcInsertScopeDatabaseValidatorTest.connection(
-                "MySQL", columns, trigger, triggerMetadataVisible
+                "MySQL", columns, trigger, grant
             );
         }
     }
@@ -275,7 +309,7 @@ class JdbcInsertScopeDatabaseValidatorTest {
                 productName,
                 Collections.<Map<String, String>>emptyList(),
                 false,
-                true
+                "GRANT ALL PRIVILEGES ON *.* TO 'test'@'%'"
             );
         }
 
@@ -322,7 +356,7 @@ class JdbcInsertScopeDatabaseValidatorTest {
         String productName,
         List<Map<String, String>> columns,
         boolean trigger,
-        boolean triggerMetadataVisible
+        String grant
     ) {
         DatabaseMetaData metaData = proxy(DatabaseMetaData.class, (proxy, method, args) -> {
             if ("getDatabaseProductName".equals(method.getName())) {
@@ -343,10 +377,10 @@ class JdbcInsertScopeDatabaseValidatorTest {
                     ? columns
                     : (sql.contains("information_schema.triggers") && trigger
                         ? Collections.singletonList(column("trigger_name", "", ""))
-                        : (sql.equalsIgnoreCase("show grants") && triggerMetadataVisible
+                        : (sql.equalsIgnoreCase("show grants") && grant != null
                             ? Collections.singletonList(column(
                                 "grant",
-                                "GRANT ALL PRIVILEGES ON *.* TO 'test'@'%'",
+                                grant,
                                 ""
                             ))
                             : Collections.<Map<String, String>>emptyList()));

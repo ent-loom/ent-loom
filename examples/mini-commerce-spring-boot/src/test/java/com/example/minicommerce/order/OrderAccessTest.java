@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** 真实 Gateway 管线的授权回归，只替换主体与权限实现。 */
+/** 显式下单场景继续受主体与能力授权约束；订单读取独立要求可信身份。 */
 @SpringBootTest(properties = {
     "spring.config.import=",
     "spring.datasource.url=jdbc:h2:mem:commerce-access;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -108,7 +108,7 @@ class OrderAccessTest {
         mvc.perform(post("/api/ent-crud/order/action/place").contentType(MediaType.APPLICATION_JSON).content(command()))
             .andExpect(status).andExpect(jsonPath("$.code").value(code));
         mvc.perform(post("/api/ent-crud/order/detail").contentType(MediaType.APPLICATION_JSON).content(detail()))
-            .andExpect(status).andExpect(jsonPath("$.code").value(code));
+            .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
         assertEquals(0, jdbc.queryForObject("select count(*) from `order`", Integer.class));
         assertEquals(0, jdbc.queryForObject("select count(*) from order_item", Integer.class));
     }
@@ -129,7 +129,7 @@ class OrderAccessTest {
 
     private String detail() {
         return """
-            {"options":{"resultMode":"ENTITY","filter":{"id":1},"expandRelations":["customer","orderItemList"]}}
+            {"options":{"filter":{"id":1},"expandRelations":["customer","orderItemList"]}}
             """;
     }
 

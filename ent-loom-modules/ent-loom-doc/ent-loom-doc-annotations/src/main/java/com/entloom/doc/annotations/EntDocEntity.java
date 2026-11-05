@@ -18,6 +18,4 @@ public @interface EntDocEntity {
     /** 实体描述 */
     String description() default "";
 
-    /** 实体示例（可选） */
-    String example() default "";
 }

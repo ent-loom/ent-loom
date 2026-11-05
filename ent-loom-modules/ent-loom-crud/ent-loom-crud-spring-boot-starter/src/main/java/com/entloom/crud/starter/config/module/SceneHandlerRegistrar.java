@@ -16,7 +16,8 @@ import com.entloom.crud.core.capability.command.scene.CommandActionSceneHandler;
 import com.entloom.crud.core.capability.command.scene.CommandActionRegistration;
 import com.entloom.crud.core.capability.command.scene.CommandSceneHandler;
 import com.entloom.crud.core.exception.ValidationException;
-import com.entloom.crud.core.governance.policy.EntityActionDeclarations;
+import com.entloom.crud.core.governance.policy.ScenePolicyRegistry;
+import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.capability.query.scene.QueryDetailSceneHandler;
 import com.entloom.crud.core.capability.query.scene.QueryFindOneSceneHandler;
 import com.entloom.crud.core.capability.query.scene.QueryListSceneHandler;
@@ -275,7 +276,6 @@ public class SceneHandlerRegistrar implements InitializingBean {
         }
     }
 
-
     private void validateQueryAnnotation(Set<CrudRouteKey> routeKeys, Object defaultStrategy, Class<?> beanClass) {
         EntCrudQueryHandler annotation = AnnotationUtils.findAnnotation(beanClass, EntCrudQueryHandler.class);
         if (annotation == null) {
@@ -318,7 +318,10 @@ public class SceneHandlerRegistrar implements InitializingBean {
         if (expectedScene.isEmpty()) {
             throw new ValidationException("@EntCrudCommandAction.scene 不能为空: " + beanClass.getName());
         }
-        if (!EntityActionDeclarations.allows(annotation.entityClass(), expectedScene)) {
+        var resource = applicationContext.getBean(EntityMetaRegistry.class).getResourceDescriptor(annotation.entityClass());
+        if (resource == null) throw new ValidationException("ACTION 处理器引用未注册实体: " + beanClass.getName()
+            + ", entity=" + annotation.entityClass().getName());
+        if (!applicationContext.getBean(ScenePolicyRegistry.class).allowsAction(resource.getResourceCode(), expectedScene)) {
             throw new ValidationException("ACTION 处理器超出实体动作边界: " + beanClass.getName() + ", scene=" + expectedScene);
         }
         ResolvableType handlerType = ResolvableType.forClass(beanClass).as(CommandActionSceneHandler.class);

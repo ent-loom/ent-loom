@@ -97,10 +97,6 @@ public class ExposedEntityRegistry {
         if (type == null) {
             throw new CrudException(CrudErrorCode.TYPE_RESOLUTION_FAILED, "未找到实体类型: " + code);
         }
-        EntCrudEntity annotation = AnnotatedElementUtils.findMergedAnnotation(type, EntCrudEntity.class);
-        if (annotation != null && !annotation.httpExposed()) {
-            throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体禁止 HTTP 暴露: " + code);
-        }
         if (!includeEntities.contains(normalized)
             && !includeEntities.contains(normalize(entityCode(type)))) {
             throw new CrudException(CrudErrorCode.ENTITY_NOT_EXPOSED, "实体未暴露: " + code);

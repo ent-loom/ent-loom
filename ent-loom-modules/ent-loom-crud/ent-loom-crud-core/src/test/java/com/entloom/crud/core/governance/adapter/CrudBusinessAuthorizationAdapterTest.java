@@ -1,7 +1,5 @@
 package com.entloom.crud.core.governance.adapter;
 
-import com.entloom.crud.annotations.EntCrudAction;
-import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.api.access.AuthorizationRequest;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.access.VisitorContext;
@@ -14,6 +12,9 @@ import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
+import com.entloom.crud.core.execution.ExecutionPipeline;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
+import com.entloom.crud.core.governance.service.CrudGovernanceService;
 import com.entloom.crud.core.governance.authorization.AuthorizationFields;
 import com.entloom.crud.core.governance.authorization.AuthorizationResult;
 import com.entloom.crud.core.governance.authorization.AuthorizationScope;
@@ -45,10 +46,32 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class CrudBusinessAuthorizationAdapterTest {
     private static final BusinessOperation VIEW = new BusinessOperation("order", "view");
     private static final BusinessOperation REFUND = new BusinessOperation("order", "refund");
+
+    @Test
+    void 显式场景动作与实体读取策略共存且新映射和可信作用域优先() {
+        Fixture fixture = fixture((visitor, operation, rule, target) -> BusinessPermissionDecision.deny());
+        CrudGovernanceService governance = (CrudGovernanceService) java.lang.reflect.Proxy.newProxyInstance(
+            getClass().getClassLoader(), new Class<?>[] {CrudGovernanceService.class},
+            (proxy, method, args) -> { throw new AssertionError("不应进入旧治理: " + method.getName()); });
+        ExecutionPipeline pipeline = new ExecutionPipeline(governance, fixture.adapter);
+        CommandSpec<Object> place = CommandSpec.builder().rootType(Order.class)
+            .op(CommandOperation.ACTION).scene("place").build();
+        assertFalse(pipeline.requiresBusinessAuthorization(place));
+        assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().scene("refund").build()));
+        assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().scene("unknown").build()));
+        assertTrue(pipeline.requiresBusinessAuthorization(place.toBuilder().op(CommandOperation.CREATE).build()));
+        assertTrue(pipeline.requiresBusinessAuthorization(QuerySpec.builder().rootType(Order.class)
+            .op(QueryOperation.PAGE).build()));
+        try (AccessContextScope.Scope ignored = AccessContextScope.requireAuthorization()) {
+            assertTrue(pipeline.requiresBusinessAuthorization(place));
+            assertThrows(PermissionDeniedException.class, () -> pipeline.governCommand(place));
+        }
+    }
 
     @Test
     void crud_and_custom_service_use_the_same_operation_and_dynamic_decision() {
@@ -131,7 +154,10 @@ class CrudBusinessAuthorizationAdapterTest {
                 new CrudOperationMapping(CrudOperationKey.of(CommandOperation.ACTION), "refund", REFUND,
                     "Project#refundMapping")));
         BusinessAuthorizationService authorization = new BusinessAuthorizationService(catalog, policies, evaluator);
-        return new Fixture(authorization, new CrudBusinessAuthorizationAdapter(entities, mappings, authorization));
+        return new Fixture(authorization, new CrudBusinessAuthorizationAdapter(entities, mappings, authorization,
+            new com.entloom.crud.core.governance.policy.ScenePolicyRegistry(java.util.Arrays.asList(
+                new com.entloom.crud.core.governance.policy.ScenePolicy(new com.entloom.crud.core.governance.policy.ScenePolicyKey("base", "order", CrudOperationKey.of(CommandOperation.ACTION), "place"), "place-order", Collections.emptySet()),
+                new com.entloom.crud.core.governance.policy.ScenePolicy(new com.entloom.crud.core.governance.policy.ScenePolicyKey("base", "order", CrudOperationKey.of(CommandOperation.ACTION), "refund"), "refund", Collections.emptySet())))));
     }
 
     private static final class Fixture {
@@ -144,7 +170,6 @@ class CrudBusinessAuthorizationAdapterTest {
         }
     }
 
-    @EntCrudActions({@EntCrudAction(value = "refund", name = "退款", capability = "refund")})
     private static final class Order { }
 
     private static final class Other { }

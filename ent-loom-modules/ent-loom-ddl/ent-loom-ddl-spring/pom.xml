@@ -14,6 +14,7 @@
     <name>ent-loom-ddl-spring</name>
 
     <dependencies>
+        <dependency><groupId>${project.groupId}</groupId><artifactId>ent-loom-ddl-declarations</artifactId></dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>ent-loom-ddl-core</artifactId>

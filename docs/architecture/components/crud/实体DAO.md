@@ -57,7 +57,6 @@ flowchart TB
 @RequiredArgsConstructor
 public class OrderService {
     private final EntityDao<Order, Long> orderDao;
-    private final EntityDao<MerchantOrder, Long> merchantOrderDao;
 }
 ```
 
@@ -235,7 +234,7 @@ WHERE id = ?
 
 更新或删除正常返回时影响行数只能是 `1`；影响 `0` 行必须转换为稳定异常，不把驱动影响行数直接暴露给调用方，也不通过写入后的多次查询推断唯一原因。按主键写入若报告大于 `1` 行，视为实体元数据、主键约束或 SQL 编译不变量被破坏，抛出持久化执行异常，不把该行数作为正常结果返回：
 
-- 首期所有 `0` 行写入统一表示“目标不存在或不可写”，不区分不存在、逻辑删除和范围拒绝。
+- 所有 `0` 行写入统一抛出 `EntityDaoWriteMissException`，错误码 `WRITE_CONFLICT`、HTTP 409；不区分不存在、逻辑删除、范围拒绝和版本冲突。
 - 无版本更新固定采用 matched-rows 语义；目标行存在且范围匹配时，即使新旧值相同也返回 `1`。实现必须在启动期校验 MySQL 驱动及 `useAffectedRows` 等相关配置，不满足时 fail-fast，不承诺兼容会改变影响行数语义的连接配置。
 
 `JdbcWriteMissClassifier`、写入后的分类查询及其调用点已经删除，不保留诊断旁路或开关。DAO 和生成主键回退路径都不依赖写入后的查询，也不假设多条语句天然处于同一事务或使用同一连接。

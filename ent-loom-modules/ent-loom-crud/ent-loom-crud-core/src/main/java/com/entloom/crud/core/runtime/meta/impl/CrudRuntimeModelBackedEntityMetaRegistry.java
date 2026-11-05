@@ -140,6 +140,7 @@ public class CrudRuntimeModelBackedEntityMetaRegistry implements EntityMetaRegis
                 throw new ValidationException("实体未提供字段元数据: " + meta.getEntityType().getName());
             }
 
+            meta.getCreatedTimeField();
             Set<String> columns = new LinkedHashSet<String>();
             for (Map.Entry<String, com.entloom.crud.core.runtime.meta.EntityFieldMeta> entry
                 : meta.getFieldMetas().entrySet()) {

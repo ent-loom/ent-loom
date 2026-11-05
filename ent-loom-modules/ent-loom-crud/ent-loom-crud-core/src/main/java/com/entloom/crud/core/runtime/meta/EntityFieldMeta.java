@@ -1,5 +1,6 @@
 package com.entloom.crud.core.runtime.meta;
 
+import com.entloom.meta.enums.role.DateTimeRole;
 import lombok.Getter;
 
 /**
@@ -10,6 +11,8 @@ import lombok.Getter;
  */
 @Getter
 public class EntityFieldMeta {
+    /** 日期时间语义；默认排序消费 CREATED_TIME。 */
+    private final DateTimeRole dateTimeRole;
     /** 字段名。 */
     private final String fieldName;
     /** Java 类型。 */
@@ -74,7 +77,7 @@ public class EntityFieldMeta {
         boolean immutable
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
-            writable, scopeField, immutable, null, null, null, null, null, null, null, false, null);
+            writable, scopeField, immutable, null, null, null, null, null, null, null, false, null, DateTimeRole.UNSET);
     }
 
     public EntityFieldMeta(
@@ -94,7 +97,7 @@ public class EntityFieldMeta {
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
             writable, scopeField, immutable, null, null, null, null, null, null,
-            label, inputRequired, createDefaultValue);
+            label, inputRequired, createDefaultValue, DateTimeRole.UNSET);
     }
 
     public EntityFieldMeta(
@@ -114,7 +117,7 @@ public class EntityFieldMeta {
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
             true, false, false, exportable, exportDefaultVisible, exportLabel, exportFormat,
-            dictionaryCode, displayField, null, false, null);
+            dictionaryCode, displayField, null, false, null, DateTimeRole.UNSET);
     }
 
     public EntityFieldMeta(
@@ -137,7 +140,7 @@ public class EntityFieldMeta {
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
             writable, scopeField, immutable, exportable, exportDefaultVisible, exportLabel,
-            exportFormat, dictionaryCode, displayField, null, false, null);
+            exportFormat, dictionaryCode, displayField, null, false, null, DateTimeRole.UNSET);
     }
 
     public EntityFieldMeta(
@@ -159,8 +162,10 @@ public class EntityFieldMeta {
         String displayField,
         String label,
         boolean inputRequired,
-        Object createDefaultValue
+        Object createDefaultValue,
+        DateTimeRole dateTimeRole
     ) {
+        this.dateTimeRole = dateTimeRole == null ? DateTimeRole.UNSET : dateTimeRole;
         this.fieldName = fieldName;
         this.javaType = javaType;
         this.columnName = columnName;
@@ -180,6 +185,13 @@ public class EntityFieldMeta {
         this.exportFormat = trimToNull(exportFormat);
         this.dictionaryCode = trimToNull(dictionaryCode);
         this.displayField = trimToNull(displayField);
+    }
+
+    /** 保留持久化、治理与展示能力，只替换日期时间语义。 */
+    public EntityFieldMeta withDateTimeRole(DateTimeRole role) {
+        return new EntityFieldMeta(fieldName, javaType, columnName, nullable, relation, filterable, sortable,
+            writable, scopeField, immutable, exportable, exportDefaultVisible, exportLabel, exportFormat,
+            dictionaryCode, displayField, label, inputRequired, createDefaultValue, role);
     }
 
     private static String trimToNull(String value) {

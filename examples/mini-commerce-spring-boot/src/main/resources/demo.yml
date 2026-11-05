@@ -22,15 +22,18 @@ ent:
         # 入口由服务端路由确定，不能由客户端切换。
         default-access-entry: consumer
         routes:
-          "[/api/merchant/**]": merchant
+          "[/api/ent-crud/order/**]": commerce
+          "[/api/ent-crud/merchantProduct/**]": merchant
+          "[/api/ent-crud/merchantArticle/**]": merchant
       governance:
+        # 下单场景与 order.yml 的 consumer 入口声明保持一致。
+        access-entry: consumer
         # 通用 CRUD 使用默认演示主体 local-developer。
         grants:
           local-developer:
             - customer:read
             - customer:create
             - customer:update
-            - order:read
             - order:place
         # 演示无需额外审计表。
         audit:

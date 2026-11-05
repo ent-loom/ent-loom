@@ -1,0 +1,5 @@
+ddl:
+  indexes:
+    - name: uk_meta_account_display_name
+      fields: [displayName]
+      unique: true

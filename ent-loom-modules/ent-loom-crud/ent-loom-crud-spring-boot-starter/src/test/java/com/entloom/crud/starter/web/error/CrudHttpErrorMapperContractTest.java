@@ -115,6 +115,7 @@ class CrudHttpErrorMapperContractTest {
             CrudErrorCode.ROUTE_NOT_FOUND);
         put(statuses, HttpStatus.METHOD_NOT_ALLOWED, CrudErrorCode.METHOD_NOT_ALLOWED);
         put(statuses, HttpStatus.CONFLICT,
+            CrudErrorCode.WRITE_CONFLICT,
             CrudErrorCode.ROUTE_AMBIGUOUS,
             CrudErrorCode.QUERY_NOT_UNIQUE,
             CrudErrorCode.IDEMPOTENCY_IN_PROGRESS,

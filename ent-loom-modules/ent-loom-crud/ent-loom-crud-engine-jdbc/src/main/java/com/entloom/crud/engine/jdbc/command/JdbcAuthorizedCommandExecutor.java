@@ -9,10 +9,12 @@ import com.entloom.crud.api.enums.FilterOperator;
 import com.entloom.crud.api.model.CommandResult;
 import com.entloom.crud.api.model.QueryFilter;
 import com.entloom.crud.core.capability.command.engine.AuthorizedCommandExecutor;
+import com.entloom.crud.core.capability.command.engine.AuthorizedBatchUpdateExecutor;
 import com.entloom.crud.core.capability.command.spec.BatchCommand;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.core.capability.command.spec.DeleteTarget;
 import com.entloom.crud.core.capability.command.spec.WriteCommand;
+import com.entloom.crud.core.capability.dao.RowConstraintNormalizer;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.CrudExceptionContext;
 import com.entloom.crud.core.exception.EntityDaoWriteMissException;
@@ -36,6 +38,7 @@ import com.entloom.crud.core.runtime.meta.EntityIdPolicy;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.EntityMetaRegistry;
 import com.entloom.crud.core.runtime.spec.SpecSnapshotFactory;
+import com.entloom.crud.core.runtime.validation.EntityUpdateValidator;
 import com.entloom.crud.core.security.GuardedSqlExecutor;
 import com.entloom.crud.core.security.SqlSecurityGuard;
 import com.entloom.crud.engine.jdbc.dialect.JdbcDialect;
@@ -50,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** 根实体单目标 UPDATE/DELETE 的按次授权 JDBC 执行入口。 */
+/** 根实体按次授权写入入口；批量 UPDATE 复用授权 DAO 执行。 */
 public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExecutor {
     private final EntityMetaRegistry entities;
     private final CrudBusinessAuthorizationAdapter authorization;
@@ -59,6 +62,8 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
     private final JdbcDialect dialect;
     private final CrudGovernanceAuditRecorder audit;
     private final CrudWriteTransactionExecutor transactions;
+    private final AuthorizedBatchUpdateExecutor batchUpdates;
+    private final EntityUpdateValidator validator;
     private final JdbcAuthorizationScopeCompiler scopes = new JdbcAuthorizationScopeCompiler();
     private final CommandPayloadMapper payloadMapper = new CommandPayloadMapper();
 
@@ -71,6 +76,15 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         CrudGovernanceAuditRecorder audit,
         CrudWriteTransactionExecutor transactions
     ) {
+        this(entities, authorization, sqlExecutor, sqlGuard, dialect, audit, transactions, null, (meta, values) -> {});
+    }
+
+    public JdbcAuthorizedCommandExecutor(
+        EntityMetaRegistry entities, CrudBusinessAuthorizationAdapter authorization,
+        GuardedSqlExecutor sqlExecutor, SqlSecurityGuard sqlGuard, JdbcDialect dialect,
+        CrudGovernanceAuditRecorder audit, CrudWriteTransactionExecutor transactions,
+        AuthorizedBatchUpdateExecutor batchUpdates, EntityUpdateValidator validator
+    ) {
         this.entities = Objects.requireNonNull(entities, "实体元数据注册表不能为空");
         this.authorization = Objects.requireNonNull(authorization, "CRUD 业务授权适配器不能为空");
         this.sqlExecutor = Objects.requireNonNull(sqlExecutor, "SQL 执行器不能为空");
@@ -78,6 +92,8 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         this.dialect = dialect == null ? StandardJdbcDialect.GENERIC : dialect;
         this.audit = Objects.requireNonNull(audit, "治理审计记录器不能为空");
         this.transactions = transactions;
+        this.batchUpdates = batchUpdates;
+        this.validator = Objects.requireNonNull(validator, "更新校验器不能为空");
     }
 
     /** 仅供不需要事务能力探测的构造场景使用；执行时仍会拒绝缺失事务执行器。 */
@@ -95,6 +111,9 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
     @Override
     @SuppressWarnings("unchecked")
     public <P, R> R action(VisitorContext visitor, CommandSpec<P> source) {
+        if (source != null && source.getOp() == CommandOperation.UPDATE_BATCH && batchUpdates != null) {
+            return batchUpdates.action(visitor, source);
+        }
         long started = System.nanoTime();
         Invocation invocation = new Invocation(source);
         try {
@@ -115,6 +134,7 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             requireApplicable(visitor, meta, spec.getOp(), target.targetId, result);
             if (spec.getOp() == CommandOperation.UPDATE) {
                 requireWriteFields(meta, target.values, result.getFields());
+                validator.validate(meta, target.values);
             }
             CommandSpec<P> guardSpec = spec.toBuilder()
                 .payload((P) new WriteCommand<Object>(spec.getOp(), target.id, target.values,
@@ -232,8 +252,29 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
         }
         id = scalarId(id, meta);
         Long expectedVersion = commandVersion == null ? spec.getExpectedVersion() : commandVersion;
+        EntityFieldMeta versionField = meta.resolveFieldMeta("version");
+        if (spec.getOp() == CommandOperation.UPDATE && values.containsKey("version")) {
+            Object value = RowConstraintNormalizer.normalizeValue(versionField, values.remove("version"));
+            if (!(value instanceof Number)) {
+                throw new ValidationException("预期版本必须是非负整数");
+            }
+            Long payloadVersion = Long.valueOf(((Number) value).longValue());
+            if (expectedVersion != null && !expectedVersion.equals(payloadVersion)) {
+                throw new ValidationException("更新载荷与命令的版本条件不一致");
+            }
+            expectedVersion = payloadVersion;
+        }
         if (expectedVersion != null && meta.resolveFieldMeta("version") == null) {
             throw new ValidationException("实体没有 version 字段，不能使用 expectedVersion");
+        }
+        if (versionField != null) {
+            Class<?> versionType = versionField.getJavaType();
+            if (versionType != Long.class && versionType != long.class && versionType != Integer.class && versionType != int.class) {
+                throw new ValidationException("version 字段必须是 Long 或 Integer");
+            }
+            if (expectedVersion == null || expectedVersion.longValue() < 0L) {
+                throw new ValidationException("启用 version 的实体写入必须携带非负预期版本");
+            }
         }
         return new Target(id, String.valueOf(id), values, expectedVersion);
     }
@@ -317,6 +358,10 @@ public final class JdbcAuthorizedCommandExecutor implements AuthorizedCommandExe
             for (String field : fields) {
                 assignments.add(dialect.quoteIdentifier(meta.resolveColumn(field)) + " = ?");
                 args.add(target.values.get(field));
+            }
+            if (meta.resolveFieldMeta("version") != null) {
+                String versionColumn = dialect.quoteIdentifier(meta.resolveColumn("version"));
+                assignments.add(versionColumn + " = " + versionColumn + " + 1");
             }
             sql = "update " + dialect.quoteIdentifier(meta.getTable()) + " set "
                 + String.join(",", assignments) + " where " + where;

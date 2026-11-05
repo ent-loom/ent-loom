@@ -172,7 +172,7 @@ class BusinessAuthorizationServiceTest {
     }
 
     @Test
-    void 返回缺省开放普通字段但不开放关系和其他用途() {
+    void 返回缺省开放普通字段并推导筛选排序但不开放关系写入统计和展开() {
         AuthorizationFields defaults = AuthorizationFields.of(Collections.emptyMap());
         AuthorizationFields fields = service((visitor, operation, rule, target) ->
             BusinessPermissionDecision.allow(AuthorizationScope.all(), defaults))
@@ -183,15 +183,21 @@ class BusinessAuthorizationServiceTest {
         assertFalse(fields.allows(AuthorizationFields.Use.FILTER, "readonly"));
         assertFalse(fields.allows(AuthorizationFields.Use.RETURN, "relation"));
         assertFalse(fields.allows(AuthorizationFields.Use.WRITE, "status"));
-        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "status"));
+        assertTrue(fields.allows(AuthorizationFields.Use.SORT, "status"));
+        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "readonly"));
+        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "relation"));
+        assertFalse(fields.allows(AuthorizationFields.Use.STATS, "status"));
+        assertFalse(fields.allows(AuthorizationFields.Use.EXPAND, "relation"));
         AuthorizationFields disabled = AuthorizationFields.of(Collections.singletonMap(
             AuthorizationFields.Use.RETURN, Collections.emptyList()));
         assertFalse(disabled.intersect(fields).allows(AuthorizationFields.Use.RETURN, "status"));
+        assertFalse(disabled.intersect(fields).allows(AuthorizationFields.Use.SORT, "status"));
         assertFalse(AuthorizationFields.none().intersect(fields).allows(AuthorizationFields.Use.RETURN, "status"));
+        assertFalse(AuthorizationFields.none().intersect(fields).allows(AuthorizationFields.Use.SORT, "status"));
     }
 
     @Test
-    void 缺省筛选复用返回字段并受实体元数据约束() {
+    void 缺省筛选排序复用返回字段并受实体元数据约束() {
         AuthorizationFields declared = AuthorizationFields.of(Collections.singletonMap(
             AuthorizationFields.Use.RETURN, Arrays.asList("status", "readonly", "relation", "unknown")));
         AuthorizationFields fields = service((visitor, operation, rule, target) ->
@@ -199,7 +205,41 @@ class BusinessAuthorizationServiceTest {
             .authorize(request(teacher(), VIEW, null)).getFields();
         assertEquals(Collections.singleton("status"), fields.snapshot().get(AuthorizationFields.Use.FILTER));
         assertFalse(fields.allows(AuthorizationFields.Use.WRITE, "status"));
-        assertFalse(fields.allows(AuthorizationFields.Use.SORT, "status"));
+        assertEquals(Collections.singleton("status"), fields.snapshot().get(AuthorizationFields.Use.SORT));
+        AuthorizationFields hidden = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.singletonList("readonly")));
+        assertFalse(hidden.intersect(fields).allows(AuthorizationFields.Use.SORT, "status"));
+        assertFalse(fields.intersect(hidden).allows(AuthorizationFields.Use.SORT, "status"));
+    }
+
+    @Test
+    void 显式排序覆盖返回缺省且元数据收窄或关闭后不会重新开放() {
+        Map<AuthorizationFields.Use, java.util.Collection<String>> declared =
+            new EnumMap<AuthorizationFields.Use, java.util.Collection<String>>(AuthorizationFields.Use.class);
+        declared.put(AuthorizationFields.Use.RETURN, Collections.singletonList("readonly"));
+        declared.put(AuthorizationFields.Use.SORT, Collections.singletonList("status"));
+        AuthorizationFields explicit = AuthorizationFields.of(declared);
+        AuthorizationFields effective = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), explicit))
+            .authorize(request(teacher(), VIEW, null)).getFields();
+        assertTrue(effective.allows(AuthorizationFields.Use.SORT, "status"));
+        assertFalse(effective.allows(AuthorizationFields.Use.RETURN, "status"));
+
+        declared.put(AuthorizationFields.Use.RETURN, Collections.singletonList("status"));
+        declared.put(AuthorizationFields.Use.SORT, Collections.singletonList("readonly"));
+        AuthorizationFields narrowed = service((visitor, operation, rule, target) ->
+            BusinessPermissionDecision.allow(AuthorizationScope.all(), AuthorizationFields.of(declared)))
+            .authorize(request(teacher(), VIEW, null)).getFields();
+        assertTrue(narrowed.snapshot().get(AuthorizationFields.Use.SORT).isEmpty());
+        assertTrue(AuthorizationFields.of(narrowed.snapshot()).snapshot().get(AuthorizationFields.Use.SORT).isEmpty());
+
+        declared.put(AuthorizationFields.Use.SORT, Collections.emptyList());
+        AuthorizationFields disabled = AuthorizationFields.of(declared);
+        AuthorizationFields defaults = AuthorizationFields.of(Collections.singletonMap(
+            AuthorizationFields.Use.RETURN, Collections.singletonList("status")));
+        assertFalse(defaults.intersect(disabled).allows(AuthorizationFields.Use.SORT, "status"));
+        assertFalse(disabled.intersect(defaults).allows(AuthorizationFields.Use.SORT, "status"));
+        assertTrue(defaults.intersect(disabled).allows(AuthorizationFields.Use.RETURN, "status"));
     }
 
     @Test

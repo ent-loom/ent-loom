@@ -1,6 +1,5 @@
 import com.entloom.meta.annotations.EntField;
 import com.entloom.meta.annotations.EntEntity;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.meta.EntMetaDateTime;
 import com.entloom.meta.annotations.meta.EntMetaEnum;
 import com.entloom.meta.annotations.meta.EntMetaFlag;
@@ -23,7 +22,7 @@ import java.time.LocalDateTime;
         description = "平台账号基础信息",
         plannedVolume = 300000
 )
-@EntIndex(name = "uk_account_mobile", fields = {"mobile"}, unique = true)
+
 public class DemoEntAccount {
 
     @EntField

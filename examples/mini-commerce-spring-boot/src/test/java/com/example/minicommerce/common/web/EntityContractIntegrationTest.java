@@ -8,7 +8,6 @@ import com.example.minicommerce.customer.entity.Customer;
 import com.example.minicommerce.customer.entity.CustomerAddress;
 import com.example.minicommerce.merchant.entity.MerchantArticle;
 import com.example.minicommerce.merchant.entity.MerchantProduct;
-import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.jayway.jsonpath.JsonPath;
@@ -44,7 +43,7 @@ class EntityContractIntegrationTest {
     @Test
     void 实体只从业务包注册且Http默认开放并遵循实体禁用配置() {
         assertEquals(Set.of(Customer.class, CustomerAddress.class, Order.class, OrderItem.class,
-                MerchantProduct.class, MerchantArticle.class, MerchantOrder.class),
+                MerchantProduct.class, MerchantArticle.class),
             entityMetaRegistry.getEntityMetas().stream().map(EntityMeta::getEntityType).collect(Collectors.toSet()));
         assertEquals(MerchantProduct.class, exposedEntities.resolveOrThrow("merchantProduct"));
         assertEquals(CustomerAddress.class, exposedEntities.resolveOrThrow("customerAddress"));
@@ -94,15 +93,18 @@ class EntityContractIntegrationTest {
     }
 
     @Test
-    void 文档注册商家商品和商家销售订单且不再暴露平台商品() throws Exception {
+    void 文档注册统一订单和明细关系() throws Exception {
         mvc.perform(get("/api/ent-doc/contract"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.entities[*].resourceCode",
                 org.hamcrest.Matchers.containsInAnyOrder("customer", "customerAddress", "order", "orderItem",
-                    "merchantProduct", "merchantArticle", "merchantOrder")))
+                    "merchantProduct", "merchantArticle")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'merchantProduct')].fields[*].property",
                 org.hamcrest.Matchers.containsInAnyOrder("id", "merchantId", "name", "price", "active", "version")))
+            .andExpect(jsonPath("$.entities[?(@.resourceCode == 'order')].fields[*].property",
+                org.hamcrest.Matchers.containsInAnyOrder("id", "customerId", "merchantId", "customer", "status",
+                    "totalAmount", "createdAt", "orderItemList")))
             .andExpect(jsonPath("$.entities[?(@.resourceCode == 'orderItem')].fields[*].property",
-                org.hamcrest.Matchers.hasItems("merchantOrderId", "merchantProductId", "merchantId", "productName", "unitPrice")));
+                org.hamcrest.Matchers.containsInAnyOrder("id", "orderId", "merchantProductId", "productName", "unitPrice", "quantity", "lineAmount")));
     }
 }

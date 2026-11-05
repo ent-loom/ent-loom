@@ -175,7 +175,10 @@ class E5EntityRuntimeStaticAcceptanceTest {
     }
 
     private static MetaDocAdapter docAdapter() {
-        MetaDocAdapter adapter = new MetaDocAdapter(new SnakeCaseDocMetaResolver(), ENTITY_CLASSES);
+        MetaDocAdapter adapter = new MetaDocAdapter(new SnakeCaseDocMetaResolver(), com.entloom.doc.core.spi.DocIndexProvider.noop(), ENTITY_CLASSES,
+            new ReflectiveEntMetaParser(), new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(),
+            new com.entloom.meta.adapter.doc.DocEntityDeclarations(com.entloom.declaration.EntityDeclarations.classpath()),
+            com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast());
         assertNoErrors("DOC Adapter", adapter.diagnostics());
         Assertions.assertEquals(1, adapter.models().size());
         return adapter;

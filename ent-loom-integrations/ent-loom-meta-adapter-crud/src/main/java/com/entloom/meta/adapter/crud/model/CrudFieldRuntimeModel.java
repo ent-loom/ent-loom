@@ -1,11 +1,13 @@
 package com.entloom.meta.adapter.crud.model;
 
 import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.enums.role.DateTimeRole;
 
 /**
  * CRUD 合并后的字段模型。
  */
 public final class CrudFieldRuntimeModel {
+    private final DateTimeRole dateTimeRole;
     private final String fieldName;
     private final Class<?> javaType;
     private final SourcedValue<String> columnName;
@@ -27,7 +29,7 @@ public final class CrudFieldRuntimeModel {
         SourcedValue<Boolean> nullable,
         boolean relation
     ) {
-        this(fieldName, javaType, columnName, nullable, relation, true, true, true, false, false, null, false, null);
+        this(fieldName, javaType, columnName, nullable, relation, true, true, true, false, false, null, false, null, DateTimeRole.UNSET);
     }
 
     public CrudFieldRuntimeModel(
@@ -43,7 +45,7 @@ public final class CrudFieldRuntimeModel {
         boolean immutable
     ) {
         this(fieldName, javaType, columnName, nullable, relation, filterable, sortable, writable,
-            scopeField, immutable, null, false, null);
+            scopeField, immutable, null, false, null, DateTimeRole.UNSET);
     }
 
     public CrudFieldRuntimeModel(
@@ -59,8 +61,10 @@ public final class CrudFieldRuntimeModel {
         boolean immutable,
         String label,
         boolean inputRequired,
-        Object createDefaultValue
+        Object createDefaultValue,
+        DateTimeRole dateTimeRole
     ) {
+        this.dateTimeRole = dateTimeRole == null ? DateTimeRole.UNSET : dateTimeRole;
         this.fieldName = fieldName;
         this.javaType = javaType;
         this.columnName = columnName;
@@ -74,6 +78,10 @@ public final class CrudFieldRuntimeModel {
         this.label = label;
         this.inputRequired = inputRequired;
         this.createDefaultValue = createDefaultValue;
+    }
+
+    public DateTimeRole dateTimeRole() {
+        return dateTimeRole;
     }
 
     public String fieldName() {

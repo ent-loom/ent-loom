@@ -8,7 +8,7 @@ import com.entloom.crud.core.runtime.meta.EntityFieldMeta;
 import com.entloom.crud.core.runtime.meta.EntityMeta;
 import com.entloom.crud.core.runtime.meta.ResourceDescriptor;
 import com.entloom.crud.core.capability.query.spec.QuerySpec;
-import java.util.Arrays;
+import com.entloom.meta.enums.role.DateTimeRole;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -18,6 +18,40 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class ConfigurableQueryDefaultSortResolverTest {
+    @Test
+    void 默认排序读取角色和主键元数据且冻结复制不会丢失语义() {
+        EntityFieldMeta timestamp = new EntityFieldMeta("recordedAt", java.time.Instant.class,
+            "recorded_at", false, false, true, true).withDateTimeRole(DateTimeRole.CREATED_TIME);
+        com.entloom.crud.core.runtime.model.CrudRuntimeFieldModel frozen =
+            com.entloom.crud.core.runtime.model.CrudRuntimeFieldModel.from(timestamp).withScopeField(true);
+        Assertions.assertEquals(DateTimeRole.CREATED_TIME, frozen.getDateTimeRole());
+        Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("recordKey", new EntityFieldMeta("recordKey", Long.class, "record_key", false, false, true, true));
+        fields.put("recordedAt", timestamp);
+        EntityMeta meta = new EntityMeta(TestEntity.class,
+            new ResourceDescriptor(TestEntity.class, "record", null, Collections.<String>emptyList()),
+            "record", "recordKey", null, fields);
+        List<QuerySort> sorts = defaultResolver().resolve(QuerySpec.builder().op(QueryOperation.PAGE).build(), meta);
+        assertSort(sorts.get(0), "recordedAt", SortDirection.DESC);
+        assertSort(sorts.get(1), "recordKey", SortDirection.DESC);
+    }
+
+    @Test
+    void 字段名称不能替代创建时间角色且不可排序的时间字段应回退主键() {
+        Map<String, EntityFieldMeta> fields = new LinkedHashMap<String, EntityFieldMeta>();
+        fields.put("id", new EntityFieldMeta("id", Long.class, "id", false, false, true, true));
+        fields.put("createTime", new EntityFieldMeta("createTime", java.time.Instant.class,
+            "create_time", false, false, true, true).withDateTimeRole(DateTimeRole.UPDATED_TIME));
+        fields.put("createdAt", new EntityFieldMeta("createdAt", java.time.Instant.class,
+            "created_at", false, false, true, false).withDateTimeRole(DateTimeRole.CREATED_TIME));
+        EntityMeta meta = new EntityMeta(TestEntity.class,
+            new ResourceDescriptor(TestEntity.class, "record", null, Collections.<String>emptyList()),
+            "record", "id", null, fields);
+        List<QuerySort> sorts = defaultResolver().resolve(QuerySpec.builder().op(QueryOperation.PAGE).build(), meta);
+        Assertions.assertEquals(1, sorts.size());
+        assertSort(sorts.get(0), "id", SortDirection.DESC);
+    }
+
     @Test
     void should_resolve_time_desc_and_id_desc_for_page_without_explicit_sort() {
         ConfigurableQueryDefaultSortResolver resolver = defaultResolver();
@@ -119,7 +153,6 @@ class ConfigurableQueryDefaultSortResolverTest {
         return new ConfigurableQueryDefaultSortResolver(
             enabled,
             applyTo,
-            Arrays.asList("createTime", "createdAt"),
             SortDirection.DESC,
             appendId,
             SortDirection.DESC,
@@ -130,7 +163,8 @@ class ConfigurableQueryDefaultSortResolverTest {
     private static EntityMeta metaWithFields(String... fields) {
         Map<String, EntityFieldMeta> metas = new LinkedHashMap<String, EntityFieldMeta>();
         for (String field : fields) {
-            metas.put(field, new EntityFieldMeta(field, String.class, columnName(field), true, false, true, true));
+            metas.put(field, new EntityFieldMeta(field, String.class, columnName(field), true, false, true, true)
+                .withDateTimeRole("createTime".equals(field) ? DateTimeRole.CREATED_TIME : DateTimeRole.UNSET));
         }
         return new EntityMeta(
             TestEntity.class,

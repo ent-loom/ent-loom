@@ -3,33 +3,45 @@ package com.entloom.crud.starter.web.access;
 import com.entloom.crud.annotations.EntAccess;
 import com.entloom.crud.api.access.AccessContext;
 import com.entloom.crud.api.access.AccessSubjectType;
+import com.entloom.crud.api.access.AuthenticationMode;
 import com.entloom.crud.core.exception.CrudException;
 import com.entloom.crud.core.exception.PermissionDeniedException;
 import com.entloom.crud.core.exception.ValidationException;
 import com.entloom.crud.core.governance.admission.AccessAdmission;
 import com.entloom.crud.core.governance.admission.AccessAdmissionService;
 import com.entloom.crud.core.governance.admission.AccessContextScope;
+import com.entloom.crud.core.governance.policy.EntityPolicyRegistry;
+import com.entloom.crud.starter.web.controller.EntCrudQueryController;
+import com.entloom.crud.starter.web.controller.EntCrudCommandController;
+import com.entloom.crud.starter.web.registry.ExposedEntityRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.context.request.async.CallableProcessingInterceptor;
 import org.springframework.web.context.request.async.WebAsyncUtils;
 
-/** 对实际 Handler 声明执行准入，与参数是否注入无关；不替代 Filter 认证或业务操作授权。 */
+/** 对实际 Handler 声明及已绑定策略的通用查询执行准入；不替代 Filter 认证或业务操作授权。 */
 public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor {
     private final AccessAdmissionService admissionService;
     private final AccessHttpErrorWriter errorWriter;
+    private final ExposedEntityRegistry exposedEntities;
+    private final EntityPolicyRegistry policies;
     private final AccessContextArgumentResolver argumentResolver = new AccessContextArgumentResolver();
 
-    public AccessAdmissionInterceptor(AccessAdmissionService admissionService, AccessHttpErrorWriter errorWriter) {
+    public AccessAdmissionInterceptor(AccessAdmissionService admissionService, AccessHttpErrorWriter errorWriter,
+        ExposedEntityRegistry exposedEntities, EntityPolicyRegistry policies) {
         this.admissionService = admissionService;
         this.errorWriter = errorWriter;
+        this.exposedEntities = exposedEntities;
+        this.policies = policies;
     }
 
     @Override
@@ -44,7 +56,8 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
             access = AnnotatedElementUtils.findMergedAnnotation(method.getBeanType(), EntAccess.class);
         }
         try {
-            if (access == null) {
+            boolean resourceCrud = access == null && requiresCrudAdmission(request, method);
+            if (access == null && !resourceCrud) {
                 for (MethodParameter parameter : method.getMethodParameters()) {
                     if (argumentResolver.supportsParameter(parameter)) {
                         throw new PermissionDeniedException("上下文接口必须声明 @EntAccess");
@@ -57,10 +70,13 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
                 throw new PermissionDeniedException("缺少 HTTP 可信认证适配器或 Filter 认证结果");
             }
             HttpAccessAuthentication authentication = state.authentication();
-            AccessAdmission admission = admissionService.admit(access.value(), authentication::getAuthentication,
+            AccessAdmission admission = admissionService.admit(access == null ? AuthenticationMode.REQUIRED : access.value(),
+                authentication::getAuthentication,
                 authentication.getAccessEntry(), authentication.getRequestId(), authentication.getTraceId());
-            requireIdentity(admission, access.identity());
-            requireTrustedSource(admission, access);
+            if (access != null) {
+                requireIdentity(admission, access.identity());
+                requireTrustedSource(admission, access);
+            }
             for (MethodParameter parameter : method.getMethodParameters()) {
                 if (argumentResolver.supportsParameter(parameter) && parameter.getParameterAnnotations().length > 0) {
                     throw new ValidationException("可信上下文参数不能声明请求绑定注解: " + method.getMethod());
@@ -77,6 +93,25 @@ public final class AccessAdmissionInterceptor implements AsyncHandlerInterceptor
             errorWriter.write(response, exception);
             return false;
         }
+    }
+
+    /** 按实际框架 Handler 和已暴露的路由实体判断，不按 URL 前缀或请求体声明授予准入。 */
+    private boolean requiresCrudAdmission(HttpServletRequest request, HandlerMethod method) {
+        boolean query = EntCrudQueryController.class.isAssignableFrom(method.getBeanType());
+        // 业务 ACTION 继续按已声明的场景准入合同执行。
+        boolean command = EntCrudCommandController.class.isAssignableFrom(method.getBeanType())
+            && !"action".equals(method.getMethod().getName());
+        if ((!query && !command)
+            || exposedEntities == null || policies == null) {
+            return false;
+        }
+        Object variables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+        Object entity = variables instanceof Map<?, ?> ? ((Map<?, ?>) variables).get("entity") : null;
+        if (!(entity instanceof String)) {
+            throw new ValidationException("通用 CRUD 缺少路由实体");
+        }
+        String resource = exposedEntities.canonicalCode((String) entity);
+        return policies.containsResource(resource);
     }
 
     @Override

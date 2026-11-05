@@ -53,6 +53,7 @@ public final class CrudHttpErrorMapper {
             case ROUTE_NOT_FOUND:
                 return HttpStatus.NOT_FOUND;
             case ROUTE_AMBIGUOUS:
+            case WRITE_CONFLICT:
             case QUERY_NOT_UNIQUE:
             case IDEMPOTENCY_IN_PROGRESS:
             case IDEMPOTENCY_PAYLOAD_CONFLICT:

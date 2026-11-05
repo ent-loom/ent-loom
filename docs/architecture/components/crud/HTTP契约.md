@@ -24,6 +24,14 @@ ent:
 
 Query、Command、Import、Export 还受各自的 `enabled` 开关控制。
 
+## 通用 CRUD 的可信准入
+
+内置 `list/page/findOne/detail` 和标准命令对已绑定业务访问策略的路由实体执行 REQUIRED 准入，无需业务 Controller 声明 `@EntAccess`。准入依据实际框架 Handler、暴露实体注册表和全局策略注册表，支持自定义基础路径及实体别名；请求体不能更换路由根实体，也不能提供可信身份。
+
+必须提供 `CrudHttpAuthenticationSource`，并由其认证结果和身份注册表构建本次访问者作用域。缺少认证来源、缺少或无效凭证均返回 403；实体未暴露仍返回对应暴露错误。准入只提供可信上下文，后续操作映射、身份分支、数据范围和字段能力仍由业务授权执行器判定。新授权查询和命令不调用旧 `CrudSubjectResolver`；未绑定策略的资源继续原治理。
+
+当前新授权查询支持根实体 `CrudRecord` 及父资源 `EXPAND` 显式授予的本地一级关联字段投影。先查授权根记录，再按连接键批量补数，内部连接字段不自动公开；实体/DTO、场景、多实体连接、嵌套及远程展开继续在 SQL 前拒绝。关联范围、字段与规模边界见[受授权关联读取](../../../guides/crud/受授权关联读取.md)。此准入覆盖内置查询及标准命令 Controller；业务 ACTION 保留场景准入，统计及导入导出不自动开放。受授权命令支持单目标 UPDATE/DELETE 以及显式映射的 UPDATE_BATCH；其余形状拒绝。详见[标准查询统一入口实施计划](../../../evolution/roadmap/crud/标准查询统一入口实施计划.md)。
+
 ## Query / Command / Stats
 
 下表路径均相对于默认 base path `/api/ent-crud`，`scene` 除 `ACTION` 外均可省略。
@@ -102,7 +110,7 @@ data / meta
 | 403 | `PERMISSION_DENIED`、`DATA_SCOPE_DENIED` |
 | 404 | `ENTITY_NOT_EXPOSED`、`ROUTE_NOT_FOUND` |
 | 405 | `METHOD_NOT_ALLOWED` |
-| 409 | `ROUTE_AMBIGUOUS`、`QUERY_NOT_UNIQUE`、幂等进行中或载荷冲突 |
+| 409 | `WRITE_CONFLICT`、`ROUTE_AMBIGUOUS`、`QUERY_NOT_UNIQUE`、幂等进行中或载荷冲突 |
 | 500 | 其他未显式映射错误 |
 
 合同回归由 Starter 的 JSON snapshot、错误映射矩阵和配置条件合同共同守护；成功与失败响应、错误

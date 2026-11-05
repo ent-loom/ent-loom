@@ -1,0 +1,13 @@
+ddl:
+  indexes:
+    - name: uk_customer_profile_display_name
+      fields: [displayName]
+      unique: true
+crud:
+  access: JAVA
+doc:
+  fields:
+    displayName:
+      example: 张三
+    creditLimit:
+      example: "1000.00"

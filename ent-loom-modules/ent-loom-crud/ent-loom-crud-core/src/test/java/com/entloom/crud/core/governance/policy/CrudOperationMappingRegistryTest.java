@@ -1,7 +1,5 @@
 package com.entloom.crud.core.governance.policy;
 
-import com.entloom.crud.annotations.EntCrudAction;
-import com.entloom.crud.annotations.EntCrudActions;
 import com.entloom.crud.api.access.BusinessOperation;
 import com.entloom.crud.api.enums.CommandOperation;
 import com.entloom.crud.api.enums.CrudOperationKey;
@@ -81,7 +79,7 @@ class CrudOperationMappingRegistryTest {
     }
 
     private static CrudOperationMappingRegistry registry(CrudOperationMapping... mappings) {
-        return new CrudOperationMappingRegistry(Collections.singletonList(entity()), catalog(), Arrays.asList(mappings));
+        return new CrudOperationMappingRegistry(Collections.singletonList(entity()), catalog(), Arrays.asList(mappings), new ScenePolicyRegistry(Collections.emptyList(), Collections.singletonMap("order", Collections.singleton("refund")), Collections.emptyMap()));
     }
 
     private static CrudOperationMapping mapping(com.entloom.crud.api.enums.CrudScopedOperation operation,
@@ -103,7 +101,6 @@ class CrudOperationMappingRegistryTest {
             "order", "id", null, Collections.emptyMap());
     }
 
-    @EntCrudActions({@EntCrudAction(value = "refund", name = "退款", capability = "refund")})
     private static final class OrderEntity {
     }
 }

@@ -8,7 +8,6 @@ import com.entloom.doc.core.model.DocFieldModel;
 import com.entloom.doc.core.spi.DocEntityMetaResolver;
 import com.entloom.meta.annotations.EntEntity;
 import com.entloom.meta.annotations.EntField;
-import com.entloom.meta.annotations.EntIndex;
 import com.entloom.meta.annotations.EntRelation;
 import com.entloom.meta.contract.diagnostic.MetaDiagnostic;
 import com.entloom.meta.contract.diagnostic.MetaDiagnosticCode;
@@ -26,8 +25,8 @@ class MetaDocAdapterP0AcceptanceTest {
     @Test
     void p0_doc_acceptance_should_cover_meta_only_doc_only_override_relations_and_indexes() {
         MetaDocAdapter adapter = new MetaDocAdapter(
-            new SimpleDocMetaResolver(),
-            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class, DocOnlyOrder.class, OverrideOrder.class, OverrideCustomer.class)
+            new SimpleDocMetaResolver(), declaredIndexes(),
+            Arrays.<Class<?>>asList(MetaOnlyOrder.class, MetaOnlyCustomer.class, DocOnlyOrder.class, OverrideOrder.class, OverrideCustomer.class), new com.entloom.meta.core.parser.ReflectiveEntMetaParser(), new com.entloom.meta.adapter.doc.merge.DocRuntimeModelMerger(), DocDeclarationFixtures.provider("MetaDocAdapterP0AcceptanceTest"), com.entloom.meta.contract.diagnostic.DefaultMetaDiagnosticPolicy.failFast()
         );
 
         Map<String, Object> metaDoc = adapter.buildOne(MetaOnlyOrder.class);
@@ -185,8 +184,18 @@ class MetaDocAdapterP0AcceptanceTest {
         return false;
     }
 
+    private static com.entloom.doc.core.spi.DocIndexProvider declaredIndexes() {
+        return table -> {
+            if (!"meta_only_order".equals(table)) return java.util.Collections.emptyList();
+            java.util.List<java.util.Map<String,Object>> indexes = new java.util.ArrayList<>();
+            indexes.add(java.util.Map.of("name", "idx_meta_order_customer", "fields", java.util.List.of("customerId"), "unique", false));
+            return indexes;
+        };
+    }
+
     @EntEntity(entity = "meta_only_order")
-    @EntIndex(name = "idx_meta_order_customer", fields = {"customerId"})
+
+    @EntDocEntity(name = "meta_only_order")
     private static final class MetaOnlyOrder {
         @EntField
         private Long id;
@@ -217,7 +226,7 @@ class MetaDocAdapterP0AcceptanceTest {
 
         @EntField
         @EntRelation(targetEntity = "override_customer", targetField = "idCode")
-        @EntDocField(name = "客户编号", targetField = "customerCode", targetEntityLabel = "客户")
+        @EntDocField(name = "客户编号", targetField = "customerCode")
         private Long customerId;
     }
 

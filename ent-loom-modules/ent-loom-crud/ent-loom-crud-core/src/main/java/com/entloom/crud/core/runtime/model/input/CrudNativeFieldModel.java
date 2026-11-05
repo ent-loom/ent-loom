@@ -1,11 +1,13 @@
 package com.entloom.crud.core.runtime.model.input;
 
 import com.entloom.meta.contract.value.SourcedValue;
+import com.entloom.meta.enums.role.DateTimeRole;
 
 /**
  * CRUD native 字段中间模型。
  */
 public final class CrudNativeFieldModel {
+    private final SourcedValue<DateTimeRole> dateTimeRole;
     private final String fieldName;
     private final Class<?> javaType;
     private final SourcedValue<String> columnName;
@@ -18,7 +20,7 @@ public final class CrudNativeFieldModel {
         SourcedValue<String> columnName,
         SourcedValue<Boolean> nullable
     ) {
-        this(fieldName, javaType, columnName, nullable, SourcedValue.inferred(Boolean.TRUE));
+        this(fieldName, javaType, columnName, nullable, SourcedValue.inferred(Boolean.TRUE), SourcedValue.defaulted(DateTimeRole.UNSET));
     }
 
     public CrudNativeFieldModel(
@@ -26,13 +28,19 @@ public final class CrudNativeFieldModel {
         Class<?> javaType,
         SourcedValue<String> columnName,
         SourcedValue<Boolean> nullable,
-        SourcedValue<Boolean> writable
+        SourcedValue<Boolean> writable,
+        SourcedValue<DateTimeRole> dateTimeRole
     ) {
+        this.dateTimeRole = dateTimeRole;
         this.fieldName = fieldName;
         this.javaType = javaType;
         this.columnName = columnName;
         this.nullable = nullable;
         this.writable = writable;
+    }
+
+    public SourcedValue<DateTimeRole> dateTimeRole() {
+        return dateTimeRole;
     }
 
     public String fieldName() {

@@ -80,9 +80,12 @@ public class CrudWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ExposedEntityRegistry exposedEntityRegistry(EntityMetaRegistry entityMetaRegistry) {
+    public ExposedEntityRegistry exposedEntityRegistry(EntityMetaRegistry entityMetaRegistry, CrudEntityDeclarations declarations) {
         ExposedEntityRegistry registry = new ExposedEntityRegistry(entityMetaRegistry);
-        entityMetaRegistry.getEntityMetas().forEach(meta -> registry.expose(meta.getEntityType()));
+        entityMetaRegistry.getEntityMetas().forEach(meta -> {
+            if (declarations.httpExposed(meta.getResourceDescriptor().getResourceCode())) registry.expose(meta.getEntityType());
+            else registry.register(meta.getEntityType());
+        });
         return registry;
     }
 
@@ -163,7 +166,6 @@ public class CrudWebAutoConfiguration {
             return ZoneId.of(CrudProperties.Controller.DEFAULT_TIMEZONE);
         }
     }
-
 
     @Bean
     @ConditionalOnMissingBean

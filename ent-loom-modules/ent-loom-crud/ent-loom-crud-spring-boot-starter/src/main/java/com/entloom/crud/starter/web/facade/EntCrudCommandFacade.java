@@ -9,6 +9,7 @@ import com.entloom.crud.api.model.SubjectContext;
 import com.entloom.crud.core.runtime.context.CrudInvocationContext;
 import com.entloom.crud.core.runtime.context.CrudRequestContextHolder;
 import com.entloom.crud.core.capability.command.gateway.CommandGateway;
+import com.entloom.crud.core.governance.admission.AccessContextScope;
 import com.entloom.crud.core.governance.subject.CrudSubjectResolver;
 import com.entloom.crud.core.capability.command.spec.CommandSpec;
 import com.entloom.crud.starter.web.assembler.CrudCommandSpecAssembler;
@@ -66,7 +67,7 @@ public class EntCrudCommandFacade {
         CrudCommandHttpRequest actualRequest = request == null ? new CrudCommandHttpRequest() : request;
         crudResponseBuilder.bind(commandSpecAssembler.resolveRequestId(actualRequest), CrudOperationKey.of(op));
         return withContext(context, () -> {
-            SubjectContext subject = subjectResolver.resolveOrThrow();
+            SubjectContext subject = AccessContextScope.isAuthorizationRequired() ? null : subjectResolver.resolveOrThrow();
             CommandSpec<Object> spec = commandSpecAssembler.assemble(
                 entity,
                 op,

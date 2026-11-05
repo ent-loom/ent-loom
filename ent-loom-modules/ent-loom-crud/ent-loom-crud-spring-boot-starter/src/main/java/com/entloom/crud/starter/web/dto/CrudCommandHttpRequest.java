@@ -2,6 +2,8 @@ package com.entloom.crud.starter.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.entloom.crud.starter.web.jackson.CrudCommandPayloadDeserializer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +23,7 @@ public class CrudCommandHttpRequest {
     /** 命令选项。 */
     private CrudCommandOptions options = new CrudCommandOptions();
     /** 业务载荷。 */
+    @JsonDeserialize(using = CrudCommandPayloadDeserializer.class)
     private Object payload;
     /** 未显式建模的顶层扩展字段。 */
     @Getter(AccessLevel.NONE)

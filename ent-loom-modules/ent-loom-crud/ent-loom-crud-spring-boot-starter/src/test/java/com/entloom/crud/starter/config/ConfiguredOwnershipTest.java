@@ -38,7 +38,7 @@ class ConfiguredOwnershipTest {
               field: customerId
             merchant:
               field: merchantId
-          entity-options:
+          entities:
             reference:
               ownership: []
             sale:
@@ -50,8 +50,8 @@ class ConfiguredOwnershipTest {
         runner(YAML).run(context -> {
             assertThat(context).hasNotFailed();
             var config = context.getBean(CrudAccessProperties.class);
-            assertThat(config.getEntityOptions()).doesNotContainKey("order");
-            assertThat(config.getEntityOptions().get("reference").getOwnership()).isEmpty();
+            assertThat(context.getBean(CrudEntityDeclarations.class).options()).doesNotContainKey("order");
+            assertThat(context.getBean(CrudEntityDeclarations.class).options().get("reference").getOwnership()).isEmpty();
             var metas = context.getBean(EntityMetaRegistry.class);
             var order = metas.getEntityMeta(Order.class);
             assertThat(order.resolveFieldMeta("customerId").isScopeField()).isTrue();
@@ -104,6 +104,7 @@ class ConfiguredOwnershipTest {
 
     private ApplicationContextRunner runner(String yaml) {
         return new ApplicationContextRunner().withUserConfiguration(OwnershipConfiguration.class)
+            .withBean(CrudEntityDeclarations.class, () -> new CrudEntityDeclarations(DeclarationTestFiles.load("ConfiguredOwnershipTest", yaml, null)))
             .withBean(ResourceCatalogAdapter.class, () -> {
                 var adapter = mock(ResourceCatalogAdapter.class);
                 when(adapter.runtimeModel()).thenReturn(CrudRuntimeModel.from(List.of(
@@ -112,7 +113,7 @@ class ConfiguredOwnershipTest {
                 return adapter;
             }).withInitializer(context -> {
                 try {
-                    new YamlPropertySourceLoader().load("归属配置", new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8)))
+                    new YamlPropertySourceLoader().load("归属配置", new ByteArrayResource(DeclarationTestFiles.properties(yaml).getBytes(StandardCharsets.UTF_8)))
                         .forEach(source -> context.getEnvironment().getPropertySources().addFirst(source));
                 } catch (java.io.IOException exception) {
                     throw new IllegalStateException(exception);
@@ -132,8 +133,8 @@ class ConfiguredOwnershipTest {
     @EnableConfigurationProperties(CrudAccessProperties.class)
     static class OwnershipConfiguration {
         @Bean
-        CrudOwnershipRules ownership(CrudAccessProperties properties) {
-            return new CrudCommonConfiguration().crudOwnershipRules(properties);
+        CrudOwnershipRules ownership(CrudAccessProperties properties, CrudEntityDeclarations declarations) {
+            return new CrudCommonConfiguration().crudOwnershipRules(properties, declarations);
         }
 
         @Bean

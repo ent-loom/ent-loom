@@ -1,0 +1,427 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ent-loom 实体声明",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "crud": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "enum": [
+            "JAVA"
+          ],
+          "description": "显式使用应用 Java 治理链，与 policy、fields、operations 互斥"
+        },
+        "policy": {
+          "type": "string",
+          "minLength": 1,
+          "description": "共享策略或 Java 策略模板码"
+        },
+        "operations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "LIST",
+                "PAGE",
+                "FIND_ONE",
+                "DETAIL",
+                "CREATE",
+                "UPDATE",
+                "DELETE",
+                "UPDATE_BATCH",
+                "SAVE_OR_UPDATE",
+                "CREATE_BATCH",
+                "DELETE_BATCH",
+                "SAVE_OR_UPDATE_BATCH"
+              ]
+            }
+          }
+        },
+        "relations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "ownership": {
+          "$ref": "#/$defs/fields"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "RETURN": {
+                "$ref": "#/$defs/fieldPlan"
+              },
+              "WRITE": {
+                "$ref": "#/$defs/fieldPlan"
+              },
+              "FILTER": {
+                "$ref": "#/$defs/fieldPlan"
+              },
+              "SORT": {
+                "$ref": "#/$defs/fieldPlan"
+              },
+              "STATS": {
+                "$ref": "#/$defs/fieldPlan"
+              },
+              "EXPAND": {
+                "$ref": "#/$defs/fieldPlan"
+              }
+            }
+          }
+        },
+        "contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "input-required-fields": {
+                  "$ref": "#/$defs/fields"
+                }
+              }
+            },
+            "update": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "forbidden-fields": {
+                  "$ref": "#/$defs/fields"
+                }
+              }
+            }
+          }
+        },
+        "http-exposed": {
+          "type": "boolean",
+          "default": true
+        },
+        "allowed-operations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "LIST",
+              "PAGE",
+              "FIND_ONE",
+              "DETAIL",
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "UPDATE_BATCH",
+              "SAVE_OR_UPDATE",
+              "CREATE_BATCH",
+              "DELETE_BATCH",
+              "SAVE_OR_UPDATE_BATCH"
+            ]
+          }
+        },
+        "actions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "entries": {
+                "type": "object",
+                "minProperties": 1,
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "capability": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^\\S(?:.*\\S)?$"
+                    },
+                    "portals": {
+                      "$ref": "#/$defs/fields"
+                    }
+                  },
+                  "required": [
+                    "capability"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "entries"
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "access"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "policy"
+                  ]
+                },
+                {
+                  "required": [
+                    "fields"
+                  ]
+                },
+                {
+                  "required": [
+                    "operations"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ddl": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "indexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "fields": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/fields"
+                  }
+                ],
+                "minItems": 1
+              },
+              "expression": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "unique": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "fields"
+                ],
+                "not": {
+                  "required": [
+                    "expression"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "expression"
+                ],
+                "not": {
+                  "required": [
+                    "fields"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "doc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "remark": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "visible-for": {
+          "$ref": "#/$defs/fields"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "group": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "remark": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "visible-for": {
+                "$ref": "#/$defs/fields"
+              },
+              "example": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "examples": {
+                "$ref": "#/$defs/fields"
+              },
+              "target-entity-label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation-remark": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^\\S(?:.*\\S)?$"
+      }
+    },
+    "fieldPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "INCLUDE",
+            "EXCLUDE",
+            "ALL",
+            "NONE"
+          ],
+          "default": "EXCLUDE"
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "INCLUDE"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "fields"
+            ],
+            "properties": {
+              "fields": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "ALL",
+                  "NONE"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 默认 DDL 引擎（E1 只编排建表路径）。
+ * 默认 DDL 引擎，编排建表、受控修改和显式全量同步。
  */
 public final class DefaultDdlEngine implements DdlEngine {
     private final MysqlCreateTableSqlBuilder createTableSqlBuilder;
@@ -45,17 +45,20 @@ public final class DefaultDdlEngine implements DdlEngine {
         List<String> generatedSql = new ArrayList<String>();
         List<String> executedSql = new ArrayList<String>();
         List<String> errors = new ArrayList<String>();
+        List<String> warnings = new ArrayList<String>();
 
         if (request.mode() != DdlExecutionMode.CREATE_TABLE
                 && request.mode() != DdlExecutionMode.CREATE_TABLE_AND_METAS
-                && request.mode() != DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS) {
-            errors.add("E3 不支持执行模式: " + request.mode());
+                && request.mode() != DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS
+                && request.mode() != DdlExecutionMode.CREATE_MODIFY_DELETE_ALL) {
+            errors.add("不支持执行模式: " + request.mode());
             return new DdlExecutionResult(generatedSql, executedSql, errors);
         }
 
-        boolean modifyMode = request.mode() == DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS;
+        boolean synchronizeAll = request.mode() == DdlExecutionMode.CREATE_MODIFY_DELETE_ALL;
+        boolean modifyMode = request.mode() == DdlExecutionMode.CREATE_MODIFY_TABLE_AND_METAS || synchronizeAll;
         if (modifyMode && queryStrategy == null) {
-            errors.add("E3 修改模式需要 QueryStrategy.readTable 提供当前表结构");
+            errors.add("修改模式需要 QueryStrategy.readTable 提供当前表结构");
             return new DdlExecutionResult(generatedSql, executedSql, errors);
         }
 
@@ -77,7 +80,7 @@ public final class DefaultDdlEngine implements DdlEngine {
                     if (!current.exists()) {
                         generatedSql.add(createSql);
                     } else {
-                        appendModifySql(entity, schema, current, generatedSql, errors);
+                        appendModifySql(entity, schema, current, generatedSql, errors, warnings, synchronizeAll);
                     }
                 } else {
                     boolean tableExists = queryStrategy != null && queryStrategy.tableExists(schema, entity.tableName());
@@ -107,18 +110,30 @@ public final class DefaultDdlEngine implements DdlEngine {
                 }
             }
         }
-        return new DdlExecutionResult(generatedSql, executedSql, errors);
+        return new DdlExecutionResult(generatedSql, executedSql, errors, warnings);
     }
 
     private void appendModifySql(DdlEntityMetadata entity,
                                  String schema,
                                  DdlTableSnapshot current,
                                  List<String> generatedSql,
-                                 List<String> errors) {
-        DdlSchemaDiff diff = schemaDiffer.diff(entity, current);
+                                 List<String> errors,
+                                 List<String> warnings,
+                                 boolean synchronizeAll) {
+        DdlSchemaDiff diff = schemaDiffer.diff(entity, current, synchronizeAll);
+        for (String warning : diff.warnings()) {
+            warnings.add("表 " + entity.tableName() + ": " + warning);
+        }
         if (!diff.errors().isEmpty()) {
             for (String error : diff.errors()) {
                 errors.add("表 " + entity.tableName() + " 差异校验失败: " + error);
+            }
+            return;
+        }
+        if (synchronizeAll) {
+            String sql = alterTableSqlBuilder.buildSynchronize(entity, schema, current, diff);
+            if (!sql.isEmpty()) {
+                generatedSql.add(sql);
             }
             return;
         }

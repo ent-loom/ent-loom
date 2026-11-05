@@ -13,7 +13,6 @@ import com.example.minicommerce.order.dao.OrderItemDao;
 import com.example.minicommerce.order.dto.PlaceOrderCommand;
 import com.example.minicommerce.order.dto.PlaceOrderItem;
 import com.example.minicommerce.order.dto.PlaceOrderResult;
-import com.example.minicommerce.order.entity.MerchantOrder;
 import com.example.minicommerce.order.entity.Order;
 import com.example.minicommerce.order.entity.OrderItem;
 import com.example.minicommerce.order.enums.OrderError;
@@ -41,7 +40,6 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
     private final EntityDao<Customer, Long> customerDao;
     private final EntityDao<MerchantProduct, Long> merchantProductDao;
     private final EntityDao<Order, Long> orderDao;
-    private final EntityDao<MerchantOrder, Long> merchantOrderDao;
     private final OrderItemDao orderItemDao;
 
     @Override
@@ -61,34 +59,26 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
             itemsByMerchant.computeIfAbsent(product.getMerchantId(), ignored -> new ArrayList<>()).add(item);
         }
 
-        BigDecimal totalAmount = itemsByMerchant.values().stream().flatMap(List::stream)
-            .map(OrderItem::getLineAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        Order checkout = new Order();
-        checkout.setCustomerId(customer.getId());
-        checkout.setStatus(OrderStatus.CREATED);
-        checkout.setTotalAmount(totalAmount);
-        checkout.setCreatedAt(LocalDateTime.now());
-        Long checkoutId = orderDao.insert(checkout);
-
-        List<Long> merchantOrderIds = new ArrayList<>();
+        LocalDateTime createdAt = LocalDateTime.now();
+        List<Long> orderIds = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
         for (Map.Entry<Long, List<OrderItem>> entry : itemsByMerchant.entrySet()) {
-            MerchantOrder merchantOrder = new MerchantOrder();
-            merchantOrder.setOrderId(checkoutId);
-            merchantOrder.setCustomerId(customer.getId());
-            merchantOrder.setMerchantId(entry.getKey());
-            merchantOrder.setStatus(OrderStatus.CREATED);
-            merchantOrder.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
+            Order order = new Order();
+            order.setCustomerId(customer.getId());
+            order.setMerchantId(entry.getKey());
+            order.setStatus(OrderStatus.CREATED);
+            order.setTotalAmount(entry.getValue().stream().map(OrderItem::getLineAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
-            merchantOrder.setCreatedAt(checkout.getCreatedAt());
-            Long merchantOrderId = merchantOrderDao.insert(merchantOrder);
-            merchantOrderIds.add(merchantOrderId);
+            order.setCreatedAt(createdAt);
+            Long orderId = orderDao.insert(order);
+            orderIds.add(orderId);
+            totalAmount = totalAmount.add(order.getTotalAmount());
             for (OrderItem item : entry.getValue()) {
-                item.setOrderId(checkoutId);
-                item.setMerchantOrderId(merchantOrderId);
+                item.setOrderId(orderId);
             }
             orderItemDao.insertAll(entry.getValue());
         }
-        return CommandResult.success(new PlaceOrderResult(checkoutId, merchantOrderIds, totalAmount));
+        return CommandResult.success(new PlaceOrderResult(orderIds, totalAmount));
     }
 
     private void validateCommand(PlaceOrderCommand command) {
@@ -140,7 +130,6 @@ public class PlaceOrderHandler implements CommandActionSceneHandler<PlaceOrderCo
         BigDecimal lineAmount = product.getPrice().multiply(BigDecimal.valueOf(requestItem.quantity()));
         OrderItem item = new OrderItem();
         item.setMerchantProductId(product.getId());
-        item.setMerchantId(product.getMerchantId());
         item.setProductName(product.getName());
         item.setUnitPrice(product.getPrice());
         item.setQuantity(requestItem.quantity());
